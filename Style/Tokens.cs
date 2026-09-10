@@ -104,11 +104,37 @@ internal static class Tokens
         public static readonly uint GoldSwitchTrack = Rgb(0x4B421F);
 
         /// <summary>
-        /// The window edge, which runs lighter at the top than down the sides. The bottom
-        /// value is MEASURED; the top is derived, since it could not be read off directly.
+        /// The window edge, MEASURED pixel by pixel off the game's own frame: four rings,
+        /// listed outermost first. The top edge carries the highlight (that near-white second
+        /// pixel is what makes the frame read as lit from above); the sides are their own
+        /// sequence, and the bottom runs the side sequence reversed, so the light stays up top.
         /// </summary>
-        public static readonly uint WindowEdgeTop = Rgb(0xA08652);
-        public static readonly uint WindowEdgeBottom = Rgb(0x6E582E);
+        public static readonly uint[] EdgeTop =
+        {
+            Rgb(0x4C443E), Rgb(0xCFD0AD), Rgb(0x674F22), Rgb(0x0F0000),
+        };
+
+        public static readonly uint[] EdgeSide =
+        {
+            Rgb(0x3D2F2D), Rgb(0x856C49), Rgb(0x6E582E), Rgb(0x200B06),
+        };
+
+        public static readonly uint[] EdgeBottom =
+        {
+            Rgb(0x200B06), Rgb(0x6E582E), Rgb(0x856C49), Rgb(0x3D2F2D),
+        };
+
+        /// <summary>The lit top of the title bar, MEASURED. It fades down into <see cref="TitleBar"/>.</summary>
+        public static readonly uint TitleBarTop = Rgb(0x454445);
+
+        /// <summary>
+        /// The three-pixel rule under the title bar, MEASURED top to bottom: a dark line, the
+        /// surface colour, then a light line. It fades out towards the corners.
+        /// </summary>
+        public static readonly uint[] TitleRule =
+        {
+            Rgb(0x0D0D0D), Rgb(0x232223), Rgb(0x454445),
+        };
 
         // --- slider ---
         // FFXIV fills its own sliders green rather than in the gold it uses for ticks and
@@ -130,20 +156,6 @@ internal static class Tokens
         public static uint Faded(uint colour, float alpha) =>
             (colour & 0x00FFFFFFu) | ((uint)MathF.Round(Math.Clamp(alpha, 0f, 1f) * 255f) << 24);
 
-        /// <summary>Blends two packed colours. Used to run a gradient along the window edge.</summary>
-        public static uint Mix(uint from, uint to, float t)
-        {
-            t = Math.Clamp(t, 0f, 1f);
-            uint result = 0;
-            for (int shift = 0; shift < 32; shift += 8)
-            {
-                float a = (from >> shift) & 0xFFu;
-                float b = (to >> shift) & 0xFFu;
-                result |= (uint)MathF.Round(a + ((b - a) * t)) << shift;
-            }
-
-            return result;
-        }
     }
 
     /// <summary>The spacing ladder. No free in-between values.</summary>
@@ -159,7 +171,12 @@ internal static class Tokens
     /// <summary>A small, fixed set of radii — not invented per widget.</summary>
     public static class Radius
     {
-        public static float Window => Px(6f);
+        /// <summary>
+        /// Square. The game's frame is four rings of measured pixels with a different sequence
+        /// per edge, and that cannot be bent around a corner — nor does the game bend it.
+        /// </summary>
+        public static float Window => 0f;
+
         public static float Control => Px(3f);
         public static float Small => Px(2f);
     }
@@ -189,8 +206,14 @@ internal static class Tokens
         public static float WindowWidth => Px(920f);
         public static float WindowHeight => Px(640f);
 
-        /// <summary>The window edge. Two pixels, to sit at the weight FFXIV's own frames have.</summary>
-        public static float WindowBorder => Line(2f);
+        /// <summary>The window edge: four rings, as measured off the game's own frame.</summary>
+        public static float WindowBorder => Line(4f);
+
+        /// <summary>The rule under the title bar. Three pixels, each its own colour.</summary>
+        public static float TitleRuleHeight => Line(3f);
+
+        /// <summary>How far the title rule fades out before it reaches the corners.</summary>
+        public static float TitleRuleFade => Px(28f);
 
         public static float TitleBarHeight => Px(42f);
         public static float TitleButton => Px(20f);

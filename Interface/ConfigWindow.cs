@@ -13,13 +13,13 @@ namespace WispUI.Interface;
 
 /// <summary>
 /// The settings window: title bar, navigation tree, module header, tabs, footer.
-/// The screens themselves are still empty — this is the frame they will hang in.
+/// The screens themselves are mostly empty — this is the frame they will hang in.
 /// <para>
-/// The gold window edge is the topmost layer, so a scrollbar or a pinned header can
-/// never sit on top of it. That is enforced by geometry rather than by draw order:
-/// everything inside is inset by the border width, so those pixels belong to the edge
-/// alone. Child windows carry their own draw lists and would otherwise paint over a
-/// border drawn "last" by the parent.
+/// The window frame is the topmost layer, so a scrollbar or a pinned header can never sit
+/// on top of it. That is enforced by geometry rather than by draw order: everything inside
+/// is inset by the frame width, so those pixels belong to the frame alone. Child windows
+/// carry their own draw lists and would otherwise paint over a border drawn "last" by the
+/// parent.
 /// </para>
 /// </summary>
 internal sealed class ConfigWindow : Window
@@ -36,9 +36,6 @@ internal sealed class ConfigWindow : Window
     private const string IdFooterClose = "##wisp-footer-close";
 
     private const uint Transparent = 0x00000000u;
-
-    /// <summary>How many horizontal slices the window edge gradient is drawn in.</summary>
-    private const int EdgeBands = 16;
 
     /// <summary>Tab hit boxes only need to be unique while their screen is on show.</summary>
     private static readonly string[] TabIds = { "##wisp-tab0", "##wisp-tab1", "##wisp-tab2" };
@@ -156,9 +153,7 @@ internal sealed class ConfigWindow : Window
         float bodyTop = top + titleHeight;
         float bodyBottom = bottom - footerHeight;
 
-        // Rounded a touch tighter than the frame, by exactly the border width, so the panel
-        // sits inside the curve instead of peeking around it.
-        dl.AddRectFilled(new Vector2(left, top), new Vector2(right, bottom), Tokens.Col.Panel, Tokens.Radius.Window - border);
+        dl.AddRectFilled(new Vector2(left, top), new Vector2(right, bottom), Tokens.Col.Panel);
 
         this.DrawTitleBar(dl, left, right, top, titleHeight);
         this.DrawNav(dl, left, bodyTop, bodyBottom);
@@ -167,7 +162,7 @@ internal sealed class ConfigWindow : Window
 
         if (this.IsFocused)
         {
-            DrawWindowEdge(dl, origin, size, border);
+            DrawWindowEdge(dl, origin, size);
         }
     }
 
@@ -180,37 +175,35 @@ internal sealed class ConfigWindow : Window
     }
 
     /// <summary>
-    /// The warm gold edge, drawn over the inset nothing else may use, and only while the
-    /// window has focus — the game drops its own frames when a window goes to the back.
+    /// The window frame, rebuilt ring by ring from the pixels measured off the game's own:
+    /// four rings deep, with a different colour sequence on the top edge, the sides and the
+    /// bottom. Drawn only while the window has focus — the game drops its frames when a
+    /// window goes to the back.
     /// <para>
-    /// It runs lighter at the top than down the sides. ImGui cannot put a gradient on a
-    /// rounded rectangle, so the frame is drawn once per horizontal band, clipped to that
-    /// band, in the colour the gradient has reached there. A handful of rectangles a frame,
-    /// and the rounded corners come out right.
+    /// The top and bottom rings run the full width and the side rings fill in between them,
+    /// so each corner takes the colour of the horizontal edge. That is a simplification: the
+    /// game draws its corners as artwork, which a rectangle cannot reproduce.
     /// </para>
     /// </summary>
-    private static void DrawWindowEdge(ImDrawListPtr dl, Vector2 origin, Vector2 size, float border)
+    private static void DrawWindowEdge(ImDrawListPtr dl, Vector2 origin, Vector2 size)
     {
-        float half = border * 0.5f;
-        Vector2 min = new(origin.X + half, origin.Y + half);
-        Vector2 max = new(origin.X + size.X - half, origin.Y + size.Y - half);
-        float bandHeight = size.Y / EdgeBands;
+        float ring = Tokens.Line(1f);
+        int rings = Tokens.Col.EdgeTop.Length;
 
-        for (int i = 0; i < EdgeBands; i++)
+        for (int i = 0; i < rings; i++)
         {
-            float t = (i + 0.5f) / EdgeBands;
-            dl.PushClipRect(
-                new Vector2(origin.X, origin.Y + (i * bandHeight)),
-                new Vector2(origin.X + size.X, origin.Y + ((i + 1) * bandHeight)),
-                true);
-            dl.AddRect(
-                min,
-                max,
-                Tokens.Col.Mix(Tokens.Col.WindowEdgeTop, Tokens.Col.WindowEdgeBottom, t),
-                Tokens.Radius.Window,
-                ImDrawFlags.RoundCornersAll,
-                border);
-            dl.PopClipRect();
+            float inset = i * ring;
+            float left = origin.X + inset;
+            float right = origin.X + size.X - inset;
+            float top = origin.Y + inset;
+            float bottom = origin.Y + size.Y - inset;
+
+            dl.AddRectFilled(new Vector2(left, top), new Vector2(right, top + ring), Tokens.Col.EdgeTop[i]);
+            dl.AddRectFilled(new Vector2(left, bottom - ring), new Vector2(right, bottom), Tokens.Col.EdgeBottom[i]);
+
+            uint side = Tokens.Col.EdgeSide[i];
+            dl.AddRectFilled(new Vector2(left, top + ring), new Vector2(left + ring, bottom - ring), side);
+            dl.AddRectFilled(new Vector2(right - ring, top + ring), new Vector2(right, bottom - ring), side);
         }
     }
 
@@ -232,15 +225,23 @@ internal sealed class ConfigWindow : Window
     {
         Vector2 min = new(left, top);
         Vector2 max = new(right, top + height);
-        // Flat, not a gradient: the game's own title bar is the same colour as its body,
-        // and the only thing that marks it off is the line underneath.
-        dl.AddRectFilled(
-            min,
-            max,
-            Tokens.Col.TitleBar,
-            Tokens.Radius.Window - Tokens.Metric.WindowBorder,
-            ImDrawFlags.RoundCornersTop);
-        Chrome.Hairline(dl, left, right, max.Y - Tokens.Line(1f), Tokens.Col.EdgeDim);
+        // Lit at the very top and fading down into the surface colour, as measured.
+        Chrome.VerticalFill(dl, min, max, Tokens.Col.TitleBarTop, Tokens.Col.TitleBar);
+
+        // The three-pixel rule that closes the title bar: dark, surface, light. It fades out
+        // towards the corners rather than running into the frame.
+        float ruleY = max.Y - Tokens.Metric.TitleRuleHeight;
+        float step = Tokens.Line(1f);
+        for (int i = 0; i < Tokens.Col.TitleRule.Length; i++)
+        {
+            Chrome.FadingHairline(
+                dl,
+                left,
+                right,
+                ruleY + (i * step),
+                Tokens.Col.TitleRule[i],
+                Tokens.Metric.TitleRuleFade);
+        }
 
         float x = left + Tokens.Metric.SectionPaddingX;
         Ink.Draw(dl, Ink.Role.Title, new Vector2(x, Chrome.CenterY(top, height, Ink.Role.Title)), Tokens.Col.Ink, Strings.WindowTitle);
@@ -551,12 +552,7 @@ internal sealed class ConfigWindow : Window
     {
         Vector2 min = new(left, top);
         Vector2 max = new(right, top + height);
-        dl.AddRectFilled(
-            min,
-            max,
-            Tokens.Col.Footer,
-            Tokens.Radius.Window - Tokens.Metric.WindowBorder,
-            ImDrawFlags.RoundCornersBottom);
+        dl.AddRectFilled(min, max, Tokens.Col.Footer);
         Chrome.Hairline(dl, left, right, top, Tokens.Col.EdgeDim);
 
         float y = MathF.Round(top + ((height - Tokens.Metric.ButtonHeight) * 0.5f));

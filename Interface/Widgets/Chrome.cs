@@ -66,6 +66,42 @@ internal static class Chrome
     public static void Hairline(ImDrawListPtr dl, float x0, float x1, float y, uint colour) =>
         dl.AddRectFilled(new Vector2(x0, y), new Vector2(x1, y + Tokens.Line(1f)), colour);
 
+    /// <summary>
+    /// A one-pixel rule that fades to nothing at both ends instead of butting into the frame,
+    /// the way the game's own dividers run out towards the corners.
+    /// </summary>
+    public static void FadingHairline(ImDrawListPtr dl, float x0, float x1, float y, uint colour, float fade)
+    {
+        float thickness = Tokens.Line(1f);
+        float width = x1 - x0;
+        if (width <= 0f)
+        {
+            return;
+        }
+
+        // Two fades cannot take more than the line has to give.
+        fade = MathF.Min(fade, width * 0.5f);
+        uint clear = Tokens.Col.Faded(colour, 0f);
+
+        dl.AddRectFilledMultiColor(
+            new Vector2(x0, y),
+            new Vector2(x0 + fade, y + thickness),
+            clear,
+            colour,
+            colour,
+            clear);
+
+        dl.AddRectFilled(new Vector2(x0 + fade, y), new Vector2(x1 - fade, y + thickness), colour);
+
+        dl.AddRectFilledMultiColor(
+            new Vector2(x1 - fade, y),
+            new Vector2(x1, y + thickness),
+            colour,
+            clear,
+            clear,
+            colour);
+    }
+
     /// <summary>Shows a tooltip while the last item is hovered. Used to say why something is off.</summary>
     public static void TooltipOnHover(string text)
     {
