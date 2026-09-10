@@ -511,7 +511,7 @@ internal static class Chrome
         Vector2 trackMax = new(x + width, trackTop + trackHeight);
         float trackRadius = trackHeight * 0.5f;
 
-        dl.AddRectFilled(trackMin, trackMax, Tokens.Col.Input, trackRadius);
+        dl.AddRectFilled(trackMin, trackMax, Tokens.Col.SliderTrackBg, trackRadius);
         if (fraction > 0f)
         {
             dl.PushClipRect(trackMin, new Vector2(grabCenterX, trackMax.Y), true);

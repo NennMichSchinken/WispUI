@@ -41,10 +41,10 @@ internal static class Fonts
         Dispose();
 
         IFontAtlas atlas = Services.PluginInterface.UiBuilder.FontAtlas;
-        s_screenTitle = atlas.NewGameFontHandle(Style(Tokens.FontRole.ScreenTitle));
-        s_title = atlas.NewGameFontHandle(Style(Tokens.FontRole.Title));
-        s_body = atlas.NewGameFontHandle(Style(Tokens.FontRole.Body));
-        s_small = atlas.NewGameFontHandle(Style(Tokens.FontRole.Small));
+        s_screenTitle = atlas.NewGameFontHandle(Style(Tokens.FontRole.ScreenTitle, Tokens.FontRole.ScreenTitlePx));
+        s_title = atlas.NewGameFontHandle(Style(Tokens.FontRole.Title, Tokens.FontRole.TitlePx));
+        s_body = atlas.NewGameFontHandle(Style(Tokens.FontRole.Body, Tokens.FontRole.BodyPx));
+        s_small = atlas.NewGameFontHandle(Style(Tokens.FontRole.Small, Tokens.FontRole.SmallPx));
     }
 
     /// <summary>
@@ -53,12 +53,18 @@ internal static class Fonts
     /// as sharp as the game's own. Any other scale has to resample — that is unavoidable
     /// with a bitmap face, and it is the honest cost of the slider.
     /// </summary>
-    private static GameFontStyle Style(GameFontFamilyAndSize familyAndSize)
+    private static GameFontStyle Style(GameFontFamilyAndSize familyAndSize, float targetPx)
     {
         GameFontStyle style = new(familyAndSize);
-        if (Tokens.Scale != 1f)
+
+        // A role either takes the step's own size — the sharp case — or asks for a size of
+        // its own, which costs a resample. Either way the interface scale applies on top.
+        float wanted = targetPx > Tokens.FontRole.Native ? targetPx : style.SizePx;
+        float scaled = Tokens.Scale == 1f ? wanted : MathF.Round(wanted * Tokens.Scale);
+
+        if (scaled != style.SizePx)
         {
-            style.SizePx = MathF.Round(style.SizePx * Tokens.Scale);
+            style.SizePx = scaled;
         }
 
         return style;

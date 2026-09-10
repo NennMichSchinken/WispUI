@@ -138,6 +138,9 @@ internal static class Tokens
         // FFXIV fills its own sliders green rather than in the gold it uses for ticks and
         // arrows, and WispUI follows that. These greens are read by eye from the game and
         // are the first values to correct if they sit wrong next to it.
+        /// <summary>The unfilled part of a slider — darker than a text field, so the fill reads clearly.</summary>
+        public static readonly uint SliderTrackBg = Rgb(0x131213);
+
         public static readonly uint SliderFill = Rgb(0x7FA84A);
         public static readonly uint SliderFillHi = Rgb(0x9DC85F);
         public static readonly uint SliderGrab = Rgb(0xE4E7EA);
@@ -193,17 +196,29 @@ internal static class Tokens
         //
         // Asking for "14 pixels" therefore picked Axis12 and shrank it, which came out both
         // smaller and softer than the game's own text. Naming the step avoids that entirely.
-        /// <summary>The name of the screen you are on, in its header. 24 px.</summary>
+        /// <summary>
+        /// The name of the screen you are on, in its header. The only role NOT on a shipped
+        /// size: Axis18 is 24 px, which read as too big and too soft, and there is no step
+        /// between it and 18.7 px. So it is Axis18 brought down to 22 px — a mild reduction,
+        /// and the one place where the sharpness rule is knowingly traded for the right size.
+        /// </summary>
         public const GameFontFamilyAndSize ScreenTitle = GameFontFamilyAndSize.Axis18;
+        public const float ScreenTitlePx = 22f;
 
-        /// <summary>The window title and section headings. 18.7 px.</summary>
+        /// <summary>The window title and section headings. Native 18.7 px.</summary>
         public const GameFontFamilyAndSize Title = GameFontFamilyAndSize.Axis14;
+        public const float TitlePx = Native;
 
-        /// <summary>Body copy, labels, buttons, navigation, tabs. 16 px.</summary>
+        /// <summary>Body copy, labels, buttons, navigation, tabs. Native 16 px.</summary>
         public const GameFontFamilyAndSize Body = GameFontFamilyAndSize.Axis12;
+        public const float BodyPx = Native;
 
-        /// <summary>Badges and the version chip — the only things smaller than body. 12.8 px.</summary>
+        /// <summary>Badges and the version chip — the only things smaller than body. Native 12.8 px.</summary>
         public const GameFontFamilyAndSize Small = GameFontFamilyAndSize.Axis96;
+        public const float SmallPx = Native;
+
+        /// <summary>Use the step's own pixel size, which is the sharp case.</summary>
+        public const float Native = 0f;
     }
 
     /// <summary>Window and chrome measurements, all stated at scale 1.0.</summary>
