@@ -21,11 +21,15 @@ public sealed class Configuration : IPluginConfiguration
     public int Version { get; set; } = CurrentVersion;
 
     // --- Global -------------------------------------------------------------
-    /// <summary>Derive the interface scale from the game's own settings instead of the manual slider.</summary>
-    public bool ScaleFollowsGame { get; set; } = true;
+    /// <summary>Smallest and largest interface scale the slider offers.</summary>
+    public const float MinScale = 0.75f;
+    public const float MaxScale = 1.75f;
 
-    /// <summary>The manual interface scale, used when <see cref="ScaleFollowsGame"/> is off.</summary>
-    public float ManualScale { get; set; } = 1f;
+    /// <summary>The interface scale. The window has a fixed size, and this is what sets it.</summary>
+    public float Scale { get; set; } = 1f;
+
+    /// <summary>Show an entry in the server info bar that opens the settings window.</summary>
+    public bool ShowInfoBarEntry { get; set; } = true;
 
     // --- Modules ------------------------------------------------------------
     public bool PartyFramesEnabled { get; set; } = true;

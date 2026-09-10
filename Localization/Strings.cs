@@ -43,6 +43,19 @@ internal static class Strings
     public const string StateOn = "on";
     public const string StateOff = "off";
 
+    // --- Global screen ------------------------------------------------------
+    public const string SectionInterface = "Interface";
+    public const string SectionInterfaceHint = "How large WispUI draws, on this screen.";
+    public const string InterfaceScale = "Scale";
+    public const string InterfaceScaleHint = "Sets the size of everything WispUI draws. The settings window has a fixed size on purpose, so nothing ever sits at an awkward width — this slider is how you change it.";
+
+    public const string SectionAccess = "Access";
+    public const string SectionAccessHint = "How to reach these settings.";
+    public const string ShowInfoBarEntry = "Show an entry in the server info bar";
+    public const string ShowInfoBarEntryHint = "Puts WispUI next to the clock at the top right. One click opens this window, so you need neither a chat command nor the plugin list. The game's own system menu cannot be extended by a plugin.";
+
+    public const string InfoBarTooltip = "Open the WispUI settings.";
+
     // --- Placeholders while the screens are still empty ----------------------
     public const string NothingHereYet = "Nothing here yet.";
     public const string SkeletonNote = "The window frame is standing. The controls for this screen arrive with the module itself.";

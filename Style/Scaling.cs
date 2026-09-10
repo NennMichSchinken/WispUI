@@ -7,14 +7,25 @@ namespace WispUI.Style;
 /// Works out the interface scale. FFXIV has no virtual UI grid to snap to the way WoW does,
 /// so the effect is built instead: one factor on every token, and whole-pixel rounding on
 /// every value that reaches the screen (see <see cref="Tokens.Px"/>).
+/// <para>
+/// The factor is the user's, set in Global. Deriving it from the game's own settings was the
+/// original plan, but the value the game reports does not mean what it looked like it meant
+/// (it read 2 with the game set to 100%), so guessing at it was dropped rather than shipped
+/// wrong. <see cref="LogGameScaleReadings"/> writes the candidates to the log so the mapping
+/// can be settled from real readings.
+/// </para>
 /// </summary>
 internal static class Scaling
 {
-    /// <summary>Applies the scale the configuration asks for and rebuilds the fonts for it.</summary>
-    public static void Apply(Configuration config)
+    /// <summary>
+    /// Applies a scale and rebuilds the font handles for it. Called on release, never per
+    /// frame of a drag: rebuilding the font atlas is expensive, and the settings window
+    /// resizes with the scale, so applying it live would move it out from under the cursor.
+    /// </summary>
+    public static void Commit(float scale)
     {
         float previous = Tokens.Scale;
-        Tokens.SetScale(config.ScaleFollowsGame ? FromGame() : config.ManualScale);
+        Tokens.SetScale(scale);
 
         // Font handles carry a baked pixel size, so they only need rebuilding when the
         // scale actually moved — or the very first time round.
@@ -24,19 +35,21 @@ internal static class Scaling
         }
     }
 
-    private static float FromGame()
+    /// <summary>
+    /// Writes every game setting that might describe the UI scale to the log, once at load.
+    /// This is diagnosis, not behaviour: nothing reads these values yet.
+    /// </summary>
+    public static void LogGameScaleReadings()
     {
-        if (!Services.GameConfig.TryGet(SystemConfigOption.UiBaseScale, out uint raw))
-        {
-            Services.Log.Information("Could not read the game's UI base scale; using 1.00.");
-            return 1f;
-        }
-
-        // Read as a percentage, which is how every setup we have seen reports it. Anything
-        // outside a sane range is left alone rather than guessed at. The raw value is logged
-        // so the first in-game run can confirm the reading instead of us assuming it.
-        float derived = raw >= 50 && raw <= 400 ? raw / 100f : 1f;
-        Services.Log.Information("Game UI base scale reported as {Raw}; using a factor of {Factor:0.00}.", raw, derived);
-        return derived;
+        Services.Log.Information(
+            "Game scale readings — UiBaseScale: {Base}, UiHighScale: {High}, screen: {Width}x{Height}, mode: {Mode}.",
+            Read(SystemConfigOption.UiBaseScale),
+            Read(SystemConfigOption.UiHighScale),
+            Read(SystemConfigOption.ScreenWidth),
+            Read(SystemConfigOption.ScreenHeight),
+            Read(SystemConfigOption.ScreenMode));
     }
+
+    private static string Read(SystemConfigOption option) =>
+        Services.GameConfig.TryGet(option, out uint value) ? value.ToString() : "unreadable";
 }

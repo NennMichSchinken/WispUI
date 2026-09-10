@@ -271,6 +271,175 @@ internal static class Chrome
     }
 
     /// <summary>
+    /// The head of a settings section: a title and one line saying what it covers.
+    /// Returns the height it used, so the caller can carry on below it.
+    /// </summary>
+    public static float SectionHeader(string title, string description, float x, float y)
+    {
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        Ink.Draw(dl, Ink.Role.Body, new Vector2(x, y), Tokens.Col.Ink, title);
+
+        float used = Ink.LineHeight(Ink.Role.Body) + Tokens.Space.Xs;
+        Ink.Draw(dl, Ink.Role.Small, new Vector2(x, MathF.Round(y + used)), Tokens.Col.InkDim, description);
+
+        return used + Ink.LineHeight(Ink.Role.Small) + Tokens.Space.Lg;
+    }
+
+    /// <summary>The label side of a settings row, vertically centred against its control.</summary>
+    public static void RowLabel(string label, float x, float y, float height)
+    {
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        Ink.Draw(dl, Ink.Role.Body, new Vector2(x, CenterY(y, height, Ink.Role.Body)), Tokens.Col.Ink, label);
+    }
+
+    /// <summary>A quiet line of explanation under a control.</summary>
+    public static float Hint(string text, float x, float y, float wrapWidth)
+    {
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        Ink.Push(Ink.Role.Small);
+        ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.InkFaint);
+        ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + wrapWidth);
+        ImGui.TextUnformatted(text);
+        ImGui.PopTextWrapPos();
+        ImGui.PopStyleColor();
+        Ink.Pop(Ink.Role.Small);
+        return ImGui.GetItemRectSize().Y;
+    }
+
+    /// <summary>A check box with its label to the right of it.</summary>
+    public static bool CheckBox(string id, string label, float x, float y, bool value)
+    {
+        float box = Tokens.Metric.CheckBox;
+        float labelWidth = Ink.Measure(Ink.Role.Body, label).X;
+        float height = MathF.Max(box, Ink.LineHeight(Ink.Role.Body));
+        float width = box + Tokens.Space.Md + labelWidth;
+
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.InvisibleButton(id, new Vector2(width, height));
+        bool hovered = ImGui.IsItemHovered();
+        bool clicked = ImGui.IsItemClicked();
+
+        Vector2 min = new(x, MathF.Round(y + ((height - box) * 0.5f)));
+        Vector2 max = new(min.X + box, min.Y + box);
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        dl.AddRectFilled(min, max, value ? Tokens.Col.Gold : Tokens.Col.Input, Tokens.Radius.Small);
+        dl.AddRect(
+            min,
+            max,
+            value ? Tokens.Col.GoldHi : hovered ? Tokens.Col.GoldDim : Tokens.Col.ControlEdge,
+            Tokens.Radius.Small,
+            ImDrawFlags.RoundCornersAll,
+            Tokens.Line(1f));
+
+        if (value)
+        {
+            // A tick drawn as two strokes, so it does not depend on a glyph.
+            float thickness = Tokens.Line(2f);
+            dl.AddLine(
+                new Vector2(min.X + (box * 0.24f), min.Y + (box * 0.52f)),
+                new Vector2(min.X + (box * 0.44f), min.Y + (box * 0.72f)),
+                Tokens.Col.InkOnGold,
+                thickness);
+            dl.AddLine(
+                new Vector2(min.X + (box * 0.44f), min.Y + (box * 0.72f)),
+                new Vector2(min.X + (box * 0.78f), min.Y + (box * 0.28f)),
+                Tokens.Col.InkOnGold,
+                thickness);
+        }
+
+        Ink.Draw(
+            dl,
+            Ink.Role.Body,
+            new Vector2(max.X + Tokens.Space.Md, CenterY(y, height, Ink.Role.Body)),
+            hovered ? Tokens.Col.Ink : Tokens.Col.InkDim,
+            label);
+
+        return clicked;
+    }
+
+    /// <summary>What a <see cref="Slider"/> reports back after one frame.</summary>
+    public readonly struct SliderResult
+    {
+        public readonly float Value;
+
+        /// <summary>The value moved this frame. Show it, but do not save it yet.</summary>
+        public readonly bool Changed;
+
+        /// <summary>The drag ended this frame. This is the moment to save and to do the expensive work.</summary>
+        public readonly bool Released;
+
+        public SliderResult(float value, bool changed, bool released)
+        {
+            this.Value = value;
+            this.Changed = changed;
+            this.Released = released;
+        }
+    }
+
+    /// <summary>
+    /// A slider with its value in a box on the right. It reports moving and releasing
+    /// separately, because the rule is that a change shows at once but is written on release.
+    /// </summary>
+    public static SliderResult Slider(string id, float x, float y, float width, float value, float min, float max, string valueText)
+    {
+        float height = Tokens.Metric.SliderHeight;
+        float valueWidth = Tokens.Metric.SliderValueWidth;
+        float trackWidth = width - valueWidth - Tokens.Space.Md;
+        float grabWidth = Tokens.Metric.SliderGrabWidth;
+
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.InvisibleButton(id, new Vector2(trackWidth, height));
+        bool active = ImGui.IsItemActive();
+        bool released = ImGui.IsItemDeactivated();
+
+        float travel = trackWidth - grabWidth;
+        float result = value;
+        bool changed = false;
+        if (active && travel > 0f)
+        {
+            float local = ImGui.GetIO().MousePos.X - x - (grabWidth * 0.5f);
+            float t = Math.Clamp(local / travel, 0f, 1f);
+            result = min + (t * (max - min));
+            changed = result != value;
+        }
+
+        float fraction = max > min ? Math.Clamp((result - min) / (max - min), 0f, 1f) : 0f;
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        float trackHeight = Tokens.Metric.SliderTrack;
+        float trackTop = MathF.Round(y + ((height - trackHeight) * 0.5f));
+        Vector2 trackMin = new(x, trackTop);
+        Vector2 trackMax = new(x + trackWidth, trackTop + trackHeight);
+        dl.AddRectFilled(trackMin, trackMax, Tokens.Col.Input, Tokens.Radius.Small);
+        dl.AddRect(trackMin, trackMax, Tokens.Col.ControlEdge, Tokens.Radius.Small, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
+
+        float grabHeight = Tokens.Metric.SliderGrabHeight;
+        float grabX = MathF.Round(x + (fraction * travel));
+        float grabTop = MathF.Round(y + ((height - grabHeight) * 0.5f));
+        Vector2 grabMin = new(grabX, grabTop);
+        Vector2 grabMax = new(grabX + grabWidth, grabTop + grabHeight);
+        VerticalFill(dl, grabMin, grabMax, Tokens.Col.Ink, Tokens.Col.InkDim, Tokens.Radius.Small);
+        dl.AddRect(grabMin, grabMax, Tokens.Col.Edge, Tokens.Radius.Small, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
+
+        float valueX = x + trackWidth + Tokens.Space.Md;
+        Vector2 valueMin = new(valueX, MathF.Round(y + ((height - Tokens.Metric.ButtonHeight) * 0.5f)));
+        Vector2 valueMax = new(valueX + valueWidth, valueMin.Y + Tokens.Metric.ButtonHeight);
+        dl.AddRectFilled(valueMin, valueMax, Tokens.Col.Input, Tokens.Radius.Small);
+        dl.AddRect(valueMin, valueMax, Tokens.Col.ControlEdge, Tokens.Radius.Small, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
+
+        float textX = MathF.Round(valueMax.X - Tokens.Space.Md - Ink.Measure(Ink.Role.Body, valueText).X);
+        Ink.Draw(
+            dl,
+            Ink.Role.Body,
+            new Vector2(textX, CenterY(valueMin.Y, Tokens.Metric.ButtonHeight, Ink.Role.Body)),
+            Tokens.Col.Ink,
+            valueText);
+
+        return new SliderResult(result, changed, released);
+    }
+
+    /// <summary>
     /// The close glyph in the title bar. Drawn as two lines rather than typed as a character,
     /// so it never depends on a glyph being present in the game font.
     /// </summary>

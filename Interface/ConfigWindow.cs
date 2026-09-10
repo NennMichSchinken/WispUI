@@ -4,6 +4,7 @@ using System.Reflection;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
 using WispUI.Core;
+using WispUI.Interface.Screens;
 using WispUI.Interface.Widgets;
 using WispUI.Localization;
 using WispUI.Style;
@@ -59,6 +60,7 @@ internal sealed class ConfigWindow : Window
     };
 
     private readonly Configuration m_config;
+    private readonly GlobalScreen m_global;
 
     /// <summary>Built once — the version never changes while the plugin is loaded.</summary>
     private readonly string m_versionChip;
@@ -80,22 +82,17 @@ internal sealed class ConfigWindow : Window
             Strings.WindowId,
             ImGuiWindowFlags.NoTitleBar
             | ImGuiWindowFlags.NoCollapse
+            | ImGuiWindowFlags.NoResize
             | ImGuiWindowFlags.NoScrollbar
             | ImGuiWindowFlags.NoScrollWithMouse)
     {
         m_config = config;
+        m_global = new GlobalScreen(config);
+        m_global.InfoBarPreferenceChanged += () => this.InfoBarPreferenceChanged?.Invoke();
 
         string version = ReadVersion();
         m_versionChip = Strings.PluginName + " " + version;
         m_versionBadge = "v" + version;
-
-        this.Size = new Vector2(Tokens.Metric.WindowWidth, Tokens.Metric.WindowHeight);
-        this.SizeCondition = ImGuiCond.FirstUseEver;
-        this.SizeConstraints = new WindowSizeConstraints
-        {
-            MinimumSize = new Vector2(Tokens.Metric.WindowMinWidth, Tokens.Metric.WindowMinHeight),
-            MaximumSize = new Vector2(float.MaxValue, float.MaxValue),
-        };
     }
 
     private enum Screen
@@ -105,8 +102,17 @@ internal sealed class ConfigWindow : Window
         PartyFrames,
     }
 
+    /// <summary>Raised when the user turns the server info bar entry on or off.</summary>
+    public event Action? InfoBarPreferenceChanged;
+
     public override void PreDraw()
     {
+        // The window has a fixed size and is not resizable by hand: dragging an ImGui corner
+        // is fiddly, and a settings window that can be pulled to any width never looks right.
+        // Its size follows the interface scale in Global, so it is re-applied every frame.
+        this.Size = new Vector2(Tokens.Metric.WindowWidth, Tokens.Metric.WindowHeight);
+        this.SizeCondition = ImGuiCond.Always;
+
         // The whole window is painted by hand, so ImGui contributes nothing but the box.
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
         ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0f);
@@ -136,7 +142,7 @@ internal sealed class ConfigWindow : Window
         Vector2 origin = ImGui.GetWindowPos();
         Vector2 size = ImGui.GetWindowSize();
 
-        float border = Tokens.Line(1f);
+        float border = Tokens.Metric.WindowBorder;
         float left = origin.X + border;
         float right = origin.X + size.X - border;
         float top = origin.Y + border;
@@ -147,7 +153,9 @@ internal sealed class ConfigWindow : Window
         float bodyTop = top + titleHeight;
         float bodyBottom = bottom - footerHeight;
 
-        dl.AddRectFilled(new Vector2(left, top), new Vector2(right, bottom), Tokens.Col.Panel, Tokens.Radius.Window);
+        // Rounded a touch tighter than the frame, by exactly the border width, so the panel
+        // sits inside the curve instead of peeking around it.
+        dl.AddRectFilled(new Vector2(left, top), new Vector2(right, bottom), Tokens.Col.Panel, Tokens.Radius.Window - border);
 
         this.DrawTitleBar(dl, left, right, top, titleHeight);
         this.DrawNav(dl, left, bodyTop, bodyBottom);
@@ -196,7 +204,7 @@ internal sealed class ConfigWindow : Window
     {
         Vector2 min = new(left, top);
         Vector2 max = new(right, top + height);
-        Chrome.VerticalFill(dl, min, max, Tokens.Col.TitleBarHi, Tokens.Col.TitleBar, Tokens.Radius.Window, ImDrawFlags.RoundCornersTop);
+        Chrome.VerticalFill(dl, min, max, Tokens.Col.TitleBarHi, Tokens.Col.TitleBar, Tokens.Radius.Window - Tokens.Metric.WindowBorder, ImDrawFlags.RoundCornersTop);
         Chrome.Hairline(dl, left, right, max.Y - Tokens.Line(1f), Tokens.Col.EdgeDim);
 
         float x = left + Tokens.Metric.SectionPaddingX;
@@ -452,7 +460,14 @@ internal sealed class ConfigWindow : Window
         ImGui.SetCursorScreenPos(new Vector2(left, top));
         if (ImGui.BeginChild(IdContent, new Vector2(width, height)))
         {
-            this.DrawScreenPlaceholder(width);
+            if (m_screen == Screen.Global)
+            {
+                m_global.Draw(width);
+            }
+            else
+            {
+                this.DrawScreenPlaceholder(width);
+            }
         }
 
         ImGui.EndChild();
@@ -501,7 +516,7 @@ internal sealed class ConfigWindow : Window
     {
         Vector2 min = new(left, top);
         Vector2 max = new(right, top + height);
-        Chrome.VerticalFill(dl, min, max, Tokens.Col.FooterHi, Tokens.Col.Panel, Tokens.Radius.Window, ImDrawFlags.RoundCornersBottom);
+        Chrome.VerticalFill(dl, min, max, Tokens.Col.FooterHi, Tokens.Col.Panel, Tokens.Radius.Window - Tokens.Metric.WindowBorder, ImDrawFlags.RoundCornersBottom);
         Chrome.Hairline(dl, left, right, top, Tokens.Col.EdgeDim);
 
         float y = MathF.Round(top + ((height - Tokens.Metric.ButtonHeight) * 0.5f));

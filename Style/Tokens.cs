@@ -111,7 +111,7 @@ internal static class Tokens
     /// <summary>A small, fixed set of radii — not invented per widget.</summary>
     public static class Radius
     {
-        public static float Window => Px(4f);
+        public static float Window => Px(6f);
         public static float Control => Px(3f);
         public static float Small => Px(2f);
     }
@@ -121,9 +121,12 @@ internal static class Tokens
     /// </summary>
     public static class FontSize
     {
-        public const float TitleBase = 15f;
-        public const float BodyBase = 13f;
-        public const float SmallBase = 11.5f;
+        // These are the three sizes Axis actually ships in the game files (Axis12/14/18).
+        // Asking for anything in between makes Dalamud scale a bitmap face, which is exactly
+        // the soft edge the whole pixel-rounding rule exists to avoid.
+        public const float TitleBase = 18f;
+        public const float BodyBase = 14f;
+        public const float SmallBase = 12f;
 
         public static float Title => Px(TitleBase);
         public static float Body => Px(BodyBase);
@@ -133,42 +136,56 @@ internal static class Tokens
     /// <summary>Window and chrome measurements, all stated at scale 1.0.</summary>
     public static class Metric
     {
-        public static float WindowWidth => Px(880f);
-        public static float WindowHeight => Px(600f);
-        public static float WindowMinWidth => Px(760f);
-        public static float WindowMinHeight => Px(480f);
+        public static float WindowWidth => Px(920f);
+        public static float WindowHeight => Px(640f);
 
-        public static float TitleBarHeight => Px(34f);
-        public static float TitleButton => Px(18f);
-        public static float FooterHeight => Px(42f);
+        /// <summary>The window edge. Two pixels, to sit at the weight FFXIV's own frames have.</summary>
+        public static float WindowBorder => Line(2f);
 
-        public static float NavWidth => Px(194f);
-        public static float NavItemHeight => Px(30f);
-        public static float NavIndent => Px(14f);
+        public static float TitleBarHeight => Px(38f);
+        public static float TitleButton => Px(20f);
+        public static float FooterHeight => Px(46f);
+
+        public static float NavWidth => Px(205f);
+        public static float NavItemHeight => Px(33f);
+        public static float NavIndent => Px(16f);
         public static float NavAccent => Line(2f);
-        public static float NavCardHeight => Px(52f);
-        public static float NavButtonHeight => Px(30f);
-        public static float NavVersionHeight => Px(20f);
+        public static float NavCardHeight => Px(58f);
+        public static float NavButtonHeight => Px(32f);
+        public static float NavVersionHeight => Px(22f);
 
-        public static float TabBarHeight => Px(34f);
-        public static float TabHeight => Px(25f);
-        public static float TabPaddingX => Px(16f);
+        public static float TabBarHeight => Px(38f);
+        public static float TabHeight => Px(28f);
+        public static float TabPaddingX => Px(18f);
         public static float TabGap => Px(2f);
 
-        public static float ModuleHeaderHeight => Px(34f);
+        public static float ModuleHeaderHeight => Px(38f);
 
-        public static float ButtonHeight => Px(23f);
-        public static float ButtonPaddingX => Px(11f);
+        public static float ButtonHeight => Px(26f);
+        public static float ButtonPaddingX => Px(12f);
 
-        public static float SwitchWidth => Px(30f);
-        public static float SwitchHeight => Px(15f);
-        public static float SwitchKnob => Px(11f);
+        public static float SwitchWidth => Px(34f);
+        public static float SwitchHeight => Px(17f);
+        public static float SwitchKnob => Px(13f);
 
-        public static float BadgeHeight => Px(14f);
-        public static float BadgePaddingX => Px(5f);
+        public static float CheckBox => Px(15f);
 
-        public static float ScrollbarWidth => Px(10f);
-        public static float SectionPaddingX => Px(14f);
-        public static float SectionPaddingY => Px(14f);
+        public static float SliderHeight => Px(18f);
+        public static float SliderTrack => Px(5f);
+        public static float SliderGrabWidth => Px(11f);
+        public static float SliderGrabHeight => Px(17f);
+        public static float SliderValueWidth => Px(54f);
+
+        /// <summary>The right-hand column that every setting's control lines up in.</summary>
+        public static float ControlColumn => Px(300f);
+
+        public static float RowHeight => Px(28f);
+
+        public static float BadgeHeight => Px(16f);
+        public static float BadgePaddingX => Px(6f);
+
+        public static float ScrollbarWidth => Px(11f);
+        public static float SectionPaddingX => Px(16f);
+        public static float SectionPaddingY => Px(16f);
     }
 }
