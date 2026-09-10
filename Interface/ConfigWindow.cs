@@ -37,6 +37,9 @@ internal sealed class ConfigWindow : Window
 
     private const uint Transparent = 0x00000000u;
 
+    /// <summary>How many horizontal slices the window edge gradient is drawn in.</summary>
+    private const int EdgeBands = 16;
+
     /// <summary>Tab hit boxes only need to be unique while their screen is on show.</summary>
     private static readonly string[] TabIds = { "##wisp-tab0", "##wisp-tab1", "##wisp-tab2" };
 
@@ -162,7 +165,10 @@ internal sealed class ConfigWindow : Window
         this.DrawModuleArea(dl, left + Tokens.Metric.NavWidth, right, bodyTop, bodyBottom);
         this.DrawFooter(dl, left, right, bodyBottom, footerHeight);
 
-        DrawWindowEdge(dl, origin, size, border);
+        if (this.IsFocused)
+        {
+            DrawWindowEdge(dl, origin, size, border);
+        }
     }
 
     private static string ReadVersion()
@@ -173,17 +179,39 @@ internal sealed class ConfigWindow : Window
             : version.Major + "." + version.Minor + "." + version.Build;
     }
 
-    /// <summary>The warm gold edge, one pixel, drawn over the inset nothing else may use.</summary>
+    /// <summary>
+    /// The warm gold edge, drawn over the inset nothing else may use, and only while the
+    /// window has focus — the game drops its own frames when a window goes to the back.
+    /// <para>
+    /// It runs lighter at the top than down the sides. ImGui cannot put a gradient on a
+    /// rounded rectangle, so the frame is drawn once per horizontal band, clipped to that
+    /// band, in the colour the gradient has reached there. A handful of rectangles a frame,
+    /// and the rounded corners come out right.
+    /// </para>
+    /// </summary>
     private static void DrawWindowEdge(ImDrawListPtr dl, Vector2 origin, Vector2 size, float border)
     {
         float half = border * 0.5f;
-        dl.AddRect(
-            new Vector2(origin.X + half, origin.Y + half),
-            new Vector2(origin.X + size.X - half, origin.Y + size.Y - half),
-            Tokens.Col.WindowEdge,
-            Tokens.Radius.Window,
-            ImDrawFlags.RoundCornersAll,
-            border);
+        Vector2 min = new(origin.X + half, origin.Y + half);
+        Vector2 max = new(origin.X + size.X - half, origin.Y + size.Y - half);
+        float bandHeight = size.Y / EdgeBands;
+
+        for (int i = 0; i < EdgeBands; i++)
+        {
+            float t = (i + 0.5f) / EdgeBands;
+            dl.PushClipRect(
+                new Vector2(origin.X, origin.Y + (i * bandHeight)),
+                new Vector2(origin.X + size.X, origin.Y + ((i + 1) * bandHeight)),
+                true);
+            dl.AddRect(
+                min,
+                max,
+                Tokens.Col.Mix(Tokens.Col.WindowEdgeTop, Tokens.Col.WindowEdgeBottom, t),
+                Tokens.Radius.Window,
+                ImDrawFlags.RoundCornersAll,
+                border);
+            dl.PopClipRect();
+        }
     }
 
     private static string ScreenLabel(Screen screen) => screen switch
@@ -204,7 +232,14 @@ internal sealed class ConfigWindow : Window
     {
         Vector2 min = new(left, top);
         Vector2 max = new(right, top + height);
-        Chrome.VerticalFill(dl, min, max, Tokens.Col.TitleBarHi, Tokens.Col.TitleBar, Tokens.Radius.Window - Tokens.Metric.WindowBorder, ImDrawFlags.RoundCornersTop);
+        // Flat, not a gradient: the game's own title bar is the same colour as its body,
+        // and the only thing that marks it off is the line underneath.
+        dl.AddRectFilled(
+            min,
+            max,
+            Tokens.Col.TitleBar,
+            Tokens.Radius.Window - Tokens.Metric.WindowBorder,
+            ImDrawFlags.RoundCornersTop);
         Chrome.Hairline(dl, left, right, max.Y - Tokens.Line(1f), Tokens.Col.EdgeDim);
 
         float x = left + Tokens.Metric.SectionPaddingX;
@@ -492,7 +527,7 @@ internal sealed class ConfigWindow : Window
         }
 
         Ink.Push(Ink.Role.Title);
-        ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.Ink);
+        ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.Heading);
         ImGui.TextUnformatted(m_heading);
         ImGui.PopStyleColor();
         Ink.Pop(Ink.Role.Title);
@@ -516,7 +551,12 @@ internal sealed class ConfigWindow : Window
     {
         Vector2 min = new(left, top);
         Vector2 max = new(right, top + height);
-        Chrome.VerticalFill(dl, min, max, Tokens.Col.FooterHi, Tokens.Col.Panel, Tokens.Radius.Window - Tokens.Metric.WindowBorder, ImDrawFlags.RoundCornersBottom);
+        dl.AddRectFilled(
+            min,
+            max,
+            Tokens.Col.Footer,
+            Tokens.Radius.Window - Tokens.Metric.WindowBorder,
+            ImDrawFlags.RoundCornersBottom);
         Chrome.Hairline(dl, left, right, top, Tokens.Col.EdgeDim);
 
         float y = MathF.Round(top + ((height - Tokens.Metric.ButtonHeight) * 0.5f));

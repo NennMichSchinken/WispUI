@@ -277,7 +277,7 @@ internal static class Chrome
     public static float SectionHeader(string title, string description, float x, float y)
     {
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
-        Ink.Draw(dl, Ink.Role.Body, new Vector2(x, y), Tokens.Col.Ink, title);
+        Ink.Draw(dl, Ink.Role.Body, new Vector2(x, y), Tokens.Col.Heading, title);
 
         float used = Ink.LineHeight(Ink.Role.Body) + Tokens.Space.Xs;
         Ink.Draw(dl, Ink.Role.Small, new Vector2(x, MathF.Round(y + used)), Tokens.Col.InkDim, description);

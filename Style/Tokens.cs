@@ -41,41 +41,61 @@ internal static class Tokens
         0xFF000000u | ((hex & 0x0000FFu) << 16) | (hex & 0x00FF00u) | ((hex & 0xFF0000u) >> 16);
 
     /// <summary>
-    /// The palette, read off FFXIV's own system configuration window. Neutral grey with no
-    /// blue cast: hue is carried by the gold accent and the role colours, never by the chrome.
+    /// The palette. Values marked MEASURED were picked out of FFXIV's own window with a
+    /// dropper (Florian, 2026-09-10) and are not to be "improved" by eye. The rest are
+    /// derived from them and stay on the same neutral hue — those are the ones to question
+    /// if something looks off.
+    /// <para>
+    /// The measurement overturned an assumption: the panel, the title bar, the nav rail and
+    /// the footer are all the SAME colour in the game. FFXIV separates its regions with
+    /// lines, not with shades, and there is no gradient on the title bar.
+    /// </para>
     /// </summary>
     public static class Col
     {
-        // --- chrome ---
-        public static readonly uint Rail = Rgb(0x1A1D20);
-        public static readonly uint Panel = Rgb(0x232629);
-        public static readonly uint PanelSoft = Rgb(0x2A2E32);
-        public static readonly uint TitleBar = Rgb(0x33383D);
-        public static readonly uint TitleBarHi = Rgb(0x3E4348);
-        public static readonly uint FooterHi = Rgb(0x2B2F33);
-        public static readonly uint EdgeDim = Rgb(0x4E5358);
-        public static readonly uint Hairline = Rgb(0x34383C);
+        // --- chrome: one flat surface, MEASURED #232223 ---
+        // Kept as separate tokens on purpose. They happen to be equal today; giving a region
+        // its own shade later is then a one-line change here rather than a change in the code.
+        public static readonly uint Panel = Rgb(0x232223);
+        public static readonly uint PanelSoft = Rgb(0x232223);
+        public static readonly uint Rail = Rgb(0x232223);
+        public static readonly uint TitleBar = Rgb(0x232223);
+        public static readonly uint Footer = Rgb(0x232223);
 
-        // --- controls ---
-        public static readonly uint Control = Rgb(0x3A3F45);
-        public static readonly uint Control2 = Rgb(0x2E3338);
-        public static readonly uint ControlEdge = Rgb(0x666C72);
-        public static readonly uint ControlHover = Rgb(0x464C53);
-        public static readonly uint ButtonTop = Rgb(0x4A5057);
-        public static readonly uint ButtonBottom = Rgb(0x383D42);
-        public static readonly uint Input = Rgb(0x1C1F22);
+        // Structure comes from these, since the surfaces no longer carry it.
+        public static readonly uint EdgeDim = Rgb(0x4A474A);
+        public static readonly uint Hairline = Rgb(0x3A383A);
 
-        // --- nav ---
-        public static readonly uint NavHover = Rgb(0x21252A);
-        public static readonly uint NavSelected = Rgb(0x262B30);
-        public static readonly uint NavCard = Rgb(0x24282C);
-        public static readonly uint NavCardEdge = Rgb(0x3B4146);
+        // --- controls (derived: the old values neutralised onto the measured hue) ---
+        public static readonly uint Control = Rgb(0x3A383A);
+        public static readonly uint Control2 = Rgb(0x2E2C2E);
+        public static readonly uint ControlEdge = Rgb(0x6B676B);
+        public static readonly uint ControlHover = Rgb(0x464346);
+        public static readonly uint ButtonTop = Rgb(0x464346);
+        public static readonly uint ButtonBottom = Rgb(0x353335);
+        public static readonly uint Input = Rgb(0x1B1A1B);
+
+        // --- nav (derived) ---
+        public static readonly uint NavHover = Rgb(0x2A282A);
+        public static readonly uint NavSelected = Rgb(0x2E2C2E);
+        public static readonly uint NavCard = Rgb(0x2A282A);
+        public static readonly uint NavCardEdge = Rgb(0x3F3C3F);
 
         // --- text ---
-        public static readonly uint Ink = Rgb(0xE9E7E0);
-        public static readonly uint InkDim = Rgb(0xA6A9AC);
-        public static readonly uint InkFaint = Rgb(0x74787C);
-        public static readonly uint InkOnGold = Rgb(0x1B1D1F);
+        /// <summary>Body copy and option labels. MEASURED.</summary>
+        public static readonly uint Ink = Rgb(0xC3C3C3);
+
+        /// <summary>
+        /// Section and category headings. MEASURED — this warm beige is what the game puts on
+        /// its category lines, and it reads as a heading precisely because it is warmer than
+        /// the body copy rather than brighter.
+        /// </summary>
+        public static readonly uint Heading = Rgb(0xB5AA92);
+
+        // Derived from the measured body colour.
+        public static readonly uint InkDim = Rgb(0x8E8E8E);
+        public static readonly uint InkFaint = Rgb(0x6E6E6E);
+        public static readonly uint InkOnGold = Rgb(0x1B1A1B);
 
         // --- accent: FFXIV's own gold, not a brand of ours ---
         public static readonly uint Gold = Rgb(0xD8B567);
@@ -83,8 +103,12 @@ internal static class Tokens
         public static readonly uint GoldDim = Rgb(0x8D7539);
         public static readonly uint GoldSwitchTrack = Rgb(0x4B421F);
 
-        /// <summary>The window edge: warm gold, subtle, one pixel, drawn as the topmost layer.</summary>
-        public static readonly uint WindowEdge = Rgb(0xB9A06A);
+        /// <summary>
+        /// The window edge, which runs lighter at the top than down the sides. The bottom
+        /// value is MEASURED; the top is derived, since it could not be read off directly.
+        /// </summary>
+        public static readonly uint WindowEdgeTop = Rgb(0xA08652);
+        public static readonly uint WindowEdgeBottom = Rgb(0x6E582E);
 
         // --- slider ---
         // FFXIV fills its own sliders green rather than in the gold it uses for ticks and
@@ -105,6 +129,21 @@ internal static class Tokens
 
         public static uint Faded(uint colour, float alpha) =>
             (colour & 0x00FFFFFFu) | ((uint)MathF.Round(Math.Clamp(alpha, 0f, 1f) * 255f) << 24);
+
+        /// <summary>Blends two packed colours. Used to run a gradient along the window edge.</summary>
+        public static uint Mix(uint from, uint to, float t)
+        {
+            t = Math.Clamp(t, 0f, 1f);
+            uint result = 0;
+            for (int shift = 0; shift < 32; shift += 8)
+            {
+                float a = (from >> shift) & 0xFFu;
+                float b = (to >> shift) & 0xFFu;
+                result |= (uint)MathF.Round(a + ((b - a) * t)) << shift;
+            }
+
+            return result;
+        }
     }
 
     /// <summary>The spacing ladder. No free in-between values.</summary>
