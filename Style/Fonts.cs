@@ -1,3 +1,4 @@
+using System;
 using Dalamud.Interface.GameFonts;
 using Dalamud.Interface.ManagedFontAtlas;
 using WispUI.Core;
@@ -36,9 +37,26 @@ internal static class Fonts
         Dispose();
 
         IFontAtlas atlas = Services.PluginInterface.UiBuilder.FontAtlas;
-        s_title = atlas.NewGameFontHandle(new GameFontStyle(GameFontFamily.Axis, Tokens.FontSize.Title));
-        s_body = atlas.NewGameFontHandle(new GameFontStyle(GameFontFamily.Axis, Tokens.FontSize.Body));
-        s_small = atlas.NewGameFontHandle(new GameFontStyle(GameFontFamily.Axis, Tokens.FontSize.Small));
+        s_title = atlas.NewGameFontHandle(Style(Tokens.FontRole.Title));
+        s_body = atlas.NewGameFontHandle(Style(Tokens.FontRole.Body));
+        s_small = atlas.NewGameFontHandle(Style(Tokens.FontRole.Small));
+    }
+
+    /// <summary>
+    /// Builds the style for one role. At scale 1.0 the size is left exactly as the game
+    /// ships it, so the bitmap is drawn one glyph pixel to one screen pixel and the text is
+    /// as sharp as the game's own. Any other scale has to resample — that is unavoidable
+    /// with a bitmap face, and it is the honest cost of the slider.
+    /// </summary>
+    private static GameFontStyle Style(GameFontFamilyAndSize familyAndSize)
+    {
+        GameFontStyle style = new(familyAndSize);
+        if (Tokens.Scale != 1f)
+        {
+            style.SizePx = MathF.Round(style.SizePx * Tokens.Scale);
+        }
+
+        return style;
     }
 
     public static void Dispose()

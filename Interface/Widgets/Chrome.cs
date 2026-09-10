@@ -285,6 +285,17 @@ internal static class Chrome
         return used + Ink.LineHeight(Ink.Role.Small) + Tokens.Space.Lg;
     }
 
+    /// <summary>
+    /// The rule that separates two settings sections, with the breathing room around it.
+    /// Returns the height it used.
+    /// </summary>
+    public static float SectionRule(float x0, float x1, float y)
+    {
+        float gap = Tokens.Space.Xl;
+        Hairline(ImGui.GetWindowDrawList(), x0, x1, MathF.Round(y + gap), Tokens.Col.Hairline);
+        return (gap * 2f) + Tokens.Line(1f);
+    }
+
     /// <summary>The label side of a settings row, vertically centred against its control.</summary>
     public static void RowLabel(string label, float x, float y, float height)
     {
@@ -369,74 +380,95 @@ internal static class Chrome
         /// <summary>The drag ended this frame. This is the moment to save and to do the expensive work.</summary>
         public readonly bool Released;
 
-        public SliderResult(float value, bool changed, bool released)
+        /// <summary>How tall the whole control turned out, caption row included.</summary>
+        public readonly float Height;
+
+        public SliderResult(float value, bool changed, bool released, float height)
         {
             this.Value = value;
             this.Changed = changed;
             this.Released = released;
+            this.Height = height;
         }
     }
 
     /// <summary>
-    /// A slider with its value in a box on the right. It reports moving and releasing
-    /// separately, because the rule is that a change shows at once but is written on release.
+    /// A slider laid out over two rows: the label top left, the value top right, and the
+    /// track across the full width beneath them. The track fills up to the grab, the way the
+    /// game's own sliders do, and the grab is a circle.
+    /// <para>
+    /// Moving and releasing are reported separately, because the rule is that a change shows
+    /// at once but is written on release.
+    /// </para>
     /// </summary>
-    public static SliderResult Slider(string id, float x, float y, float width, float value, float min, float max, string valueText)
+    public static SliderResult Slider(
+        string id,
+        string label,
+        string valueText,
+        float x,
+        float y,
+        float width,
+        float value,
+        float min,
+        float max)
     {
-        float height = Tokens.Metric.SliderHeight;
-        float valueWidth = Tokens.Metric.SliderValueWidth;
-        float trackWidth = width - valueWidth - Tokens.Space.Md;
-        float grabWidth = Tokens.Metric.SliderGrabWidth;
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
 
-        ImGui.SetCursorScreenPos(new Vector2(x, y));
-        ImGui.InvisibleButton(id, new Vector2(trackWidth, height));
+        // --- caption row: label left, value right ---
+        Ink.Draw(dl, Ink.Role.Body, new Vector2(x, y), Tokens.Col.Ink, label);
+        float valueX = MathF.Round(x + width - Ink.Measure(Ink.Role.Body, valueText).X);
+        Ink.Draw(dl, Ink.Role.Body, new Vector2(valueX, y), Tokens.Col.GoldHi, valueText);
+
+        float trackRowTop = MathF.Round(y + Ink.LineHeight(Ink.Role.Body) + Tokens.Space.Sm);
+        float rowHeight = Tokens.Metric.SliderHeight;
+        float radius = Tokens.Metric.SliderGrabRadius;
+
+        ImGui.SetCursorScreenPos(new Vector2(x, trackRowTop));
+        ImGui.InvisibleButton(id, new Vector2(width, rowHeight));
         bool active = ImGui.IsItemActive();
+        bool hovered = ImGui.IsItemHovered();
         bool released = ImGui.IsItemDeactivated();
 
-        float travel = trackWidth - grabWidth;
+        // The grab is a circle, so its centre travels between one radius from each end.
+        float travel = width - (radius * 2f);
         float result = value;
         bool changed = false;
         if (active && travel > 0f)
         {
-            float local = ImGui.GetIO().MousePos.X - x - (grabWidth * 0.5f);
-            float t = Math.Clamp(local / travel, 0f, 1f);
+            float t = Math.Clamp((ImGui.GetIO().MousePos.X - x - radius) / travel, 0f, 1f);
             result = min + (t * (max - min));
             changed = result != value;
         }
 
         float fraction = max > min ? Math.Clamp((result - min) / (max - min), 0f, 1f) : 0f;
+        float grabCenterX = MathF.Round(x + radius + (fraction * travel));
 
-        ImDrawListPtr dl = ImGui.GetWindowDrawList();
         float trackHeight = Tokens.Metric.SliderTrack;
-        float trackTop = MathF.Round(y + ((height - trackHeight) * 0.5f));
+        float trackTop = MathF.Round(trackRowTop + ((rowHeight - trackHeight) * 0.5f));
         Vector2 trackMin = new(x, trackTop);
-        Vector2 trackMax = new(x + trackWidth, trackTop + trackHeight);
-        dl.AddRectFilled(trackMin, trackMax, Tokens.Col.Input, Tokens.Radius.Small);
-        dl.AddRect(trackMin, trackMax, Tokens.Col.ControlEdge, Tokens.Radius.Small, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
+        Vector2 trackMax = new(x + width, trackTop + trackHeight);
+        float trackRadius = trackHeight * 0.5f;
 
-        float grabHeight = Tokens.Metric.SliderGrabHeight;
-        float grabX = MathF.Round(x + (fraction * travel));
-        float grabTop = MathF.Round(y + ((height - grabHeight) * 0.5f));
-        Vector2 grabMin = new(grabX, grabTop);
-        Vector2 grabMax = new(grabX + grabWidth, grabTop + grabHeight);
-        VerticalFill(dl, grabMin, grabMax, Tokens.Col.Ink, Tokens.Col.InkDim, Tokens.Radius.Small);
-        dl.AddRect(grabMin, grabMax, Tokens.Col.Edge, Tokens.Radius.Small, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
+        dl.AddRectFilled(trackMin, trackMax, Tokens.Col.Input, trackRadius);
+        if (fraction > 0f)
+        {
+            dl.PushClipRect(trackMin, new Vector2(grabCenterX, trackMax.Y), true);
+            dl.AddRectFilled(
+                trackMin,
+                trackMax,
+                active || hovered ? Tokens.Col.SliderFillHi : Tokens.Col.SliderFill,
+                trackRadius);
+            dl.PopClipRect();
+        }
 
-        float valueX = x + trackWidth + Tokens.Space.Md;
-        Vector2 valueMin = new(valueX, MathF.Round(y + ((height - Tokens.Metric.ButtonHeight) * 0.5f)));
-        Vector2 valueMax = new(valueX + valueWidth, valueMin.Y + Tokens.Metric.ButtonHeight);
-        dl.AddRectFilled(valueMin, valueMax, Tokens.Col.Input, Tokens.Radius.Small);
-        dl.AddRect(valueMin, valueMax, Tokens.Col.ControlEdge, Tokens.Radius.Small, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
+        dl.AddRect(trackMin, trackMax, Tokens.Col.ControlEdge, trackRadius, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
 
-        float textX = MathF.Round(valueMax.X - Tokens.Space.Md - Ink.Measure(Ink.Role.Body, valueText).X);
-        Ink.Draw(
-            dl,
-            Ink.Role.Body,
-            new Vector2(textX, CenterY(valueMin.Y, Tokens.Metric.ButtonHeight, Ink.Role.Body)),
-            Tokens.Col.Ink,
-            valueText);
+        Vector2 grabCenter = new(grabCenterX, MathF.Round(trackTop + (trackHeight * 0.5f)));
+        dl.AddCircleFilled(grabCenter, radius, active || hovered ? Tokens.Col.SliderGrabHover : Tokens.Col.SliderGrab);
+        dl.AddCircle(grabCenter, radius, Tokens.Col.EdgeDim, 0, Tokens.Line(1f));
 
-        return new SliderResult(result, changed, released);
+        float height = trackRowTop + rowHeight - y;
+        return new SliderResult(result, changed, released, height);
     }
 
     /// <summary>

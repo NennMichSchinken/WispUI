@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Dalamud.Interface.GameFonts;
 
 namespace WispUI.Style;
 
@@ -52,7 +53,6 @@ internal static class Tokens
         public static readonly uint TitleBar = Rgb(0x33383D);
         public static readonly uint TitleBarHi = Rgb(0x3E4348);
         public static readonly uint FooterHi = Rgb(0x2B2F33);
-        public static readonly uint Edge = Rgb(0x8A8F94);
         public static readonly uint EdgeDim = Rgb(0x4E5358);
         public static readonly uint Hairline = Rgb(0x34383C);
 
@@ -85,6 +85,15 @@ internal static class Tokens
 
         /// <summary>The window edge: warm gold, subtle, one pixel, drawn as the topmost layer.</summary>
         public static readonly uint WindowEdge = Rgb(0xB9A06A);
+
+        // --- slider ---
+        // FFXIV fills its own sliders green rather than in the gold it uses for ticks and
+        // arrows, and WispUI follows that. These greens are read by eye from the game and
+        // are the first values to correct if they sit wrong next to it.
+        public static readonly uint SliderFill = Rgb(0x7FA84A);
+        public static readonly uint SliderFillHi = Rgb(0x9DC85F);
+        public static readonly uint SliderGrab = Rgb(0xE4E7EA);
+        public static readonly uint SliderGrabHover = Rgb(0xFFFFFF);
 
         // --- scrollbar ---
         public static readonly uint ScrollTrack = Rgb(0x1B1E21);
@@ -119,18 +128,20 @@ internal static class Tokens
     /// <summary>
     /// Font sizes by role, never by number. The code asks for <c>Title</c>, not for "15 px".
     /// </summary>
-    public static class FontSize
+    public static class FontRole
     {
-        // These are the three sizes Axis actually ships in the game files (Axis12/14/18).
-        // Asking for anything in between makes Dalamud scale a bitmap face, which is exactly
-        // the soft edge the whole pixel-rounding rule exists to avoid.
-        public const float TitleBase = 18f;
-        public const float BodyBase = 14f;
-        public const float SmallBase = 12f;
-
-        public static float Title => Px(TitleBase);
-        public static float Body => Px(BodyBase);
-        public static float Small => Px(SmallBase);
+        // Axis is a bitmap face: it is only sharp at the exact sizes it ships in, and every
+        // other size is a rescale of one of them. So a role names a SHIPPED STEP, never a
+        // pixel count.
+        //
+        // The step names are POINT sizes, not pixels — Dalamud converts with *4/3:
+        //   Axis96 = 9.6pt = 12.8px · Axis12 = 12pt = 16px · Axis14 = 14pt = 18.7px · Axis18 = 18pt = 24px
+        //
+        // Asking for "14 pixels" therefore picked Axis12 and shrank it, which came out both
+        // smaller and softer than the game's own text. Naming the step avoids that entirely.
+        public const GameFontFamilyAndSize Title = GameFontFamilyAndSize.Axis14;
+        public const GameFontFamilyAndSize Body = GameFontFamilyAndSize.Axis12;
+        public const GameFontFamilyAndSize Small = GameFontFamilyAndSize.Axis96;
     }
 
     /// <summary>Window and chrome measurements, all stated at scale 1.0.</summary>
@@ -142,26 +153,26 @@ internal static class Tokens
         /// <summary>The window edge. Two pixels, to sit at the weight FFXIV's own frames have.</summary>
         public static float WindowBorder => Line(2f);
 
-        public static float TitleBarHeight => Px(38f);
+        public static float TitleBarHeight => Px(42f);
         public static float TitleButton => Px(20f);
-        public static float FooterHeight => Px(46f);
+        public static float FooterHeight => Px(50f);
 
         public static float NavWidth => Px(205f);
-        public static float NavItemHeight => Px(33f);
+        public static float NavItemHeight => Px(35f);
         public static float NavIndent => Px(16f);
         public static float NavAccent => Line(2f);
-        public static float NavCardHeight => Px(58f);
-        public static float NavButtonHeight => Px(32f);
-        public static float NavVersionHeight => Px(22f);
+        public static float NavCardHeight => Px(64f);
+        public static float NavButtonHeight => Px(34f);
+        public static float NavVersionHeight => Px(24f);
 
-        public static float TabBarHeight => Px(38f);
-        public static float TabHeight => Px(28f);
+        public static float TabBarHeight => Px(42f);
+        public static float TabHeight => Px(31f);
         public static float TabPaddingX => Px(18f);
         public static float TabGap => Px(2f);
 
-        public static float ModuleHeaderHeight => Px(38f);
+        public static float ModuleHeaderHeight => Px(42f);
 
-        public static float ButtonHeight => Px(26f);
+        public static float ButtonHeight => Px(29f);
         public static float ButtonPaddingX => Px(12f);
 
         public static float SwitchWidth => Px(34f);
@@ -170,18 +181,14 @@ internal static class Tokens
 
         public static float CheckBox => Px(15f);
 
-        public static float SliderHeight => Px(18f);
-        public static float SliderTrack => Px(5f);
-        public static float SliderGrabWidth => Px(11f);
-        public static float SliderGrabHeight => Px(17f);
-        public static float SliderValueWidth => Px(54f);
+        public static float SliderHeight => Px(20f);
+        public static float SliderTrack => Px(6f);
+        public static float SliderGrabRadius => Px(8f);
 
-        /// <summary>The right-hand column that every setting's control lines up in.</summary>
-        public static float ControlColumn => Px(300f);
 
-        public static float RowHeight => Px(28f);
+        public static float RowHeight => Px(30f);
 
-        public static float BadgeHeight => Px(16f);
+        public static float BadgeHeight => Px(18f);
         public static float BadgePaddingX => Px(6f);
 
         public static float ScrollbarWidth => Px(11f);

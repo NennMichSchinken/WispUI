@@ -44,24 +44,20 @@ internal sealed class GlobalScreen
         float x = origin.X;
         float y = origin.Y;
         float contentWidth = width - (Tokens.Metric.SectionPaddingX * 2f);
-        float controlWidth = MathF.Min(Tokens.Metric.ControlColumn, contentWidth);
-        float controlX = x + contentWidth - controlWidth;
 
         y += Chrome.SectionHeader(Strings.SectionInterface, Strings.SectionInterfaceHint, x, y);
-
-        float rowHeight = Tokens.Metric.RowHeight;
-        Chrome.RowLabel(Strings.InterfaceScale, x, y, rowHeight);
 
         float scale = m_dragging ? m_livePreview : m_config.Scale;
         Chrome.SliderResult result = Chrome.Slider(
             IdScale,
-            controlX,
-            MathF.Round(y + ((rowHeight - Tokens.Metric.SliderHeight) * 0.5f)),
-            controlWidth,
+            Strings.InterfaceScale,
+            this.ScaleCaption(scale),
+            x,
+            y,
+            contentWidth,
             scale,
             Configuration.MinScale,
-            Configuration.MaxScale,
-            this.ScaleCaption(scale));
+            Configuration.MaxScale);
 
         if (result.Changed)
         {
@@ -81,8 +77,10 @@ internal sealed class GlobalScreen
             Scaling.Commit(m_config.Scale);
         }
 
-        y += rowHeight + Tokens.Space.Sm;
-        y += Chrome.Hint(Strings.InterfaceScaleHint, x, y, contentWidth) + Tokens.Space.Xl;
+        y += result.Height + Tokens.Space.Sm;
+        y += Chrome.Hint(Strings.InterfaceScaleHint, x, y, contentWidth);
+
+        y += Chrome.SectionRule(x, x + contentWidth, y);
 
         y += Chrome.SectionHeader(Strings.SectionAccess, Strings.SectionAccessHint, x, y);
 
@@ -93,7 +91,7 @@ internal sealed class GlobalScreen
             this.InfoBarPreferenceChanged?.Invoke();
         }
 
-        y += rowHeight;
+        y += Tokens.Metric.RowHeight;
         y += Chrome.Hint(Strings.ShowInfoBarEntryHint, x, y, contentWidth);
 
         // Tell the scroll area how tall the screen actually is.
