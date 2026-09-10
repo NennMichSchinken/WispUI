@@ -67,6 +67,22 @@ internal static class Chrome
         dl.AddRectFilled(new Vector2(x0, y), new Vector2(x1, y + Tokens.Line(1f)), colour);
 
     /// <summary>
+    /// The three-pixel divider measured off the game — dark, surface, light — fading out at
+    /// both ends. This is the only rule that separates the window's big regions; anything
+    /// finer uses <see cref="Hairline"/>. Returns the height it used.
+    /// </summary>
+    public static float Rule(ImDrawListPtr dl, float x0, float x1, float y)
+    {
+        float step = Tokens.Line(1f);
+        for (int i = 0; i < Tokens.Col.TitleRule.Length; i++)
+        {
+            FadingHairline(dl, x0, x1, y + (i * step), Tokens.Col.TitleRule[i], Tokens.Metric.TitleRuleFade);
+        }
+
+        return Tokens.Metric.TitleRuleHeight;
+    }
+
+    /// <summary>
     /// A one-pixel rule that fades to nothing at both ends instead of butting into the frame,
     /// the way the game's own dividers run out towards the corners.
     /// </summary>
@@ -174,7 +190,10 @@ internal static class Chrome
     public static float MeasureTab(string label) =>
         MathF.Round(Ink.Measure(Ink.Role.Body, label).X + (Tokens.Metric.TabPaddingX * 2f));
 
-    /// <summary>One tab at the head of a module screen.</summary>
+    /// <summary>
+    /// One tab, drawn as a free-standing chip rather than a folder tab attached to a line.
+    /// The selected chip is filled; the others are just text until you hover them.
+    /// </summary>
     public static bool Tab(string id, string label, float x, float y, float width, bool selected)
     {
         float height = Tokens.Metric.TabHeight;
@@ -189,24 +208,15 @@ internal static class Chrome
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
         float radius = Tokens.Radius.Control;
 
-        // Drawn a little taller than the hit box and clipped back to it, so only the top
-        // corners round off and the tab sits on the divider line instead of floating above it.
-        dl.PushClipRect(min, max, true);
-        VerticalFill(
-            dl,
-            min,
-            new Vector2(max.X, max.Y + radius),
-            selected ? Tokens.Col.ControlHover : Tokens.Col.TitleBar,
-            selected ? Tokens.Col.PanelSoft : Tokens.Col.Control2,
-            radius);
-        dl.AddRect(
-            min,
-            new Vector2(max.X, max.Y + radius),
-            selected ? Tokens.Col.GoldDim : Tokens.Col.EdgeDim,
-            radius,
-            ImDrawFlags.RoundCornersAll,
-            Tokens.Line(1f));
-        dl.PopClipRect();
+        if (selected)
+        {
+            dl.AddRectFilled(min, max, Tokens.Col.Control, radius);
+            dl.AddRect(min, max, Tokens.Col.GoldDim, radius, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
+        }
+        else if (hovered)
+        {
+            dl.AddRectFilled(min, max, Tokens.Col.NavHover, radius);
+        }
 
         uint ink = selected ? Tokens.Col.GoldHi : hovered ? Tokens.Col.Ink : Tokens.Col.InkDim;
         float textX = MathF.Round(x + ((width - Ink.Measure(Ink.Role.Body, label).X) * 0.5f));
@@ -331,6 +341,20 @@ internal static class Chrome
         Hairline(ImGui.GetWindowDrawList(), x0, x1, MathF.Round(y + gap), Tokens.Col.Hairline);
         return (gap * 2f) + Tokens.Line(1f);
     }
+
+    /// <summary>
+    /// The width of one column of the settings grid. Controls are sized to this, never to
+    /// the full content width.
+    /// </summary>
+    public static float ColumnWidth(float contentWidth)
+    {
+        float gutters = Tokens.Metric.ColumnGutter * (Tokens.Metric.Columns - 1);
+        return MathF.Floor((contentWidth - gutters) / Tokens.Metric.Columns);
+    }
+
+    /// <summary>The left edge of the given column, counted from zero.</summary>
+    public static float ColumnX(float contentLeft, float contentWidth, int column) =>
+        contentLeft + (column * (ColumnWidth(contentWidth) + Tokens.Metric.ColumnGutter));
 
     /// <summary>The label side of a settings row, vertically centred against its control.</summary>
     public static void RowLabel(string label, float x, float y, float height)

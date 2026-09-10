@@ -46,8 +46,8 @@ internal static class Tokens
     /// derived from them and stay on the same neutral hue — those are the ones to question
     /// if something looks off.
     /// <para>
-    /// The measurement overturned an assumption: the panel, the title bar, the nav rail and
-    /// the footer are all the SAME colour in the game. FFXIV separates its regions with
+    /// The measurement overturned an assumption: the panel, the title bar and the nav rail are
+    /// all the SAME colour in the game. FFXIV separates its regions with
     /// lines, not with shades, and there is no gradient on the title bar.
     /// </para>
     /// </summary>
@@ -60,7 +60,6 @@ internal static class Tokens
         public static readonly uint PanelSoft = Rgb(0x232223);
         public static readonly uint Rail = Rgb(0x232223);
         public static readonly uint TitleBar = Rgb(0x232223);
-        public static readonly uint Footer = Rgb(0x232223);
 
         // Structure comes from these, since the surfaces no longer carry it.
         public static readonly uint EdgeDim = Rgb(0x4A474A);
@@ -70,7 +69,6 @@ internal static class Tokens
         public static readonly uint Control = Rgb(0x3A383A);
         public static readonly uint Control2 = Rgb(0x2E2C2E);
         public static readonly uint ControlEdge = Rgb(0x6B676B);
-        public static readonly uint ControlHover = Rgb(0x464346);
         public static readonly uint ButtonTop = Rgb(0x464346);
         public static readonly uint ButtonBottom = Rgb(0x353335);
         public static readonly uint Input = Rgb(0x1B1A1B);
@@ -146,9 +144,9 @@ internal static class Tokens
         public static readonly uint SliderGrabHover = Rgb(0xFFFFFF);
 
         // --- scrollbar ---
-        public static readonly uint ScrollTrack = Rgb(0x1B1E21);
-        public static readonly uint ScrollGrab = Rgb(0x52585E);
-        public static readonly uint ScrollGrabHover = Rgb(0x63696F);
+        public static readonly uint ScrollTrack = Rgb(0x1B1A1B);
+        public static readonly uint ScrollGrab = Rgb(0x4E4B4E);
+        public static readonly uint ScrollGrabHover = Rgb(0x605D60);
 
         /// <summary>Everything disabled is drawn at this strength, nothing invents its own.</summary>
         public const float DisabledAlpha = 0.45f;
@@ -217,7 +215,6 @@ internal static class Tokens
 
         public static float TitleBarHeight => Px(42f);
         public static float TitleButton => Px(20f);
-        public static float FooterHeight => Px(50f);
 
         public static float NavWidth => Px(205f);
         public static float NavItemHeight => Px(35f);
@@ -227,7 +224,6 @@ internal static class Tokens
         public static float NavButtonHeight => Px(34f);
         public static float NavVersionHeight => Px(24f);
 
-        public static float TabBarHeight => Px(42f);
         public static float TabHeight => Px(31f);
         public static float TabPaddingX => Px(18f);
         public static float TabGap => Px(2f);
@@ -249,6 +245,14 @@ internal static class Tokens
 
 
         public static float RowHeight => Px(30f);
+
+        /// <summary>
+        /// Settings are laid out on a two-column grid. A control fills one column and never
+        /// the whole width: a slider stretched across a wide window is unusable and looks it.
+        /// </summary>
+        public const int Columns = 2;
+
+        public static float ColumnGutter => Px(28f);
 
         public static float BadgeHeight => Px(18f);
         public static float BadgePaddingX => Px(6f);

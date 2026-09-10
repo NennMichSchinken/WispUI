@@ -18,8 +18,6 @@ internal static class Strings
     public const string CommandHelp = "Open the WispUI settings window.";
 
     // --- Window chrome ------------------------------------------------------
-    public const string Close = "Close";
-    public const string Apply = "Apply";
     public const string Defaults = "Defaults";
     public const string EditMode = "Edit Mode";
     public const string NewBadge = "New";
@@ -66,6 +64,5 @@ internal static class Strings
     // --- Disabled-state explanations -----------------------------------------
     public const string EditModeDisabled = "Edit Mode needs a HUD element to move. The first one arrives with Party Frames.";
     public const string DefaultsDisabled = "There is nothing to reset yet.";
-    public const string ApplyDisabled = "Changes are saved on their own, a moment after you stop.";
     public const string ClipboardDisabled = "The appearance clipboard arrives with the first HUD element.";
 }

@@ -45,6 +45,9 @@ internal sealed class GlobalScreen
         float y = origin.Y;
         float contentWidth = width - (Tokens.Metric.SectionPaddingX * 2f);
 
+        // Controls sit on the two-column grid and fill one column, never the whole width.
+        float columnWidth = Chrome.ColumnWidth(contentWidth);
+
         y += Chrome.SectionHeader(Strings.SectionInterface, Strings.SectionInterfaceHint, x, y);
 
         float scale = m_dragging ? m_livePreview : m_config.Scale;
@@ -52,9 +55,9 @@ internal sealed class GlobalScreen
             IdScale,
             Strings.InterfaceScale,
             this.ScaleCaption(scale),
-            x,
+            Chrome.ColumnX(x, contentWidth, 0),
             y,
-            contentWidth,
+            columnWidth,
             scale,
             Configuration.MinScale,
             Configuration.MaxScale);
@@ -78,7 +81,7 @@ internal sealed class GlobalScreen
         }
 
         y += result.Height + Tokens.Space.Sm;
-        y += Chrome.Hint(Strings.InterfaceScaleHint, x, y, contentWidth);
+        y += Chrome.Hint(Strings.InterfaceScaleHint, x, y, columnWidth);
 
         y += Chrome.SectionRule(x, x + contentWidth, y);
 
@@ -92,7 +95,7 @@ internal sealed class GlobalScreen
         }
 
         y += Tokens.Metric.RowHeight;
-        y += Chrome.Hint(Strings.ShowInfoBarEntryHint, x, y, contentWidth);
+        y += Chrome.Hint(Strings.ShowInfoBarEntryHint, x, y, columnWidth);
 
         // Tell the scroll area how tall the screen actually is.
         ImGui.SetCursorScreenPos(origin);

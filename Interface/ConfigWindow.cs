@@ -12,7 +12,7 @@ using WispUI.Style;
 namespace WispUI.Interface;
 
 /// <summary>
-/// The settings window: title bar, navigation tree, module header, tabs, footer.
+/// The settings window: title bar, navigation tree, tab chips and a per-screen header.
 /// The screens themselves are mostly empty — this is the frame they will hang in.
 /// <para>
 /// The window frame is the topmost layer, so a scrollbar or a pinned header can never sit
@@ -32,8 +32,6 @@ internal sealed class ConfigWindow : Window
     private const string IdCopy = "##wisp-copy";
     private const string IdPaste = "##wisp-paste";
     private const string IdDefaults = "##wisp-defaults";
-    private const string IdApply = "##wisp-apply";
-    private const string IdFooterClose = "##wisp-footer-close";
 
     private const uint Transparent = 0x00000000u;
 
@@ -71,11 +69,6 @@ internal sealed class ConfigWindow : Window
 
     private Screen m_screen = Screen.PartyFrames;
 
-    // The placeholder heading is built from two parts. Rebuilding it every frame would
-    // allocate a string per frame, so it is cached and only rebuilt when the pair changes.
-    private string m_heading = string.Empty;
-    private Screen m_headingScreen = (Screen)(-1);
-    private int m_headingTab = -1;
 
     public ConfigWindow(Configuration config)
         : base(
@@ -149,16 +142,16 @@ internal sealed class ConfigWindow : Window
         float bottom = origin.Y + size.Y - border;
 
         float titleHeight = Tokens.Metric.TitleBarHeight;
-        float footerHeight = Tokens.Metric.FooterHeight;
         float bodyTop = top + titleHeight;
-        float bodyBottom = bottom - footerHeight;
 
-        dl.AddRectFilled(new Vector2(left, top), new Vector2(right, bottom), Tokens.Col.Panel);
+        // Painted over the whole window, frame inset included. If it stopped at the inset,
+        // the pixels the frame normally covers would show through whenever the window loses
+        // focus and the frame is not drawn.
+        dl.AddRectFilled(origin, new Vector2(origin.X + size.X, origin.Y + size.Y), Tokens.Col.Panel);
 
         this.DrawTitleBar(dl, left, right, top, titleHeight);
-        this.DrawNav(dl, left, bodyTop, bodyBottom);
-        this.DrawModuleArea(dl, left + Tokens.Metric.NavWidth, right, bodyTop, bodyBottom);
-        this.DrawFooter(dl, left, right, bodyBottom, footerHeight);
+        this.DrawNav(dl, left, bodyTop, bottom);
+        this.DrawModuleArea(dl, left + Tokens.Metric.NavWidth, right, bodyTop, bottom);
 
         if (this.IsFocused)
         {
@@ -230,29 +223,12 @@ internal sealed class ConfigWindow : Window
 
         // The three-pixel rule that closes the title bar: dark, surface, light. It fades out
         // towards the corners rather than running into the frame.
-        float ruleY = max.Y - Tokens.Metric.TitleRuleHeight;
-        float step = Tokens.Line(1f);
-        for (int i = 0; i < Tokens.Col.TitleRule.Length; i++)
-        {
-            Chrome.FadingHairline(
-                dl,
-                left,
-                right,
-                ruleY + (i * step),
-                Tokens.Col.TitleRule[i],
-                Tokens.Metric.TitleRuleFade);
-        }
+        Chrome.Rule(dl, left, right, max.Y - Tokens.Metric.TitleRuleHeight);
 
+        // Just the product name. The screen you are on is named by the header below, and
+        // saying it twice only makes the title bar busier.
         float x = left + Tokens.Metric.SectionPaddingX;
         Ink.Draw(dl, Ink.Role.Title, new Vector2(x, Chrome.CenterY(top, height, Ink.Role.Title)), Tokens.Col.Ink, Strings.WindowTitle);
-        x += MathF.Round(Ink.Measure(Ink.Role.Title, Strings.WindowTitle).X) + Tokens.Space.Lg;
-
-        Ink.Draw(
-            dl,
-            Ink.Role.Body,
-            new Vector2(x, Chrome.CenterY(top, height, Ink.Role.Body)),
-            Tokens.Col.InkFaint,
-            ScreenLabel(m_screen));
 
         float button = Tokens.Metric.TitleButton;
         if (Chrome.CloseButton(IdClose, right - Tokens.Space.Lg - button, MathF.Round(top + ((height - button) * 0.5f))))
@@ -393,21 +369,20 @@ internal sealed class ConfigWindow : Window
     private void DrawModuleArea(ImDrawListPtr dl, float left, float right, float top, float bottom)
     {
         float y = this.DrawTabs(dl, left, right, top);
-
-        if (m_screen == Screen.PartyFrames)
-        {
-            y = this.DrawModuleHeader(dl, left, right, y);
-        }
-
+        y += Chrome.Rule(dl, left, right, y);
+        y = this.DrawScreenHeader(dl, left, right, y);
         this.DrawContent(left, right, y, bottom);
     }
 
-    /// <summary>Draws the tab row and returns the y just below it.</summary>
+    /// <summary>
+    /// The tab row: free-standing chips on the surface, with no line tying them to anything.
+    /// The rule beneath is drawn by the caller and is what separates them from the content.
+    /// Returns the y just below the chips.
+    /// </summary>
     private float DrawTabs(ImDrawListPtr dl, float left, float right, float top)
     {
-        float barHeight = Tokens.Metric.TabBarHeight;
-        float lineY = top + barHeight - Tokens.Line(1f);
-        Chrome.Hairline(dl, left, right, lineY, Tokens.Col.EdgeDim);
+        _ = dl;
+        _ = right;
 
         string[] tabs = TabsFor(m_screen);
         int screenIndex = (int)m_screen;
@@ -416,8 +391,8 @@ internal sealed class ConfigWindow : Window
             m_tabIndex[screenIndex] = 0;
         }
 
+        float tabTop = top + Tokens.Space.Md;
         float x = left + Tokens.Metric.SectionPaddingX;
-        float tabTop = lineY - Tokens.Metric.TabHeight;
         for (int i = 0; i < tabs.Length && i < TabIds.Length; i++)
         {
             float width = Chrome.MeasureTab(tabs[i]);
@@ -429,48 +404,57 @@ internal sealed class ConfigWindow : Window
             x += width + Tokens.Metric.TabGap;
         }
 
-        return top + barHeight;
+        return tabTop + Tokens.Metric.TabHeight + Tokens.Space.Md;
     }
 
     /// <summary>
-    /// The module header: the switch on the left, the appearance clipboard on the right.
-    /// One central spot per module, reachable from every tab — the same header will carry
-    /// Player Bars, Target and Target-of-Target without any extra work.
+    /// One central strip per screen: what you are looking at on the left, the actions that
+    /// apply to the whole screen on the right. HUD modules add their on/off switch and the
+    /// appearance clipboard here — the same strip will carry Player Bars, Target and
+    /// Target-of-Target without any extra work.
     /// </summary>
-    private float DrawModuleHeader(ImDrawListPtr dl, float left, float right, float top)
+    private float DrawScreenHeader(ImDrawListPtr dl, float left, float right, float top)
     {
+        bool isModule = m_screen == Screen.PartyFrames;
         float height = Tokens.Metric.ModuleHeaderHeight;
-        dl.AddRectFilled(new Vector2(left, top), new Vector2(right, top + height), Tokens.Col.PanelSoft);
-        Chrome.Hairline(dl, left, right, top + height - Tokens.Line(1f), Tokens.Col.Hairline);
-
         float x = left + Tokens.Metric.SectionPaddingX;
-        float switchY = MathF.Round(top + ((height - Tokens.Metric.SwitchHeight) * 0.5f));
-        if (Chrome.Switch(IdModuleSwitch, x, switchY, m_config.PartyFramesEnabled, true))
+
+        if (isModule)
         {
-            m_config.PartyFramesEnabled = !m_config.PartyFramesEnabled;
-            m_config.MarkDirty();
+            float switchY = MathF.Round(top + ((height - Tokens.Metric.SwitchHeight) * 0.5f));
+            if (Chrome.Switch(IdModuleSwitch, x, switchY, m_config.PartyFramesEnabled, true))
+            {
+                m_config.PartyFramesEnabled = !m_config.PartyFramesEnabled;
+                m_config.MarkDirty();
+            }
+
+            x += Tokens.Metric.SwitchWidth + Tokens.Space.Md;
         }
 
-        x += Tokens.Metric.SwitchWidth + Tokens.Space.Md;
-        Ink.Draw(
-            dl,
-            Ink.Role.Body,
-            new Vector2(x, Chrome.CenterY(top, height, Ink.Role.Body)),
-            Tokens.Col.Ink,
-            Strings.NavPartyFrames);
-        x += MathF.Round(Ink.Measure(Ink.Role.Body, Strings.NavPartyFrames).X) + Tokens.Space.Md;
+        string title = ScreenLabel(m_screen);
+        Ink.Draw(dl, Ink.Role.Title, new Vector2(x, Chrome.CenterY(top, height, Ink.Role.Title)), Tokens.Col.Heading, title);
 
-        string state = m_config.PartyFramesEnabled ? Strings.StateOn : Strings.StateOff;
-        Ink.Draw(dl, Ink.Role.Small, new Vector2(x, Chrome.CenterY(top, height, Ink.Role.Small)), Tokens.Col.InkFaint, state);
+        if (isModule)
+        {
+            x += MathF.Round(Ink.Measure(Ink.Role.Title, title).X) + Tokens.Space.Md;
+            string state = m_config.PartyFramesEnabled ? Strings.StateOn : Strings.StateOff;
+            Ink.Draw(dl, Ink.Role.Small, new Vector2(x, Chrome.CenterY(top, height, Ink.Role.Small)), Tokens.Col.InkFaint, state);
+        }
 
+        // Right to left: Defaults sits outermost, so it stays in the same place on every
+        // screen whether or not a clipboard is present.
         float buttonY = MathF.Round(top + ((height - Tokens.Metric.ButtonHeight) * 0.5f));
-        float pasteWidth = Chrome.MeasureButton(Strings.PasteAppearance);
-        float copyWidth = Chrome.MeasureButton(Strings.CopyAppearance);
-        float pasteX = right - Tokens.Metric.SectionPaddingX - pasteWidth;
-        float copyX = pasteX - Tokens.Space.Sm - copyWidth;
+        float cursor = right - Tokens.Metric.SectionPaddingX - Chrome.MeasureButton(Strings.Defaults);
+        Chrome.Button(IdDefaults, Strings.Defaults, cursor, buttonY, false, Strings.DefaultsDisabled);
 
-        Chrome.Button(IdCopy, Strings.CopyAppearance, copyX, buttonY, false, Strings.ClipboardDisabled);
-        Chrome.Button(IdPaste, Strings.PasteAppearance, pasteX, buttonY, false, Strings.ClipboardDisabled);
+        if (isModule)
+        {
+            cursor -= Tokens.Space.Md + Chrome.MeasureButton(Strings.PasteAppearance);
+            Chrome.Button(IdPaste, Strings.PasteAppearance, cursor, buttonY, false, Strings.ClipboardDisabled);
+
+            cursor -= Tokens.Space.Sm + Chrome.MeasureButton(Strings.CopyAppearance);
+            Chrome.Button(IdCopy, Strings.CopyAppearance, cursor, buttonY, false, Strings.ClipboardDisabled);
+        }
 
         return top + height;
     }
@@ -513,28 +497,11 @@ internal sealed class ConfigWindow : Window
     }
 
     /// <summary>
-    /// Stands in for the real screens. It names the tab you are on so the frame can be
-    /// checked without pretending there are controls behind it.
+    /// Stands in for the screens that have no controls yet. The screen is already named by
+    /// the header above, so this only says that there is nothing behind the tab.
     /// </summary>
     private void DrawScreenPlaceholder(float width)
     {
-        string[] tabs = TabsFor(m_screen);
-        int tabIndex = Math.Clamp(m_tabIndex[(int)m_screen], 0, tabs.Length - 1);
-        if (m_headingScreen != m_screen || m_headingTab != tabIndex)
-        {
-            m_headingScreen = m_screen;
-            m_headingTab = tabIndex;
-            m_heading = ScreenLabel(m_screen) + " · " + tabs[tabIndex];
-        }
-
-        Ink.Push(Ink.Role.Title);
-        ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.Heading);
-        ImGui.TextUnformatted(m_heading);
-        ImGui.PopStyleColor();
-        Ink.Pop(Ink.Role.Title);
-
-        ImGui.Dummy(new Vector2(0f, Tokens.Space.Md));
-
         Ink.Push(Ink.Role.Body);
         ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.InkDim);
         ImGui.TextUnformatted(Strings.NothingHereYet);
@@ -546,28 +513,6 @@ internal sealed class ConfigWindow : Window
         ImGui.PopTextWrapPos();
         ImGui.PopStyleColor();
         Ink.Pop(Ink.Role.Body);
-    }
-
-    private void DrawFooter(ImDrawListPtr dl, float left, float right, float top, float height)
-    {
-        Vector2 min = new(left, top);
-        Vector2 max = new(right, top + height);
-        dl.AddRectFilled(min, max, Tokens.Col.Footer);
-        Chrome.Hairline(dl, left, right, top, Tokens.Col.EdgeDim);
-
-        float y = MathF.Round(top + ((height - Tokens.Metric.ButtonHeight) * 0.5f));
-        Chrome.Button(IdDefaults, Strings.Defaults, left + Tokens.Space.Lg, y, false, Strings.DefaultsDisabled);
-
-        float closeWidth = Chrome.MeasureButton(Strings.Close);
-        float applyWidth = Chrome.MeasureButton(Strings.Apply);
-        float closeX = right - Tokens.Space.Lg - closeWidth;
-        float applyX = closeX - Tokens.Space.Md - applyWidth;
-
-        Chrome.Button(IdApply, Strings.Apply, applyX, y, false, Strings.ApplyDisabled);
-        if (Chrome.Button(IdFooterClose, Strings.Close, closeX, y, true))
-        {
-            this.IsOpen = false;
-        }
     }
 
     /// <summary>One row of the navigation tree, described rather than drawn.</summary>
