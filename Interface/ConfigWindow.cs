@@ -527,13 +527,19 @@ internal sealed class ConfigWindow : Window
         ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.InkDim);
         ImGui.TextUnformatted(Strings.NothingHereYet);
         ImGui.PopStyleColor();
+        Ink.Pop(Ink.Role.Body);
 
+        ImGui.Dummy(new Vector2(0f, Tokens.Space.Sm));
+
+        Ink.Push(Ink.Role.Small);
         ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.InkFaint);
-        ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + width);
+        ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + Chrome.ColumnWidth(width));
         ImGui.TextUnformatted(Strings.SkeletonNote);
         ImGui.PopTextWrapPos();
         ImGui.PopStyleColor();
-        Ink.Pop(Ink.Role.Body);
+        Ink.Pop(Ink.Role.Small);
+
+        ImGui.Dummy(new Vector2(width, Tokens.Metric.ContentPaddingBottom));
     }
 
     /// <summary>One row of the navigation tree, described rather than drawn.</summary>

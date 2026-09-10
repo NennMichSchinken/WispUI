@@ -47,6 +47,8 @@ internal sealed class GlobalScreen
         float contentWidth = width;
 
         // Controls sit on the two-column grid and fill one column, never the whole width.
+        // Every block below advances by its own measured height plus one rhythm token —
+        // there is no per-control row constant to drift out of step with what was drawn.
         float columnWidth = Chrome.ColumnWidth(contentWidth);
 
         y += Chrome.SectionHeader(Strings.SectionInterface, Strings.SectionInterfaceHint, x, y);
@@ -61,7 +63,9 @@ internal sealed class GlobalScreen
             columnWidth,
             scale,
             Configuration.MinScale,
-            Configuration.MaxScale);
+            Configuration.MaxScale,
+            Strings.InterfaceScaleNote,
+            Strings.InterfaceScaleTooltip);
 
         if (result.Changed)
         {
@@ -81,26 +85,31 @@ internal sealed class GlobalScreen
             Scaling.Commit(m_config.Scale);
         }
 
-        y += result.Height + Tokens.Space.Sm;
-        y += Chrome.Hint(Strings.InterfaceScaleHint, x, y, columnWidth);
+        y += result.Height;
 
         y += Chrome.SectionRule(x, x + contentWidth, y);
 
         y += Chrome.SectionHeader(Strings.SectionAccess, Strings.SectionAccessHint, x, y);
 
-        if (Chrome.CheckBox(IdInfoBar, Strings.ShowInfoBarEntry, x, y, m_config.ShowInfoBarEntry))
+        if (Chrome.CheckBox(
+                IdInfoBar,
+                Strings.ShowInfoBarEntry,
+                Chrome.ColumnX(x, contentWidth, 0),
+                y,
+                m_config.ShowInfoBarEntry,
+                Strings.ShowInfoBarEntryTooltip))
         {
             m_config.ShowInfoBarEntry = !m_config.ShowInfoBarEntry;
             m_config.MarkDirty();
             this.InfoBarPreferenceChanged?.Invoke();
         }
 
-        y += Tokens.Metric.RowHeight;
-        y += Chrome.Hint(Strings.ShowInfoBarEntryHint, x, y, columnWidth);
+        y += Chrome.CheckBoxHeight();
 
-        // Tell the scroll area how tall the screen actually is.
+        // Tell the scroll area how tall the screen is, the air under the last row included —
+        // without it a scrolled screen ends flush with the window edge.
         ImGui.SetCursorScreenPos(origin);
-        ImGui.Dummy(new Vector2(contentWidth, y - origin.Y));
+        ImGui.Dummy(new Vector2(contentWidth, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
     }
 
     private string ScaleCaption(float scale)

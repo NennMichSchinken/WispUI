@@ -320,7 +320,12 @@ internal static class Chrome
 
     /// <summary>
     /// The head of a settings section: a title and one line saying what it covers.
-    /// Returns the height it used, so the caller can carry on below it.
+    /// Returns the height it used, the gap down to the first row included.
+    /// <para>
+    /// The description is set in the smallest role rather than in body copy. At body size it
+    /// was as loud as a control label, which left the head reading as another row instead of
+    /// as the thing the rows below belong to.
+    /// </para>
     /// </summary>
     public static float SectionHeader(string title, string description, float x, float y)
     {
@@ -328,18 +333,19 @@ internal static class Chrome
         Ink.Draw(dl, Ink.Role.Title, new Vector2(x, y), Tokens.Col.Heading, title);
 
         float used = Ink.LineHeight(Ink.Role.Title) + Tokens.Space.Xs;
-        Ink.Draw(dl, Ink.Role.Body, new Vector2(x, MathF.Round(y + used)), Tokens.Col.InkDim, description);
+        Ink.Draw(dl, Ink.Role.Small, new Vector2(x, MathF.Round(y + used)), Tokens.Col.InkFaint, description);
 
-        return used + Ink.LineHeight(Ink.Role.Body) + Tokens.Space.Lg;
+        return used + Ink.LineHeight(Ink.Role.Small) + Tokens.Metric.SectionHeadGap;
     }
 
     /// <summary>
     /// The rule that separates two settings sections, with the breathing room around it.
-    /// Returns the height it used.
+    /// This is the only line inside a screen: a head is set off from its rows by space, not
+    /// by a second kind of divider. Returns the height it used.
     /// </summary>
     public static float SectionRule(float x0, float x1, float y)
     {
-        float gap = Tokens.Space.Xl;
+        float gap = Tokens.Metric.SectionGap;
         Hairline(ImGui.GetWindowDrawList(), x0, x1, MathF.Round(y + gap), Tokens.Col.Hairline);
         return (gap * 2f) + Tokens.Line(1f);
     }
@@ -365,26 +371,37 @@ internal static class Chrome
         Ink.Draw(dl, Ink.Role.Body, new Vector2(x, CenterY(y, height, Ink.Role.Body)), Tokens.Col.Ink, label);
     }
 
-    /// <summary>A quiet line of explanation under a control.</summary>
+    /// <summary>
+    /// A quiet line of explanation under a control, in the smallest role. Long prose does not
+    /// belong in the flow of a settings screen — a short inline note beside the label carries
+    /// most of it, and the rest belongs in the tooltip.
+    /// </summary>
     public static float Hint(string text, float x, float y, float wrapWidth)
     {
         ImGui.SetCursorScreenPos(new Vector2(x, y));
-        Ink.Push(Ink.Role.Body);
+        Ink.Push(Ink.Role.Small);
         ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.InkFaint);
         ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + wrapWidth);
         ImGui.TextUnformatted(text);
         ImGui.PopTextWrapPos();
         ImGui.PopStyleColor();
-        Ink.Pop(Ink.Role.Body);
+        Ink.Pop(Ink.Role.Small);
         return ImGui.GetItemRectSize().Y;
     }
 
-    /// <summary>A check box with its label to the right of it.</summary>
-    public static bool CheckBox(string id, string label, float x, float y, bool value)
+    /// <summary>
+    /// How tall a check box row is. The caller advances by this rather than by a row token of
+    /// its own, so the gap under a check box is the same gap as under everything else.
+    /// </summary>
+    public static float CheckBoxHeight() =>
+        MathF.Max(Tokens.Metric.CheckBox, Ink.LineHeight(Ink.Role.Body));
+
+    /// <summary>A check box with its label to the right of it, the way the game writes its own.</summary>
+    public static bool CheckBox(string id, string label, float x, float y, bool value, string? tooltip = null)
     {
         float box = Tokens.Metric.CheckBox;
         float labelWidth = Ink.Measure(Ink.Role.Body, label).X;
-        float height = MathF.Max(box, Ink.LineHeight(Ink.Role.Body));
+        float height = CheckBoxHeight();
         float width = box + Tokens.Space.Md + labelWidth;
 
         ImGui.SetCursorScreenPos(new Vector2(x, y));
@@ -428,6 +445,11 @@ internal static class Chrome
             hovered ? Tokens.Col.Ink : Tokens.Col.InkDim,
             label);
 
+        if (tooltip is not null)
+        {
+            TooltipOnHover(tooltip);
+        }
+
         return clicked;
     }
 
@@ -456,13 +478,15 @@ internal static class Chrome
 
     /// <summary>
     /// A slider laid out over two rows: the label top left, the value top right, and the
-    /// track across the full width beneath them. The track fills up to the grab, the way the
-    /// game's own sliders do, and the grab is a circle.
+    /// track across the width of its column beneath them. The track fills up to the grab, the
+    /// way the game's own sliders do, and the grab is a circle.
     /// <para>
     /// Moving and releasing are reported separately, because the rule is that a change shows
     /// at once but is written on release.
     /// </para>
     /// </summary>
+    /// <param name="hint">A few words beside the label, for what a label alone cannot say.</param>
+    /// <param name="tooltip">The longer explanation, which belongs here and not in the flow.</param>
     public static SliderResult Slider(
         string id,
         string label,
@@ -472,14 +496,28 @@ internal static class Chrome
         float width,
         float value,
         float min,
-        float max)
+        float max,
+        string? hint = null,
+        string? tooltip = null)
     {
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
 
-        // --- caption row: label left, value right ---
+        // --- caption row: label left, value right, and an inline note between them ---
         Ink.Draw(dl, Ink.Role.Body, new Vector2(x, y), Tokens.Col.Ink, label);
         float valueX = MathF.Round(x + width - Ink.Measure(Ink.Role.Body, valueText).X);
         Ink.Draw(dl, Ink.Role.Body, new Vector2(valueX, y), Tokens.Col.GoldHi, valueText);
+
+        if (hint is not null)
+        {
+            // Sits on the label's baseline, in the smallest role. Dropped rather than crowded
+            // if the value has taken the room: a note is worth less than a readable number.
+            float hintX = MathF.Round(x + Ink.Measure(Ink.Role.Body, label).X + Tokens.Space.Md);
+            float hintY = MathF.Round(y + Ink.LineHeight(Ink.Role.Body) - Ink.LineHeight(Ink.Role.Small));
+            if (hintX + Ink.Measure(Ink.Role.Small, hint).X + Tokens.Space.Md <= valueX)
+            {
+                Ink.Draw(dl, Ink.Role.Small, new Vector2(hintX, hintY), Tokens.Col.InkFaint, hint);
+            }
+        }
 
         float trackRowTop = MathF.Round(y + Ink.LineHeight(Ink.Role.Body) + Tokens.Space.Sm);
         float rowHeight = Tokens.Metric.SliderHeight;
@@ -490,6 +528,11 @@ internal static class Chrome
         bool active = ImGui.IsItemActive();
         bool hovered = ImGui.IsItemHovered();
         bool released = ImGui.IsItemDeactivated();
+
+        if (tooltip is not null && !active)
+        {
+            TooltipOnHover(tooltip);
+        }
 
         // The grab is a circle, so its centre travels between one radius from each end.
         float travel = width - (radius * 2f);

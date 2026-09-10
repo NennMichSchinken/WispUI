@@ -45,12 +45,16 @@ internal static class Strings
     public const string SectionInterface = "Interface";
     public const string SectionInterfaceHint = "How large WispUI draws, on this screen.";
     public const string InterfaceScale = "Scale";
-    public const string InterfaceScaleHint = "Sets the size of everything WispUI draws. The settings window has a fixed size on purpose, so nothing ever sits at an awkward width — this slider is how you change it.";
+
+    /// <summary>A few words beside the label. The rest is in the tooltip, not in the flow.</summary>
+    public const string InterfaceScaleNote = "100 % is the sharp one";
+
+    public const string InterfaceScaleTooltip = "Sets the size of everything WispUI draws, this window included. Axis is a bitmap face, so it is sharpest at 100 %; every other value rescales it.";
 
     public const string SectionAccess = "Access";
     public const string SectionAccessHint = "How to reach these settings.";
-    public const string ShowInfoBarEntry = "Show an entry in the server info bar";
-    public const string ShowInfoBarEntryHint = "Puts WispUI next to the clock at the top right. One click opens this window, so you need neither a chat command nor the plugin list. The game's own system menu cannot be extended by a plugin.";
+    public const string ShowInfoBarEntry = "Server info bar entry";
+    public const string ShowInfoBarEntryTooltip = "Puts WispUI next to the clock at the top right. One click opens this window, so you need neither a chat command nor the plugin list. The game's own system menu cannot be extended by a plugin.";
 
     public const string InfoBarTooltip = "Open the WispUI settings.";
 

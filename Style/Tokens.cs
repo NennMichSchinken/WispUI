@@ -267,15 +267,37 @@ internal static class Tokens
         public static float SliderGrabRadius => Px(8f);
 
 
-        public static float RowHeight => Px(30f);
-
         /// <summary>
         /// Settings are laid out on a two-column grid. A control fills one column and never
         /// the whole width: a slider stretched across a wide window is unusable and looks it.
+        /// <para>
+        /// Field controls (sliders, selectors) take one column each, two to a row, and compact
+        /// options (check boxes) do the same. Only a section head and the rule between two
+        /// sections run the full width. Nothing stretches and nothing shrinks — a control that
+        /// does not fit goes on the next row.
+        /// </para>
         /// </summary>
         public const int Columns = 2;
 
         public static float ColumnGutter => Px(28f);
+
+        // --- the vertical rhythm of a settings screen ---
+        // Four values, and every block advances by its own MEASURED height plus one of them.
+        // The head gap is the larger one on purpose: a section head is set off from its
+        // controls by space rather than by a line, because the window has exactly two kinds of
+        // divider and neither of them belongs there.
+
+        /// <summary>Section head to its first row.</summary>
+        public static float SectionHeadGap => Px(20f);
+
+        /// <summary>One row of controls to the next.</summary>
+        public static float RowGap => Px(16f);
+
+        /// <summary>Last row to the rule, and the rule on to the next head.</summary>
+        public static float SectionGap => Px(20f);
+
+        /// <summary>Air under the last row, so a scrolled screen does not end flush with the edge.</summary>
+        public static float ContentPaddingBottom => Px(24f);
 
         public static float BadgeHeight => Px(18f);
         public static float BadgePaddingX => Px(6f);
