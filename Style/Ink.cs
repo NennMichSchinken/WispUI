@@ -18,14 +18,15 @@ namespace WispUI.Style;
 /// </summary>
 internal static class Ink
 {
-    private static readonly ImFontPtr[] Fonts = new ImFontPtr[3];
-    private static readonly float[] Sizes = new float[3];
+    private static readonly ImFontPtr[] Fonts = new ImFontPtr[4];
+    private static readonly float[] Sizes = new float[4];
 
     internal enum Role
     {
-        Title = 0,
-        Body = 1,
-        Small = 2,
+        ScreenTitle = 0,
+        Title = 1,
+        Body = 2,
+        Small = 3,
     }
 
     /// <summary>
@@ -34,6 +35,7 @@ internal static class Ink
     /// </summary>
     public static void BeginFrame()
     {
+        Capture(Role.ScreenTitle, Style.Fonts.ScreenTitle);
         Capture(Role.Title, Style.Fonts.Title);
         Capture(Role.Body, Style.Fonts.Body);
         Capture(Role.Small, Style.Fonts.Small);

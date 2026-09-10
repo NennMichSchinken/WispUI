@@ -208,14 +208,16 @@ internal static class Chrome
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
         float radius = Tokens.Radius.Control;
 
+        // Lighter at the top than at the bottom, the way the game shades its own tabs. That
+        // one gradient is what makes them read as raised rather than as flat rectangles.
         if (selected)
         {
-            dl.AddRectFilled(min, max, Tokens.Col.Control, radius);
+            VerticalFill(dl, min, max, Tokens.Col.ButtonTop, Tokens.Col.ButtonBottom, radius);
             dl.AddRect(min, max, Tokens.Col.GoldDim, radius, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
         }
         else if (hovered)
         {
-            dl.AddRectFilled(min, max, Tokens.Col.NavHover, radius);
+            VerticalFill(dl, min, max, Tokens.Col.Control, Tokens.Col.Control2, radius);
         }
 
         uint ink = selected ? Tokens.Col.GoldHi : hovered ? Tokens.Col.Ink : Tokens.Col.InkDim;
@@ -323,12 +325,12 @@ internal static class Chrome
     public static float SectionHeader(string title, string description, float x, float y)
     {
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
-        Ink.Draw(dl, Ink.Role.Body, new Vector2(x, y), Tokens.Col.Heading, title);
+        Ink.Draw(dl, Ink.Role.Title, new Vector2(x, y), Tokens.Col.Heading, title);
 
-        float used = Ink.LineHeight(Ink.Role.Body) + Tokens.Space.Xs;
-        Ink.Draw(dl, Ink.Role.Small, new Vector2(x, MathF.Round(y + used)), Tokens.Col.InkDim, description);
+        float used = Ink.LineHeight(Ink.Role.Title) + Tokens.Space.Xs;
+        Ink.Draw(dl, Ink.Role.Body, new Vector2(x, MathF.Round(y + used)), Tokens.Col.InkDim, description);
 
-        return used + Ink.LineHeight(Ink.Role.Small) + Tokens.Space.Lg;
+        return used + Ink.LineHeight(Ink.Role.Body) + Tokens.Space.Lg;
     }
 
     /// <summary>
@@ -367,13 +369,13 @@ internal static class Chrome
     public static float Hint(string text, float x, float y, float wrapWidth)
     {
         ImGui.SetCursorScreenPos(new Vector2(x, y));
-        Ink.Push(Ink.Role.Small);
+        Ink.Push(Ink.Role.Body);
         ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.InkFaint);
         ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + wrapWidth);
         ImGui.TextUnformatted(text);
         ImGui.PopTextWrapPos();
         ImGui.PopStyleColor();
-        Ink.Pop(Ink.Role.Small);
+        Ink.Pop(Ink.Role.Body);
         return ImGui.GetItemRectSize().Y;
     }
 
@@ -521,8 +523,8 @@ internal static class Chrome
             dl.PopClipRect();
         }
 
-        dl.AddRect(trackMin, trackMax, Tokens.Col.ControlEdge, trackRadius, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
-
+        // No outline on the track. The rounded ends are the shape; a border around them only
+        // made the bar look boxed in.
         Vector2 grabCenter = new(grabCenterX, MathF.Round(trackTop + (trackHeight * 0.5f)));
         dl.AddCircleFilled(grabCenter, radius, active || hovered ? Tokens.Col.SliderGrabHover : Tokens.Col.SliderGrab);
         dl.AddCircle(grabCenter, radius, Tokens.Col.EdgeDim, 0, Tokens.Line(1f));

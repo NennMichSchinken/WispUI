@@ -13,9 +13,13 @@ namespace WispUI.Style;
 /// </summary>
 internal static class Fonts
 {
+    private static IFontHandle? s_screenTitle;
     private static IFontHandle? s_title;
     private static IFontHandle? s_body;
     private static IFontHandle? s_small;
+
+    /// <summary>The name of the screen you are on.</summary>
+    public static IFontHandle ScreenTitle => s_screenTitle ?? Fallback;
 
     /// <summary>Window title and section headings.</summary>
     public static IFontHandle Title => s_title ?? Fallback;
@@ -37,6 +41,7 @@ internal static class Fonts
         Dispose();
 
         IFontAtlas atlas = Services.PluginInterface.UiBuilder.FontAtlas;
+        s_screenTitle = atlas.NewGameFontHandle(Style(Tokens.FontRole.ScreenTitle));
         s_title = atlas.NewGameFontHandle(Style(Tokens.FontRole.Title));
         s_body = atlas.NewGameFontHandle(Style(Tokens.FontRole.Body));
         s_small = atlas.NewGameFontHandle(Style(Tokens.FontRole.Small));
@@ -61,9 +66,11 @@ internal static class Fonts
 
     public static void Dispose()
     {
+        s_screenTitle?.Dispose();
         s_title?.Dispose();
         s_body?.Dispose();
         s_small?.Dispose();
+        s_screenTitle = null;
         s_title = null;
         s_body = null;
         s_small = null;

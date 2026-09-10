@@ -149,7 +149,7 @@ internal sealed class ConfigWindow : Window
         // focus and the frame is not drawn.
         dl.AddRectFilled(origin, new Vector2(origin.X + size.X, origin.Y + size.Y), Tokens.Col.Panel);
 
-        this.DrawTitleBar(dl, left, right, top, titleHeight);
+        this.DrawTitleBar(dl, origin.X, origin.X + size.X, origin.Y, top, titleHeight);
         this.DrawNav(dl, left, bodyTop, bottom);
         this.DrawModuleArea(dl, left + Tokens.Metric.NavWidth, right, bodyTop, bottom);
 
@@ -214,10 +214,19 @@ internal sealed class ConfigWindow : Window
         _ => TabsPartyFrames,
     };
 
-    private void DrawTitleBar(ImDrawListPtr dl, float left, float right, float top, float height)
+    /// <summary>
+    /// The title bar. Its fill runs from the very top of the window rather than from inside
+    /// the frame inset: the bar is lighter than the surface, so leaving those few pixels to
+    /// the surface colour drew a dark line across the top whenever the window lost focus and
+    /// the frame that normally covers them was not there. The text still sits inside the inset.
+    /// </summary>
+    private void DrawTitleBar(ImDrawListPtr dl, float outerLeft, float outerRight, float outerTop, float top, float height)
     {
-        Vector2 min = new(left, top);
-        Vector2 max = new(right, top + height);
+        Vector2 min = new(outerLeft, outerTop);
+        Vector2 max = new(outerRight, top + height);
+        float left = outerLeft + Tokens.Metric.WindowBorder;
+        float right = outerRight - Tokens.Metric.WindowBorder;
+
         // Lit at the very top and fading down into the surface colour, as measured.
         Chrome.VerticalFill(dl, min, max, Tokens.Col.TitleBarTop, Tokens.Col.TitleBar);
 
@@ -432,11 +441,16 @@ internal sealed class ConfigWindow : Window
         }
 
         string title = ScreenLabel(m_screen);
-        Ink.Draw(dl, Ink.Role.Title, new Vector2(x, Chrome.CenterY(top, height, Ink.Role.Title)), Tokens.Col.Heading, title);
+        Ink.Draw(
+            dl,
+            Ink.Role.ScreenTitle,
+            new Vector2(x, Chrome.CenterY(top, height, Ink.Role.ScreenTitle)),
+            Tokens.Col.Heading,
+            title);
 
         if (isModule)
         {
-            x += MathF.Round(Ink.Measure(Ink.Role.Title, title).X) + Tokens.Space.Md;
+            x += MathF.Round(Ink.Measure(Ink.Role.ScreenTitle, title).X) + Tokens.Space.Md;
             string state = m_config.PartyFramesEnabled ? Strings.StateOn : Strings.StateOff;
             Ink.Draw(dl, Ink.Role.Small, new Vector2(x, Chrome.CenterY(top, height, Ink.Role.Small)), Tokens.Col.InkFaint, state);
         }
@@ -475,24 +489,31 @@ internal sealed class ConfigWindow : Window
         ImGui.PushStyleColor(ImGuiCol.ScrollbarGrabActive, Tokens.Col.ScrollGrabHover);
         ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarSize, Tokens.Metric.ScrollbarWidth);
         ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarRounding, Tokens.Radius.Small);
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(Tokens.Metric.SectionPaddingX, Tokens.Metric.SectionPaddingY));
 
         ImGui.SetCursorScreenPos(new Vector2(left, top));
         if (ImGui.BeginChild(IdContent, new Vector2(width, height)))
         {
+            // ImGui forces WindowPadding to zero on a child window without a border, so the
+            // padding is applied here by hand. Without it the content sits flush against the
+            // nav rail while everything outside the child keeps its margin.
+            float padX = Tokens.Metric.SectionPaddingX;
+            float padY = Tokens.Metric.SectionPaddingY;
+            ImGui.SetCursorPos(new Vector2(padX, padY));
+
+            float inner = width - (padX * 2f);
             if (m_screen == Screen.Global)
             {
-                m_global.Draw(width);
+                m_global.Draw(inner);
             }
             else
             {
-                this.DrawScreenPlaceholder(width);
+                this.DrawScreenPlaceholder(inner);
             }
         }
 
         ImGui.EndChild();
 
-        ImGui.PopStyleVar(3);
+        ImGui.PopStyleVar(2);
         ImGui.PopStyleColor(5);
     }
 
@@ -508,7 +529,7 @@ internal sealed class ConfigWindow : Window
         ImGui.PopStyleColor();
 
         ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.InkFaint);
-        ImGui.PushTextWrapPos(width - (Tokens.Metric.SectionPaddingX * 2f));
+        ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + width);
         ImGui.TextUnformatted(Strings.SkeletonNote);
         ImGui.PopTextWrapPos();
         ImGui.PopStyleColor();

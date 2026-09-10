@@ -193,8 +193,16 @@ internal static class Tokens
         //
         // Asking for "14 pixels" therefore picked Axis12 and shrank it, which came out both
         // smaller and softer than the game's own text. Naming the step avoids that entirely.
+        /// <summary>The name of the screen you are on, in its header. 24 px.</summary>
+        public const GameFontFamilyAndSize ScreenTitle = GameFontFamilyAndSize.Axis18;
+
+        /// <summary>The window title and section headings. 18.7 px.</summary>
         public const GameFontFamilyAndSize Title = GameFontFamilyAndSize.Axis14;
+
+        /// <summary>Body copy, labels, buttons, navigation, tabs. 16 px.</summary>
         public const GameFontFamilyAndSize Body = GameFontFamilyAndSize.Axis12;
+
+        /// <summary>Badges and the version chip — the only things smaller than body. 12.8 px.</summary>
         public const GameFontFamilyAndSize Small = GameFontFamilyAndSize.Axis96;
     }
 

@@ -38,12 +38,13 @@ internal sealed class GlobalScreen
     /// <summary>Raised when the info bar entry is switched on or off.</summary>
     public event Action? InfoBarPreferenceChanged;
 
+    /// <param name="width">The usable width, with the content padding already taken off.</param>
     public void Draw(float width)
     {
         Vector2 origin = ImGui.GetCursorScreenPos();
         float x = origin.X;
         float y = origin.Y;
-        float contentWidth = width - (Tokens.Metric.SectionPaddingX * 2f);
+        float contentWidth = width;
 
         // Controls sit on the two-column grid and fill one column, never the whole width.
         float columnWidth = Chrome.ColumnWidth(contentWidth);
