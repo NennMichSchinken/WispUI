@@ -25,7 +25,10 @@ The guiding idea is **curation, not parity**: a short list of elements that a se
 - **Arrow buttons instead of dropdowns** for texture and style selection, with a live preview and an optional searchable list
 - **Copy and paste appearance** between elements, with per-area tick boxes — size and position are structurally excluded
 
-Later: player health/mana/cast bars, job gauges, 24-man alliance layout.
+## Planned after that
+
+- **Combat tracker** — the author's existing [HamMeter](https://github.com/NennMichSchinken/HamMeter) folded in as a module, reading encounter data from IINACT over Dalamud IPC. Without IINACT the module simply stays inactive and walks you through installing it; nothing else in the suite is affected.
+- Player health / mana / cast bars, job gauges, 24-man alliance layout.
 
 ## Requirements
 
