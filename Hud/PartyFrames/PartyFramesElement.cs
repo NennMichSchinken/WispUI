@@ -49,6 +49,10 @@ internal sealed class PartyFramesElement : HudElement
     /// How thick the plate's edge is, as a share of its side. A hairline is what a plate on a
     /// panel gets; a plate lying over the game needs a real edge to cut itself out of whatever
     /// is behind it, and at one pixel it stopped doing that (Florian, 2026-09-12).
+    /// <para>
+    /// It is drawn as a filled shape with the plate inside it, never as a stroke — see the
+    /// note where it is used.
+    /// </para>
     /// </summary>
     private const float NumberPlateEdge = 0.09f;
 
@@ -411,30 +415,36 @@ internal sealed class PartyFramesElement : HudElement
             plateAt.X += Tokens.Px(cfg.PartyNumberX);
             plateAt.Y += Tokens.Px(cfg.PartyNumberY);
 
+            // The edge is a filled shape with the plate laid inside it, NOT a stroke. ImGui
+            // centres a stroke on its path, so half of every edge pixel falls outside the
+            // rectangle and gets antialiased — which is exactly why the window's own rings are
+            // filled rectangles too (design bible §2.1, learned the same way in session 5).
             Vector2 plateEnd = new(plateAt.X + plate, plateAt.Y + plate);
+            float edge = MathF.Max(Tokens.Line(1f), MathF.Round(plate * NumberPlateEdge));
             float radius = MathF.Max(Tokens.Radius.Small, MathF.Round(plate * NumberPlateRadius));
-            dl.AddRectFilled(plateAt, plateEnd, Tokens.Col.NumberPlate, radius, ImDrawFlags.RoundCornersAll);
-            dl.AddRect(
-                plateAt,
-                plateEnd,
-                Tokens.Col.NumberEdge,
-                radius,
-                ImDrawFlags.RoundCornersAll,
-                MathF.Max(Tokens.Line(1f), MathF.Round(plate * NumberPlateEdge)));
+
+            dl.AddRectFilled(plateAt, plateEnd, Tokens.Col.NumberEdge, radius, ImDrawFlags.RoundCornersAll);
+            dl.AddRectFilled(
+                new Vector2(plateAt.X + edge, plateAt.Y + edge),
+                new Vector2(plateEnd.X - edge, plateEnd.Y - edge),
+                Tokens.Col.NumberPlate,
+                MathF.Max(0f, radius - edge),
+                ImDrawFlags.RoundCornersAll);
 
             // Centred on the plate rather than anchored to it: a digit is the one text whose
             // width changes with nothing the user did, and it has to stay in the middle.
+            // Written once. A second pass a pixel away thickened the stroke and smeared the
+            // glyph with it, which is the opposite of what a number this small needs
+            // (Florian, 2026-09-12) — weight is what the size slider is for.
             float glyphWidth = Ink.MeasureWidth(glyph, number);
-            Vector2 glyphAt = new(
-                MathF.Round(plateAt.X + ((plate - glyphWidth) * 0.5f)),
-                MathF.Round(plateAt.Y + ((plate - glyph) * 0.5f)));
-
-            // Written twice, a pixel apart, which thickens the stroke without a second font.
-            // A single digit at body weight is a thin thing to read at a glance in a fight,
-            // and it is the one text on a frame with no word around it to help.
-            float weight = Tokens.Line(1f);
-            Ink.DrawScaled(dl, glyph, new Vector2(glyphAt.X + weight, glyphAt.Y), Tokens.Col.NumberInk, number);
-            Ink.DrawScaled(dl, glyph, glyphAt, Tokens.Col.NumberInk, number);
+            Ink.DrawScaled(
+                dl,
+                glyph,
+                new Vector2(
+                    MathF.Round(plateAt.X + ((plate - glyphWidth) * 0.5f)),
+                    MathF.Round(plateAt.Y + ((plate - glyph) * 0.5f))),
+                Tokens.Col.NumberInk,
+                number);
         }
 
         if (!cfg.ShowHealthText)
