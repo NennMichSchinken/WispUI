@@ -1,6 +1,4 @@
 using Dalamud.Bindings.ImGui;
-using FFXIVClientStructs.FFXIV.Client.System.Input;
-using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace WispUI.Core;
@@ -42,32 +40,15 @@ internal static class NativeUi
         stage->AtkCursor.SetCursorType(Shape(cursor), true);
     }
 
-    /// <summary>
-    /// Takes the mouse position away from the world for this tick, so nothing behind a WispUI
-    /// window lights up under a pointer that is not really on it.
-    /// <para>
-    /// The game does this to itself wherever its own interface covers the world — there is a
-    /// call for exactly this case — so a plugin window is only asking to be treated like any
-    /// other panel. Clicks were already being held back by Dalamud; this is the highlight the
-    /// pointer left behind on the way past (Florian, 2026-09-12).
-    /// </para>
-    /// <para>
-    /// Runs on the game's tick rather than while drawing: by the time anything is painted the
-    /// world has long since decided what it thinks the mouse is on.
-    /// </para>
-    /// </summary>
-    public static unsafe void TakeMouseFromWorld()
-    {
-        UIInputData* input = UIInputData.Instance();
-        if (input is null)
-        {
-            return;
-        }
-
-        // No buttons named: the position and the wheel are what the world must not see. What
-        // the mouse buttons do is Dalamud's to decide, and it already decided.
-        input->FilterUICursorInputs(MouseButtonFlags.None);
-    }
+    // Objects in the world still light up behind the window — a postbox under the pointer is
+    // highlighted even though the pointer is really on a settings row.
+    //
+    // Tried and dropped: UIInputData.FilterUICursorInputs, the call the game makes on itself
+    // wherever its own panels cover the view. In-game it changed nothing here (2026-09-12), so
+    // it went rather than staying on as an unproven poke into the game's memory every tick.
+    // Clicks are held back by Dalamud already, which leaves a highlight and nothing more.
+    // Whatever paints it is not that input path, and finding out means going after the
+    // targeting system — too much to reach for over a highlight Florian called liveable.
 
     private static AtkCursor.CursorType Shape(ImGuiMouseCursor cursor) => cursor switch
     {

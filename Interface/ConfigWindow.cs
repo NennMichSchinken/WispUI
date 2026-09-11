@@ -85,12 +85,6 @@ internal sealed class ConfigWindow : Window
     /// <summary>Whether the pointer is currently ours to speak for.</summary>
     private bool m_ownsCursor;
 
-    /// <summary>
-    /// Whether the mouse is on this window. Read from the game's tick, which is a different
-    /// moment from the one that set it — one frame behind, and a frame is not enough to see.
-    /// </summary>
-    public bool HasMouse => m_ownsCursor;
-
     public ConfigWindow(Configuration config)
         : base(
             Strings.WindowId,
