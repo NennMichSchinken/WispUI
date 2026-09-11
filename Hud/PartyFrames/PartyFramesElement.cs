@@ -36,7 +36,7 @@ internal sealed class PartyFramesElement : HudElement
     /// not as a button. The size the user sets is the figure, because that is the thing they
     /// are judging.
     /// </summary>
-    private const float NumberPlateScale = 1.45f;
+    private const float NumberPlateScale = 1.35f;
 
     /// <summary>
     /// How round the plate's corners are, as a share of its side. A share rather than a token
@@ -44,6 +44,13 @@ internal sealed class PartyFramesElement : HudElement
     /// pixels and a sharp one at forty.
     /// </summary>
     private const float NumberPlateRadius = 0.2f;
+
+    /// <summary>
+    /// How thick the plate's edge is, as a share of its side. A hairline is what a plate on a
+    /// panel gets; a plate lying over the game needs a real edge to cut itself out of whatever
+    /// is behind it, and at one pixel it stopped doing that (Florian, 2026-09-12).
+    /// </summary>
+    private const float NumberPlateEdge = 0.09f;
 
     private readonly Configuration m_config;
     private readonly PartySnapshot m_snapshot = new();
@@ -413,19 +420,21 @@ internal sealed class PartyFramesElement : HudElement
                 Tokens.Col.NumberEdge,
                 radius,
                 ImDrawFlags.RoundCornersAll,
-                Tokens.Line(1f));
+                MathF.Max(Tokens.Line(1f), MathF.Round(plate * NumberPlateEdge)));
 
-            // Centred on the tile rather than anchored to it: a digit is the one text whose
+            // Centred on the plate rather than anchored to it: a digit is the one text whose
             // width changes with nothing the user did, and it has to stay in the middle.
             float glyphWidth = Ink.MeasureWidth(glyph, number);
-            Ink.DrawScaled(
-                dl,
-                glyph,
-                new Vector2(
-                    MathF.Round(plateAt.X + ((plate - glyphWidth) * 0.5f)),
-                    MathF.Round(plateAt.Y + ((plate - glyph) * 0.5f))),
-                Tokens.Col.NumberInk,
-                number);
+            Vector2 glyphAt = new(
+                MathF.Round(plateAt.X + ((plate - glyphWidth) * 0.5f)),
+                MathF.Round(plateAt.Y + ((plate - glyph) * 0.5f)));
+
+            // Written twice, a pixel apart, which thickens the stroke without a second font.
+            // A single digit at body weight is a thin thing to read at a glance in a fight,
+            // and it is the one text on a frame with no word around it to help.
+            float weight = Tokens.Line(1f);
+            Ink.DrawScaled(dl, glyph, new Vector2(glyphAt.X + weight, glyphAt.Y), Tokens.Col.NumberInk, number);
+            Ink.DrawScaled(dl, glyph, glyphAt, Tokens.Col.NumberInk, number);
         }
 
         if (!cfg.ShowHealthText)
