@@ -36,7 +36,8 @@ internal sealed record AppearanceBlock
 
     public bool NameInJobColour { get; init; }
 
-    public bool ShortenNames { get; init; }
+    /// <summary>Index into <see cref="Hud.NameShortening"/>.</summary>
+    public int NameShortening { get; init; }
 
     // The health text, described the same way every text on an element is: what it says, how
     // big it is, which point it hangs on, and how far it is nudged from there. All of it is
@@ -66,6 +67,9 @@ internal sealed record AppearanceBlock
 
     public bool ShowJobIcon { get; init; }
 
+    /// <summary>Index into <see cref="Data.JobIconStyle"/>.</summary>
+    public int JobIconStyle { get; init; }
+
     /// <summary>In pixels, and square.</summary>
     public float JobIconSize { get; init; }
 
@@ -77,6 +81,21 @@ internal sealed record AppearanceBlock
     public float JobIconY { get; init; }
 
     public bool JobIconHideDps { get; init; }
+
+    // The party number. It travels with the icon rather than with the text: it is a badge on
+    // a frame, not something the frame says about the person on it.
+
+    public bool ShowPartyNumber { get; init; }
+
+    /// <summary>In pixels.</summary>
+    public float PartyNumberSize { get; init; }
+
+    /// <summary>Index into the nine anchor points.</summary>
+    public int PartyNumberPosition { get; init; }
+
+    public float PartyNumberX { get; init; }
+
+    public float PartyNumberY { get; init; }
 }
 
 /// <summary>

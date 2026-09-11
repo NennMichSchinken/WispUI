@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -114,7 +114,19 @@ public sealed class Configuration : IPluginConfiguration
 
         public bool NameInJobColour { get; set; }
 
-        /// <summary>Cut a long name down rather than let it run out of the frame.</summary>
+        /// <summary>
+        /// How much of the name is drawn: all of it, the surname cut to an initial, or the
+        /// first name cut to one. Which half you keep is a matter of who you play with —
+        /// on a static everyone is known by their first name, in a party finder group the
+        /// surname is what tells two Alisaies apart (Florian, 2026-09-12).
+        /// </summary>
+        public int NameShortening { get; set; }
+
+        /// <summary>
+        /// The old yes-or-no shortening. Nothing writes it any more; it is here so the
+        /// migration to version 4 can read what the user had. Droppable once no stored
+        /// configuration is older than that.
+        /// </summary>
         public bool ShortenNames { get; set; }
 
         // --- health text --------------------------------------------------------
@@ -175,6 +187,12 @@ public sealed class Configuration : IPluginConfiguration
         /// </summary>
         public float JobIconSize { get; set; } = 20f;
 
+        /// <summary>
+        /// 0 the framed set, 1 the plain one. Two sets of the same icons the game ships;
+        /// which one reads better depends on how busy the frame beside it is.
+        /// </summary>
+        public int JobIconStyle { get; set; }
+
         /// <summary>Index into the nine anchor points.</summary>
         public int JobIconPosition { get; set; } = (int)Hud.Anchor.Left;
 
@@ -188,6 +206,27 @@ public sealed class Configuration : IPluginConfiguration
         /// makes the two tanks and two healers findable.
         /// </summary>
         public bool JobIconHideDps { get; set; }
+
+        // --- party number -------------------------------------------------------
+        // The 1 to 8 the game's own party list puts in front of every member. Same anatomy
+        // as every other thing on a frame, and it is the party's numbering, not ours: once
+        // the frames can be sorted, member three stays the three they are called out as.
+
+        /// <summary>
+        /// Off by default. It is a real aid in a raid where people are called by number, and
+        /// eight numbers nobody uses is eight pieces of furniture on the screen.
+        /// </summary>
+        public bool ShowPartyNumber { get; set; }
+
+        /// <summary>In pixels, like every other text on a frame.</summary>
+        public float PartyNumberSize { get; set; } = DefaultTextSize;
+
+        /// <summary>Index into the nine anchor points.</summary>
+        public int PartyNumberPosition { get; set; } = (int)Hud.Anchor.TopLeft;
+
+        public float PartyNumberX { get; set; }
+
+        public float PartyNumberY { get; set; }
 
         // --- layout: never copied between elements, it belongs to this one (CLAUDE.md §5.3) ---
         // Stated at scale 1.0 and put through the interface scale when drawn, like every other
@@ -308,6 +347,15 @@ public sealed class Configuration : IPluginConfiguration
                 3 => (int)Hud.HealthTextMode.Deficit,
                 _ => (int)Hud.HealthTextMode.Percent,
             };
+        }
+
+        if (config.Version < 4)
+        {
+            // Shortening was a yes or no and is now a choice of which half to keep. Whoever
+            // had it on keeps exactly what they had: the surname cut to an initial.
+            config.PartyFrames.NameShortening = config.PartyFrames.ShortenNames
+                ? (int)Hud.NameShortening.Surname
+                : (int)Hud.NameShortening.Full;
         }
     }
 }

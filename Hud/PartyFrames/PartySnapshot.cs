@@ -10,6 +10,14 @@ namespace WispUI.Hud.PartyFrames;
 internal struct PartyMemberSnapshot
 {
     public uint EntityId;
+
+    /// <summary>
+    /// The member's place in the party, counted from one — the number the game's own party
+    /// list shows and the number people are called out by. It is the party's, not ours: once
+    /// the frames can be sorted, member three has to stay the three they answer to.
+    /// </summary>
+    public int PartyNumber;
+
     public uint JobId;
     public JobRole Role;
     public uint Hp;
@@ -99,6 +107,7 @@ internal sealed class PartySnapshot
             }
 
             slot.EntityId = entityId;
+            slot.PartyNumber = i + 1;
             slot.JobId = member.ClassJob.RowId;
             slot.Role = Jobs.Role(slot.JobId);
             slot.Hp = member.CurrentHP;
@@ -132,6 +141,7 @@ internal sealed class PartySnapshot
         {
             ref PartyMemberSnapshot slot = ref m_members[i];
             slot.EntityId = PlaceholderId + (uint)i;
+            slot.PartyNumber = i + 1;
             slot.JobId = PlaceholderJobs[i];
             slot.Role = Jobs.Role(slot.JobId);
             slot.Name = Strings.PreviewName;
@@ -162,6 +172,7 @@ internal sealed class PartySnapshot
         }
 
         slot.EntityId = entityId;
+        slot.PartyNumber = 1;
         slot.JobId = player.ClassJob.RowId;
         slot.Role = Jobs.Role(slot.JobId);
         slot.Hp = player.CurrentHp;

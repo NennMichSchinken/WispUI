@@ -46,7 +46,10 @@ internal sealed class PartyFramesElement : HudElement
     /// <summary>The name as it is drawn: the game's own string, or a shortened copy of it.</summary>
     private readonly string[] m_drawnName = new string[PartySnapshot.Capacity];
     private readonly string?[] m_drawnNameFrom = new string?[PartySnapshot.Capacity];
-    private readonly bool[] m_drawnNameShort = new bool[PartySnapshot.Capacity];
+    private readonly NameShortening[] m_drawnNameMode = new NameShortening[PartySnapshot.Capacity];
+
+    /// <summary>The party number as text, built once for the eight numbers there can be.</summary>
+    private static readonly string[] NumberText = { "1", "2", "3", "4", "5", "6", "7", "8" };
 
     /// <summary>Where a smoothed bar has got to, and who it belongs to.</summary>
     private readonly float[] m_shownHealth = new float[PartySnapshot.Capacity];
@@ -106,10 +109,12 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
+        bool framed = m_config.PartyFrames.JobIconStyle == (int)JobIconStyle.Framed;
         PartyMemberSnapshot[] members = m_snapshot.Members;
+
         for (int i = 0; i < m_snapshot.Count; i++)
         {
-            m_icon[i] = Icons.Handle(Jobs.IconId(members[i].JobId));
+            m_icon[i] = Icons.Handle(Jobs.IconId(members[i].JobId, framed));
         }
     }
 
@@ -311,7 +316,7 @@ internal sealed class PartyFramesElement : HudElement
 
         if (cfg.ShowName)
         {
-            string name = this.DrawnName(slot, ref member, cfg.ShortenNames);
+            string name = this.DrawnName(slot, ref member, PlayerName.At(cfg.NameShortening));
             float size = Tokens.Px(cfg.NameSize);
             Vector2 measured = new(Ink.MeasureWidth(size, name), size);
             Vector2 at = Anchors.Place(Anchors.At(cfg.NamePosition), innerMin, innerMax, measured, padding);
@@ -319,11 +324,30 @@ internal sealed class PartyFramesElement : HudElement
             at.X += Tokens.Px(cfg.NameX);
             at.Y += Tokens.Px(cfg.NameY);
 
-            uint colour = cfg.NameInJobColour
-                ? Jobs.Colour(member.JobId)
-                : member.IsLocalPlayer ? Tokens.Col.GoldHi : Tokens.Col.Ink;
+            // Your own name is drawn like everyone else's. It used to come out gold, which
+            // looked like a state rather than a whose-name-is-this, and the one frame you
+            // never have to search for is your own (Florian, 2026-09-12).
+            uint colour = cfg.NameInJobColour ? Jobs.Colour(member.JobId) : Tokens.Col.Ink;
 
             Ink.DrawScaledShadowed(dl, size, at, colour, name);
+        }
+
+        if (cfg.ShowPartyNumber && member.PartyNumber >= 1 && member.PartyNumber <= NumberText.Length)
+        {
+            string number = NumberText[member.PartyNumber - 1];
+            float numberSize = Tokens.Px(cfg.PartyNumberSize);
+            Vector2 numberMeasured = new(Ink.MeasureWidth(numberSize, number), numberSize);
+            Vector2 numberAt = Anchors.Place(
+                Anchors.At(cfg.PartyNumberPosition),
+                innerMin,
+                innerMax,
+                numberMeasured,
+                padding);
+
+            numberAt.X += Tokens.Px(cfg.PartyNumberX);
+            numberAt.Y += Tokens.Px(cfg.PartyNumberY);
+
+            Ink.DrawScaledShadowed(dl, numberSize, numberAt, Tokens.Col.InkDim, number);
         }
 
         if (!cfg.ShowHealthText)
@@ -431,35 +455,20 @@ internal sealed class PartyFramesElement : HudElement
     /// member rather than once per frame: the source string only changes when the slot changes
     /// hands, which makes it its own cache key.
     /// </summary>
-    private string DrawnName(int slot, ref PartyMemberSnapshot member, bool shorten)
+    private string DrawnName(int slot, ref PartyMemberSnapshot member, NameShortening mode)
     {
         string source = member.Name ?? string.Empty;
 
         if (m_drawnName[slot] is null
-            || m_drawnNameShort[slot] != shorten
+            || m_drawnNameMode[slot] != mode
             || !ReferenceEquals(m_drawnNameFrom[slot], source))
         {
             m_drawnNameFrom[slot] = source;
-            m_drawnNameShort[slot] = shorten;
-            m_drawnName[slot] = shorten ? Shorten(source) : source;
+            m_drawnNameMode[slot] = mode;
+            m_drawnName[slot] = PlayerName.Build(mode, source);
         }
 
         return m_drawnName[slot];
-    }
-
-    /// <summary>
-    /// "Firstname Lastname" down to "Firstname L." — a character in this game has exactly the
-    /// two names, and the first one is what people call them.
-    /// </summary>
-    private static string Shorten(string name)
-    {
-        int space = name.LastIndexOf(' ');
-        if (space <= 0 || space >= name.Length - 1)
-        {
-            return name;
-        }
-
-        return string.Concat(name.AsSpan(0, space + 1), name.AsSpan(space + 1, 1), ".");
     }
 
     /// <summary>

@@ -72,8 +72,13 @@ internal static class Strings
     public const string BarColour = "Bar colour";
     public const string NamePosition = "Position";
     public const string NameInJobColour = "Name in job colour";
-    public const string ShortenNames = "Shorten long names";
-    public const string ShortenNamesTooltip = "Cuts the surname to an initial.";
+    public const string ShortenNames = "Name length";
+
+    // Written as what they do to a name rather than named in the abstract: "Fri Day" is one
+    // look, and "abbreviate surname" is a sentence you have to translate in your head.
+    public const string ShorteningFull = "Fri Day";
+    public const string ShorteningSurname = "Fri D.";
+    public const string ShorteningForename = "F. Day";
 
     // The nine points a text can hang on, in reading order. One list for every text on every
     // element, so nobody has to learn the same word twice.
@@ -123,9 +128,16 @@ internal static class Strings
     // --- Party frames: job icon -----------------------------------------------
     public const string GroupJobIcon = "Job icon";
     public const string GroupJobIconHint = "Who is what, before you read a name.";
+    public const string IconStyle = "Style";
+    public const string IconStyleFramed = "Framed";
+    public const string IconStylePlain = "Plain";
     public const string IconSize = "Size";
     public const string IconHideDps = "Hide on damage";
     public const string IconHideDpsTooltip = "Leaves the two tanks and two healers easy to find.";
+
+    // --- Party frames: party number -------------------------------------------
+    public const string GroupPartyNumber = "Party number";
+    public const string GroupPartyNumberHint = "The 1 to 8 people are called out by.";
 
     // --- Global screen ------------------------------------------------------
     public const string SectionInterface = "Interface";

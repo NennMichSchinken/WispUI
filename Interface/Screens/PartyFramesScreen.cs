@@ -44,7 +44,13 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdManaTanks = "##wisp-pf-manatanks";
     private const string IdManaHealers = "##wisp-pf-manahealers";
     private const string IdManaDps = "##wisp-pf-manadps";
+    private const string IdNumberGroup = "##wisp-pf-number";
+    private const string IdNumberSize = "##wisp-pf-numbersize";
+    private const string IdNumberPosition = "##wisp-pf-numberposition";
+    private const string IdNumberX = "##wisp-pf-numberx";
+    private const string IdNumberY = "##wisp-pf-numbery";
     private const string IdIconGroup = "##wisp-pf-icon";
+    private const string IdIconStyle = "##wisp-pf-iconstyle";
     private const string IdIconSize = "##wisp-pf-iconsize";
     private const string IdIconPosition = "##wisp-pf-iconposition";
     private const string IdIconX = "##wisp-pf-iconx";
@@ -123,7 +129,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const int SlotIconSize = 10;
     private const int SlotIconX = 11;
     private const int SlotIconY = 12;
-    private const int SlotCount = 13;
+    private const int SlotNumberSize = 13;
+    private const int SlotNumberX = 14;
+    private const int SlotNumberY = 15;
+    private const int SlotCount = 16;
 
     /// <summary>What a bar takes its colour from. FFXIV's own convention, not one of ours.</summary>
     private static readonly BarColourMode[] ColourModes =
@@ -135,6 +144,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     /// <summary>A few jobs standing in for all of them in the "by job" preview.</summary>
     private static readonly uint[] JobSample = { 19u, 24u, 25u, 23u };
+
+    /// <summary>The two icon sets, and the one job whose icon stands in for them.</summary>
+    private static readonly JobIconStyle[] IconStyles = { JobIconStyle.Framed, JobIconStyle.Plain };
+
+    private const uint IconSampleJob = 24u;
 
     /// <summary>The line counts as text, so the label never builds a string in a draw path.</summary>
     private static readonly System.Collections.Generic.Dictionary<int, string> LineLabels = new() { { 1, "1" }, { 2, "2" }, { 4, "4" } };
@@ -166,6 +180,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private readonly ArrowSelector<Anchor> m_healthPosition;
     private readonly ArrowSelector<string> m_manaStyle;
     private readonly ArrowSelector<Anchor> m_iconPosition;
+    private readonly ArrowSelector<JobIconStyle> m_iconStyle;
+    private readonly ArrowSelector<Anchor> m_numberPosition;
+    private readonly ArrowSelector<NameShortening> m_shortening;
     private readonly ArrowSelector<string> m_direction;
     private readonly ArrowSelector<int> m_lines;
 
@@ -174,7 +191,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     /// <summary>One readout per slider, rebuilt only when its number changes.</summary>
     private readonly string[] m_sizeText = new string[SlotCount];
-    private readonly int[] m_sizeTextFor = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+    private readonly int[] m_sizeTextFor = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
 
     private string m_arrangementText = string.Empty;
     private int m_arrangementFor = -1;
@@ -242,6 +259,37 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             Anchors.All,
             new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false });
 
+        m_numberPosition = new ArrowSelector<Anchor>(
+            IdNumberPosition,
+            Anchors.All,
+            new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false });
+
+        // The one selector whose preview is the answer: the two sets are the same pictures
+        // with and without a frame, and no words describe that as fast as looking at it.
+        m_iconStyle = new ArrowSelector<JobIconStyle>(
+            IdIconStyle,
+            IconStyles,
+            new ArrowSelectorOptions<JobIconStyle>
+            {
+                Label = static style => style == JobIconStyle.Plain ? Strings.IconStylePlain : Strings.IconStyleFramed,
+                DrawPreview = DrawIconPreview,
+                ShowCounter = false,
+            });
+
+        m_shortening = new ArrowSelector<NameShortening>(
+            IdShortenNames,
+            PlayerName.All,
+            new ArrowSelectorOptions<NameShortening>
+            {
+                Label = static mode => mode switch
+                {
+                    NameShortening.Surname => Strings.ShorteningSurname,
+                    NameShortening.Forename => Strings.ShorteningForename,
+                    _ => Strings.ShorteningFull,
+                },
+                ShowCounter = false,
+            });
+
         m_manaStyle = new ArrowSelector<string>(
             IdManaStyle,
             ManaStyles,
@@ -279,7 +327,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         NameX = m_config.PartyFrames.NameX,
         NameY = m_config.PartyFrames.NameY,
         NameInJobColour = m_config.PartyFrames.NameInJobColour,
-        ShortenNames = m_config.PartyFrames.ShortenNames,
+        NameShortening = m_config.PartyFrames.NameShortening,
         ShowHealthText = m_config.PartyFrames.ShowHealthText,
         HpTextMode = m_config.PartyFrames.HpTextMode,
         HpTextSize = m_config.PartyFrames.HpTextSize,
@@ -287,11 +335,17 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         HpTextX = m_config.PartyFrames.HpTextX,
         HpTextY = m_config.PartyFrames.HpTextY,
         ShowJobIcon = m_config.PartyFrames.ShowJobIcon,
+        JobIconStyle = m_config.PartyFrames.JobIconStyle,
         JobIconSize = m_config.PartyFrames.JobIconSize,
         JobIconPosition = m_config.PartyFrames.JobIconPosition,
         JobIconX = m_config.PartyFrames.JobIconX,
         JobIconY = m_config.PartyFrames.JobIconY,
         JobIconHideDps = m_config.PartyFrames.JobIconHideDps,
+        ShowPartyNumber = m_config.PartyFrames.ShowPartyNumber,
+        PartyNumberSize = m_config.PartyFrames.PartyNumberSize,
+        PartyNumberPosition = m_config.PartyFrames.PartyNumberPosition,
+        PartyNumberX = m_config.PartyFrames.PartyNumberX,
+        PartyNumberY = m_config.PartyFrames.PartyNumberY,
     };
 
     public void ApplyAppearance(AppearanceBlock source, AppearanceFields mask)
@@ -318,7 +372,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.PartyFrames.NameX = source.NameX;
             m_config.PartyFrames.NameY = source.NameY;
             m_config.PartyFrames.NameInJobColour = source.NameInJobColour;
-            m_config.PartyFrames.ShortenNames = source.ShortenNames;
+            m_config.PartyFrames.NameShortening = source.NameShortening;
             m_config.PartyFrames.ShowHealthText = source.ShowHealthText;
             m_config.PartyFrames.HpTextMode = source.HpTextMode;
             m_config.PartyFrames.HpTextSize = source.HpTextSize;
@@ -330,11 +384,17 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         if ((mask & AppearanceFields.Icon) != 0)
         {
             m_config.PartyFrames.ShowJobIcon = source.ShowJobIcon;
+            m_config.PartyFrames.JobIconStyle = source.JobIconStyle;
             m_config.PartyFrames.JobIconSize = source.JobIconSize;
             m_config.PartyFrames.JobIconPosition = source.JobIconPosition;
             m_config.PartyFrames.JobIconX = source.JobIconX;
             m_config.PartyFrames.JobIconY = source.JobIconY;
             m_config.PartyFrames.JobIconHideDps = source.JobIconHideDps;
+            m_config.PartyFrames.ShowPartyNumber = source.ShowPartyNumber;
+            m_config.PartyFrames.PartyNumberSize = source.PartyNumberSize;
+            m_config.PartyFrames.PartyNumberPosition = source.PartyNumberPosition;
+            m_config.PartyFrames.PartyNumberX = source.PartyNumberX;
+            m_config.PartyFrames.PartyNumberY = source.PartyNumberY;
         }
 
         m_config.MarkDirty();
@@ -361,12 +421,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         Chrome.GroupScope mana = this.DrawMana(Chrome.ColumnX(origin.X, width, 1), y, column, out float manaHeight);
         y += FrameRow(figure, figureHeight, mana, manaHeight);
 
-        // The last row holds one group. It keeps its column rather than stretching across
-        // both: a group that is twice as wide as the one above it reads as a different kind
-        // of thing, and this is the same kind of thing with fewer rows.
+        // The two things that say who somebody is, side by side.
         Chrome.BeginGroupRow();
         Chrome.GroupScope icon = this.DrawJobIcon(Chrome.ColumnX(origin.X, width, 0), y, column, out float iconHeight);
-        y += Chrome.GroupFrame(icon, iconHeight) + Tokens.Metric.ColumnGutter;
+        Chrome.GroupScope number = this.DrawPartyNumber(Chrome.ColumnX(origin.X, width, 1), y, column, out float numberHeight);
+        y += FrameRow(icon, iconHeight, number, numberHeight);
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
@@ -565,19 +624,14 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         rowY += pitch;
 
-        if (Chrome.OptionRow(
-                IdShortenNames,
-                Strings.ShortenNames,
-                group.ContentX,
+        int shortening = m_config.PartyFrames.NameShortening;
+        if (m_shortening.Draw(
+                ref shortening,
+                Chrome.Row(Strings.ShortenNames, group.ContentX, rowY, group.ContentWidth, true),
                 rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.ShortenNames,
-                Chrome.OptionControl.Tick,
-                Strings.ShortenNamesTooltip,
-                true,
-                true))
+                Chrome.ControlWidth()))
         {
-            m_config.PartyFrames.ShortenNames = !m_config.PartyFrames.ShortenNames;
+            m_config.PartyFrames.NameShortening = shortening;
             m_config.MarkDirty();
         }
 
@@ -793,7 +847,19 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
 
-        this.PixelSlider(IdIconSize, Strings.IconSize, SlotIconSize, group, rowY, MinIconSize, MaxIconSize, false, null);
+        int style = m_config.PartyFrames.JobIconStyle;
+        if (m_iconStyle.Draw(
+                ref style,
+                Chrome.Row(Strings.IconStyle, group.ContentX, rowY, group.ContentWidth, false),
+                rowY,
+                Chrome.ControlWidth()))
+        {
+            m_config.PartyFrames.JobIconStyle = style;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+        this.PixelSlider(IdIconSize, Strings.IconSize, SlotIconSize, group, rowY, MinIconSize, MaxIconSize, true, null);
         rowY += pitch;
 
         int position = m_config.PartyFrames.JobIconPosition;
@@ -833,6 +899,79 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         Chrome.EndGroupContent(group, used);
         contentHeight = used;
         return group;
+    }
+
+    /// <summary>
+    /// The party number — the 1 to 8 the game's own list puts in front of every member. Same
+    /// anatomy as every other thing on a frame.
+    /// </summary>
+    private Chrome.GroupScope DrawPartyNumber(float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdNumberGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupPartyNumber,
+                Description = Strings.GroupPartyNumberHint,
+                Toggle = m_config.PartyFrames.ShowPartyNumber,
+            },
+            x,
+            y,
+            width);
+
+        if (group.ToggleClicked)
+        {
+            m_config.PartyFrames.ShowPartyNumber = !m_config.PartyFrames.ShowPartyNumber;
+            m_config.MarkDirty();
+        }
+
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
+
+        this.PixelSlider(IdNumberSize, Strings.TextSize, SlotNumberSize, group, rowY, Configuration.MinTextSize, Configuration.MaxTextSize, false, null);
+        rowY += pitch;
+
+        int position = m_config.PartyFrames.PartyNumberPosition;
+        if (m_numberPosition.Draw(
+                ref position,
+                Chrome.Row(Strings.TextPosition, group.ContentX, rowY, group.ContentWidth, true),
+                rowY,
+                Chrome.ControlWidth()))
+        {
+            m_config.PartyFrames.PartyNumberPosition = position;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+        this.PixelSlider(IdNumberX, Strings.OffsetX, SlotNumberX, group, rowY, -MaxOffset, MaxOffset, true, null);
+        rowY += pitch;
+        this.PixelSlider(IdNumberY, Strings.OffsetY, SlotNumberY, group, rowY, -MaxOffset, MaxOffset, true, null);
+
+        float used = rowY - group.ContentY + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
+
+    /// <summary>
+    /// The job icon itself, beside the style's name. Whether the frame around it is there is
+    /// the whole question, and a word for it would take longer to read than the picture.
+    /// </summary>
+    private static void DrawIconPreview(ImDrawListPtr dl, JobIconStyle style, Vector2 min, Vector2 max)
+    {
+        ImTextureID icon = Icons.Handle(Jobs.IconId(IconSampleJob, style == JobIconStyle.Framed));
+        if (icon.Handle == 0)
+        {
+            return;
+        }
+
+        // Square and centred in the swatch: a job icon is drawn square, and the swatch is not.
+        float size = MathF.Min(max.X - min.X, max.Y - min.Y);
+        Vector2 at = new(
+            MathF.Round(min.X + (((max.X - min.X) - size) * 0.5f)),
+            MathF.Round(min.Y + (((max.Y - min.Y) - size) * 0.5f)));
+
+        dl.AddImage(icon, at, new Vector2(at.X + size, at.Y + size));
     }
 
     private Chrome.GroupScope DrawArrangement(float x, float y, float width, out float contentHeight)
@@ -1019,6 +1158,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         SlotIconSize => m_config.PartyFrames.JobIconSize,
         SlotIconX => m_config.PartyFrames.JobIconX,
         SlotIconY => m_config.PartyFrames.JobIconY,
+        SlotNumberSize => m_config.PartyFrames.PartyNumberSize,
+        SlotNumberX => m_config.PartyFrames.PartyNumberX,
+        SlotNumberY => m_config.PartyFrames.PartyNumberY,
         _ => m_config.PartyFrames.ManaHeight,
     };
 
@@ -1038,6 +1180,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             case SlotIconSize: m_config.PartyFrames.JobIconSize = value; break;
             case SlotIconX: m_config.PartyFrames.JobIconX = value; break;
             case SlotIconY: m_config.PartyFrames.JobIconY = value; break;
+            case SlotNumberSize: m_config.PartyFrames.PartyNumberSize = value; break;
+            case SlotNumberX: m_config.PartyFrames.PartyNumberX = value; break;
+            case SlotNumberY: m_config.PartyFrames.PartyNumberY = value; break;
             default: m_config.PartyFrames.ManaHeight = value; break;
         }
     }
