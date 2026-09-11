@@ -18,6 +18,12 @@ namespace WispUI.Interface.Widgets;
 /// </summary>
 internal static class Chrome
 {
+    // Fixed ids for the parts of a group head. The group pushes its own id first, so these
+    // stay unique without a string being built on every frame.
+    private const string IdGroupToggle = "##wisp-group-toggle";
+    private const string IdGroupAction = "##wisp-group-action";
+    private const string IdGroupCollapse = "##wisp-group-collapse";
+
     /// <summary>Vertically centres one line of the given role in a box of that height.</summary>
     public static float CenterY(float top, float height, Ink.Role role) =>
         MathF.Round(top + ((height - Ink.LineHeight(role)) * 0.5f));
@@ -308,18 +314,31 @@ internal static class Chrome
     /// <summary>The per-module on/off switch that sits at the left of every module header.</summary>
     public static bool Switch(string id, float x, float y, bool value, bool enabled, string? disabledReason = null)
     {
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.InvisibleButton(id, new Vector2(Tokens.Metric.SwitchWidth, Tokens.Metric.SwitchHeight));
+        bool clicked = enabled && ImGui.IsItemClicked();
+
+        PaintSwitch(ImGui.GetWindowDrawList(), x, y, value, enabled ? 1f : Tokens.Col.DisabledAlpha);
+
+        if (!enabled && disabledReason is not null)
+        {
+            TooltipOnHover(disabledReason);
+        }
+
+        return clicked;
+    }
+
+    /// <summary>
+    /// Paints a switch without claiming a hit box, so a row that already owns its hit box can
+    /// put one at its edge. The drawing lives here once; whoever wants a switch calls this.
+    /// </summary>
+    private static void PaintSwitch(ImDrawListPtr dl, float x, float y, bool value, float alpha)
+    {
         float width = Tokens.Metric.SwitchWidth;
         float height = Tokens.Metric.SwitchHeight;
         Vector2 min = new(x, y);
         Vector2 max = new(x + width, y + height);
-
-        ImGui.SetCursorScreenPos(min);
-        ImGui.InvisibleButton(id, new Vector2(width, height));
-        bool clicked = enabled && ImGui.IsItemClicked();
-
-        float alpha = enabled ? 1f : Tokens.Col.DisabledAlpha;
         float radius = height * 0.5f;
-        ImDrawListPtr dl = ImGui.GetWindowDrawList();
 
         dl.AddRectFilled(min, max, Tokens.Col.Faded(value ? Tokens.Col.GoldSwitchTrack : Tokens.Col.Input, alpha), radius);
         dl.AddRect(
@@ -338,10 +357,112 @@ internal static class Chrome
             new Vector2(knobX + knob, min.Y + inset + knob),
             Tokens.Col.Faded(value ? Tokens.Col.GoldHi : Tokens.Col.InkFaint, alpha),
             knob * 0.5f);
+    }
 
-        if (!enabled && disabledReason is not null)
+    /// <summary>Paints a tick box without claiming a hit box. The one tick in the suite.</summary>
+    private static void PaintTick(ImDrawListPtr dl, Vector2 min, bool value, bool hovered, float alpha)
+    {
+        float box = Tokens.Metric.CheckBox;
+        Vector2 max = new(min.X + box, min.Y + box);
+
+        dl.AddRectFilled(min, max, Tokens.Col.Faded(value ? Tokens.Col.Gold : Tokens.Col.Input, alpha), Tokens.Radius.Small);
+        dl.AddRect(
+            min,
+            max,
+            Tokens.Col.Faded(value ? Tokens.Col.GoldHi : hovered ? Tokens.Col.GoldDim : Tokens.Col.ControlEdge, alpha),
+            Tokens.Radius.Small,
+            ImDrawFlags.RoundCornersAll,
+            Tokens.Line(1f));
+
+        if (!value)
         {
-            TooltipOnHover(disabledReason);
+            return;
+        }
+
+        // Two strokes rather than a glyph, so it never depends on the game font having one.
+        float thickness = Tokens.Line(2f);
+        uint ink = Tokens.Col.Faded(Tokens.Col.InkOnGold, alpha);
+        dl.AddLine(
+            new Vector2(min.X + (box * 0.24f), min.Y + (box * 0.52f)),
+            new Vector2(min.X + (box * 0.44f), min.Y + (box * 0.72f)),
+            ink,
+            thickness);
+        dl.AddLine(
+            new Vector2(min.X + (box * 0.44f), min.Y + (box * 0.72f)),
+            new Vector2(min.X + (box * 0.78f), min.Y + (box * 0.28f)),
+            ink,
+            thickness);
+    }
+
+    /// <summary>What a compact option puts at the right edge of its row.</summary>
+    internal enum OptionControl
+    {
+        Tick,
+        Switch,
+    }
+
+    /// <summary>
+    /// A compact option: the label on the left, the control hard against the right edge of
+    /// the column. The whole row is the hit box, so it can be clicked anywhere along it.
+    /// <para>
+    /// That right edge is the point. A tick box parked next to its label leaves the column
+    /// with nothing to align to, and a screen full of them reads as scattered controls rather
+    /// than as a list of settings — the value of a slider, a switch and a tick all end on the
+    /// same line instead.
+    /// </para>
+    /// </summary>
+    public static bool OptionRow(
+        string id,
+        string label,
+        float x,
+        float y,
+        float width,
+        bool value,
+        OptionControl control = OptionControl.Tick,
+        string? tooltip = null,
+        bool enabled = true)
+    {
+        float height = Tokens.Metric.OptionRowHeight;
+
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.InvisibleButton(id, new Vector2(width, height));
+        bool hovered = ImGui.IsItemHovered() && enabled;
+        bool clicked = ImGui.IsItemClicked() && enabled;
+
+        float alpha = enabled ? 1f : Tokens.Col.DisabledAlpha;
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        Ink.Draw(
+            dl,
+            Ink.Role.Body,
+            new Vector2(x, CenterY(y, height, Ink.Role.Body)),
+            Tokens.Col.Faded(hovered ? Tokens.Col.Ink : Tokens.Col.InkDim, alpha),
+            label);
+
+        if (control == OptionControl.Switch)
+        {
+            float switchWidth = Tokens.Metric.SwitchWidth;
+            PaintSwitch(
+                dl,
+                MathF.Round(x + width - switchWidth),
+                MathF.Round(y + ((height - Tokens.Metric.SwitchHeight) * 0.5f)),
+                value,
+                alpha);
+        }
+        else
+        {
+            float box = Tokens.Metric.CheckBox;
+            PaintTick(
+                dl,
+                new Vector2(MathF.Round(x + width - box), MathF.Round(y + ((height - box) * 0.5f))),
+                value,
+                hovered,
+                alpha);
+        }
+
+        if (tooltip is not null)
+        {
+            TooltipOnHover(tooltip);
         }
 
         return clicked;
@@ -367,16 +488,273 @@ internal static class Chrome
         return used + Ink.LineHeight(Ink.Role.Small) + Tokens.Metric.SectionHeadGap;
     }
 
-    /// <summary>
-    /// The rule that separates two settings sections, with the breathing room around it.
-    /// This is the only line inside a screen: a head is set off from its rows by space, not
-    /// by a second kind of divider. Returns the height it used.
-    /// </summary>
-    public static float SectionRule(float x0, float x1, float y)
+    /// <summary>What goes in the head of a group, beyond its name.</summary>
+    internal readonly struct GroupHead
     {
-        float gap = Tokens.Metric.SectionGap;
-        Hairline(ImGui.GetWindowDrawList(), x0, x1, MathF.Round(y + gap), Tokens.Col.Hairline);
-        return (gap * 2f) + Tokens.Line(1f);
+        public string Title { get; init; }
+
+        /// <summary>One line saying what the group covers. May be empty.</summary>
+        public string Description { get; init; }
+
+        /// <summary>An on/off switch at the right of the head, or null for a group that is always on.</summary>
+        public bool? Toggle { get; init; }
+
+        /// <summary>A button at the right of the head — "Defaults", say. Null for none.</summary>
+        public string? Action { get; init; }
+
+        /// <summary>A small count beside the head, the way a list says how long it is.</summary>
+        public string? Badge { get; init; }
+
+        public bool Collapsible { get; init; }
+
+        public bool Collapsed { get; init; }
+    }
+
+    /// <summary>What a group reports back, and where its rows go.</summary>
+    internal readonly struct GroupScope
+    {
+        public readonly float X;
+        public readonly float Y;
+        public readonly float Width;
+
+        /// <summary>Where the first row goes, and how wide the rows are.</summary>
+        public readonly float ContentX;
+
+        public readonly float ContentY;
+        public readonly float ContentWidth;
+
+        /// <summary>False while the group's switch is off: rows are inert and veiled.</summary>
+        public readonly bool Enabled;
+
+        /// <summary>True while the group is folded away — the caller draws no rows at all.</summary>
+        public readonly bool Collapsed;
+
+        public readonly bool ToggleClicked;
+        public readonly bool ActionClicked;
+        public readonly bool CollapseClicked;
+
+        public GroupScope(
+            float x,
+            float y,
+            float width,
+            float contentX,
+            float contentY,
+            float contentWidth,
+            bool enabled,
+            bool collapsed,
+            bool toggleClicked,
+            bool actionClicked,
+            bool collapseClicked)
+        {
+            this.X = x;
+            this.Y = y;
+            this.Width = width;
+            this.ContentX = contentX;
+            this.ContentY = contentY;
+            this.ContentWidth = contentWidth;
+            this.Enabled = enabled;
+            this.Collapsed = collapsed;
+            this.ToggleClicked = toggleClicked;
+            this.ActionClicked = actionClicked;
+            this.CollapseClicked = collapseClicked;
+        }
+    }
+
+    /// <summary>
+    /// Opens a settings group: a framed block with a head of its own. Always paired with
+    /// <see cref="EndGroup"/>, which draws the frame once the rows have said how tall they are.
+    /// <para>
+    /// The frame is the hairline in a second shape — as a stroke it separates two sections, as
+    /// a rectangle it gathers one. That keeps the window at the two kinds of divider it has
+    /// always had, and it needs no surface colour of its own, which matters because the
+    /// measured palette has exactly one surface: the game separates with lines, not shades.
+    /// </para>
+    /// <para>
+    /// A group is what a per-group switch, a per-group "Defaults" and a fold-away hang on.
+    /// None of those had anywhere to live while a section was just a heading and some space.
+    /// </para>
+    /// </summary>
+    public static GroupScope BeginGroup(string id, in GroupHead head, float x, float y, float width)
+    {
+        // Pushed so the head's parts can use fixed ids instead of building one per frame.
+        ImGui.PushID(id);
+
+        float pad = Tokens.Metric.GroupPadding;
+        float left = x + pad;
+        float right = x + width - pad;
+        float top = y + pad;
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        bool enabled = head.Toggle ?? true;
+        float alpha = enabled ? 1f : Tokens.Col.DisabledAlpha;
+
+        // --- right of the head, laid out from the edge inwards ---
+        float cursor = right;
+        bool toggleClicked = false;
+        if (head.Toggle is not null)
+        {
+            cursor -= Tokens.Metric.SwitchWidth;
+            toggleClicked = Switch(IdGroupToggle, cursor, top, head.Toggle.Value, true);
+            cursor -= Tokens.Space.Md;
+        }
+
+        bool collapseClicked = false;
+        if (head.Collapsible)
+        {
+            float size = Tokens.Metric.CollapseGlyph;
+            cursor -= size;
+            collapseClicked = CollapseArrow(dl, IdGroupCollapse, cursor, top, size, head.Collapsed);
+            cursor -= Tokens.Space.Md;
+        }
+
+        if (head.Badge is not null)
+        {
+            Vector2 text = Ink.Measure(Ink.Role.Small, head.Badge);
+            float badgeHeight = Tokens.Metric.BadgeHeight;
+            float badgeWidth = text.X + (Tokens.Metric.BadgePaddingX * 2f);
+            cursor -= badgeWidth;
+            Vector2 min = new(MathF.Round(cursor), MathF.Round(top + ((Ink.LineHeight(Ink.Role.Title) - badgeHeight) * 0.5f)));
+            dl.AddRect(
+                min,
+                new Vector2(min.X + badgeWidth, min.Y + badgeHeight),
+                Tokens.Col.Faded(Tokens.Col.EdgeDim, alpha),
+                Tokens.Radius.Small,
+                ImDrawFlags.RoundCornersAll,
+                Tokens.Line(1f));
+            Ink.Draw(
+                dl,
+                Ink.Role.Small,
+                new Vector2(min.X + Tokens.Metric.BadgePaddingX, MathF.Round(min.Y + ((badgeHeight - text.Y) * 0.5f))),
+                Tokens.Col.Faded(Tokens.Col.InkFaint, alpha),
+                head.Badge);
+            cursor -= Tokens.Space.Md;
+        }
+
+        bool actionClicked = false;
+        if (head.Action is not null)
+        {
+            cursor -= MeasureButton(head.Action);
+            actionClicked = Button(
+                IdGroupAction,
+                head.Action,
+                cursor,
+                MathF.Round(top + ((Ink.LineHeight(Ink.Role.Title) - Tokens.Metric.ButtonHeight) * 0.5f)),
+                enabled);
+        }
+
+        // --- the name, and the line under it ---
+        Ink.Draw(dl, Ink.Role.Title, new Vector2(left, top), Tokens.Col.Faded(Tokens.Col.Heading, alpha), head.Title);
+        float headHeight = Ink.LineHeight(Ink.Role.Title);
+
+        if (head.Description.Length > 0)
+        {
+            float descY = MathF.Round(top + headHeight + Tokens.Space.Xs);
+            Ink.Draw(dl, Ink.Role.Small, new Vector2(left, descY), Tokens.Col.Faded(Tokens.Col.InkFaint, alpha), head.Description);
+            headHeight += Tokens.Space.Xs + Ink.LineHeight(Ink.Role.Small);
+        }
+
+        float contentY = top + headHeight;
+        if (!head.Collapsed)
+        {
+            // Held back from the frame on both sides. A rule that runs into the border cuts
+            // the group into two stacked boxes; inset, it divides one object.
+            float ruleY = MathF.Round(contentY + Tokens.Metric.GroupHeadGap);
+            Hairline(dl, left, right, ruleY, Tokens.Col.Faded(Tokens.Col.Hairline, alpha));
+            contentY = ruleY + Tokens.Line(1f) + Tokens.Metric.GroupRuleGap;
+        }
+
+        // Blocks input to everything the caller draws next. The veil that goes with it is
+        // drawn in EndGroup, once the rows have been laid out.
+        if (!enabled && !head.Collapsed)
+        {
+            ImGui.BeginDisabled();
+        }
+
+        return new GroupScope(
+            x,
+            y,
+            width,
+            left,
+            contentY,
+            right - left,
+            enabled,
+            head.Collapsed,
+            toggleClicked,
+            actionClicked,
+            collapseClicked);
+    }
+
+    /// <summary>
+    /// Closes a group and draws its frame. Takes the height the rows turned out to be, which
+    /// is why the frame is drawn last: a group is exactly as tall as what is in it.
+    /// Returns the whole height, so the screen can move on.
+    /// </summary>
+    public static float EndGroup(in GroupScope scope, float contentHeight)
+    {
+        float pad = Tokens.Metric.GroupPadding;
+        float bottom = scope.Collapsed
+            ? scope.ContentY + pad
+            : scope.ContentY + contentHeight + pad;
+
+        if (!scope.Enabled && !scope.Collapsed)
+        {
+            ImGui.EndDisabled();
+
+            // Veiled by painting the surface back over the rows at part strength. Cheaper and
+            // more honest than dimming every colour on the way out: what is there stays
+            // readable, it just stops asking for attention.
+            ImGui.GetWindowDrawList().AddRectFilled(
+                new Vector2(scope.ContentX, scope.ContentY),
+                new Vector2(scope.ContentX + scope.ContentWidth, scope.ContentY + contentHeight),
+                Tokens.Col.Faded(Tokens.Col.Panel, 1f - Tokens.Col.DisabledAlpha));
+        }
+
+        // Drawn after the rows on purpose: it is an outline with nothing behind it, so
+        // covering the content is impossible, and this way it can wrap whatever height came out.
+        ImGui.GetWindowDrawList().AddRect(
+            new Vector2(scope.X, scope.Y),
+            new Vector2(scope.X + scope.Width, bottom),
+            Tokens.Col.Hairline,
+            Tokens.Radius.Group,
+            ImDrawFlags.RoundCornersAll,
+            Tokens.Line(1f));
+
+        ImGui.PopID();
+        return bottom - scope.Y;
+    }
+
+    /// <summary>The fold-away arrow in a group head, drawn as a triangle rather than typed.</summary>
+    private static bool CollapseArrow(ImDrawListPtr dl, string id, float x, float y, float size, bool collapsed)
+    {
+        float line = Ink.LineHeight(Ink.Role.Title);
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.InvisibleButton(id, new Vector2(size, line));
+        bool hovered = ImGui.IsItemHovered();
+        bool clicked = ImGui.IsItemClicked();
+
+        uint ink = hovered ? Tokens.Col.GoldHi : Tokens.Col.InkDim;
+        float cx = MathF.Round(x + (size * 0.5f));
+        float cy = MathF.Round(y + (line * 0.5f));
+        float half = MathF.Round(size * 0.35f);
+
+        if (collapsed)
+        {
+            dl.AddTriangleFilled(
+                new Vector2(cx + half, cy),
+                new Vector2(cx - half, cy - half),
+                new Vector2(cx - half, cy + half),
+                ink);
+        }
+        else
+        {
+            dl.AddTriangleFilled(
+                new Vector2(cx, cy + half),
+                new Vector2(cx - half, cy - half),
+                new Vector2(cx + half, cy - half),
+                ink);
+        }
+
+        return clicked;
     }
 
     /// <summary>
@@ -392,13 +770,6 @@ internal static class Chrome
     /// <summary>The left edge of the given column, counted from zero.</summary>
     public static float ColumnX(float contentLeft, float contentWidth, int column) =>
         contentLeft + (column * (ColumnWidth(contentWidth) + Tokens.Metric.ColumnGutter));
-
-    /// <summary>The label side of a settings row, vertically centred against its control.</summary>
-    public static void RowLabel(string label, float x, float y, float height)
-    {
-        ImDrawListPtr dl = ImGui.GetWindowDrawList();
-        Ink.Draw(dl, Ink.Role.Body, new Vector2(x, CenterY(y, height, Ink.Role.Body)), Tokens.Col.Ink, label);
-    }
 
     /// <summary>
     /// The label above a control, which is how a settings row is built: name on top, control
@@ -426,24 +797,6 @@ internal static class Chrome
         }
 
         return Ink.LineHeight(Ink.Role.Body) + Tokens.Space.Sm;
-    }
-
-    /// <summary>
-    /// A quiet line of explanation under a control, in the smallest role. Long prose does not
-    /// belong in the flow of a settings screen — a short inline note beside the label carries
-    /// most of it, and the rest belongs in the tooltip.
-    /// </summary>
-    public static float Hint(string text, float x, float y, float wrapWidth)
-    {
-        ImGui.SetCursorScreenPos(new Vector2(x, y));
-        Ink.Push(Ink.Role.Small);
-        ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.InkFaint);
-        ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + wrapWidth);
-        ImGui.TextUnformatted(text);
-        ImGui.PopTextWrapPos();
-        ImGui.PopStyleColor();
-        Ink.Pop(Ink.Role.Small);
-        return ImGui.GetItemRectSize().Y;
     }
 
     /// <summary>
@@ -483,30 +836,7 @@ internal static class Chrome
 
         float alpha = enabled ? 1f : Tokens.Col.DisabledAlpha;
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
-        dl.AddRectFilled(min, max, Tokens.Col.Faded(value ? Tokens.Col.Gold : Tokens.Col.Input, alpha), Tokens.Radius.Small);
-        dl.AddRect(
-            min,
-            max,
-            Tokens.Col.Faded(value ? Tokens.Col.GoldHi : hovered ? Tokens.Col.GoldDim : Tokens.Col.ControlEdge, alpha),
-            Tokens.Radius.Small,
-            ImDrawFlags.RoundCornersAll,
-            Tokens.Line(1f));
-
-        if (value)
-        {
-            // A tick drawn as two strokes, so it does not depend on a glyph.
-            float thickness = Tokens.Line(2f);
-            dl.AddLine(
-                new Vector2(min.X + (box * 0.24f), min.Y + (box * 0.52f)),
-                new Vector2(min.X + (box * 0.44f), min.Y + (box * 0.72f)),
-                Tokens.Col.InkOnGold,
-                thickness);
-            dl.AddLine(
-                new Vector2(min.X + (box * 0.44f), min.Y + (box * 0.72f)),
-                new Vector2(min.X + (box * 0.78f), min.Y + (box * 0.28f)),
-                Tokens.Col.Faded(Tokens.Col.InkOnGold, alpha),
-                thickness);
-        }
+        PaintTick(dl, min, value, hovered, alpha);
 
         Ink.Draw(
             dl,

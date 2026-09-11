@@ -172,8 +172,14 @@ internal sealed class ConfigWindow : Window
 
         // Painted over the whole window, frame inset included. If it stopped at the inset,
         // the pixels the frame normally covers would show through whenever the window loses
-        // focus and the frame is not drawn.
-        dl.AddRectFilled(origin, new Vector2(origin.X + size.X, origin.Y + size.Y), Tokens.Col.Panel);
+        // focus and the frame is not drawn. Rounded to the same radius as the frame: every
+        // surface inside has to stop at the curve, or the corner fills itself back in.
+        dl.AddRectFilled(
+            origin,
+            new Vector2(origin.X + size.X, origin.Y + size.Y),
+            Tokens.Col.Panel,
+            Tokens.Radius.Window,
+            ImDrawFlags.RoundCornersAll);
 
         this.DrawTitleBar(dl, origin.X, origin.X + size.X, origin.Y, top, titleHeight);
         this.DrawNav(dl, left, bodyTop, bottom);
@@ -199,30 +205,65 @@ internal sealed class ConfigWindow : Window
     /// bottom. Drawn only while the window has focus — the game drops its frames when a
     /// window goes to the back.
     /// <para>
-    /// The top and bottom rings run the full width and the side rings fill in between them,
-    /// so each corner takes the colour of the horizontal edge. That is a simplification: the
-    /// game draws its corners as artwork, which a rectangle cannot reproduce.
+    /// Each ring is stroked as three paths: the top edge carrying both of its corner arcs,
+    /// the bottom edge carrying its own, and the two sides as straight lines between them. So
+    /// the corner takes the colour of the horizontal edge, and the measured sequence survives
+    /// the rounding intact — the game draws real artwork there, which no path reproduces, but
+    /// this is the same approximation the square version already made.
+    /// </para>
+    /// <para>
+    /// Strokes sit on half-pixel centres, because a one-pixel line centred on a whole
+    /// coordinate lands half in each neighbouring pixel. Along the arcs that cannot be helped:
+    /// four one-pixel rings blur into one another around a curve. FFXIV's own corners read
+    /// darker for the same reason.
     /// </para>
     /// </summary>
     private static void DrawWindowEdge(ImDrawListPtr dl, Vector2 origin, Vector2 size)
     {
         float ring = Tokens.Line(1f);
+        float radius = Tokens.Radius.Window;
         int rings = Tokens.Col.EdgeTop.Length;
 
         for (int i = 0; i < rings; i++)
         {
-            float inset = i * ring;
+            float inset = (i * ring) + (ring * 0.5f);
             float left = origin.X + inset;
             float right = origin.X + size.X - inset;
             float top = origin.Y + inset;
             float bottom = origin.Y + size.Y - inset;
+            float r = MathF.Max(0f, radius - (i * ring));
 
-            dl.AddRectFilled(new Vector2(left, top), new Vector2(right, top + ring), Tokens.Col.EdgeTop[i]);
-            dl.AddRectFilled(new Vector2(left, bottom - ring), new Vector2(right, bottom), Tokens.Col.EdgeBottom[i]);
+            // Top edge: the left corner arc, the straight run between (implied by the path),
+            // then the right corner arc.
+            if (r > 0f)
+            {
+                dl.PathArcTo(new Vector2(left + r, top + r), r, MathF.PI, MathF.PI * 1.5f);
+                dl.PathArcTo(new Vector2(right - r, top + r), r, MathF.PI * 1.5f, MathF.PI * 2f);
+            }
+            else
+            {
+                dl.PathLineTo(new Vector2(left, top));
+                dl.PathLineTo(new Vector2(right, top));
+            }
+
+            dl.PathStroke(Tokens.Col.EdgeTop[i], ImDrawFlags.None, ring);
+
+            if (r > 0f)
+            {
+                dl.PathArcTo(new Vector2(right - r, bottom - r), r, 0f, MathF.PI * 0.5f);
+                dl.PathArcTo(new Vector2(left + r, bottom - r), r, MathF.PI * 0.5f, MathF.PI);
+            }
+            else
+            {
+                dl.PathLineTo(new Vector2(right, bottom));
+                dl.PathLineTo(new Vector2(left, bottom));
+            }
+
+            dl.PathStroke(Tokens.Col.EdgeBottom[i], ImDrawFlags.None, ring);
 
             uint side = Tokens.Col.EdgeSide[i];
-            dl.AddRectFilled(new Vector2(left, top + ring), new Vector2(left + ring, bottom - ring), side);
-            dl.AddRectFilled(new Vector2(right - ring, top + ring), new Vector2(right, bottom - ring), side);
+            dl.AddLine(new Vector2(left, top + r), new Vector2(left, bottom - r), side, ring);
+            dl.AddLine(new Vector2(right, top + r), new Vector2(right, bottom - r), side, ring);
         }
     }
 
@@ -253,8 +294,16 @@ internal sealed class ConfigWindow : Window
         float left = outerLeft + Tokens.Metric.WindowBorder;
         float right = outerRight - Tokens.Metric.WindowBorder;
 
-        // Lit at the very top and fading down into the surface colour, as measured.
-        Chrome.VerticalFill(dl, min, max, Tokens.Col.TitleBarTop, Tokens.Col.TitleBar);
+        // Lit at the very top and fading down into the surface colour, as measured. Its own
+        // top corners are rounded to the window radius, since it reaches the window edge.
+        Chrome.VerticalFill(
+            dl,
+            min,
+            max,
+            Tokens.Col.TitleBarTop,
+            Tokens.Col.TitleBar,
+            Tokens.Radius.Window,
+            ImDrawFlags.RoundCornersTop);
 
         // The three-pixel rule that closes the title bar: dark, surface, light. It fades out
         // towards the corners rather than running into the frame.
@@ -277,7 +326,14 @@ internal sealed class ConfigWindow : Window
         float width = Tokens.Metric.NavWidth;
         float right = left + width;
 
-        dl.AddRectFilled(new Vector2(left, top), new Vector2(right, bottom), Tokens.Col.Rail);
+        // The rail reaches the bottom-left of the window, so that corner follows the curve —
+        // what is left of the window radius once the frame has taken its four pixels.
+        dl.AddRectFilled(
+            new Vector2(left, top),
+            new Vector2(right, bottom),
+            Tokens.Col.Rail,
+            Tokens.Radius.WindowInner,
+            ImDrawFlags.RoundCornersBottomLeft);
         dl.AddRectFilled(new Vector2(right - Tokens.Line(1f), top), new Vector2(right, bottom), Tokens.Col.EdgeDim);
 
         float y = top + Tokens.Space.Md;
@@ -508,7 +564,9 @@ internal sealed class ConfigWindow : Window
             return;
         }
 
-        ImGui.PushStyleColor(ImGuiCol.ChildBg, Tokens.Col.PanelSoft);
+        // Transparent rather than filled: the surface behind it is already the same colour, and
+        // a filled child would paint a square corner back over the window's rounded bottom right.
+        ImGui.PushStyleColor(ImGuiCol.ChildBg, Transparent);
         ImGui.PushStyleColor(ImGuiCol.ScrollbarBg, Tokens.Col.ScrollTrack);
         ImGui.PushStyleColor(ImGuiCol.ScrollbarGrab, Tokens.Col.ScrollGrab);
         ImGui.PushStyleColor(ImGuiCol.ScrollbarGrabHovered, Tokens.Col.ScrollGrabHover);

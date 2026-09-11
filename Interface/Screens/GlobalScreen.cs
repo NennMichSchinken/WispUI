@@ -15,6 +15,8 @@ namespace WispUI.Interface.Screens;
 /// </summary>
 internal sealed class GlobalScreen
 {
+    private const string IdInterfaceGroup = "##wisp-global-interface";
+    private const string IdAccessGroup = "##wisp-global-access";
     private const string IdScale = "##wisp-global-scale";
     private const string IdInfoBar = "##wisp-global-infobar";
 
@@ -44,23 +46,44 @@ internal sealed class GlobalScreen
         Vector2 origin = ImGui.GetCursorScreenPos();
         float x = origin.X;
         float y = origin.Y;
-        float contentWidth = width;
 
-        // Controls sit on the two-column grid and fill one column, never the whole width.
-        // Every block below advances by its own measured height plus one rhythm token —
-        // there is no per-control row constant to drift out of step with what was drawn.
-        float columnWidth = Chrome.ColumnWidth(contentWidth);
+        // Groups sit on the same two-column grid the controls used to sit on directly. Each
+        // one is exactly as tall as what it holds, so the two columns end where they end
+        // rather than being stretched to match.
+        float column = Chrome.ColumnWidth(width);
+        float rowTop = y;
 
-        y += Chrome.SectionHeader(Strings.SectionInterface, Strings.SectionInterfaceHint, x, y);
+        float left = this.DrawInterface(Chrome.ColumnX(x, width, 0), rowTop, column);
+        float right = this.DrawAccess(Chrome.ColumnX(x, width, 1), rowTop, column);
+
+        y = rowTop + MathF.Max(left, right);
+
+        // Tells the scroll area how tall the screen is, the air under the last group included.
+        ImGui.SetCursorScreenPos(origin);
+        ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
+    }
+
+    private float DrawInterface(float x, float y, float width)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdInterfaceGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.SectionInterface,
+                Description = Strings.SectionInterfaceHint,
+            },
+            x,
+            y,
+            width);
 
         float scale = m_dragging ? m_livePreview : m_config.Scale;
         Chrome.SliderResult result = Chrome.Slider(
             IdScale,
             Strings.InterfaceScale,
             this.ScaleCaption(scale),
-            Chrome.ColumnX(x, contentWidth, 0),
-            y,
-            columnWidth,
+            group.ContentX,
+            group.ContentY,
+            group.ContentWidth,
             scale,
             Configuration.MinScale,
             Configuration.MaxScale,
@@ -85,18 +108,30 @@ internal sealed class GlobalScreen
             Scaling.Commit(m_config.Scale);
         }
 
-        y += result.Height;
+        return Chrome.EndGroup(group, result.Height);
+    }
 
-        y += Chrome.SectionRule(x, x + contentWidth, y);
+    private float DrawAccess(float x, float y, float width)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdAccessGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.SectionAccess,
+                Description = Strings.SectionAccessHint,
+            },
+            x,
+            y,
+            width);
 
-        y += Chrome.SectionHeader(Strings.SectionAccess, Strings.SectionAccessHint, x, y);
-
-        if (Chrome.CheckBox(
+        if (Chrome.OptionRow(
                 IdInfoBar,
                 Strings.ShowInfoBarEntry,
-                Chrome.ColumnX(x, contentWidth, 0),
-                y,
+                group.ContentX,
+                group.ContentY,
+                group.ContentWidth,
                 m_config.ShowInfoBarEntry,
+                Chrome.OptionControl.Tick,
                 Strings.ShowInfoBarEntryTooltip))
         {
             m_config.ShowInfoBarEntry = !m_config.ShowInfoBarEntry;
@@ -104,12 +139,7 @@ internal sealed class GlobalScreen
             this.InfoBarPreferenceChanged?.Invoke();
         }
 
-        y += Chrome.CheckBoxHeight();
-
-        // Tell the scroll area how tall the screen is, the air under the last row included —
-        // without it a scrolled screen ends flush with the window edge.
-        ImGui.SetCursorScreenPos(origin);
-        ImGui.Dummy(new Vector2(contentWidth, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
+        return Chrome.EndGroup(group, Tokens.Metric.OptionRowHeight);
     }
 
     private string ScaleCaption(float scale)

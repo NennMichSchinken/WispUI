@@ -57,7 +57,6 @@ internal static class Tokens
         // Kept as separate tokens on purpose. They happen to be equal today; giving a region
         // its own shade later is then a one-line change here rather than a change in the code.
         public static readonly uint Panel = Rgb(0x232223);
-        public static readonly uint PanelSoft = Rgb(0x232223);
         public static readonly uint Rail = Rgb(0x232223);
         public static readonly uint TitleBar = Rgb(0x232223);
 
@@ -184,14 +183,31 @@ internal static class Tokens
         public static float Xl => Px(16f);
     }
 
-    /// <summary>A small, fixed set of radii — not invented per widget.</summary>
+    /// <summary>
+    /// A small, fixed set of radii — not invented per widget. They step down from the outside
+    /// in, so each shell is a little rounder than what sits inside it.
+    /// </summary>
     public static class Radius
     {
         /// <summary>
-        /// Square. The game's frame is four rings of measured pixels with a different sequence
-        /// per edge, and that cannot be bent around a corner — nor does the game bend it.
+        /// The window edge. The four measured rings ARE bendable: each ring is stroked as a
+        /// path whose top and bottom carry their own corner arcs, so the measured colour
+        /// sequence survives and the corner takes the colour of the horizontal edge — the same
+        /// approximation the square version already made.
+        /// <para>
+        /// The honest cost is antialiasing: a straight line lands on whole pixels, an arc does
+        /// not, so four one-pixel rings blur into each other along the curve. FFXIV's own
+        /// corners read darker for exactly that reason (Florian, 2026-09-11), which is why
+        /// this is the game's look rather than a defect of ours.
+        /// </para>
         /// </summary>
-        public static float Window => 0f;
+        public static float Window => Px(8f);
+
+        /// <summary>What is left of the window radius once the frame has taken its four pixels.</summary>
+        public static float WindowInner => MathF.Max(0f, Window - Metric.WindowBorder);
+
+        /// <summary>The frame around a settings group — between the window and a control.</summary>
+        public static float Group => Px(6f);
 
         public static float Control => Px(3f);
         public static float Small => Px(2f);
@@ -308,6 +324,9 @@ internal static class Tokens
         /// <summary>The triangle drawn on an arrow button.</summary>
         public static float SelectorGlyph => Px(7f);
 
+        /// <summary>The fold-away triangle in a group head.</summary>
+        public static float CollapseGlyph => Px(12f);
+
         // --- the popup list an arrow selector can open ---
         public static float PopupGap => Px(3f);
         public static float PopupPadding => Px(6f);
@@ -340,7 +359,34 @@ internal static class Tokens
         /// </summary>
         public const int Columns = 2;
 
-        public static float ColumnGutter => Px(28f);
+        /// <summary>
+        /// Between the two columns, and between one group and the one under it — the same
+        /// value in both directions, because a grid of framed boxes shows an uneven gap at
+        /// once. It came down from 28 when groups arrived: bare controls side by side needed
+        /// the air, framed ones already have their own edge.
+        /// </summary>
+        public static float ColumnGutter => Px(16f);
+
+        // --- settings groups ---
+        // A group is the hairline in a second shape: as a stroke it separates, as a frame it
+        // gathers. That keeps the window at two kinds of divider rather than gaining a third,
+        // and it needs no surface colour of its own — which the measured palette does not have.
+
+        /// <summary>Inside the group frame, on every side.</summary>
+        public static float GroupPadding => Px(12f);
+
+        /// <summary>The group head to the rule under it.</summary>
+        public static float GroupHeadGap => Px(12f);
+
+        /// <summary>The rule to the first row.</summary>
+        public static float GroupRuleGap => Px(16f);
+
+        /// <summary>
+        /// A row that holds one compact control: label on the left, the control hard against
+        /// the right edge of the group. Same height as a selector, so two of them beside a
+        /// field row still line up.
+        /// </summary>
+        public static float OptionRowHeight => Px(28f);
 
         // --- the vertical rhythm of a settings screen ---
         // Four values, and every block advances by its own MEASURED height plus one of them.
@@ -353,9 +399,6 @@ internal static class Tokens
 
         /// <summary>One row of controls to the next.</summary>
         public static float RowGap => Px(16f);
-
-        /// <summary>Last row to the rule, and the rule on to the next head.</summary>
-        public static float SectionGap => Px(20f);
 
         /// <summary>Air under the last row, so a scrolled screen does not end flush with the edge.</summary>
         public static float ContentPaddingBottom => Px(24f);

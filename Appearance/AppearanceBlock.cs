@@ -23,6 +23,11 @@ internal sealed record AppearanceBlock
     public int ColourMode { get; init; }
 
     public float BarOpacity { get; init; } = 1f;
+
+    /// <summary>Index into the name positions.</summary>
+    public int NamePosition { get; init; }
+
+    public bool NameInJobColour { get; init; }
 }
 
 /// <summary>

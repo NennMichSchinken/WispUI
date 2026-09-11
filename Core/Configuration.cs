@@ -61,6 +61,14 @@ public sealed class Configuration : IPluginConfiguration
         /// information, and a bar that is still catching up is lying about the current state.
         /// </summary>
         public bool SmoothBars { get; set; }
+
+        /// <summary>Draw the player name on the frame at all — the switch in the group head.</summary>
+        public bool ShowName { get; set; } = true;
+
+        /// <summary>Index into the name positions.</summary>
+        public int NamePosition { get; set; }
+
+        public bool NameInJobColour { get; set; }
     }
 
     internal static Configuration Load()

@@ -23,10 +23,14 @@ namespace WispUI.Interface.Screens;
 /// </summary>
 internal sealed class PartyFramesScreen : IAppearanceOwner
 {
+    private const string IdHealthGroup = "##wisp-pf-health";
+    private const string IdTextGroup = "##wisp-pf-text";
     private const string IdStyle = "##wisp-pf-style";
     private const string IdColour = "##wisp-pf-colour";
     private const string IdOpacity = "##wisp-pf-opacity";
     private const string IdSmooth = "##wisp-pf-smooth";
+    private const string IdNamePosition = "##wisp-pf-nameposition";
+    private const string IdNameJobColour = "##wisp-pf-namejobcolour";
 
     /// <summary>What a bar takes its colour from. FFXIV's own convention, not one of ours.</summary>
     private static readonly string[] ColourModes =
@@ -36,9 +40,20 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         Strings.ColourFixed,
     };
 
+    /// <summary>Where the player name sits on a frame.</summary>
+    private static readonly string[] NamePositions =
+    {
+        Strings.PositionTopLeft,
+        Strings.PositionTop,
+        Strings.PositionCentre,
+        Strings.PositionBottom,
+        Strings.PositionBottomLeft,
+    };
+
     private readonly Configuration m_config;
     private readonly ArrowSelector<BarStyle> m_style;
     private readonly ArrowSelector<string> m_colour;
+    private readonly ArrowSelector<string> m_namePosition;
 
     private string m_opacityText = string.Empty;
     private int m_opacityTextFor = -1;
@@ -72,22 +87,29 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 Label = static mode => mode,
                 ShowCounter = false,
             });
+
+        m_namePosition = new ArrowSelector<string>(
+            IdNamePosition,
+            NamePositions,
+            new ArrowSelectorOptions<string> { Label = static position => position });
     }
 
     public string DisplayName => Strings.NavPartyFrames;
 
     /// <summary>
-    /// What this element has. Shape, text and background are not among them yet, and saying
-    /// so is what lets the paste panel tell the truth about what will carry over.
+    /// What this element has. Shape and background are not among them yet, and saying so is
+    /// what lets the paste panel tell the truth about what will carry over.
     /// </summary>
     public AppearanceFields SupportedFields =>
-        AppearanceFields.Colours | AppearanceFields.Texture | AppearanceFields.Opacity;
+        AppearanceFields.Colours | AppearanceFields.Texture | AppearanceFields.Opacity | AppearanceFields.Text;
 
     public AppearanceBlock GetAppearance() => new()
     {
         BarStyle = m_config.PartyFrames.BarStyle,
         ColourMode = m_config.PartyFrames.ColourMode,
         BarOpacity = m_config.PartyFrames.BarOpacity,
+        NamePosition = m_config.PartyFrames.NamePosition,
+        NameInJobColour = m_config.PartyFrames.NameInJobColour,
     };
 
     public void ApplyAppearance(AppearanceBlock source, AppearanceFields mask)
@@ -108,6 +130,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_opacityPreview = source.BarOpacity;
         }
 
+        if ((mask & AppearanceFields.Text) != 0)
+        {
+            m_config.PartyFrames.NamePosition = source.NamePosition;
+            m_config.PartyFrames.NameInJobColour = source.NameInJobColour;
+        }
+
         m_config.MarkDirty();
     }
 
@@ -115,46 +143,64 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     public void Draw(float width)
     {
         Vector2 origin = ImGui.GetCursorScreenPos();
-        float x = origin.X;
-        float y = origin.Y;
         float column = Chrome.ColumnWidth(width);
-        float left = Chrome.ColumnX(x, width, 0);
-        float right = Chrome.ColumnX(x, width, 1);
+        float rowTop = origin.Y;
 
-        y += Chrome.SectionHeader(Strings.SectionAppearance, Strings.SectionAppearanceHint, x, y);
+        float left = this.DrawHealthBar(Chrome.ColumnX(origin.X, width, 0), rowTop, column);
+        float right = this.DrawNameText(Chrome.ColumnX(origin.X, width, 1), rowTop, column);
 
-        // --- row one: the two selectors, one per column ---
-        // No tooltip on a field label: a label painted into the draw list is not an ImGui
-        // item, so a tooltip hung off it would answer to whatever item came before it.
-        float drop = Chrome.FieldLabel(Strings.BarStyle, left, y, column);
+        float y = rowTop + MathF.Max(left, right);
 
+        ImGui.SetCursorScreenPos(origin);
+        ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
+    }
+
+    private float DrawHealthBar(float x, float y, float width)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdHealthGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupHealthBar,
+                Description = Strings.GroupHealthBarHint,
+            },
+            x,
+            y,
+            width);
+
+        float rowY = group.ContentY;
+        float used = 0f;
+
+        float drop = Chrome.FieldLabel(Strings.BarStyle, group.ContentX, rowY, group.ContentWidth);
         int style = m_config.PartyFrames.BarStyle;
-        if (m_style.Draw(ref style, left, y + drop, column))
+        if (m_style.Draw(ref style, group.ContentX, rowY + drop, group.ContentWidth))
         {
             m_config.PartyFrames.BarStyle = style;
             m_config.MarkDirty();
         }
 
-        Chrome.FieldLabel(Strings.BarColour, right, y, column);
+        used += drop + ArrowSelector<BarStyle>.Height + Tokens.Metric.RowGap;
+        rowY = group.ContentY + used;
 
+        Chrome.FieldLabel(Strings.BarColour, group.ContentX, rowY, group.ContentWidth);
         int colour = m_config.PartyFrames.ColourMode;
-        if (m_colour.Draw(ref colour, right, y + drop, column))
+        if (m_colour.Draw(ref colour, group.ContentX, rowY + drop, group.ContentWidth))
         {
             m_config.PartyFrames.ColourMode = colour;
             m_config.MarkDirty();
         }
 
-        y += drop + ArrowSelector<BarStyle>.Height + Tokens.Metric.RowGap;
+        used += drop + ArrowSelector<string>.Height + Tokens.Metric.RowGap;
+        rowY = group.ContentY + used;
 
-        // --- row two: opacity beside the smooth-bars option ---
         float opacity = m_draggingOpacity ? m_opacityPreview : m_config.PartyFrames.BarOpacity;
         Chrome.SliderResult result = Chrome.Slider(
             IdOpacity,
             Strings.BarOpacity,
             this.OpacityCaption(opacity),
-            left,
-            y,
-            column,
+            group.ContentX,
+            rowY,
+            group.ContentWidth,
             opacity,
             Configuration.MinBarOpacity,
             1f);
@@ -172,28 +218,77 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        // The check box sits on the control line of its row, so it lines up with the slider
-        // track beside it rather than with the label above it.
-        float controlLine = y + Ink.LineHeight(Ink.Role.Body) + Tokens.Space.Sm;
-        float checkTop = MathF.Round(controlLine + ((Tokens.Metric.SliderHeight - Chrome.CheckBoxHeight()) * 0.5f));
-        if (Chrome.CheckBox(
+        used += result.Height + Tokens.Metric.RowGap;
+        rowY = group.ContentY + used;
+
+        if (Chrome.OptionRow(
                 IdSmooth,
                 Strings.SmoothBars,
-                right,
-                checkTop,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
                 m_config.PartyFrames.SmoothBars,
+                Chrome.OptionControl.Tick,
                 Strings.SmoothBarsTooltip))
         {
             m_config.PartyFrames.SmoothBars = !m_config.PartyFrames.SmoothBars;
             m_config.MarkDirty();
         }
 
-        y += result.Height;
+        used += Tokens.Metric.OptionRowHeight;
+        return Chrome.EndGroup(group, used);
+    }
 
-        // Tells the scroll area how tall the screen turned out, the air under the last row
-        // included. Every block above advanced by its own measured height.
-        ImGui.SetCursorScreenPos(origin);
-        ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
+    /// <summary>
+    /// The name text, with a switch of its own in the group head. With it off the rows stay
+    /// visible but go quiet and stop answering — you can still see what the group would give
+    /// you, which is the point of dimming rather than hiding.
+    /// </summary>
+    private float DrawNameText(float x, float y, float width)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdTextGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupNameText,
+                Description = Strings.GroupNameTextHint,
+                Toggle = m_config.PartyFrames.ShowName,
+            },
+            x,
+            y,
+            width);
+
+        if (group.ToggleClicked)
+        {
+            m_config.PartyFrames.ShowName = !m_config.PartyFrames.ShowName;
+            m_config.MarkDirty();
+        }
+
+        float drop = Chrome.FieldLabel(Strings.NamePosition, group.ContentX, group.ContentY, group.ContentWidth);
+        int position = m_config.PartyFrames.NamePosition;
+        if (m_namePosition.Draw(ref position, group.ContentX, group.ContentY + drop, group.ContentWidth))
+        {
+            m_config.PartyFrames.NamePosition = position;
+            m_config.MarkDirty();
+        }
+
+        float used = drop + ArrowSelector<string>.Height + Tokens.Metric.RowGap;
+
+        if (Chrome.OptionRow(
+                IdNameJobColour,
+                Strings.NameInJobColour,
+                group.ContentX,
+                group.ContentY + used,
+                group.ContentWidth,
+                m_config.PartyFrames.NameInJobColour,
+                Chrome.OptionControl.Switch))
+        {
+            m_config.PartyFrames.NameInJobColour = !m_config.PartyFrames.NameInJobColour;
+            m_config.MarkDirty();
+        }
+
+        used += Tokens.Metric.OptionRowHeight;
+        return Chrome.EndGroup(group, used);
     }
 
     private string OpacityCaption(float opacity)

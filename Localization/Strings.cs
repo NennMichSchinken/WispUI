@@ -63,10 +63,20 @@ internal static class Strings
     public const string FieldOpacity = "Opacity";
 
     // --- Party Frames --------------------------------------------------------
-    public const string SectionAppearance = "Appearance";
-    public const string SectionAppearanceHint = "Colour and style. Shared by every party frame.";
+    public const string GroupHealthBar = "Health bar";
+    public const string GroupHealthBarHint = "Fill, colour and opacity.";
+    public const string GroupNameText = "Name text";
+    public const string GroupNameTextHint = "The player name on the frame.";
     public const string BarStyle = "Bar style";
     public const string BarColour = "Bar colour";
+    public const string NamePosition = "Position";
+    public const string NameInJobColour = "Name in job colour";
+
+    public const string PositionTopLeft = "Top left";
+    public const string PositionTop = "Top";
+    public const string PositionCentre = "Centre";
+    public const string PositionBottom = "Bottom";
+    public const string PositionBottomLeft = "Bottom left";
     public const string BarOpacity = "Health bar opacity";
     public const string SmoothBars = "Smooth bars";
     public const string SmoothBarsTooltip = "Health slides to its new value instead of jumping.";
