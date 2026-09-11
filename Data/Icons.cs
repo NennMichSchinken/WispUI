@@ -22,6 +22,18 @@ namespace WispUI.Data;
 /// </summary>
 internal static class Icons
 {
+    /// <summary>
+    /// The party leader's mark.
+    /// <para>
+    /// ⚠️ NOT VERIFIED IN THE GAME. Unlike a job icon there is no rule to derive this from:
+    /// the game's own party list draws the mark from a node of its own
+    /// (<c>AddonPartyList.LeaderMarkResNode</c>), so it is not an id read off a sheet. This is
+    /// the id it is commonly resolved to, and the first look settles whether it is right — if
+    /// the picture is wrong, it is this one number and nothing else.
+    /// </para>
+    /// </summary>
+    public const uint PartyLeader = 61521u;
+
     /// <summary>Resolved lookups by icon id. A null value is an id the game does not have.</summary>
     private static readonly Dictionary<uint, ISharedImmediateTexture?> Sheets = new();
 

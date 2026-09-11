@@ -533,6 +533,9 @@ internal static class Chrome
     /// line simply never appears where a run begins.
     /// </para>
     /// </param>
+    /// <summary>The hit box of one choice in a segment strip. Told apart by an id scope.</summary>
+    private const string IdSegment = "##wisp-seg";
+
     public static bool OptionRow(
         string id,
         string label,
@@ -598,6 +601,112 @@ internal static class Chrome
         }
 
         return clicked;
+    }
+
+    /// <summary>
+    /// A row whose control is a strip of two or three choices, all of them visible at once.
+    /// <para>
+    /// The selector answers "which one of many"; this answers "this one or that one", where
+    /// the whole point is that both words are readable without touching anything. A pair of
+    /// arrows around a two-item list makes the reader click to find out what the alternative
+    /// even is (Florian, 2026-09-12).
+    /// </para>
+    /// <para>
+    /// Above three choices it stops working — the labels go narrow before they go short — and
+    /// that is where the arrow selector starts. Nothing enforces it; the widths simply say so.
+    /// </para>
+    /// </summary>
+    /// <returns>True on the frame a different choice was clicked.</returns>
+    public static bool SegmentRow(
+        string id,
+        string label,
+        float x,
+        float y,
+        float width,
+        string[] options,
+        ref int value,
+        bool divider = false,
+        string? hint = null)
+    {
+        float controlX = Row(label, x, y, width, divider, hint);
+        float height = RowHeight();
+        float controlWidth = ControlWidth();
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        Vector2 min = new(MathF.Round(controlX), MathF.Round(y));
+        Vector2 max = new(min.X + controlWidth, min.Y + height);
+
+        dl.AddRectFilled(min, max, Tokens.Col.Input, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll);
+
+        // One id scope per strip, and the segments inside it are told apart by number rather
+        // than by a built-up string: an id per frame per segment would be an allocation in a
+        // path that runs every frame.
+        ImGui.PushID(id);
+
+        int clicked = -1;
+        float accent = Tokens.Metric.NavAccent;
+
+        for (int i = 0; i < options.Length; i++)
+        {
+            // Measured from the left edge each time rather than accumulated, so the last
+            // segment ends exactly on the right edge whatever the division leaves over.
+            float left = MathF.Round(min.X + (controlWidth * i / options.Length));
+            float right = MathF.Round(min.X + (controlWidth * (i + 1) / options.Length));
+            bool selected = i == value;
+
+            ImGui.PushID(i);
+            ImGui.SetCursorScreenPos(new Vector2(left, min.Y));
+            ImGui.InvisibleButton(IdSegment, new Vector2(right - left, height));
+            bool hovered = ImGui.IsItemHovered();
+            ShowHand(hovered);
+
+            if (ImGui.IsItemClicked() && !selected)
+            {
+                clicked = i;
+            }
+
+            ImGui.PopID();
+
+            if (selected || hovered)
+            {
+                // The selected face is drawn inside the strip's own outline, so the rounding
+                // of the two ends belongs to the strip and not to whichever choice is on.
+                dl.PushClipRect(min, max, true);
+                dl.AddRectFilled(
+                    new Vector2(left, min.Y),
+                    new Vector2(right, max.Y),
+                    selected ? Tokens.Col.Control : Tokens.Col.Control2,
+                    Tokens.Radius.Control,
+                    ImDrawFlags.RoundCornersAll);
+
+                if (selected)
+                {
+                    dl.AddRectFilled(new Vector2(left, max.Y - accent), new Vector2(right, max.Y), Tokens.Col.Gold);
+                }
+
+                dl.PopClipRect();
+            }
+
+            Vector2 text = Ink.Measure(Ink.Role.Body, options[i]);
+            Ink.Draw(
+                dl,
+                Ink.Role.Body,
+                new Vector2(MathF.Round(left + ((right - left - text.X) * 0.5f)), CenterY(y, height, Ink.Role.Body)),
+                selected ? Tokens.Col.Ink : Tokens.Col.InkDim,
+                options[i]);
+        }
+
+        ImGui.PopID();
+
+        dl.AddRect(min, max, Tokens.Col.ControlEdge, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
+
+        if (clicked < 0)
+        {
+            return false;
+        }
+
+        value = clicked;
+        return true;
     }
 
     /// <summary>

@@ -44,6 +44,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdManaTanks = "##wisp-pf-manatanks";
     private const string IdManaHealers = "##wisp-pf-manahealers";
     private const string IdManaDps = "##wisp-pf-manadps";
+    private const string IdLeaderGroup = "##wisp-pf-leader";
+    private const string IdLeaderSize = "##wisp-pf-leadersize";
+    private const string IdLeaderPosition = "##wisp-pf-leaderposition";
+    private const string IdLeaderX = "##wisp-pf-leaderx";
+    private const string IdLeaderY = "##wisp-pf-leadery";
     private const string IdNumberGroup = "##wisp-pf-number";
     private const string IdNumberSize = "##wisp-pf-numbersize";
     private const string IdNumberPosition = "##wisp-pf-numberposition";
@@ -132,7 +137,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const int SlotNumberSize = 13;
     private const int SlotNumberX = 14;
     private const int SlotNumberY = 15;
-    private const int SlotCount = 16;
+    private const int SlotLeaderSize = 16;
+    private const int SlotLeaderX = 17;
+    private const int SlotLeaderY = 18;
+    private const int SlotCount = 19;
 
     /// <summary>What a bar takes its colour from. FFXIV's own convention, not one of ours.</summary>
     private static readonly BarColourMode[] ColourModes =
@@ -145,10 +153,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     /// <summary>A few jobs standing in for all of them in the "by job" preview.</summary>
     private static readonly uint[] JobSample = { 19u, 24u, 25u, 23u };
 
-    /// <summary>The two icon sets, and the one job whose icon stands in for them.</summary>
-    private static readonly JobIconStyle[] IconStyles = { JobIconStyle.Framed, JobIconStyle.Plain };
-
-    private const uint IconSampleJob = 24u;
+    /// <summary>
+    /// The two icon sets, in the order <see cref="JobIconStyle"/> numbers them. Both words
+    /// stand side by side in the row, which is the whole reason this is not a selector.
+    /// </summary>
+    private static readonly string[] IconStyleNames = { Strings.IconStyleFramed, Strings.IconStylePlain };
 
     /// <summary>The line counts as text, so the label never builds a string in a draw path.</summary>
     private static readonly System.Collections.Generic.Dictionary<int, string> LineLabels = new() { { 1, "1" }, { 2, "2" }, { 4, "4" } };
@@ -180,8 +189,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private readonly ArrowSelector<Anchor> m_healthPosition;
     private readonly ArrowSelector<string> m_manaStyle;
     private readonly ArrowSelector<Anchor> m_iconPosition;
-    private readonly ArrowSelector<JobIconStyle> m_iconStyle;
+
     private readonly ArrowSelector<Anchor> m_numberPosition;
+    private readonly ArrowSelector<Anchor> m_leaderPosition;
     private readonly ArrowSelector<NameShortening> m_shortening;
     private readonly ArrowSelector<string> m_direction;
     private readonly ArrowSelector<int> m_lines;
@@ -191,7 +201,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     /// <summary>One readout per slider, rebuilt only when its number changes.</summary>
     private readonly string[] m_sizeText = new string[SlotCount];
-    private readonly int[] m_sizeTextFor = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+    private readonly int[] m_sizeTextFor = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
 
     private string m_arrangementText = string.Empty;
     private int m_arrangementFor = -1;
@@ -264,17 +274,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             Anchors.All,
             new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false });
 
-        // The one selector whose preview is the answer: the two sets are the same pictures
-        // with and without a frame, and no words describe that as fast as looking at it.
-        m_iconStyle = new ArrowSelector<JobIconStyle>(
-            IdIconStyle,
-            IconStyles,
-            new ArrowSelectorOptions<JobIconStyle>
-            {
-                Label = static style => style == JobIconStyle.Plain ? Strings.IconStylePlain : Strings.IconStyleFramed,
-                DrawPreview = DrawIconPreview,
-                ShowCounter = false,
-            });
+        m_leaderPosition = new ArrowSelector<Anchor>(
+            IdLeaderPosition,
+            Anchors.All,
+            new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false });
+
 
         m_shortening = new ArrowSelector<NameShortening>(
             IdShortenNames,
@@ -346,6 +350,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         PartyNumberPosition = m_config.PartyFrames.PartyNumberPosition,
         PartyNumberX = m_config.PartyFrames.PartyNumberX,
         PartyNumberY = m_config.PartyFrames.PartyNumberY,
+        ShowLeaderIcon = m_config.PartyFrames.ShowLeaderIcon,
+        LeaderIconSize = m_config.PartyFrames.LeaderIconSize,
+        LeaderIconPosition = m_config.PartyFrames.LeaderIconPosition,
+        LeaderIconX = m_config.PartyFrames.LeaderIconX,
+        LeaderIconY = m_config.PartyFrames.LeaderIconY,
     };
 
     public void ApplyAppearance(AppearanceBlock source, AppearanceFields mask)
@@ -395,6 +404,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.PartyFrames.PartyNumberPosition = source.PartyNumberPosition;
             m_config.PartyFrames.PartyNumberX = source.PartyNumberX;
             m_config.PartyFrames.PartyNumberY = source.PartyNumberY;
+            m_config.PartyFrames.ShowLeaderIcon = source.ShowLeaderIcon;
+            m_config.PartyFrames.LeaderIconSize = source.LeaderIconSize;
+            m_config.PartyFrames.LeaderIconPosition = source.LeaderIconPosition;
+            m_config.PartyFrames.LeaderIconX = source.LeaderIconX;
+            m_config.PartyFrames.LeaderIconY = source.LeaderIconY;
         }
 
         m_config.MarkDirty();
@@ -421,11 +435,15 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         Chrome.GroupScope mana = this.DrawMana(Chrome.ColumnX(origin.X, width, 1), y, column, out float manaHeight);
         y += FrameRow(figure, figureHeight, mana, manaHeight);
 
-        // The two things that say who somebody is, side by side.
+        // The badges: what somebody is, what number they answer to, and who is in charge.
         Chrome.BeginGroupRow();
         Chrome.GroupScope icon = this.DrawJobIcon(Chrome.ColumnX(origin.X, width, 0), y, column, out float iconHeight);
         Chrome.GroupScope number = this.DrawPartyNumber(Chrome.ColumnX(origin.X, width, 1), y, column, out float numberHeight);
         y += FrameRow(icon, iconHeight, number, numberHeight);
+
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope leader = this.DrawLeaderIcon(Chrome.ColumnX(origin.X, width, 0), y, column, out float leaderHeight);
+        y += Chrome.GroupFrame(leader, leaderHeight) + Tokens.Metric.ColumnGutter;
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
@@ -848,11 +866,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float rowY = group.ContentY;
 
         int style = m_config.PartyFrames.JobIconStyle;
-        if (m_iconStyle.Draw(
-                ref style,
-                Chrome.Row(Strings.IconStyle, group.ContentX, rowY, group.ContentWidth, false),
-                rowY,
-                Chrome.ControlWidth()))
+        if (Chrome.SegmentRow(IdIconStyle, Strings.IconStyle, group.ContentX, rowY, group.ContentWidth, IconStyleNames, ref style))
         {
             m_config.PartyFrames.JobIconStyle = style;
             m_config.MarkDirty();
@@ -894,6 +908,55 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.PartyFrames.JobIconHideDps = !m_config.PartyFrames.JobIconHideDps;
             m_config.MarkDirty();
         }
+
+        float used = rowY - group.ContentY + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
+
+    /// <summary>The leader's mark. The same four rows every badge on a frame gets.</summary>
+    private Chrome.GroupScope DrawLeaderIcon(float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdLeaderGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupLeader,
+                Description = Strings.GroupLeaderHint,
+                Toggle = m_config.PartyFrames.ShowLeaderIcon,
+            },
+            x,
+            y,
+            width);
+
+        if (group.ToggleClicked)
+        {
+            m_config.PartyFrames.ShowLeaderIcon = !m_config.PartyFrames.ShowLeaderIcon;
+            m_config.MarkDirty();
+        }
+
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
+
+        this.PixelSlider(IdLeaderSize, Strings.IconSize, SlotLeaderSize, group, rowY, MinIconSize, MaxIconSize, false, null);
+        rowY += pitch;
+
+        int position = m_config.PartyFrames.LeaderIconPosition;
+        if (m_leaderPosition.Draw(
+                ref position,
+                Chrome.Row(Strings.TextPosition, group.ContentX, rowY, group.ContentWidth, true),
+                rowY,
+                Chrome.ControlWidth()))
+        {
+            m_config.PartyFrames.LeaderIconPosition = position;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+        this.PixelSlider(IdLeaderX, Strings.OffsetX, SlotLeaderX, group, rowY, -MaxOffset, MaxOffset, true, null);
+        rowY += pitch;
+        this.PixelSlider(IdLeaderY, Strings.OffsetY, SlotLeaderY, group, rowY, -MaxOffset, MaxOffset, true, null);
 
         float used = rowY - group.ContentY + Chrome.RowHeight();
         Chrome.EndGroupContent(group, used);
@@ -953,26 +1016,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         return group;
     }
 
-    /// <summary>
-    /// The job icon itself, beside the style's name. Whether the frame around it is there is
-    /// the whole question, and a word for it would take longer to read than the picture.
-    /// </summary>
-    private static void DrawIconPreview(ImDrawListPtr dl, JobIconStyle style, Vector2 min, Vector2 max)
-    {
-        ImTextureID icon = Icons.Handle(Jobs.IconId(IconSampleJob, style == JobIconStyle.Framed));
-        if (icon.Handle == 0)
-        {
-            return;
-        }
-
-        // Square and centred in the swatch: a job icon is drawn square, and the swatch is not.
-        float size = MathF.Min(max.X - min.X, max.Y - min.Y);
-        Vector2 at = new(
-            MathF.Round(min.X + (((max.X - min.X) - size) * 0.5f)),
-            MathF.Round(min.Y + (((max.Y - min.Y) - size) * 0.5f)));
-
-        dl.AddImage(icon, at, new Vector2(at.X + size, at.Y + size));
-    }
 
     private Chrome.GroupScope DrawArrangement(float x, float y, float width, out float contentHeight)
     {
@@ -1161,6 +1204,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         SlotNumberSize => m_config.PartyFrames.PartyNumberSize,
         SlotNumberX => m_config.PartyFrames.PartyNumberX,
         SlotNumberY => m_config.PartyFrames.PartyNumberY,
+        SlotLeaderSize => m_config.PartyFrames.LeaderIconSize,
+        SlotLeaderX => m_config.PartyFrames.LeaderIconX,
+        SlotLeaderY => m_config.PartyFrames.LeaderIconY,
         _ => m_config.PartyFrames.ManaHeight,
     };
 
@@ -1183,6 +1229,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             case SlotNumberSize: m_config.PartyFrames.PartyNumberSize = value; break;
             case SlotNumberX: m_config.PartyFrames.PartyNumberX = value; break;
             case SlotNumberY: m_config.PartyFrames.PartyNumberY = value; break;
+            case SlotLeaderSize: m_config.PartyFrames.LeaderIconSize = value; break;
+            case SlotLeaderX: m_config.PartyFrames.LeaderIconX = value; break;
+            case SlotLeaderY: m_config.PartyFrames.LeaderIconY = value; break;
             default: m_config.PartyFrames.ManaHeight = value; break;
         }
     }

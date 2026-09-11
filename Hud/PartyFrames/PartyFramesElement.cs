@@ -30,6 +30,14 @@ internal sealed class PartyFramesElement : HudElement
     /// <summary>Below this the bar is simply at its value; the last thousandth is not worth carrying.</summary>
     private const float SmoothSettle = 0.001f;
 
+    /// <summary>
+    /// How much wider the party number's tile is than the figure on it. Enough air that the
+    /// digit is not touching an edge, little enough that the tile still reads as a badge and
+    /// not as a button. The size the user sets is the figure, because that is the thing they
+    /// are judging.
+    /// </summary>
+    private const float NumberPlateScale = 1.45f;
+
     private readonly Configuration m_config;
     private readonly PartySnapshot m_snapshot = new();
 
@@ -70,6 +78,9 @@ internal sealed class PartyFramesElement : HudElement
     /// </summary>
     private readonly ImTextureID[] m_icon = new ImTextureID[PartySnapshot.Capacity];
 
+    /// <summary>The leader's mark. One picture for the whole party, so it is resolved once.</summary>
+    private ImTextureID m_leaderIcon;
+
     /// <summary>What the party looked like when it was last written to the log.</summary>
     private readonly uint[] m_logged = new uint[PartySnapshot.Capacity];
     private int m_loggedCount = -1;
@@ -104,6 +115,8 @@ internal sealed class PartyFramesElement : HudElement
     /// </summary>
     private void CollectIcons()
     {
+        m_leaderIcon = m_config.PartyFrames.ShowLeaderIcon ? Icons.Handle(Icons.PartyLeader) : default;
+
         if (!m_config.PartyFrames.ShowJobIcon)
         {
             return;
@@ -258,6 +271,7 @@ internal sealed class PartyFramesElement : HudElement
                 new Vector2(innerMax.X + reach, innerMax.Y + reach),
                 true);
             this.DrawJobIcon(dl, cfg, i, ref member, innerMin, innerMax);
+            this.DrawLeaderIcon(dl, cfg, ref member, innerMin, innerMax);
             this.DrawTexts(dl, cfg, textMode, i, ref member, innerMin, innerMax);
             dl.PopClipRect();
         }
@@ -281,26 +295,59 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        ImTextureID icon = m_icon[slot];
-        if (icon.Handle == 0)
+        DrawIcon(dl, m_icon[slot], cfg.JobIconSize, cfg.JobIconPosition, cfg.JobIconX, cfg.JobIconY, innerMin, innerMax);
+    }
+
+    /// <summary>The leader's mark, on whoever leads. Same anatomy, same placement.</summary>
+    private void DrawLeaderIcon(
+        ImDrawListPtr dl,
+        Configuration.PartyFramesConfig cfg,
+        ref PartyMemberSnapshot member,
+        Vector2 innerMin,
+        Vector2 innerMax)
+    {
+        if (!cfg.ShowLeaderIcon || !member.IsLeader)
         {
-            // Not loaded yet, or a class the game has no icon for. Nothing is drawn rather
-            // than a grey square where an icon is meant to be.
             return;
         }
 
-        float size = Tokens.Px(cfg.JobIconSize);
+        DrawIcon(dl, m_leaderIcon, cfg.LeaderIconSize, cfg.LeaderIconPosition, cfg.LeaderIconX, cfg.LeaderIconY, innerMin, innerMax);
+    }
+
+    /// <summary>
+    /// One picture on a frame, square and hung on one of the nine points. Written once because
+    /// every icon a frame will ever carry — job, leader, raid marker — is placed the same way,
+    /// and a second copy of this is a second place to fix a rounding.
+    /// </summary>
+    private static void DrawIcon(
+        ImDrawListPtr dl,
+        ImTextureID icon,
+        float size,
+        int anchor,
+        float offsetX,
+        float offsetY,
+        Vector2 innerMin,
+        Vector2 innerMax)
+    {
+        if (icon.Handle == 0)
+        {
+            // Not loaded yet, or an id the game has nothing for. Nothing is drawn rather than
+            // a grey square where a picture is meant to be.
+            return;
+        }
+
+        float side = Tokens.Px(size);
         Vector2 at = Anchors.Place(
-            Anchors.At(cfg.JobIconPosition),
+            Anchors.At(anchor),
             innerMin,
             innerMax,
-            new Vector2(size, size),
+            new Vector2(side, side),
             Tokens.Metric.FramePadding);
 
-        at.X += Tokens.Px(cfg.JobIconX);
-        at.Y += Tokens.Px(cfg.JobIconY);
+        at.X += Tokens.Px(offsetX);
+        at.Y += Tokens.Px(offsetY);
 
-        dl.AddImage(icon, at, new Vector2(at.X + size, at.Y + size));
+        dl.AddImage(icon, at, new Vector2(at.X + side, at.Y + side));
     }
 
     private void DrawTexts(
@@ -334,20 +381,40 @@ internal sealed class PartyFramesElement : HudElement
 
         if (cfg.ShowPartyNumber && member.PartyNumber >= 1 && member.PartyNumber <= NumberText.Length)
         {
+            // On a tile, the way the game's own party list draws it. A bare digit over a
+            // health bar is the one piece of text with no shape of its own to be recognised
+            // by, and it read as a stray number rather than as a position (Florian).
             string number = NumberText[member.PartyNumber - 1];
-            float numberSize = Tokens.Px(cfg.PartyNumberSize);
-            Vector2 numberMeasured = new(Ink.MeasureWidth(numberSize, number), numberSize);
-            Vector2 numberAt = Anchors.Place(
+            float glyph = Tokens.Px(cfg.PartyNumberSize);
+            float plate = MathF.Round(glyph * NumberPlateScale);
+            Vector2 plateAt = Anchors.Place(
                 Anchors.At(cfg.PartyNumberPosition),
                 innerMin,
                 innerMax,
-                numberMeasured,
+                new Vector2(plate, plate),
                 padding);
 
-            numberAt.X += Tokens.Px(cfg.PartyNumberX);
-            numberAt.Y += Tokens.Px(cfg.PartyNumberY);
+            plateAt.X += Tokens.Px(cfg.PartyNumberX);
+            plateAt.Y += Tokens.Px(cfg.PartyNumberY);
 
-            Ink.DrawScaledShadowed(dl, numberSize, numberAt, Tokens.Col.InkDim, number);
+            dl.AddRectFilled(
+                plateAt,
+                new Vector2(plateAt.X + plate, plateAt.Y + plate),
+                Tokens.Col.NumberPlate,
+                Tokens.Radius.Small,
+                ImDrawFlags.RoundCornersAll);
+
+            // Centred on the tile rather than anchored to it: a digit is the one text whose
+            // width changes with nothing the user did, and it has to stay in the middle.
+            float glyphWidth = Ink.MeasureWidth(glyph, number);
+            Ink.DrawScaled(
+                dl,
+                glyph,
+                new Vector2(
+                    MathF.Round(plateAt.X + ((plate - glyphWidth) * 0.5f)),
+                    MathF.Round(plateAt.Y + ((plate - glyph) * 0.5f))),
+                Tokens.Col.NumberInk,
+                number);
         }
 
         if (!cfg.ShowHealthText)

@@ -26,6 +26,9 @@ internal struct PartyMemberSnapshot
     public uint MaxMp;
     public bool IsLocalPlayer;
 
+    /// <summary>Whether this member leads the party. Alone, nobody does.</summary>
+    public bool IsLeader;
+
     /// <summary>
     /// Taken from the game's own string once, when this slot starts holding someone else.
     /// A name is the one field here that cannot be a number, and reading it allocates.
@@ -85,6 +88,7 @@ internal sealed class PartySnapshot
     public void Collect()
     {
         IPartyList party = Services.Party;
+        uint leader = party.PartyLeaderIndex;
         int count = 0;
 
         for (int i = 0; i < party.Length && count < Capacity; i++)
@@ -115,6 +119,7 @@ internal sealed class PartySnapshot
             slot.Mp = member.CurrentMP;
             slot.MaxMp = member.MaxMP;
             slot.IsLocalPlayer = entityId == Services.Objects.LocalPlayer?.EntityId;
+            slot.IsLeader = i == leader;
 
             count++;
         }
@@ -150,6 +155,7 @@ internal sealed class PartySnapshot
             slot.MaxMp = 10000u;
             slot.Mp = slot.MaxMp / 100u * PlaceholderMana[i];
             slot.IsLocalPlayer = i == 0;
+            slot.IsLeader = i == 0;
         }
 
         this.IsSolo = false;
@@ -180,6 +186,7 @@ internal sealed class PartySnapshot
         slot.Mp = player.CurrentMp;
         slot.MaxMp = player.MaxMp;
         slot.IsLocalPlayer = true;
+        slot.IsLeader = false;
 
         return 1;
     }

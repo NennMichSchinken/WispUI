@@ -175,6 +175,16 @@ internal static class Tokens
         public static readonly uint Mana = Rgb(0x4C6FD0);
 
         /// <summary>
+        /// The tile the party number sits on, the way the game's own list draws it: a light
+        /// plate with a dark figure, which is what makes a single digit readable over anything.
+        /// ⚠️ NOT MEASURED — our own ink and its counterpart, so nothing here is invented. The
+        /// game's own number tile is there to be pipetted.
+        /// </summary>
+        public static readonly uint NumberPlate = 0xE6C3C3C3u;
+
+        public static readonly uint NumberInk = Rgb(0x1B1A1B);
+
+        /// <summary>
         /// Under every piece of text a HUD element writes. The frames lie over the world, and
         /// a bright name on a bright bar is unreadable without something behind it.
         /// </summary>

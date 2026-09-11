@@ -207,6 +207,26 @@ public sealed class Configuration : IPluginConfiguration
         /// </summary>
         public bool JobIconHideDps { get; set; }
 
+        // --- leader mark --------------------------------------------------------
+        // The same anatomy again. No "hide on" switch: there is exactly one leader, and one
+        // mark is never the thing that makes a party unreadable.
+
+        /// <summary>
+        /// Off by default. Who leads matters when it matters — pulling, ready checks, loot —
+        /// and the rest of the time it is a mark on somebody's frame for no reason.
+        /// </summary>
+        public bool ShowLeaderIcon { get; set; }
+
+        /// <summary>In pixels, and square.</summary>
+        public float LeaderIconSize { get; set; } = 16f;
+
+        /// <summary>Index into the nine anchor points.</summary>
+        public int LeaderIconPosition { get; set; } = (int)Hud.Anchor.TopRight;
+
+        public float LeaderIconX { get; set; }
+
+        public float LeaderIconY { get; set; }
+
         // --- party number -------------------------------------------------------
         // The 1 to 8 the game's own party list puts in front of every member. Same anatomy
         // as every other thing on a frame, and it is the party's numbering, not ours: once

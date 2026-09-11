@@ -138,6 +138,8 @@ internal static class Strings
     // --- Party frames: party number -------------------------------------------
     public const string GroupPartyNumber = "Party number";
     public const string GroupPartyNumberHint = "The 1 to 8 people are called out by.";
+    public const string GroupLeader = "Leader";
+    public const string GroupLeaderHint = "Who is in charge of the party.";
 
     // --- Global screen ------------------------------------------------------
     public const string SectionInterface = "Interface";

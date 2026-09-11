@@ -96,6 +96,18 @@ internal sealed record AppearanceBlock
     public float PartyNumberX { get; init; }
 
     public float PartyNumberY { get; init; }
+
+    public bool ShowLeaderIcon { get; init; }
+
+    /// <summary>In pixels, and square.</summary>
+    public float LeaderIconSize { get; init; }
+
+    /// <summary>Index into the nine anchor points.</summary>
+    public int LeaderIconPosition { get; init; }
+
+    public float LeaderIconX { get; init; }
+
+    public float LeaderIconY { get; init; }
 }
 
 /// <summary>
