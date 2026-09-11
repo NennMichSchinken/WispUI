@@ -24,9 +24,10 @@ internal enum JobRole
 /// the game's own job colours.
 /// </para>
 /// <para>
-/// Three are not in that list and keep our values: <b>Viper</b> and <b>Pictomancer</b> came
-/// after it was written, and <b>Blue Mage</b> is never ranked. Those three are the ones to
-/// look at first once real bars are on screen.
+/// Three are not in that list, because it was written before Viper and Pictomancer and Blue
+/// Mage is never ranked. The first two were picked off an FF Logs chart instead (Florian,
+/// 2026-09-11) and so belong to the same palette; Blue Mage keeps our own value and is the
+/// one job to look at once real bars are on screen.
 /// </para>
 /// <para>The icon rule comes from HamMeter, our own published plugin.</para>
 /// <para>
@@ -65,7 +66,7 @@ internal static class Jobs
         Set(30, JobRole.Dps, 0xAF1964); // Ninja
         Set(34, JobRole.Dps, 0xE46D04); // Samurai
         Set(39, JobRole.Dps, 0x965A90); // Reaper
-        Set(41, JobRole.Dps, 0x3D8C61); // Viper — see the note above, not in the published list
+        Set(41, JobRole.Dps, 0x108210); // Viper — measured off an FF Logs chart, see the note above
 
         // Physical ranged
         Set(23, JobRole.Dps, 0x91BA5E); // Bard
@@ -76,7 +77,7 @@ internal static class Jobs
         Set(25, JobRole.Dps, 0xA579D6); // Black Mage
         Set(27, JobRole.Dps, 0x2D9B78); // Summoner
         Set(35, JobRole.Dps, 0xE87B7B); // Red Mage
-        Set(42, JobRole.Dps, 0xF279A6); // Pictomancer — see the note above
+        Set(42, JobRole.Dps, 0xFC92E1); // Pictomancer — measured off an FF Logs chart
         Set(36, JobRole.Dps, 0x005FFF); // Blue Mage — not ranked on FFLogs, so ours stays
 
         // The classes a job grows out of. They keep the job's colour and role, so a party
