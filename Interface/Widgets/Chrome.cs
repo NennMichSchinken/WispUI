@@ -1162,29 +1162,34 @@ internal static class Chrome
     /// </summary>
     private static void MilledKnob(ImDrawListPtr dl, Vector2 centre, float radius, float lift)
     {
-        // Even, so opposite grooves line up, and few enough to stay legible at this size.
-        const int Grooves = 12;
+        // Fine enough that the wedges disappear into a sheen rather than reading as slices.
+        const int Wedges = 32;
 
-        uint face = Tokens.Col.Mix(Tokens.Col.SliderGrab, White, lift);
-        uint groove = Tokens.Col.Mix(Tokens.Col.SliderGrabMill, White, lift);
-        uint core = Tokens.Col.Mix(Tokens.Col.SliderGrabCore, White, lift);
+        // Four bright quarters, the pattern a spun disc shows under one light. Turned an
+        // eighth so the bright ones sit on the diagonals — square-on they read as a cross.
+        const float Lobes = 4f;
+        const float Phase = MathF.PI * 0.25f;
 
-        dl.AddCircleFilled(centre, radius, face);
+        uint light = Tokens.Col.Mix(Tokens.Col.SliderGrab, White, lift);
+        uint dark = Tokens.Col.Mix(Tokens.Col.SliderGrabMill, White, lift);
 
-        float step = MathF.PI * 2f / Grooves;
-        for (int i = 0; i < Grooves; i += 2)
+        float step = MathF.PI * 2f / Wedges;
+        Vector2 previous = new(centre.X + radius, centre.Y);
+
+        for (int i = 1; i <= Wedges; i++)
         {
-            float from = i * step;
-            Vector2 a = new(centre.X + (MathF.Cos(from) * radius), centre.Y + (MathF.Sin(from) * radius));
-            Vector2 b = new(
-                centre.X + (MathF.Cos(from + step) * radius),
-                centre.Y + (MathF.Sin(from + step) * radius));
+            float angle = i * step;
+            Vector2 point = new(
+                centre.X + (MathF.Cos(angle) * radius),
+                centre.Y + (MathF.Sin(angle) * radius));
 
-            dl.AddTriangleFilled(centre, a, b, groove);
+            float sheen = 0.5f + (0.5f * MathF.Cos(((angle - (step * 0.5f)) * Lobes) + Phase));
+            dl.AddTriangleFilled(centre, previous, point, Tokens.Col.Mix(dark, light, sheen));
+            previous = point;
         }
 
-        // The turned centre, and the dark rim that sets the whole disc off the track.
-        dl.AddCircleFilled(centre, radius * 0.34f, core);
+        // Where the grind converges, and the dark rim that sets the disc off the track.
+        dl.AddCircleFilled(centre, radius * 0.18f, Tokens.Col.Mix(Tokens.Col.SliderGrabCore, White, lift));
         dl.AddCircle(centre, radius, Tokens.Col.SliderGrabEdge, 0, Tokens.Line(1f));
     }
 

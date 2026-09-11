@@ -194,15 +194,15 @@ internal static class Tokens
         public static readonly uint SliderFill = Rgb(0x7FA84A);
         public static readonly uint SliderFillHi = Rgb(0x9DC85F);
         /// <summary>
-        /// The knob, as a milled metal disc rather than a flat white dot. Read off a magnified
-        /// shot of the game's own knob: it is bright at the rim and darker towards the middle,
-        /// with fine radial grooves across the face, as if it had been turned on a lathe. The
-        /// tones are derived, the shape is not — that is what the screenshot shows.
+        /// The knob, as a spun metal disc rather than a flat white dot: ground in circles, so
+        /// the sheen wanders around the face and converges in the middle. The two tones are
+        /// the light and dark of that grind — derived; the finish itself is what the game's
+        /// own knob shows under magnification.
         /// </summary>
-        public static readonly uint SliderGrab = Rgb(0xD7D4CB);
+        public static readonly uint SliderGrab = Rgb(0xE6E4DE);
 
-        public static readonly uint SliderGrabMill = Rgb(0xACA9A1);
-        public static readonly uint SliderGrabCore = Rgb(0x8A8780);
+        public static readonly uint SliderGrabMill = Rgb(0x9B9891);
+        public static readonly uint SliderGrabCore = Rgb(0xBDBAB3);
         public static readonly uint SliderGrabEdge = Rgb(0x2B2927);
 
         // --- scrollbar ---
