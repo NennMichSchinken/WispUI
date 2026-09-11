@@ -489,13 +489,13 @@ internal static class Chrome
         // The whole step is the hit box, but the ink sits in a band at the TOP of it, on the
         // same line a field label would take. That is what lets an option row and a field row
         // stand side by side across two columns and read as one row.
-        // The whole step is the hit box; the ink is centred in it. A compact row is one line
-        // against two dividers, and centring is what makes it sit evenly between them — the
-        // label then runs lower than a field label beside it, and that is the trade: the row
-        // BOUNDARIES are what align the columns, not the text lines inside them.
+        // The whole step is the hit box; the ink sits on the CONTROL line of the step, the one
+        // a dropdown or a slider occupies. Centred in the step it lined up with nothing —
+        // neither the label above it nor the control beside it — and three heights in one row
+        // is what made the columns look like they were drifting.
         float height = RowPitch();
         float band = OptionRowHeight();
-        float ink = MathF.Round(y + ((height - band) * 0.5f));
+        float ink = OptionInkTop(y, band);
 
         ImGui.SetCursorScreenPos(new Vector2(x, y));
         ImGui.InvisibleButton(id, new Vector2(width, height));
@@ -825,13 +825,22 @@ internal static class Chrome
     /// </summary>
     public static float RowEnd(float stepTop, float inkHeight) => stepTop + Tokens.Metric.RowInset + inkHeight;
 
-    /// <summary>
-    /// Where a compact option row ends. Its ink is centred in the step rather than set below
-    /// the inset, so a group that ends on one is as tall as the middle of that step plus half
-    /// the line — which leaves the air under it about the air above it.
-    /// </summary>
+    /// <summary>Where a compact option row ends — its ink sits on the step's control line.</summary>
     public static float OptionRowEnd(float stepTop) =>
-        MathF.Round(stepTop + ((RowPitch() + OptionRowHeight()) * 0.5f));
+        OptionInkTop(stepTop, OptionRowHeight()) + OptionRowHeight();
+
+    /// <summary>
+    /// The top of a compact row's ink: on the control line of the step, centred against the
+    /// box a field control fills. A tick beside a dropdown then shares its centre line, which
+    /// is the alignment the eye actually reads across two columns — a compact row has no label
+    /// line of its own to match, only a control.
+    /// </summary>
+    private static float OptionInkTop(float stepTop, float band) => MathF.Round(
+        stepTop
+        + Tokens.Metric.RowInset
+        + Ink.LineHeight(Ink.Role.Body)
+        + Tokens.Space.Sm
+        + ((Tokens.Metric.FieldControlHeight - band) * 0.5f));
 
     /// <summary>
     /// The ink of a compact option row: one line of text with the tick or switch on it. Taken
