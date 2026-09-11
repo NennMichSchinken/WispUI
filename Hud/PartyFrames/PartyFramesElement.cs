@@ -207,17 +207,21 @@ internal sealed class PartyFramesElement : HudElement
         if (cfg.ShowName)
         {
             string name = this.DrawnName(slot, ref member, cfg.ShortenNames);
-            Vector2 size = new(Ink.Measure(Ink.Role.Body, name).X, Ink.LineHeight(Ink.Role.Body));
-            Vector2 at = Anchors.Place(Anchors.At(cfg.NamePosition), innerMin, innerMax, size, padding);
+            float size = Tokens.Px(cfg.NameSize);
+            Vector2 measured = new(Ink.MeasureWidth(size, name), size);
+            Vector2 at = Anchors.Place(Anchors.At(cfg.NamePosition), innerMin, innerMax, measured, padding);
+
+            at.X += Tokens.Px(cfg.NameX);
+            at.Y += Tokens.Px(cfg.NameY);
 
             uint colour = cfg.NameInJobColour
                 ? Jobs.Colour(member.JobId)
                 : member.IsLocalPlayer ? Tokens.Col.GoldHi : Tokens.Col.Ink;
 
-            Ink.DrawShadowed(dl, Ink.Role.Body, at, colour, name);
+            Ink.DrawScaledShadowed(dl, size, at, colour, name);
         }
 
-        if (textMode == HealthTextMode.Off)
+        if (!cfg.ShowHealthText)
         {
             return;
         }
@@ -228,14 +232,14 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        Ink.Role role = Anchors.Size(cfg.HpTextSize);
-        Vector2 healthSize = new(Ink.Measure(role, health).X, Ink.LineHeight(role));
-        Vector2 healthAt = Anchors.Place(Anchors.At(cfg.HpTextPosition), innerMin, innerMax, healthSize, padding);
+        float healthSize = Tokens.Px(cfg.HpTextSize);
+        Vector2 healthMeasured = new(Ink.MeasureWidth(healthSize, health), healthSize);
+        Vector2 healthAt = Anchors.Place(Anchors.At(cfg.HpTextPosition), innerMin, innerMax, healthMeasured, padding);
 
         healthAt.X += Tokens.Px(cfg.HpTextX);
         healthAt.Y += Tokens.Px(cfg.HpTextY);
 
-        Ink.DrawShadowed(dl, role, healthAt, Tokens.Col.Ink, health);
+        Ink.DrawScaledShadowed(dl, healthSize, healthAt, Tokens.Col.Ink, health);
     }
 
     /// <summary>Whether this member is one of the ones mana was switched on for.</summary>

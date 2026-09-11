@@ -27,6 +27,13 @@ internal sealed record AppearanceBlock
     /// <summary>Index into the nine anchor points a text hangs on.</summary>
     public int NamePosition { get; init; }
 
+    /// <summary>In pixels.</summary>
+    public float NameSize { get; init; }
+
+    public float NameX { get; init; }
+
+    public float NameY { get; init; }
+
     public bool NameInJobColour { get; init; }
 
     public bool ShortenNames { get; init; }
@@ -36,11 +43,14 @@ internal sealed record AppearanceBlock
     // appearance and travels together — where the figure sits on a frame is a look, not a
     // size, and an element that copies the look and leaves the figure behind copied nothing.
 
+    /// <summary>Whether the figure shows at all.</summary>
+    public bool ShowHealthText { get; init; }
+
     /// <summary>Index into the health text modes — see <see cref="Hud.HealthTextMode"/>.</summary>
     public int HpTextMode { get; init; }
 
-    /// <summary>Index into the three text sizes.</summary>
-    public int HpTextSize { get; init; }
+    /// <summary>In pixels.</summary>
+    public float HpTextSize { get; init; }
 
     /// <summary>Index into the nine anchor points.</summary>
     public int HpTextPosition { get; init; }

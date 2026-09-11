@@ -1,6 +1,5 @@
 using System;
 using System.Numerics;
-using WispUI.Style;
 
 namespace WispUI.Hud;
 
@@ -76,11 +75,4 @@ internal static class Anchors
 
         return new Vector2(MathF.Round(x), MathF.Round(y));
     }
-
-    /// <summary>The text roles a HUD element offers, smallest first. Axis is sharp at these and nowhere between.</summary>
-    public static readonly Ink.Role[] TextSizes = { Ink.Role.Small, Ink.Role.Body, Ink.Role.Title };
-
-    /// <summary>Reads a stored size index as a text role.</summary>
-    public static Ink.Role Size(int index) =>
-        index >= 0 && index < TextSizes.Length ? TextSizes[index] : Ink.Role.Body;
 }

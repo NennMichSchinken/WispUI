@@ -29,6 +29,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdOpacity = "##wisp-pf-opacity";
     private const string IdSmooth = "##wisp-pf-smooth";
     private const string IdNamePosition = "##wisp-pf-nameposition";
+    private const string IdNameSize = "##wisp-pf-namesize";
+    private const string IdNameX = "##wisp-pf-namex";
+    private const string IdNameY = "##wisp-pf-namey";
     private const string IdNameJobColour = "##wisp-pf-namejobcolour";
     private const string IdShortenNames = "##wisp-pf-shortennames";
     private const string IdHealthMode = "##wisp-pf-healthmode";
@@ -64,6 +67,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const float MinManaHeight = 2f;
     private const float MaxManaHeight = 16f;
 
+    /// <summary>Every pixel slider steps by a whole pixel. There is no half a pixel to draw.</summary>
+    private const float PixelStep = 1f;
+
+    /// <summary>Opacity steps by a percent, which is what the readout beside it says.</summary>
+    private const float OpacityStep = 0.01f;
+
     // The slider readouts are kept per slot, so each one is only rebuilt when its own number
     // moves. The slots are in this order.
     private const int SlotWidth = 0;
@@ -72,7 +81,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const int SlotHealthX = 3;
     private const int SlotHealthY = 4;
     private const int SlotManaHeight = 5;
-    private const int SlotCount = 6;
+    private const int SlotHealthSize = 6;
+    private const int SlotNameSize = 7;
+    private const int SlotNameX = 8;
+    private const int SlotNameY = 9;
+    private const int SlotCount = 10;
 
     /// <summary>What a bar takes its colour from. FFXIV's own convention, not one of ours.</summary>
     private static readonly BarColourMode[] ColourModes =
@@ -105,9 +118,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         Strings.PositionBottomRight,
     };
 
-    /// <summary>The three sizes Axis is sharp at. A size here names a step, never a pixel count.</summary>
-    private static readonly string[] TextSizes = { Strings.TextSizeSmall, Strings.TextSizeNormal, Strings.TextSizeLarge };
-
     private static readonly string[] ManaStyles = { Strings.ManaStyleStrip, Strings.ManaStyleBar };
 
     private readonly Configuration m_config;
@@ -115,7 +125,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private readonly ArrowSelector<BarColourMode> m_colour;
     private readonly ArrowSelector<Anchor> m_namePosition;
     private readonly ArrowSelector<HealthTextMode> m_healthMode;
-    private readonly ArrowSelector<string> m_textSize;
     private readonly ArrowSelector<Anchor> m_healthPosition;
     private readonly ArrowSelector<string> m_manaStyle;
     private readonly ArrowSelector<string> m_direction;
@@ -124,12 +133,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private string m_opacityText = string.Empty;
     private int m_opacityTextFor = -1;
 
-    private float m_opacityPreview;
-    private bool m_draggingOpacity;
-
     /// <summary>One readout per slider, rebuilt only when its number changes.</summary>
     private readonly string[] m_sizeText = new string[SlotCount];
-    private readonly int[] m_sizeTextFor = { -1, -1, -1, -1, -1, -1 };
+    private readonly int[] m_sizeTextFor = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
 
     private string m_arrangementText = string.Empty;
     private int m_arrangementFor = -1;
@@ -137,7 +143,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     public PartyFramesScreen(Configuration config)
     {
         m_config = config;
-        m_opacityPreview = config.PartyFrames.BarOpacity;
 
         // A long list: worth a popup, and long enough that the search box earns its place.
         m_style = new ArrowSelector<BarStyle>(
@@ -187,17 +192,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 Label = static mode => mode switch
                 {
                     HealthTextMode.Current => Strings.HealthTextCurrent,
-                    HealthTextMode.Percent => Strings.HealthTextPercent,
                     HealthTextMode.Deficit => Strings.HealthTextDeficit,
-                    _ => Strings.HealthTextOff,
+                    _ => Strings.HealthTextPercent,
                 },
                 ShowCounter = false,
             });
-
-        m_textSize = new ArrowSelector<string>(
-            IdHealthSize,
-            TextSizes,
-            new ArrowSelectorOptions<string> { Label = static size => size, ShowCounter = false });
 
         m_manaStyle = new ArrowSelector<string>(
             IdManaStyle,
@@ -231,8 +230,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         ColourMode = m_config.PartyFrames.ColourMode,
         BarOpacity = m_config.PartyFrames.BarOpacity,
         NamePosition = m_config.PartyFrames.NamePosition,
+        NameSize = m_config.PartyFrames.NameSize,
+        NameX = m_config.PartyFrames.NameX,
+        NameY = m_config.PartyFrames.NameY,
         NameInJobColour = m_config.PartyFrames.NameInJobColour,
         ShortenNames = m_config.PartyFrames.ShortenNames,
+        ShowHealthText = m_config.PartyFrames.ShowHealthText,
         HpTextMode = m_config.PartyFrames.HpTextMode,
         HpTextSize = m_config.PartyFrames.HpTextSize,
         HpTextPosition = m_config.PartyFrames.HpTextPosition,
@@ -255,14 +258,17 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         if ((mask & AppearanceFields.Opacity) != 0)
         {
             m_config.PartyFrames.BarOpacity = source.BarOpacity;
-            m_opacityPreview = source.BarOpacity;
         }
 
         if ((mask & AppearanceFields.Text) != 0)
         {
             m_config.PartyFrames.NamePosition = source.NamePosition;
+            m_config.PartyFrames.NameSize = source.NameSize;
+            m_config.PartyFrames.NameX = source.NameX;
+            m_config.PartyFrames.NameY = source.NameY;
             m_config.PartyFrames.NameInJobColour = source.NameInJobColour;
             m_config.PartyFrames.ShortenNames = source.ShortenNames;
+            m_config.PartyFrames.ShowHealthText = source.ShowHealthText;
             m_config.PartyFrames.HpTextMode = source.HpTextMode;
             m_config.PartyFrames.HpTextSize = source.HpTextSize;
             m_config.PartyFrames.HpTextPosition = source.HpTextPosition;
@@ -373,7 +379,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         rowY += pitch;
 
-        float opacity = m_draggingOpacity ? m_opacityPreview : m_config.PartyFrames.BarOpacity;
+        float opacity = m_config.PartyFrames.BarOpacity;
         Chrome.SliderResult result = Chrome.Slider(
             IdOpacity,
             Strings.BarOpacity,
@@ -386,18 +392,15 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             1f,
             null,
             null,
-            true);
+            true,
+            OpacityStep);
 
+        // Applied while the hand is still on it, like every other slider that changes
+        // something already on screen. Opacity is the setting you most want to judge by
+        // looking, so holding it back until release was exactly the wrong one to hold back.
         if (result.Changed)
         {
-            m_draggingOpacity = true;
-            m_opacityPreview = result.Value;
-        }
-
-        if (result.Released && m_draggingOpacity)
-        {
-            m_draggingOpacity = false;
-            m_config.PartyFrames.BarOpacity = m_opacityPreview;
+            m_config.PartyFrames.BarOpacity = result.Value;
             m_config.MarkDirty();
         }
 
@@ -455,10 +458,13 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
 
+        this.PixelSlider(IdNameSize, Strings.TextSize, SlotNameSize, group, rowY, Configuration.MinTextSize, Configuration.MaxTextSize, false, null);
+        rowY += pitch;
+
         int position = m_config.PartyFrames.NamePosition;
         if (m_namePosition.Draw(
                 ref position,
-                Chrome.Row(Strings.NamePosition, group.ContentX, rowY, group.ContentWidth, false),
+                Chrome.Row(Strings.NamePosition, group.ContentX, rowY, group.ContentWidth, true),
                 rowY,
                 Chrome.ControlWidth()))
         {
@@ -466,6 +472,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
+        rowY += pitch;
+        this.PixelSlider(IdNameX, Strings.OffsetX, SlotNameX, group, rowY, -MaxOffset, MaxOffset, true, null);
+        rowY += pitch;
+        this.PixelSlider(IdNameY, Strings.OffsetY, SlotNameY, group, rowY, -MaxOffset, MaxOffset, true, null);
         rowY += pitch;
 
         if (Chrome.OptionRow(
@@ -509,10 +519,14 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     }
 
     /// <summary>
-    /// The figure on the bar. Five rows, and they are the same five every text on every
-    /// element gets: what it says, how big it is, which point it hangs on, and the two nudges
-    /// off that point (spec §11.2). That anatomy is also why there is no padding slider —
-    /// padding would be a second, vaguer way of saying the same thing.
+    /// The figure on the bar. The same rows the name gets: how big it is, which point it hangs
+    /// on, and the two nudges off that point (spec §11.2), plus what it says. That anatomy is
+    /// also why there is no padding slider — padding would be a second, vaguer way of saying
+    /// the same thing.
+    /// <para>
+    /// Whether it shows is the group's own switch and not an entry in the list of what it can
+    /// say: turning something off should not mean walking a list to find the word for off.
+    /// </para>
     /// </summary>
     private Chrome.GroupScope DrawHealthText(float x, float y, float width, out float contentHeight)
     {
@@ -522,10 +536,17 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             {
                 Title = Strings.GroupHealthText,
                 Description = Strings.GroupHealthTextHint,
+                Toggle = m_config.PartyFrames.ShowHealthText,
             },
             x,
             y,
             width);
+
+        if (group.ToggleClicked)
+        {
+            m_config.PartyFrames.ShowHealthText = !m_config.PartyFrames.ShowHealthText;
+            m_config.MarkDirty();
+        }
 
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
@@ -542,18 +563,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         }
 
         rowY += pitch;
-
-        int size = m_config.PartyFrames.HpTextSize;
-        if (m_textSize.Draw(
-                ref size,
-                Chrome.Row(Strings.TextSize, group.ContentX, rowY, group.ContentWidth, true),
-                rowY,
-                Chrome.ControlWidth()))
-        {
-            m_config.PartyFrames.HpTextSize = size;
-            m_config.MarkDirty();
-        }
-
+        this.PixelSlider(IdHealthSize, Strings.TextSize, SlotHealthSize, group, rowY, Configuration.MinTextSize, Configuration.MaxTextSize, true, null);
         rowY += pitch;
 
         int position = m_config.PartyFrames.HpTextPosition;
@@ -840,7 +850,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             max,
             hint,
             null,
-            divider);
+            divider,
+            PixelStep);
 
         // Applied while the hand is still on it, not on release: the frames are on screen
         // right now, and a size you only see once you let go is a size you set twice. The
@@ -860,6 +871,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         SlotSpacing => m_config.PartyFrames.Spacing,
         SlotHealthX => m_config.PartyFrames.HpTextX,
         SlotHealthY => m_config.PartyFrames.HpTextY,
+        SlotHealthSize => m_config.PartyFrames.HpTextSize,
+        SlotNameSize => m_config.PartyFrames.NameSize,
+        SlotNameX => m_config.PartyFrames.NameX,
+        SlotNameY => m_config.PartyFrames.NameY,
         _ => m_config.PartyFrames.ManaHeight,
     };
 
@@ -872,6 +887,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             case SlotSpacing: m_config.PartyFrames.Spacing = value; break;
             case SlotHealthX: m_config.PartyFrames.HpTextX = value; break;
             case SlotHealthY: m_config.PartyFrames.HpTextY = value; break;
+            case SlotHealthSize: m_config.PartyFrames.HpTextSize = value; break;
+            case SlotNameSize: m_config.PartyFrames.NameSize = value; break;
+            case SlotNameX: m_config.PartyFrames.NameX = value; break;
+            case SlotNameY: m_config.PartyFrames.NameY = value; break;
             default: m_config.PartyFrames.ManaHeight = value; break;
         }
     }

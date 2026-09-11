@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -35,6 +35,17 @@ public sealed class Configuration : IPluginConfiguration
 
     /// <summary>The quietest a health bar may be drawn. Below this it stops being readable.</summary>
     public const float MinBarOpacity = 0.2f;
+
+    /// <summary>
+    /// What a text on a HUD element starts at, in pixels: Axis's own body size, the one place
+    /// the face is exactly sharp rather than scaled to fit.
+    /// </summary>
+    public const float DefaultTextSize = 16f;
+
+    /// <summary>Smaller than this is not readable in a fight; larger does not belong on a frame.</summary>
+    public const float MinTextSize = 8f;
+
+    public const float MaxTextSize = 40f;
 
     public bool PartyFramesEnabled { get; set; } = true;
 
@@ -65,8 +76,23 @@ public sealed class Configuration : IPluginConfiguration
         /// <summary>Draw the player name on the frame at all — the switch in the group head.</summary>
         public bool ShowName { get; set; } = true;
 
+        // --- name text ----------------------------------------------------------
+        // Every text on a frame is described the same way: whether it shows, how big it is,
+        // which of the nine points it hangs on, and how far it is nudged from there. One
+        // anatomy for all of them, which is also why there is no padding slider (spec §11.2).
+
         /// <summary>Index into the nine anchor points.</summary>
         public int NamePosition { get; set; } = (int)Hud.Anchor.Left;
+
+        /// <summary>
+        /// In pixels. A frame can be anywhere from 18 to 150 tall, and what size a name wants
+        /// to be follows from that, so it is a number rather than one of three steps.
+        /// </summary>
+        public float NameSize { get; set; } = DefaultTextSize;
+
+        public float NameX { get; set; }
+
+        public float NameY { get; set; }
 
         public bool NameInJobColour { get; set; }
 
@@ -74,15 +100,15 @@ public sealed class Configuration : IPluginConfiguration
         public bool ShortenNames { get; set; }
 
         // --- health text --------------------------------------------------------
-        // Every text on a frame is described the same way: whether it shows, how big it is,
-        // which of the nine points it hangs on, and how far it is nudged from there. One
-        // anatomy for all of them, which is also why there is no padding slider (spec §11.2).
 
-        /// <summary>0 off, 1 the current figure, 2 a percentage, 3 what is missing.</summary>
-        public int HpTextMode { get; set; } = 2;
+        /// <summary>The figure's own switch. Whether it shows is not one of the things it says.</summary>
+        public bool ShowHealthText { get; set; } = true;
 
-        /// <summary>Index into the three text sizes. Axis is sharp at these and nowhere between.</summary>
-        public int HpTextSize { get; set; } = 1;
+        /// <summary>0 the current figure, 1 a percentage, 2 what is missing.</summary>
+        public int HpTextMode { get; set; } = 1;
+
+        /// <summary>In pixels, like every other text size on a frame.</summary>
+        public float HpTextSize { get; set; } = DefaultTextSize;
 
         /// <summary>Index into the nine anchor points.</summary>
         public int HpTextPosition { get; set; } = (int)Hud.Anchor.Right;
@@ -208,6 +234,29 @@ public sealed class Configuration : IPluginConfiguration
                 3 => (int)Hud.Anchor.Bottom,
                 4 => (int)Hud.Anchor.BottomLeft,
                 _ => (int)Hud.Anchor.TopLeft,
+            };
+        }
+
+        if (config.Version < 3)
+        {
+            // Text sizes were three named steps and are now a pixel count. The three are
+            // mapped onto the sizes they actually were, so a frame keeps the look it had.
+            config.PartyFrames.HpTextSize = config.PartyFrames.HpTextSize switch
+            {
+                0f => 13f,
+                2f => 19f,
+                _ => DefaultTextSize,
+            };
+
+            // "Nothing" left the list of what the figure can say and became the group's own
+            // switch. Whoever had it off keeps it off, and the mode under it is the sensible
+            // one to come back to rather than whatever index happened to sit at zero.
+            config.PartyFrames.ShowHealthText = config.PartyFrames.HpTextMode != 0;
+            config.PartyFrames.HpTextMode = config.PartyFrames.HpTextMode switch
+            {
+                1 => (int)Hud.HealthTextMode.Current,
+                3 => (int)Hud.HealthTextMode.Deficit,
+                _ => (int)Hud.HealthTextMode.Percent,
             };
         }
     }

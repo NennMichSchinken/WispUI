@@ -31,6 +31,21 @@ internal static class Chrome
     private static bool s_rowSplit;
 
     /// <summary>
+    /// How much slower a slider moves while shift is held — a quarter speed, which puts four
+    /// mouse pixels behind every step and makes one pixel of a frame width a deliberate act.
+    /// </summary>
+    private const float FineDragFactor = 0.25f;
+
+    // Where a slider drag started. Only one control can hold the mouse at a time, which is
+    // ImGui's own guarantee, so one anchor serves every slider in the suite. This is drag
+    // state, not settings state: it belongs to the hand that is moving, and it is gone the
+    // moment the button comes up.
+    private static bool s_dragging;
+    private static bool s_dragFine;
+    private static float s_dragValue;
+    private static float s_dragMouseX;
+
+    /// <summary>
     /// Set for one frame when escape was pressed with a list or panel open. Whoever is drawing
     /// a popup this frame reads it and closes itself: only the popup's own body may call
     /// ImGui's close, so the key cannot act on it from the outside.
@@ -1094,7 +1109,8 @@ internal static class Chrome
         float max,
         string? hint = null,
         string? tooltip = null,
-        bool divider = false)
+        bool divider = false,
+        float step = 0f)
     {
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
 
@@ -1137,9 +1153,13 @@ internal static class Chrome
         bool changed = false;
         if (active && travel > 0f)
         {
-            float t = Math.Clamp((ImGui.GetIO().MousePos.X - x - radius) / travel, 0f, 1f);
-            result = min + (t * (max - min));
+            result = Drag(x, radius, travel, value, min, max, step, ImGui.IsItemActivated());
             changed = result != value;
+        }
+
+        if (released)
+        {
+            s_dragging = false;
         }
 
         float fraction = max > min ? Math.Clamp((result - min) / (max - min), 0f, 1f) : 0f;
@@ -1169,6 +1189,81 @@ internal static class Chrome
         MilledKnob(dl, grabCenter, radius, active || hovered ? 0.16f : 0f);
 
         return new SliderResult(result, changed, released, RowHeight());
+    }
+
+    /// <summary>
+    /// What the slider is worth after this frame's mouse movement.
+    /// <para>
+    /// The click lands where it was aimed, and everything after it is measured as a distance
+    /// travelled rather than as a position on the track. That is what gives the control its
+    /// resistance: a track is only so many pixels wide, and mapping a range straight onto it
+    /// means a range wider than the track has values no mouse position can reach at all —
+    /// which is why a frame width could skip past 150 however carefully it was aimed.
+    /// </para>
+    /// <para>
+    /// Dragging by distance has no such ceiling. The hand can carry on past the end of the
+    /// track, the gain is held to at most one step per pixel, and holding shift quarters it.
+    /// </para>
+    /// </summary>
+    /// <param name="step">The smallest move the value may make, or zero for a smooth one.</param>
+    private static float Drag(
+        float x,
+        float radius,
+        float travel,
+        float value,
+        float min,
+        float max,
+        float step,
+        bool activated)
+    {
+        float mouseX = ImGui.GetIO().MousePos.X;
+        bool fine = ImGui.GetIO().KeyShift;
+
+        if (activated)
+        {
+            // The press itself still jumps: aiming at a point on the track and landing
+            // somewhere else would be the worse surprise of the two.
+            float t = Math.Clamp((mouseX - x - radius) / travel, 0f, 1f);
+            s_dragging = true;
+            s_dragFine = fine;
+            s_dragValue = min + (t * (max - min));
+            s_dragMouseX = mouseX;
+        }
+        else if (!s_dragging)
+        {
+            return value;
+        }
+        else if (fine != s_dragFine)
+        {
+            // Shift taken or let go mid-drag: start measuring again from here, so the knob
+            // carries on from where it is instead of leaping to where the new gain says.
+            s_dragFine = fine;
+            s_dragValue = value;
+            s_dragMouseX = mouseX;
+        }
+
+        float range = max - min;
+        float unitsPerPixel = range / travel;
+
+        // Never coarser than one step per pixel, so every step on the scale is reachable.
+        if (step > 0f)
+        {
+            unitsPerPixel = MathF.Min(unitsPerPixel, step);
+        }
+
+        if (fine)
+        {
+            unitsPerPixel *= FineDragFactor;
+        }
+
+        float result = s_dragValue + ((mouseX - s_dragMouseX) * unitsPerPixel);
+
+        if (step > 0f)
+        {
+            result = min + (MathF.Round((result - min) / step) * step);
+        }
+
+        return Math.Clamp(result, min, max);
     }
 
     /// <summary>

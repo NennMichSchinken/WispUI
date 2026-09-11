@@ -98,16 +98,11 @@ internal static class Strings
     public const string GroupHealthText = "Health text";
     public const string GroupHealthTextHint = "The figure on the bar.";
     public const string HealthTextMode = "Shows";
-    public const string HealthTextOff = "Nothing";
     public const string HealthTextCurrent = "Health";
     public const string HealthTextPercent = "Percent";
     public const string HealthTextDeficit = "Missing";
-    public const string HealthTextDeficitTooltip = "How much is gone, and nothing at all while nothing is.";
 
     public const string TextSize = "Size";
-    public const string TextSizeSmall = "Small";
-    public const string TextSizeNormal = "Normal";
-    public const string TextSizeLarge = "Large";
     public const string TextPosition = "Position";
     public const string OffsetX = "Offset X";
     public const string OffsetY = "Offset Y";
