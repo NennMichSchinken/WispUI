@@ -384,10 +384,15 @@ internal sealed class PartyFramesElement : HudElement
             // different pointer from the one in the rest of the game (Florian, 2026-09-12).
             // No shape is asked for on purpose: a unit frame is a thing you point at, not a
             // button, and the game's own party list does not put a hand on one either.
-            if (ImGui.IsWindowHovered(ImGuiHoveredFlags.RootAndChildWindows))
-            {
-                NativeUi.KeepGameCursor();
-            }
+            //
+            // 🔴 The two allowances are not decoration. Pressing the button makes the frame
+            // under it the active item, and a plain hover test answers no from that moment on
+            // — so the claim dropped for exactly as long as the button was held and the
+            // Windows pointer flashed back in its place, once per click (Florian, 2026-09-12).
+            bool ours = ImGui.IsWindowHovered(
+                ImGuiHoveredFlags.RootAndChildWindows
+                | ImGuiHoveredFlags.AllowWhenBlockedByActiveItem
+                | ImGuiHoveredFlags.AllowWhenBlockedByPopup);
 
             PartyMemberSnapshot[] members = m_snapshot.Members;
 
@@ -403,6 +408,10 @@ internal sealed class PartyFramesElement : HudElement
                 ImGui.InvisibleButton(IdSlot, m_frameMax[i] - m_frameMin[i]);
                 bool hovered = ImGui.IsItemHovered();
                 bool clicked = ImGui.IsItemClicked(ImGuiMouseButton.Left);
+
+                // Held down and dragged off the block is still our press. Without this the
+                // pointer changes hands mid-drag, which is the same flash at the other end.
+                ours |= ImGui.IsItemActive();
                 ImGui.PopID();
 
                 if (!hovered && !clicked)
@@ -433,6 +442,11 @@ internal sealed class PartyFramesElement : HudElement
                     Services.Targets.MouseOverTarget = target;
                     m_heldMouseOver = true;
                 }
+            }
+
+            if (ours)
+            {
+                NativeUi.KeepGameCursor();
             }
         }
 
