@@ -39,7 +39,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdLines = "##wisp-pf-lines";
     private const string IdWidth = "##wisp-pf-width";
     private const string IdHeight = "##wisp-pf-height";
-    private const string IdPadding = "##wisp-pf-padding";
     private const string IdSpacing = "##wisp-pf-spacing";
 
     // The ranges from the spec, 00a74. The useful height is 30-70; the rest is there so a small
@@ -48,7 +47,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const float MaxWidth = 400f;
     private const float MinHeight = 18f;
     private const float MaxHeight = 150f;
-    private const float MaxPadding = 20f;
     private const float MaxSpacing = 24f;
 
     /// <summary>Where a bar takes its colour from.</summary>
@@ -103,10 +101,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     /// <summary>One readout per size slider, rebuilt only when its number changes.</summary>
     private readonly string[] m_sizeText = new string[4];
     private readonly int[] m_sizeTextFor = { -1, -1, -1, -1 };
-
-    /// <summary>Which size slider is under the hand, and what it would set. -1 for none.</summary>
-    private int m_sizeDragging = -1;
-    private float m_sizePreview;
 
     private string m_arrangementText = string.Empty;
     private int m_arrangementFor = -1;
@@ -509,18 +503,19 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        // The arrangement written out. Nobody should have to picture what two lines do to
-        // eight frames — the spec asks for this line, and it is the reason the two controls
-        // can stay this plain.
-        rowY += pitch;
+        // The arrangement written out, under the control it belongs to and lined up with it.
+        // Flush left it read as a stray remark in the middle of the group; under the lines
+        // selector it is plainly that selector's answer.
+        string caption = this.ArrangementCaption();
+        float captionX = Chrome.ControlX(group.ContentX, group.ContentWidth);
         Ink.Draw(
             ImGui.GetWindowDrawList(),
             Ink.Role.Small,
-            new Vector2(group.ContentX, rowY + Tokens.Space.Sm),
+            new Vector2(captionX, rowY + Chrome.RowHeight() + Tokens.Space.Sm),
             Tokens.Col.InkFaint,
-            this.ArrangementCaption());
+            caption);
 
-        float used = rowY - group.ContentY + Ink.LineHeight(Ink.Role.Small) + Tokens.Space.Sm;
+        float used = rowY - group.ContentY + Chrome.RowHeight() + Tokens.Space.Sm + Ink.LineHeight(Ink.Role.Small);
         Chrome.EndGroupContent(group, used);
         contentHeight = used;
         return group;
@@ -546,9 +541,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         rowY += pitch;
         this.PixelSlider(IdHeight, Strings.FrameHeight, 1, group, rowY, MinHeight, MaxHeight, true, null);
         rowY += pitch;
-        this.PixelSlider(IdPadding, Strings.Padding, 2, group, rowY, 0f, MaxPadding, true, Strings.PaddingHint);
-        rowY += pitch;
-        this.PixelSlider(IdSpacing, Strings.Spacing, 3, group, rowY, 0f, MaxSpacing, true, Strings.SpacingHint);
+        this.PixelSlider(IdSpacing, Strings.Spacing, 2, group, rowY, 0f, MaxSpacing, true, Strings.SpacingHint);
 
         float used = rowY - group.ContentY + Chrome.RowHeight();
         Chrome.EndGroupContent(group, used);
@@ -571,7 +564,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         bool divider,
         string? hint)
     {
-        float value = m_sizeDragging == slot ? m_sizePreview : this.SizeValue(slot);
+        float value = this.SizeValue(slot);
         Chrome.SliderResult result = Chrome.Slider(
             id,
             label,
@@ -586,15 +579,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             null,
             divider);
 
+        // Applied while the hand is still on it, not on release: the frames are on screen
+        // right now, and a size you only see once you let go is a size you set twice. The
+        // interface scale is the one slider that waits, because it resizes the window under
+        // the cursor — this one changes something you are looking at.
         if (result.Changed)
         {
-            m_sizeDragging = slot;
-            m_sizePreview = MathF.Round(result.Value);
-        }
-
-        if (result.Released && m_sizeDragging == slot)
-        {
-            m_sizeDragging = -1;
             this.SetSizeValue(slot, MathF.Round(result.Value));
             m_config.MarkDirty();
         }
@@ -604,7 +594,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     {
         0 => m_config.PartyFrames.FrameWidth,
         1 => m_config.PartyFrames.FrameHeight,
-        2 => m_config.PartyFrames.Padding,
         _ => m_config.PartyFrames.Spacing,
     };
 
@@ -614,7 +603,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         {
             case 0: m_config.PartyFrames.FrameWidth = value; break;
             case 1: m_config.PartyFrames.FrameHeight = value; break;
-            case 2: m_config.PartyFrames.Padding = value; break;
             default: m_config.PartyFrames.Spacing = value; break;
         }
     }

@@ -538,6 +538,14 @@ internal static class Tokens
         /// <summary>Air under the last row, so a scrolled screen does not end flush with the edge.</summary>
         public static float ContentPaddingBottom => Px(24f);
 
+        /// <summary>
+        /// Inside a party frame, between its edge and what it holds. NOT an option: what a
+        /// player actually wants to move is where the name and the numbers sit, and that is
+        /// coming as its own setting — a padding slider would be a second way to say it
+        /// (Florian, 2026-09-11).
+        /// </summary>
+        public static float FramePadding => Px(5f);
+
         public static float BadgeHeight => Px(18f);
         public static float BadgePaddingX => Px(6f);
 

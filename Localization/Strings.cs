@@ -133,8 +133,6 @@ internal static class Strings
 
     public const string FrameWidth = "Frame width";
     public const string FrameHeight = "Frame height";
-    public const string Padding = "Padding";
-    public const string PaddingHint = "inside a frame";
     public const string Spacing = "Spacing";
     public const string SpacingHint = "between frames";
 

@@ -60,7 +60,7 @@ internal sealed class PartyFramesElement : HudElement
         float width = Tokens.Px(cfg.FrameWidth);
         float height = Tokens.Px(cfg.FrameHeight);
         float spacing = Tokens.Px(cfg.Spacing);
-        float padding = Tokens.Px(cfg.Padding);
+        float padding = Tokens.Metric.FramePadding;
         float x = Tokens.Px(cfg.PositionX);
         float y = Tokens.Px(cfg.PositionY);
 

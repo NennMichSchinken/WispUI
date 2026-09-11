@@ -88,9 +88,6 @@ public sealed class Configuration : IPluginConfiguration
         /// <summary>18-150. The useful range is 30-70; the rest is there for small parties.</summary>
         public float FrameHeight { get; set; } = 38f;
 
-        /// <summary>Inside a frame, between its edge and what it holds. Never mixed with spacing.</summary>
-        public float Padding { get; set; } = 5f;
-
         /// <summary>Between two frames. Never mixed with padding.</summary>
         public float Spacing { get; set; } = 4f;
 
