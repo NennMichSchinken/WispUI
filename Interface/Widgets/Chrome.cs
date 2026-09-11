@@ -25,6 +25,7 @@ internal static class Chrome
     private const string IdGroupCollapse = "##wisp-group-collapse";
 
     private static bool s_closePopups;
+    private static bool s_rowSplit;
 
     /// <summary>
     /// Set for one frame when escape was pressed with a list or panel open. Whoever is drawing
@@ -745,18 +746,38 @@ internal static class Chrome
             ImGui.GetWindowDrawList().AddRectFilled(
                 new Vector2(scope.ContentX, scope.ContentY),
                 new Vector2(scope.ContentX + scope.ContentWidth, scope.ContentY + contentHeight),
-                Tokens.Col.Faded(Tokens.Col.Panel, 1f - Tokens.Col.DisabledAlpha));
+                Tokens.Col.Faded(Tokens.Col.GroupBg, 1f - Tokens.Col.DisabledAlpha));
         }
 
         ImGui.PopID();
     }
 
     /// <summary>
-    /// Draws one group's frame around the height its rows turned out to be, and returns the
-    /// whole height so the screen can move on.
+    /// Opens a row of groups. Called before the first <see cref="BeginGroup"/> of the row,
+    /// because a group's surface has to go down before its rows and the height is only known
+    /// afterwards: the draw list is split in two, the rows go on the upper channel, and the
+    /// surfaces are painted onto the lower one when the row is framed.
     /// </summary>
-    public static float GroupFrame(in GroupScope scope, float contentHeight) =>
-        FrameTo(scope, GroupBottom(scope, contentHeight));
+    public static void BeginGroupRow()
+    {
+        ImDrawListPtr list = ImGui.GetWindowDrawList();
+        list.ChannelsSplit(2);
+        list.ChannelsSetCurrent(1);
+        s_rowSplit = true;
+    }
+
+    /// <summary>
+    /// Draws one group's surface and frame around the height its rows turned out to be, and
+    /// returns the whole height so the screen can move on.
+    /// </summary>
+    public static float GroupFrame(in GroupScope scope, float contentHeight)
+    {
+        float bottom = GroupBottom(scope, contentHeight);
+        ImDrawListPtr dl = BeginBacks();
+        Surface(dl, scope, bottom);
+        EndBacks(dl);
+        return FrameTo(scope, bottom);
+    }
 
     /// <summary>
     /// Frames two groups that sit side by side, both down to the lower of the two bottom
@@ -767,11 +788,46 @@ internal static class Chrome
     public static float GroupFrameRow(in GroupScope left, float leftHeight, in GroupScope right, float rightHeight)
     {
         float bottom = MathF.Max(GroupBottom(left, leftHeight), GroupBottom(right, rightHeight));
+        float leftBottom = left.Collapsed ? GroupBottom(left, leftHeight) : bottom;
+        float rightBottom = right.Collapsed ? GroupBottom(right, rightHeight) : bottom;
 
-        float used = FrameTo(left, left.Collapsed ? GroupBottom(left, leftHeight) : bottom);
-        float other = FrameTo(right, right.Collapsed ? GroupBottom(right, rightHeight) : bottom);
-        return MathF.Max(used, other);
+        ImDrawListPtr dl = BeginBacks();
+        Surface(dl, left, leftBottom);
+        Surface(dl, right, rightBottom);
+        EndBacks(dl);
+
+        return MathF.Max(FrameTo(left, leftBottom), FrameTo(right, rightBottom));
     }
+
+    /// <summary>Switches to the channel the group surfaces are painted on, if the row split it.</summary>
+    private static ImDrawListPtr BeginBacks()
+    {
+        ImDrawListPtr list = ImGui.GetWindowDrawList();
+        if (s_rowSplit)
+        {
+            list.ChannelsSetCurrent(0);
+        }
+
+        return list;
+    }
+
+    private static void EndBacks(ImDrawListPtr list)
+    {
+        if (!s_rowSplit)
+        {
+            return;
+        }
+
+        list.ChannelsMerge();
+        s_rowSplit = false;
+    }
+
+    private static void Surface(ImDrawListPtr dl, in GroupScope scope, float bottom) => dl.AddRectFilled(
+        new Vector2(scope.X, scope.Y),
+        new Vector2(scope.X + scope.Width, bottom),
+        Tokens.Col.GroupBg,
+        Tokens.Radius.Group,
+        ImDrawFlags.RoundCornersAll);
 
     private static float GroupBottom(in GroupScope scope, float contentHeight) => scope.Collapsed
         ? scope.ContentY + Tokens.Metric.GroupPadding

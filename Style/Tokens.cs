@@ -60,6 +60,15 @@ internal static class Tokens
         public static readonly uint Rail = Rgb(0x232223);
         public static readonly uint TitleBar = Rgb(0x232223);
 
+        /// <summary>
+        /// A settings group sits one small step above the window (derived, +5 on the measured
+        /// surface). The game itself separates with lines only, and the frame still does the
+        /// work; this is just enough lift that a group reads as an object on the panel rather
+        /// than as an outline drawn onto it. LumenUI takes a larger step (+9) — deliberately
+        /// not copied, because there the panel is near-black and has the room for it.
+        /// </summary>
+        public static readonly uint GroupBg = Rgb(0x282728);
+
         // Structure comes from these, since the surfaces no longer carry it.
         public static readonly uint EdgeDim = Rgb(0x4A474A);
         public static readonly uint Hairline = Rgb(0x3A383A);

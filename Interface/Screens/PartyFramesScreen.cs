@@ -149,6 +149,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float column = Chrome.ColumnWidth(width);
         float rowTop = origin.Y;
 
+        Chrome.BeginGroupRow();
+
         // Both columns are drawn first and framed afterwards, so the shorter one can be
         // carried down to the taller one's bottom edge. Two groups that each stop where their
         // own rows end leave a step, and every group added later adds another one.
