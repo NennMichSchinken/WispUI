@@ -42,6 +42,7 @@ internal static class Chrome
     // moment the button comes up.
     private static bool s_dragging;
     private static bool s_dragFine;
+    private static bool s_dragRelative;
     private static float s_dragValue;
     private static float s_dragMouseX;
 
@@ -1194,15 +1195,21 @@ internal static class Chrome
     /// <summary>
     /// What the slider is worth after this frame's mouse movement.
     /// <para>
-    /// The click lands where it was aimed, and everything after it is measured as a distance
-    /// travelled rather than as a position on the track. That is what gives the control its
-    /// resistance: a track is only so many pixels wide, and mapping a range straight onto it
-    /// means a range wider than the track has values no mouse position can reach at all —
-    /// which is why a frame width could skip past 150 however carefully it was aimed.
+    /// The knob stays under the cursor. That is not a nicety — a knob that lags behind the
+    /// hand reads as a broken control, whatever it is doing underneath (Florian, 2026-09-12).
+    /// So the value comes from where the mouse is on the track, and it lands on whole steps,
+    /// which is what makes a size settle on a pixel instead of between two.
     /// </para>
     /// <para>
-    /// Dragging by distance has no such ceiling. The hand can carry on past the end of the
-    /// track, the gain is held to at most one step per pixel, and holding shift quarters it.
+    /// Where that is not enough is a range wider than the track has pixels: 90 to 400 across
+    /// 162 pixels puts nearly two sizes behind every one of them, and the values in between
+    /// cannot be reached by pointing at all. Holding shift drags at a quarter speed to reach
+    /// them, and a drag that has gone fine stays measured from where it was rather than
+    /// snapping back to the cursor when shift is let go.
+    /// </para>
+    /// <para>
+    /// Every other slider in the suite has a range narrower than the track, so pointing alone
+    /// already reaches every step and shift is never needed.
     /// </para>
     /// </summary>
     /// <param name="step">The smallest move the value may make, or zero for a smooth one.</param>
@@ -1218,15 +1225,17 @@ internal static class Chrome
     {
         float mouseX = ImGui.GetIO().MousePos.X;
         bool fine = ImGui.GetIO().KeyShift;
+        float range = max - min;
 
         if (activated)
         {
-            // The press itself still jumps: aiming at a point on the track and landing
-            // somewhere else would be the worse surprise of the two.
-            float t = Math.Clamp((mouseX - x - radius) / travel, 0f, 1f);
             s_dragging = true;
             s_dragFine = fine;
-            s_dragValue = min + (t * (max - min));
+
+            // Shift held before the press starts the drag off fine straight away; otherwise
+            // the knob simply follows the mouse, which is what a slider is.
+            s_dragRelative = fine;
+            s_dragValue = value;
             s_dragMouseX = mouseX;
         }
         else if (!s_dragging)
@@ -1235,28 +1244,27 @@ internal static class Chrome
         }
         else if (fine != s_dragFine)
         {
-            // Shift taken or let go mid-drag: start measuring again from here, so the knob
-            // carries on from where it is instead of leaping to where the new gain says.
+            // Shift taken or let go mid-drag. Measuring starts again from here, and once a
+            // drag has gone relative it stays relative until the button comes up: switching
+            // back would snap the knob to the cursor, and a jump is worse than an offset.
             s_dragFine = fine;
+            s_dragRelative = true;
             s_dragValue = value;
             s_dragMouseX = mouseX;
         }
 
-        float range = max - min;
-        float unitsPerPixel = range / travel;
+        float result;
 
-        // Never coarser than one step per pixel, so every step on the scale is reachable.
-        if (step > 0f)
+        if (!s_dragRelative)
         {
-            unitsPerPixel = MathF.Min(unitsPerPixel, step);
+            float t = Math.Clamp((mouseX - x - radius) / travel, 0f, 1f);
+            result = min + (t * range);
         }
-
-        if (fine)
+        else
         {
-            unitsPerPixel *= FineDragFactor;
+            float unitsPerPixel = range / travel * (fine ? FineDragFactor : 1f);
+            result = s_dragValue + ((mouseX - s_dragMouseX) * unitsPerPixel);
         }
-
-        float result = s_dragValue + ((mouseX - s_dragMouseX) * unitsPerPixel);
 
         if (step > 0f)
         {
