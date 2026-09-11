@@ -207,6 +207,20 @@ public sealed class Configuration : IPluginConfiguration
         /// </summary>
         public bool JobIconHideDps { get; set; }
 
+        // --- the mouse ----------------------------------------------------------
+        // Both on by default. A unit frame that cannot be clicked is a picture of a unit
+        // frame, and anybody who wanted a picture would not have turned the module on.
+
+        /// <summary>Left-click a frame to select that member.</summary>
+        public bool ClickToTarget { get; set; } = true;
+
+        /// <summary>
+        /// While the mouse is over a frame, tell the game that member is what it is pointing
+        /// at. That is all it takes for the player's own mouseover macros and, with the game's
+        /// own mouseover setting on, their hotbar to act on that member.
+        /// </summary>
+        public bool MouseoverTarget { get; set; } = true;
+
         // --- leader mark --------------------------------------------------------
         // The same anatomy again. No "hide on" switch: there is exactly one leader, and one
         // mark is never the thing that makes a party unreadable.

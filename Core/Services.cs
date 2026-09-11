@@ -55,6 +55,13 @@ internal sealed class Services
     /// </summary>
     [PluginService] internal static ITextureProvider Textures { get; private set; } = null!;
 
+    /// <summary>
+    /// Who the player has selected, and what the game thinks the mouse is over. Both are
+    /// settable, which is what lets a frame of ours behave like the game's own party list —
+    /// and it means no writing into game memory for either (verified 2026-09-12).
+    /// </summary>
+    [PluginService] internal static ITargetManager Targets { get; private set; } = null!;
+
     internal static void Initialize(IDalamudPluginInterface pluginInterface)
     {
         pluginInterface.Create<Services>();

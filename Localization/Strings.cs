@@ -139,6 +139,17 @@ internal static class Strings
     // --- Party frames: party number -------------------------------------------
     public const string GroupPartyNumber = "Party number";
     public const string GroupPartyNumberHint = "The 1 to 8 people are called out by.";
+    // --- Party frames: the mouse ----------------------------------------------
+    public const string GroupMouse = "Mouse";
+    public const string GroupMouseHint = "What clicking and pointing do.";
+    public const string ClickToTarget = "Click to select";
+    public const string ClickToTargetTooltip = "Left-click a frame to target that member.";
+    public const string MouseoverTarget = "Mouseover target";
+    public const string MouseoverTargetTooltip = "Makes <mo> macros work on whoever you point at.";
+
+    /// <summary>Shown only while the game's own setting is off. Says where it is, nothing more.</summary>
+    public const string MouseoverGameSettingOff = "For hotbar actions, turn on Mouseover Targeting in Character Configuration.";
+
     public const string GroupLeader = "Leader";
     public const string GroupLeaderHint = "Who is in charge of the party.";
 

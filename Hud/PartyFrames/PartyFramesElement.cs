@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Game.ClientState.Objects.Types;
 using WispUI.Appearance;
 using WispUI.Core;
 using WispUI.Data;
@@ -74,6 +75,26 @@ internal sealed class PartyFramesElement : HudElement
     private readonly string?[] m_drawnNameFrom = new string?[PartySnapshot.Capacity];
     private readonly NameShortening[] m_drawnNameMode = new NameShortening[PartySnapshot.Capacity];
 
+    /// <summary>The window that takes the mouse, and the hit box of one frame inside it.</summary>
+    private const string IdInput = "##wisp-pf-input";
+    private const string IdSlot = "##wisp-pf-slot";
+
+    /// <summary>
+    /// Everything off: it carries no chrome, paints nothing, saves nothing, and never comes
+    /// forward. The frames are still drawn into the background list — this window exists only
+    /// so that ImGui asks for the mouse over them.
+    /// </summary>
+    private const ImGuiWindowFlags InputWindowFlags =
+        ImGuiWindowFlags.NoDecoration
+        | ImGuiWindowFlags.NoMove
+        | ImGuiWindowFlags.NoBackground
+        | ImGuiWindowFlags.NoSavedSettings
+        | ImGuiWindowFlags.NoFocusOnAppearing
+        | ImGuiWindowFlags.NoBringToFrontOnFocus
+        | ImGuiWindowFlags.NoNav
+        | ImGuiWindowFlags.NoNavFocus
+        | ImGuiWindowFlags.NoScrollWithMouse;
+
     /// <summary>The party number as text, built once for the eight numbers there can be.</summary>
     private static readonly string[] NumberText = { "1", "2", "3", "4", "5", "6", "7", "8" };
 
@@ -89,6 +110,20 @@ internal sealed class PartyFramesElement : HudElement
     private readonly Vector2[] m_innerMin = new Vector2[PartySnapshot.Capacity];
     private readonly Vector2[] m_innerMax = new Vector2[PartySnapshot.Capacity];
     private readonly bool[] m_hasInside = new bool[PartySnapshot.Capacity];
+
+    /// <summary>
+    /// Each frame's outside, for the mouse. The inside is where things are drawn; the edge is
+    /// still part of the thing you are clicking on.
+    /// </summary>
+    private readonly Vector2[] m_frameMin = new Vector2[PartySnapshot.Capacity];
+    private readonly Vector2[] m_frameMax = new Vector2[PartySnapshot.Capacity];
+
+    /// <summary>
+    /// Whether we were the ones who last said what the mouse is over. The game fills that
+    /// field from its own hit test every frame, so ours only has to be taken back on the
+    /// frame the mouse leaves.
+    /// </summary>
+    private bool m_heldMouseOver;
 
     /// <summary>
     /// The job icon per slot, resolved while collecting and only painted while drawing.
@@ -198,6 +233,8 @@ internal sealed class PartyFramesElement : HudElement
 
             m_innerMin[i] = innerMin;
             m_innerMax[i] = innerMax;
+            m_frameMin[i] = min;
+            m_frameMax[i] = max;
 
             dl.AddRectFilled(min, max, Tokens.Col.FrameBg);
 
@@ -293,6 +330,121 @@ internal sealed class PartyFramesElement : HudElement
             this.DrawTexts(dl, cfg, textMode, i, ref member, innerMin, innerMax);
             dl.PopClipRect();
         }
+
+        this.TakeTheMouse(cfg, count);
+    }
+
+    /// <summary>
+    /// Lets the frames be clicked and pointed at.
+    /// <para>
+    /// This is the one place the module opens an ImGui window, and it is not for drawing — it
+    /// paints nothing. Without a window ImGui never asks for the mouse, Dalamud passes the
+    /// click through, and the game reads a click on empty screen as dropping your target. The
+    /// frame and the world would fight over every click. A window is what makes the click ours.
+    /// </para>
+    /// <para>
+    /// The honest cost: over the block the right button no longer turns the camera, because
+    /// ImGui takes every button or none.
+    /// </para>
+    /// </summary>
+    private void TakeTheMouse(Configuration.PartyFramesConfig cfg, int count)
+    {
+        // Nothing to take while the layout is being set against stand-ins: there is nobody to
+        // select, and edit mode wants the same button for dragging.
+        if (count == 0 || EditMode.IsActive || (!cfg.ClickToTarget && !cfg.MouseoverTarget))
+        {
+            this.ReleaseMouseOver();
+            return;
+        }
+
+        Vector2 blockMin = m_frameMin[0];
+        Vector2 blockMax = m_frameMax[0];
+
+        for (int i = 1; i < count; i++)
+        {
+            if (!m_hasInside[i])
+            {
+                continue;
+            }
+
+            blockMin = Vector2.Min(blockMin, m_frameMin[i]);
+            blockMax = Vector2.Max(blockMax, m_frameMax[i]);
+        }
+
+        ImGui.SetNextWindowPos(blockMin);
+        ImGui.SetNextWindowSize(blockMax - blockMin);
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
+
+        bool hitAnything = false;
+
+        if (ImGui.Begin(IdInput, InputWindowFlags))
+        {
+            PartyMemberSnapshot[] members = m_snapshot.Members;
+
+            for (int i = 0; i < count; i++)
+            {
+                if (!m_hasInside[i])
+                {
+                    continue;
+                }
+
+                ImGui.SetCursorScreenPos(m_frameMin[i]);
+                ImGui.PushID(i);
+                ImGui.InvisibleButton(IdSlot, m_frameMax[i] - m_frameMin[i]);
+                bool hovered = ImGui.IsItemHovered();
+                bool clicked = ImGui.IsItemClicked(ImGuiMouseButton.Left);
+                ImGui.PopID();
+
+                if (!hovered && !clicked)
+                {
+                    continue;
+                }
+
+                hitAnything = true;
+
+                // Only now is the game object worth looking up. Finding one walks the object
+                // table, so it happens for the one member under the cursor and never for all
+                // eight of them (spec 12.5).
+                IGameObject? target = Services.Objects.SearchByEntityId(members[i].EntityId);
+                if (target is null)
+                {
+                    // Out of range, so the game has not loaded them. The same thing happens in
+                    // the game's own party list; it is not an error and not worth a log line.
+                    continue;
+                }
+
+                if (clicked && cfg.ClickToTarget)
+                {
+                    Services.Targets.Target = target;
+                }
+
+                if (hovered && cfg.MouseoverTarget)
+                {
+                    Services.Targets.MouseOverTarget = target;
+                    m_heldMouseOver = true;
+                }
+            }
+        }
+
+        ImGui.End();
+        ImGui.PopStyleVar();
+
+        if (!hitAnything)
+        {
+            this.ReleaseMouseOver();
+        }
+    }
+
+    /// <summary>Hands the mouseover back, but only if we were the ones holding it.</summary>
+    private void ReleaseMouseOver()
+    {
+        if (!m_heldMouseOver)
+        {
+            return;
+        }
+
+        m_heldMouseOver = false;
+        Services.Targets.MouseOverTarget = null;
     }
 
     /// <summary>

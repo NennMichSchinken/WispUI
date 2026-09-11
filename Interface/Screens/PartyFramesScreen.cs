@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Game.Config;
 using WispUI.Appearance;
 using WispUI.Core;
 using WispUI.Data;
@@ -44,6 +45,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdManaTanks = "##wisp-pf-manatanks";
     private const string IdManaHealers = "##wisp-pf-manahealers";
     private const string IdManaDps = "##wisp-pf-manadps";
+    private const string IdMouseGroup = "##wisp-pf-mouse";
+    private const string IdClickToTarget = "##wisp-pf-clicktarget";
+    private const string IdMouseover = "##wisp-pf-mouseover";
     private const string IdLeaderGroup = "##wisp-pf-leader";
     private const string IdLeaderSize = "##wisp-pf-leadersize";
     private const string IdLeaderPosition = "##wisp-pf-leaderposition";
@@ -434,6 +438,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         Chrome.GroupScope figure = this.DrawHealthText(Chrome.ColumnX(origin.X, width, 0), y, column, out float figureHeight);
         Chrome.GroupScope mana = this.DrawMana(Chrome.ColumnX(origin.X, width, 1), y, column, out float manaHeight);
         y += FrameRow(figure, figureHeight, mana, manaHeight);
+
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope mouse = this.DrawMouse(Chrome.ColumnX(origin.X, width, 0), y, column, out float mouseHeight);
+        y += Chrome.GroupFrame(mouse, mouseHeight) + Tokens.Metric.ColumnGutter;
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
@@ -930,6 +938,90 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         contentHeight = used;
         return group;
     }
+
+    /// <summary>
+    /// What the mouse does over a frame. Two switches and, when it matters, one line saying
+    /// that the game has its own setting for the second one.
+    /// </summary>
+    private Chrome.GroupScope DrawMouse(float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdMouseGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupMouse,
+                Description = Strings.GroupMouseHint,
+            },
+            x,
+            y,
+            width);
+
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
+
+        if (Chrome.OptionRow(
+                IdClickToTarget,
+                Strings.ClickToTarget,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.ClickToTarget,
+                Chrome.OptionControl.Switch,
+                Strings.ClickToTargetTooltip,
+                true,
+                false))
+        {
+            m_config.PartyFrames.ClickToTarget = !m_config.PartyFrames.ClickToTarget;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+
+        if (Chrome.OptionRow(
+                IdMouseover,
+                Strings.MouseoverTarget,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.MouseoverTarget,
+                Chrome.OptionControl.Switch,
+                Strings.MouseoverTargetTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.MouseoverTarget = !m_config.PartyFrames.MouseoverTarget;
+            m_config.MarkDirty();
+        }
+
+        float used = rowY - group.ContentY + Chrome.RowHeight();
+
+        // Only when it is actually off, and only ever read. Turning a setting of the game's on
+        // behalf is exactly the kind of reach WispUI does not make — so this says where it is
+        // and leaves it to the player.
+        if (m_config.PartyFrames.MouseoverTarget && !MouseoverSelectEnabled())
+        {
+            float noteY = rowY + Chrome.RowHeight() + Tokens.Space.Sm;
+            Ink.Draw(
+                ImGui.GetWindowDrawList(),
+                Ink.Role.Small,
+                new Vector2(group.ContentX, noteY),
+                Tokens.Col.InkFaint,
+                Strings.MouseoverGameSettingOff);
+
+            used += Tokens.Space.Sm + Ink.LineHeight(Ink.Role.Small);
+        }
+
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
+
+    /// <summary>
+    /// Whether the game itself will act on what the mouse is pointing at. Read, never written:
+    /// the switch belongs to the player and lives in their character configuration.
+    /// </summary>
+    private static bool MouseoverSelectEnabled() =>
+        Services.GameConfig.TryGet(UiConfigOption.TargetEnableMouseOverSelect, out uint value) && value != 0u;
 
     /// <summary>The leader's mark. The same four rows every badge on a frame gets.</summary>
     private Chrome.GroupScope DrawLeaderIcon(float x, float y, float width, out float contentHeight)
