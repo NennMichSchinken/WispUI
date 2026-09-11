@@ -79,6 +79,12 @@ internal sealed class ConfigWindow : Window
 
     private Screen m_screen = Screen.PartyFrames;
 
+    /// <summary>Whether a list or panel of ours is up — worked out once, in <see cref="PreDraw"/>.</summary>
+    private bool m_popupOpen;
+
+    /// <summary>Whether ImGui is currently drawing the pointer on our behalf.</summary>
+    private bool m_drawsCursor;
+
     public ConfigWindow(Configuration config)
         : base(
             Strings.WindowId,
@@ -117,6 +123,53 @@ internal sealed class ConfigWindow : Window
     {
         m_clipboard.ForgetUndo();
         Chrome.CancelValueEdit();
+        this.ReleaseCursor();
+    }
+
+    /// <summary>
+    /// Hands the pointer back to the game. Called when the window closes and when the plugin
+    /// goes away: a drawn cursor left switched on would outlive the window that asked for it.
+    /// </summary>
+    public void ReleaseCursor()
+    {
+        if (!m_drawsCursor)
+        {
+            return;
+        }
+
+        m_drawsCursor = false;
+        ImGui.GetIO().MouseDrawCursor = false;
+    }
+
+    /// <summary>
+    /// Takes over the pointer while the mouse is on this window.
+    /// <para>
+    /// Saying which cursor a control wants is not enough on its own: whether that reaches the
+    /// screen depends on a switch shared by everything in the game, and on the game not
+    /// drawing a pointer of its own over the top. Asking ImGui to draw the cursor settles it
+    /// — the pointer is then part of the same picture as the window it belongs to, so it can
+    /// only ever say what is under it here (Florian, 2026-09-12: the pointer kept answering
+    /// to the door behind the window).
+    /// </para>
+    /// <para>
+    /// Only while the mouse is ours. Away from the window the game gets its pointer back
+    /// untouched, which is the half of this that must not be broken.
+    /// </para>
+    /// </summary>
+    private void TakeCursor()
+    {
+        bool ours = m_popupOpen || ImGui.IsWindowHovered(
+            ImGuiHoveredFlags.RootAndChildWindows
+            | ImGuiHoveredFlags.AllowWhenBlockedByPopup
+            | ImGuiHoveredFlags.AllowWhenBlockedByActiveItem);
+
+        if (ours == m_drawsCursor)
+        {
+            return;
+        }
+
+        m_drawsCursor = ours;
+        ImGui.GetIO().MouseDrawCursor = ours;
     }
 
     public override void PreDraw()
@@ -125,13 +178,13 @@ internal sealed class ConfigWindow : Window
         // the window first and shuts the whole suite instead of the popup in front of it.
         // A number being typed into holds escape for the same reason: the key has to be able
         // to abandon the entry without taking the window with it.
-        bool popupOpen = ImGui.IsPopupOpen(
+        m_popupOpen = ImGui.IsPopupOpen(
             string.Empty,
             ImGuiPopupFlags.AnyPopupId | ImGuiPopupFlags.AnyPopupLevel)
             || Chrome.IsEditingValue;
 
-        this.RespectCloseHotkey = !popupOpen;
-        this.HandleEscape(popupOpen);
+        this.RespectCloseHotkey = !m_popupOpen;
+        this.HandleEscape(m_popupOpen);
 
         // The window has a fixed size and is not resizable by hand: dragging an ImGui corner
         // is fiddly, and a settings window that can be pulled to any width never looks right.
@@ -192,6 +245,8 @@ internal sealed class ConfigWindow : Window
 
     public override void Draw()
     {
+        this.TakeCursor();
+
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
         Vector2 origin = ImGui.GetWindowPos();
         Vector2 size = ImGui.GetWindowSize();
