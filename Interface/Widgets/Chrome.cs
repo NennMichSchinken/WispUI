@@ -1173,7 +1173,13 @@ internal static class Chrome
         uint light = Tokens.Col.Mix(Tokens.Col.SliderGrab, White, lift);
         uint dark = Tokens.Col.Mix(Tokens.Col.SliderGrabMill, White, lift);
 
+        // A round silhouette under the wedges: thirty-two straight chords make a polygon, and
+        // its flat sides showed at the rim. The wedges stop a hair short of this circle, so
+        // what defines the outline is the circle's own antialiased edge.
+        dl.AddCircleFilled(centre, radius, dark);
+
         float step = MathF.PI * 2f / Wedges;
+        radius -= Tokens.Line(1f);
         Vector2 previous = new(centre.X + radius, centre.Y);
 
         for (int i = 1; i <= Wedges; i++)
@@ -1188,9 +1194,10 @@ internal static class Chrome
             previous = point;
         }
 
-        // Where the grind converges, and the dark rim that sets the disc off the track.
+        // Where the grind converges. No drawn rim: at sixteen pixels across, a ring dark
+        // enough to see reads as an outline round a sticker rather than as the edge of a
+        // disc — the dark tone of the grind at the silhouette does that job on its own.
         dl.AddCircleFilled(centre, radius * 0.18f, Tokens.Col.Mix(Tokens.Col.SliderGrabCore, White, lift));
-        dl.AddCircle(centre, radius, Tokens.Col.SliderGrabEdge, 0, Tokens.Line(1f));
     }
 
     /// <summary>

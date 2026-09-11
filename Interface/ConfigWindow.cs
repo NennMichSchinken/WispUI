@@ -79,9 +79,6 @@ internal sealed class ConfigWindow : Window
 
     private Screen m_screen = Screen.PartyFrames;
 
-    /// <summary>Escape has to act once per press, not once per frame it is held down.</summary>
-    private bool m_escapeHeld;
-
     public ConfigWindow(Configuration config)
         : base(
             Strings.WindowId,
@@ -173,17 +170,19 @@ internal sealed class ConfigWindow : Window
     {
         if (!popupOpen)
         {
-            m_escapeHeld = false;
             return;
         }
 
-        bool down = Services.KeyState[VirtualKey.ESCAPE];
-        if (down && !m_escapeHeld)
+        // Read from ImGui rather than from the game's key buffer: while a search box has the
+        // keyboard, Dalamud keeps the key away from the game, so the buffer never shows the
+        // press at all and the popup sat there until a second one. ImGui sees every press,
+        // and asking it also means the field and the popup both go on the same one.
+        if (ImGui.IsKeyPressed(ImGuiKey.Escape, false))
         {
             Chrome.RequestClosePopups();
         }
 
-        m_escapeHeld = down;
+        // Taken out of the game's buffer anyway, for the presses it does see.
         Services.KeyState[VirtualKey.ESCAPE] = false;
     }
 
@@ -261,27 +260,43 @@ internal sealed class ConfigWindow : Window
 
         for (int i = 0; i < rings; i++)
         {
-            float inset = (i * ring) + (ring * 0.5f);
-            float left = origin.X + inset;
-            float right = origin.X + size.X - inset;
-            float top = origin.Y + inset;
-            float bottom = origin.Y + size.Y - inset;
-            float r = MathF.Max(0f, radius - (i * ring));
+            // Whole-pixel bounds, because the straight runs are filled rectangles rather than
+            // strokes: a one-pixel stroke is antialiased across two pixels, and four of them
+            // side by side average into one another — the near-white second ring ends up
+            // mixed into its dark neighbours and the whole edge reads dark and thin. Filled
+            // rectangles on whole pixels keep each ring its own colour, the way the game's
+            // frame is drawn.
+            float inset = i * ring;
+            float left = MathF.Round(origin.X + inset);
+            float right = MathF.Round(origin.X + size.X - inset);
+            float top = MathF.Round(origin.Y + inset);
+            float bottom = MathF.Round(origin.Y + size.Y - inset);
+            float r = MathF.Max(0f, radius - inset);
 
             uint topColour = Tokens.Col.EdgeTop[i];
             uint sideColour = Tokens.Col.EdgeSide[i];
             uint bottomColour = Tokens.Col.EdgeBottom[i];
 
             // The straight runs, each in its own colour.
-            dl.AddLine(new Vector2(left + r, top), new Vector2(right - r, top), topColour, ring);
-            dl.AddLine(new Vector2(left + r, bottom), new Vector2(right - r, bottom), bottomColour, ring);
-            dl.AddLine(new Vector2(left, top + r), new Vector2(left, bottom - r), sideColour, ring);
-            dl.AddLine(new Vector2(right, top + r), new Vector2(right, bottom - r), sideColour, ring);
+            dl.AddRectFilled(new Vector2(left + r, top), new Vector2(right - r, top + ring), topColour);
+            dl.AddRectFilled(new Vector2(left + r, bottom - ring), new Vector2(right - r, bottom), bottomColour);
+            dl.AddRectFilled(new Vector2(left, top + r), new Vector2(left + ring, bottom - r), sideColour);
+            dl.AddRectFilled(new Vector2(right - ring, top + r), new Vector2(right, bottom - r), sideColour);
 
             if (r <= 0f)
             {
                 continue;
             }
+
+            // The arcs still have to be stroked, so they run down the middle of the ring band
+            // the rectangles just filled: half a pixel in, with the radius taken in to match.
+            float half = ring * 0.5f;
+            float arc = r - half;
+            left += half;
+            right -= half;
+            top += half;
+            bottom -= half;
+            r = arc;
 
             // The corners carry one run into the next. Stroked as short segments with the
             // colour walked across them, because a corner that simply swaps colours where the
