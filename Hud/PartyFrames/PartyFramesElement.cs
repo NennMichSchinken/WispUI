@@ -303,6 +303,12 @@ internal sealed class PartyFramesElement : HudElement
 
         }
 
+        // Between the two passes on purpose. The mouse decides which frame gets the ring, and
+        // the ring belongs over the bars but under the icons and the text — a highlight that
+        // covers the job icon hides the thing you were pointing at to read (Florian,
+        // 2026-09-12). Asking the mouse here is what puts it in the middle of the stack.
+        this.TakeTheMouse(dl, cfg, count);
+
         // The second pass. A name or an icon may be placed outside its own frame — above it,
         // beside it — and that is a layout people build on purpose, not a mistake to guard
         // against. Drawn in the same loop as the bars, anything hanging below a frame would
@@ -333,8 +339,6 @@ internal sealed class PartyFramesElement : HudElement
             this.DrawTexts(dl, cfg, textMode, i, ref member, innerMin, innerMax);
             dl.PopClipRect();
         }
-
-        this.TakeTheMouse(dl, cfg, count);
     }
 
     /// <summary>
@@ -408,9 +412,12 @@ internal sealed class PartyFramesElement : HudElement
 
                 ImGui.SetCursorScreenPos(m_frameMin[i]);
                 ImGui.PushID(i);
-                ImGui.InvisibleButton(IdSlot, m_frameMax[i] - m_frameMin[i]);
+                // The button's own answer, which comes on release inside the frame and not on
+                // press. That is what the game's party list does — you can put the button down
+                // on the wrong person and slide off without selecting them — and it is why
+                // this is the return value rather than IsItemClicked (Florian, 2026-09-12).
+                bool clicked = ImGui.InvisibleButton(IdSlot, m_frameMax[i] - m_frameMin[i]);
                 bool hovered = ImGui.IsItemHovered();
-                bool clicked = ImGui.IsItemClicked(ImGuiMouseButton.Left);
 
                 // Held down and dragged off the block is still our press. Without this the
                 // pointer changes hands mid-drag, which is the same flash at the other end.
