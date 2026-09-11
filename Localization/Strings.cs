@@ -45,24 +45,29 @@ internal static class Strings
     public const string SectionInterface = "Interface";
     public const string SectionInterfaceHint = "How large WispUI draws, on this screen.";
     public const string InterfaceScale = "Scale";
-    public const string InterfaceScaleHint = "Sets the size of everything WispUI draws. The settings window has a fixed size on purpose, so nothing ever sits at an awkward width — this slider is how you change it.";
+
+    /// <summary>A few words beside the label. The rest is in the tooltip, not in the flow.</summary>
+    public const string InterfaceScaleNote = "100 % is the sharp one";
+
+    public const string InterfaceScaleTooltip = "Sizes everything WispUI draws, this window included.";
 
     public const string SectionAccess = "Access";
     public const string SectionAccessHint = "How to reach these settings.";
-    public const string ShowInfoBarEntry = "Show an entry in the server info bar";
-    public const string ShowInfoBarEntryHint = "Puts WispUI next to the clock at the top right. One click opens this window, so you need neither a chat command nor the plugin list. The game's own system menu cannot be extended by a plugin.";
+    public const string ShowInfoBarEntry = "Server info bar entry";
+    public const string ShowInfoBarEntryTooltip = "Opens this window from next to the clock.";
 
     public const string InfoBarTooltip = "Open the WispUI settings.";
 
     // --- Placeholders while the screens are still empty ----------------------
-    public const string NothingHereYet = "Nothing here yet.";
-    public const string SkeletonNote = "The window frame is standing. The controls for this screen arrive with the module itself.";
+    public const string NothingHereYet = "Nothing here yet";
+    public const string SkeletonNote = "The controls arrive with the module itself.";
     public const string PatchNotesLine1 = "The window frame is standing.";
     public const string PatchNotesLine2 = "Click for the patch notes.";
-    public const string PatchNotesUnavailable = "The patch notes arrive with the first release.";
+    public const string PatchNotesUnavailable = "Arrives with the first release.";
 
     // --- Disabled-state explanations -----------------------------------------
-    public const string EditModeDisabled = "Edit Mode needs a HUD element to move. The first one arrives with Party Frames.";
-    public const string DefaultsDisabled = "There is nothing to reset yet.";
-    public const string ClipboardDisabled = "The appearance clipboard arrives with the first HUD element.";
+    // One short line each. A disabled control owes a reason, not a paragraph.
+    public const string EditModeDisabled = "Needs a HUD element to move.";
+    public const string DefaultsDisabled = "Nothing to reset yet.";
+    public const string ClipboardDisabled = "Arrives with the first HUD element.";
 }

@@ -523,17 +523,14 @@ internal sealed class ConfigWindow : Window
     /// </summary>
     private void DrawScreenPlaceholder(float width)
     {
-        Ink.Push(Ink.Role.Body);
-        ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.InkDim);
-        ImGui.TextUnformatted(Strings.NothingHereYet);
-        ImGui.PopStyleColor();
+        // Drawn as a section head rather than as loose text, so an empty screen sits at the
+        // same sizes and on the same rhythm as one that has controls. Two type scales that
+        // nearly match are worse than one used twice.
+        Vector2 origin = ImGui.GetCursorScreenPos();
+        float used = Chrome.SectionHeader(Strings.NothingHereYet, Strings.SkeletonNote, origin.X, origin.Y);
 
-        ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.InkFaint);
-        ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + width);
-        ImGui.TextUnformatted(Strings.SkeletonNote);
-        ImGui.PopTextWrapPos();
-        ImGui.PopStyleColor();
-        Ink.Pop(Ink.Role.Body);
+        ImGui.SetCursorScreenPos(origin);
+        ImGui.Dummy(new Vector2(width, used + Tokens.Metric.ContentPaddingBottom));
     }
 
     /// <summary>One row of the navigation tree, described rather than drawn.</summary>
