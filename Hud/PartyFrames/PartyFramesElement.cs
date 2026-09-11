@@ -38,6 +38,13 @@ internal sealed class PartyFramesElement : HudElement
     /// </summary>
     private const float NumberPlateScale = 1.45f;
 
+    /// <summary>
+    /// How round the plate's corners are, as a share of its side. A share rather than a token
+    /// because the plate follows the figure's size: a fixed radius is a soft square at eight
+    /// pixels and a sharp one at forty.
+    /// </summary>
+    private const float NumberPlateRadius = 0.2f;
+
     private readonly Configuration m_config;
     private readonly PartySnapshot m_snapshot = new();
 
@@ -381,9 +388,9 @@ internal sealed class PartyFramesElement : HudElement
 
         if (cfg.ShowPartyNumber && member.PartyNumber >= 1 && member.PartyNumber <= NumberText.Length)
         {
-            // In a box, the way the game's own party list puts a position: an outline around
-            // the figure, not a plate under it. A bare digit over a health bar has no shape
-            // of its own to be recognised by and reads as a stray number (Florian).
+            // On a rounded plate with a black edge, the way the game's own party list puts a
+            // position. A bare digit over a health bar has no shape of its own to be
+            // recognised by and reads as a stray number (Florian).
             string number = NumberText[member.PartyNumber - 1];
             float glyph = Tokens.Px(cfg.PartyNumberSize);
             float plate = MathF.Round(glyph * NumberPlateScale);
@@ -398,8 +405,15 @@ internal sealed class PartyFramesElement : HudElement
             plateAt.Y += Tokens.Px(cfg.PartyNumberY);
 
             Vector2 plateEnd = new(plateAt.X + plate, plateAt.Y + plate);
-            dl.AddRectFilled(plateAt, plateEnd, Tokens.Col.NumberPlate);
-            dl.AddRect(plateAt, plateEnd, Tokens.Col.NumberEdge, 0f, ImDrawFlags.None, Tokens.Line(1f));
+            float radius = MathF.Max(Tokens.Radius.Small, MathF.Round(plate * NumberPlateRadius));
+            dl.AddRectFilled(plateAt, plateEnd, Tokens.Col.NumberPlate, radius, ImDrawFlags.RoundCornersAll);
+            dl.AddRect(
+                plateAt,
+                plateEnd,
+                Tokens.Col.NumberEdge,
+                radius,
+                ImDrawFlags.RoundCornersAll,
+                Tokens.Line(1f));
 
             // Centred on the tile rather than anchored to it: a digit is the one text whose
             // width changes with nothing the user did, and it has to stay in the middle.

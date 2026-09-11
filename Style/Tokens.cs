@@ -175,16 +175,17 @@ internal static class Tokens
         public static readonly uint Mana = Rgb(0x4C6FD0);
 
         /// <summary>
-        /// The box around the party number: a dark ground with a thin light edge and a light
-        /// figure, which is the shape the game's own list puts a position in. A filled plate
-        /// was tried first and is not what the game does (Florian, 2026-09-12).
-        /// ⚠️ NOT MEASURED — the frame's own ground and our own ink, so nothing is invented.
+        /// The party number's plate, the shape the game's own list gives a position: a light
+        /// rounded square with a black edge and the figure dark in the middle of it. Two
+        /// wrong readings of this came first — a plate with no edge, then an outline with no
+        /// plate — and it is both (Florian, 2026-09-12).
+        /// ⚠️ NOT MEASURED — our own ink and a true black, so nothing here is invented.
         /// </summary>
-        public static readonly uint NumberPlate = 0xC8141314u;
+        public static readonly uint NumberPlate = 0xE6C3C3C3u;
 
-        public static readonly uint NumberEdge = 0xC8C3C3C3u;
+        public static readonly uint NumberEdge = 0xFF000000u;
 
-        public static readonly uint NumberInk = Rgb(0xC3C3C3);
+        public static readonly uint NumberInk = Rgb(0x1B1A1B);
 
         /// <summary>
         /// Under every piece of text a HUD element writes. The frames lie over the world, and
