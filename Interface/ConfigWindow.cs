@@ -468,6 +468,7 @@ internal sealed class ConfigWindow : Window
         ImGui.SetCursorScreenPos(min);
         ImGui.InvisibleButton(IdEditMode, new Vector2(width, height));
         bool hovered = ImGui.IsItemHovered();
+        Chrome.ShowHand(hovered);
         if (ImGui.IsItemClicked())
         {
             EditMode.Toggle();
@@ -512,6 +513,7 @@ internal sealed class ConfigWindow : Window
         ImGui.SetCursorScreenPos(min);
         ImGui.InvisibleButton(IdNews, new Vector2(width, height));
         bool hovered = ImGui.IsItemHovered();
+        Chrome.ShowHand(hovered);
 
         dl.AddRectFilled(min, max, Tokens.Col.NavCard, Tokens.Radius.Control);
         dl.AddRect(

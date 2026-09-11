@@ -81,6 +81,24 @@ internal static class Chrome
         s_editSeen = false;
     }
 
+    /// <summary>
+    /// Puts the pointing hand under the mouse while it is over something that can be used.
+    /// <para>
+    /// Every control calls this, and that is the point: ImGui hands the cursor to the backend
+    /// once a frame, and a window that never asks for one leaves whatever was last set
+    /// standing — which is how the game's own hand, put there by a door behind the window,
+    /// was still showing over our controls (Florian, 2026-09-12). Saying what the pointer is
+    /// over is both the affordance and the cure.
+    /// </para>
+    /// </summary>
+    public static void ShowHand(bool hovered)
+    {
+        if (hovered)
+        {
+            ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+        }
+    }
+
     /// <summary>Vertically centres one line of the given role in a box of that height.</summary>
     public static float CenterY(float top, float height, Ink.Role role) =>
         MathF.Round(top + ((height - Ink.LineHeight(role)) * 0.5f));
@@ -256,6 +274,7 @@ internal static class Chrome
         ImGui.SetCursorScreenPos(min);
         ImGui.InvisibleButton(id, new Vector2(width, height));
         bool hovered = ImGui.IsItemHovered() && !soon;
+        ShowHand(hovered);
         bool clicked = ImGui.IsItemClicked() && !soon;
 
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
@@ -318,6 +337,7 @@ internal static class Chrome
         ImGui.SetCursorScreenPos(min);
         ImGui.InvisibleButton(id, new Vector2(width, height));
         bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
         bool clicked = ImGui.IsItemClicked();
 
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
@@ -371,6 +391,7 @@ internal static class Chrome
         ImGui.SetCursorScreenPos(min);
         ImGui.InvisibleButton(id, new Vector2(width, height));
         bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered && enabled);
         bool clicked = enabled && ImGui.IsItemClicked();
 
         float alpha = enabled ? 1f : Tokens.Col.DisabledAlpha;
@@ -531,6 +552,7 @@ internal static class Chrome
         ImGui.SetCursorScreenPos(new Vector2(x, y));
         ImGui.InvisibleButton(id, new Vector2(width, height));
         bool hovered = ImGui.IsItemHovered() && enabled;
+        ShowHand(hovered);
         bool clicked = ImGui.IsItemClicked() && enabled;
 
         float alpha = enabled ? 1f : Tokens.Col.DisabledAlpha;
@@ -991,6 +1013,7 @@ internal static class Chrome
         ImGui.SetCursorScreenPos(new Vector2(x, y));
         ImGui.InvisibleButton(id, new Vector2(size, line));
         bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
         bool clicked = ImGui.IsItemClicked();
 
         uint ink = hovered ? Tokens.Col.GoldHi : Tokens.Col.InkDim;
@@ -1062,6 +1085,7 @@ internal static class Chrome
         ImGui.SetCursorScreenPos(new Vector2(x, y));
         ImGui.InvisibleButton(id, new Vector2(width, height));
         bool hovered = ImGui.IsItemHovered() && enabled;
+        ShowHand(hovered);
         bool clicked = ImGui.IsItemClicked() && enabled;
 
         Vector2 min = new(x, MathF.Round(y + ((height - box) * 0.5f)));
@@ -1169,6 +1193,10 @@ internal static class Chrome
         bool active = ImGui.IsItemActive();
         bool hovered = ImGui.IsItemHovered();
         bool released = ImGui.IsItemDeactivated();
+
+        // Held as well as hovered: while the knob is being dragged the mouse is often off the
+        // row altogether, and the hand is what says the control still has it.
+        ShowHand(hovered || active);
 
         if (tooltip is not null && !active)
         {
@@ -1438,6 +1466,7 @@ internal static class Chrome
         ImGui.SetCursorScreenPos(min);
         ImGui.InvisibleButton(id, new Vector2(size, size));
         bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
         bool clicked = ImGui.IsItemClicked();
 
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
