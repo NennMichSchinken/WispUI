@@ -51,10 +51,14 @@ internal static class Chrome
     /// Draws a top-to-bottom two-colour fill, the shape FFXIV uses for its own chrome.
     /// <para>
     /// ImGui cannot round the corners of a gradient, so with a radius the fill is built in
-    /// three parts: a rounded base in the top colour, the gradient clipped to the straight
-    /// middle, and a rounded cap in the bottom colour. The caps meet the gradient at the
-    /// exact colour it has reached there, so the seam is invisible — and nothing square
-    /// pokes out from under a rounded edge.
+    /// three parts: a rounded cap in the top colour, the gradient between the caps, and a
+    /// rounded cap in the bottom colour. The gradient starts and ends exactly where the caps
+    /// do, so each cap holds the colour its neighbour begins with and nothing square pokes
+    /// out from under a rounded edge.
+    /// </para>
+    /// <para>
+    /// <paramref name="fade"/> ends the gradient early and fills the rest in the bottom
+    /// colour — a lit edge that runs out near the top rather than a wash over the whole box.
     /// </para>
     /// </summary>
     public static void VerticalFill(
@@ -64,27 +68,57 @@ internal static class Chrome
         uint top,
         uint bottom,
         float rounding = 0f,
-        ImDrawFlags flags = ImDrawFlags.RoundCornersAll)
+        ImDrawFlags flags = ImDrawFlags.RoundCornersAll,
+        float fade = 0f)
     {
-        if (rounding <= 0f || max.Y - min.Y <= rounding * 2f)
+        float fadeTop = min.Y;
+        float fadeBottom = max.Y;
+
+        if (rounding > 0f && max.Y - min.Y > rounding * 2f)
         {
-            dl.AddRectFilledMultiColor(min, max, top, top, bottom, bottom);
+            // The rounded caps can only hold one colour each, so the gradient runs between
+            // them rather than under them. Drawing it across the full height instead left the
+            // caps sitting on a colour the gradient had already moved past — a straight line
+            // across the bar at exactly the cap's edge, which is what this used to do.
+            fadeTop = min.Y + rounding;
+            fadeBottom = max.Y - rounding;
+
+            dl.AddRectFilled(min, new Vector2(max.X, fadeTop), top, rounding, flags & ImDrawFlags.RoundCornersTop);
+
+            ImDrawFlags capFlags = flags & ImDrawFlags.RoundCornersBottom;
+            dl.AddRectFilled(
+                new Vector2(min.X, fadeBottom),
+                max,
+                bottom,
+                rounding,
+                capFlags == 0 ? ImDrawFlags.RoundCornersNone : capFlags);
+        }
+
+        // A fade shorter than the box: the light runs out near the lit edge and the rest of
+        // the box is the surface colour, the way the game's own title bars are lit. The flat
+        // remainder is painted in the colour the gradient ends on, so there is no seam.
+        if (fade > 0f && fade < fadeBottom - fadeTop)
+        {
+            float fadeEnd = fadeTop + fade;
+            dl.AddRectFilledMultiColor(
+                new Vector2(min.X, fadeTop),
+                new Vector2(max.X, fadeEnd),
+                top,
+                top,
+                bottom,
+                bottom);
+
+            dl.AddRectFilled(new Vector2(min.X, fadeEnd), new Vector2(max.X, fadeBottom), bottom);
             return;
         }
 
-        dl.AddRectFilled(min, max, top, rounding, flags);
-
-        dl.PushClipRect(new Vector2(min.X, min.Y + rounding), new Vector2(max.X, max.Y - rounding), true);
-        dl.AddRectFilledMultiColor(min, max, top, top, bottom, bottom);
-        dl.PopClipRect();
-
-        ImDrawFlags capFlags = flags & ImDrawFlags.RoundCornersBottom;
-        if (capFlags == 0)
-        {
-            capFlags = ImDrawFlags.RoundCornersNone;
-        }
-
-        dl.AddRectFilled(new Vector2(min.X, max.Y - rounding), max, bottom, rounding, capFlags);
+        dl.AddRectFilledMultiColor(
+            new Vector2(min.X, fadeTop),
+            new Vector2(max.X, fadeBottom),
+            top,
+            top,
+            bottom,
+            bottom);
     }
 
     /// <summary>A one-pixel horizontal rule.</summary>

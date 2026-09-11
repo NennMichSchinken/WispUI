@@ -365,7 +365,8 @@ internal sealed class ConfigWindow : Window
             Tokens.Col.TitleBarTop,
             Tokens.Col.TitleBar,
             Tokens.Radius.Window,
-            ImDrawFlags.RoundCornersTop);
+            ImDrawFlags.RoundCornersTop,
+            Tokens.Metric.TitleBarFade);
 
         // The three-pixel rule that closes the title bar: dark, surface, light. It fades out
         // towards the corners rather than running into the frame.

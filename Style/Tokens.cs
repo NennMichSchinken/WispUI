@@ -342,6 +342,14 @@ internal static class Tokens
         public static float TitleRuleFade => Px(28f);
 
         public static float TitleBarHeight => Px(42f);
+
+        /// <summary>
+        /// How far down the lit top edge of the title bar reaches before it has arrived at the
+        /// surface colour. The game lights the very top and is back to its background well
+        /// before the title text; a wash across the whole bar reads as a panel of its own.
+        /// </summary>
+        public static float TitleBarFade => Px(14f);
+
         public static float TitleButton => Px(20f);
 
         public static float NavWidth => Px(205f);
