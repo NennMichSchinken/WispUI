@@ -103,7 +103,6 @@ internal static class Strings
     // One short line each. A disabled control owes a reason, not a paragraph.
     public const string EditModeDisabled = "Needs a HUD element to move.";
     public const string DefaultsDisabled = "Nothing to reset yet.";
-    public const string ClipboardDisabled = "Arrives with the first HUD element.";
     public const string PasteDisabled = "Nothing copied yet.";
     public const string ApplyDisabled = "Nothing ticked that this one has.";
     public const string SelectorAtStart = "Start of the list.";

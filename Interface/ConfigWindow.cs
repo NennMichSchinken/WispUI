@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Reflection;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
+using WispUI.Appearance;
 using WispUI.Core;
 using WispUI.Interface.Screens;
 using WispUI.Interface.Widgets;
@@ -29,8 +30,6 @@ internal sealed class ConfigWindow : Window
     private const string IdNews = "##wisp-news";
     private const string IdEditMode = "##wisp-editmode";
     private const string IdModuleSwitch = "##wisp-module-switch";
-    private const string IdCopy = "##wisp-copy";
-    private const string IdPaste = "##wisp-paste";
     private const string IdDefaults = "##wisp-defaults";
 
     private const uint Transparent = 0x00000000u;
@@ -59,6 +58,16 @@ internal sealed class ConfigWindow : Window
 
     private readonly Configuration m_config;
     private readonly GlobalScreen m_global;
+    private readonly PartyFramesScreen m_partyFrames;
+
+    /// <summary>
+    /// One buffer for the whole suite, and one strip that offers it. Both are built here and
+    /// handed to whichever module is on screen — the clipboard belongs to the suite, the
+    /// appearance it holds belongs to an element.
+    /// </summary>
+    private readonly AppearanceClipboard m_clipboard = new();
+
+    private readonly AppearanceBar m_appearance;
 
     /// <summary>Built once — the version never changes while the plugin is loaded.</summary>
     private readonly string m_versionChip;
@@ -82,6 +91,8 @@ internal sealed class ConfigWindow : Window
         m_config = config;
         m_global = new GlobalScreen(config);
         m_global.InfoBarPreferenceChanged += () => this.InfoBarPreferenceChanged?.Invoke();
+        m_partyFrames = new PartyFramesScreen(config);
+        m_appearance = new AppearanceBar(m_clipboard);
 
         string version = ReadVersion();
         m_versionChip = Strings.PluginName + " " + version;
@@ -463,11 +474,7 @@ internal sealed class ConfigWindow : Window
 
         if (isModule)
         {
-            cursor -= Tokens.Space.Md + Chrome.MeasureButton(Strings.PasteAppearance);
-            Chrome.Button(IdPaste, Strings.PasteAppearance, cursor, buttonY, false, Strings.ClipboardDisabled);
-
-            cursor -= Tokens.Space.Sm + Chrome.MeasureButton(Strings.CopyAppearance);
-            Chrome.Button(IdCopy, Strings.CopyAppearance, cursor, buttonY, false, Strings.ClipboardDisabled);
+            m_appearance.Draw(m_partyFrames, cursor - Tokens.Space.Md, buttonY);
         }
 
         return top + height;
@@ -501,9 +508,14 @@ internal sealed class ConfigWindow : Window
             ImGui.SetCursorPos(new Vector2(padX, padY));
 
             float inner = width - (padX * 2f);
+            bool onBase = m_tabIndex[(int)m_screen] == 0;
             if (m_screen == Screen.Global)
             {
                 m_global.Draw(inner);
+            }
+            else if (m_screen == Screen.PartyFrames && onBase)
+            {
+                m_partyFrames.Draw(inner);
             }
             else
             {
