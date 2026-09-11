@@ -171,8 +171,27 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             y,
             width);
 
+        // Compact options on top, field rows beneath — LumenUI's block order for a card, and
+        // the reason a group reads as one ladder: the short rows and their dividers carry on
+        // from the head rule, and the tall controls follow once.
         float rowY = group.ContentY;
-        float used = 0f;
+        if (Chrome.OptionRow(
+                IdSmooth,
+                Strings.SmoothBars,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.SmoothBars,
+                Chrome.OptionControl.Tick,
+                Strings.SmoothBarsTooltip))
+        {
+            m_config.PartyFrames.SmoothBars = !m_config.PartyFrames.SmoothBars;
+            m_config.MarkDirty();
+        }
+
+        // A short control followed by a tall one gets the wider gap.
+        float used = Tokens.Metric.OptionRowHeight + Tokens.Metric.RowGapAfterShort;
+        rowY = group.ContentY + used;
 
         float drop = Chrome.FieldLabel(Strings.BarStyle, group.ContentX, rowY, group.ContentWidth);
         int style = m_config.PartyFrames.BarStyle;
@@ -223,24 +242,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        used += result.Height + Tokens.Metric.RowGap;
-        rowY = group.ContentY + used;
-
-        if (Chrome.OptionRow(
-                IdSmooth,
-                Strings.SmoothBars,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.SmoothBars,
-                Chrome.OptionControl.Tick,
-                Strings.SmoothBarsTooltip))
-        {
-            m_config.PartyFrames.SmoothBars = !m_config.PartyFrames.SmoothBars;
-            m_config.MarkDirty();
-        }
-
-        used += Tokens.Metric.OptionRowHeight;
+        used += result.Height;
         return Chrome.EndGroup(group, used);
     }
 
@@ -269,30 +271,17 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        float drop = Chrome.FieldLabel(Strings.NamePosition, group.ContentX, group.ContentY, group.ContentWidth);
-        int position = m_config.PartyFrames.NamePosition;
-        if (m_namePosition.Draw(ref position, group.ContentX, group.ContentY + drop, group.ContentWidth))
-        {
-            m_config.PartyFrames.NamePosition = position;
-            m_config.MarkDirty();
-        }
-
-        float used = Chrome.FieldRowHeight() + Tokens.Metric.RowGap;
-
-        // Two options in a row, so the divider between them has something to divide. The last
-        // one in a run never carries it: a line right above the group's inner padding reads
-        // as a cut rather than as a separator.
+        // The run of compact options first. The first one carries no divider — its top line
+        // is the group's own head rule.
+        float used = 0f;
         if (Chrome.OptionRow(
                 IdNameJobColour,
                 Strings.NameInJobColour,
                 group.ContentX,
-                group.ContentY + used,
+                group.ContentY,
                 group.ContentWidth,
                 m_config.PartyFrames.NameInJobColour,
-                Chrome.OptionControl.Switch,
-                null,
-                true,
-                true))
+                Chrome.OptionControl.Switch))
         {
             m_config.PartyFrames.NameInJobColour = !m_config.PartyFrames.NameInJobColour;
             m_config.MarkDirty();
@@ -308,13 +297,25 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 group.ContentWidth,
                 m_config.PartyFrames.ShortenNames,
                 Chrome.OptionControl.Tick,
-                Strings.ShortenNamesTooltip))
+                Strings.ShortenNamesTooltip,
+                true,
+                true))
         {
             m_config.PartyFrames.ShortenNames = !m_config.PartyFrames.ShortenNames;
             m_config.MarkDirty();
         }
 
-        used += Tokens.Metric.OptionRowHeight;
+        used += Tokens.Metric.OptionRowHeight + Tokens.Metric.RowGapAfterShort;
+
+        float drop = Chrome.FieldLabel(Strings.NamePosition, group.ContentX, group.ContentY + used, group.ContentWidth);
+        int position = m_config.PartyFrames.NamePosition;
+        if (m_namePosition.Draw(ref position, group.ContentX, group.ContentY + used + drop, group.ContentWidth))
+        {
+            m_config.PartyFrames.NamePosition = position;
+            m_config.MarkDirty();
+        }
+
+        used += Chrome.FieldRowHeight();
         return Chrome.EndGroup(group, used);
     }
 

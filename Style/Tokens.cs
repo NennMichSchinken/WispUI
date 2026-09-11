@@ -450,8 +450,18 @@ internal static class Tokens
         /// <summary>Section head to its first row.</summary>
         public static float SectionHeadGap => Px(20f);
 
-        /// <summary>One row of controls to the next.</summary>
+        // The gap between two rows is chosen by their RELATIONSHIP, not by feel — LumenUI's
+        // semantic rhythm, which it arrived at in play. The principle behind it: a jump in
+        // height needs more air than two rows of the same shape.
+
+        /// <summary>The standard gap between two rows of the same kind.</summary>
         public static float RowGap => Px(16f);
+
+        /// <summary>
+        /// From a run of compact options to the first field row under it. A short control
+        /// followed by a tall one needs more room, or the tall one reads as crowding it.
+        /// </summary>
+        public static float RowGapAfterShort => Px(24f);
 
         /// <summary>Air under the last row, so a scrolled screen does not end flush with the edge.</summary>
         public static float ContentPaddingBottom => Px(24f);

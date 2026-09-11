@@ -412,9 +412,14 @@ internal static class Chrome
     /// </para>
     /// </summary>
     /// <param name="divider">
-    /// Draws a faint line in the gap below, to be passed on every option of a run except the
-    /// last. A run of ticks and switches needs the line to read as a list; a slider or a
-    /// selector does not, because its own body already ends the row.
+    /// Draws a faint line in the gap ABOVE the row — pass it on every option of a run except
+    /// the first, whose top line is the group's own head rule.
+    /// <para>
+    /// Above rather than below is LumenUI's rule, and it is the one that composes: a line
+    /// under a row has to be suppressed on the last one, and a subheading dropped into the
+    /// middle of a run would need its own special case. Belonging to the row beneath it, the
+    /// line simply never appears where a run begins.
+    /// </para>
     /// </param>
     public static bool OptionRow(
         string id,
@@ -468,8 +473,8 @@ internal static class Chrome
 
         if (divider)
         {
-            // Centred in the gap to the next row, so it belongs to neither and separates both.
-            Hairline(dl, x, x + width, MathF.Round(y + height + (Tokens.Metric.RowGap * 0.5f)), Tokens.Col.RowDivider);
+            // Centred in the gap above, so it sits between the two rows rather than on either.
+            Hairline(dl, x, x + width, MathF.Round(y - (Tokens.Metric.RowGap * 0.5f)), Tokens.Col.RowDivider);
         }
 
         if (tooltip is not null)
