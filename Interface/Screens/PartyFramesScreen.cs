@@ -67,8 +67,20 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const float MinManaHeight = 2f;
     private const float MaxManaHeight = 16f;
 
-    /// <summary>Every pixel slider steps by a whole pixel. There is no half a pixel to draw.</summary>
+    /// <summary>
+    /// Every pixel slider steps by a whole pixel. There is no half a pixel to draw, and every
+    /// one of these ranges is narrower than the track, so pointing reaches all of them.
+    /// </summary>
     private const float PixelStep = 1f;
+
+    /// <summary>
+    /// The frame width is the one range wider than the track: 90 to 400 is more sizes than the
+    /// track has pixels, so single pixels there cannot be reached by pointing at all. It steps
+    /// by five instead, which lands on the round numbers and gives the slider a detent you can
+    /// feel (Florian, 2026-09-12). A frame is a block of the screen, not a glyph — five pixels
+    /// of width is a decision, not a nuisance.
+    /// </summary>
+    private const float WidthStep = 5f;
 
     /// <summary>Opacity steps by a percent, which is what the readout beside it says.</summary>
     private const float OpacityStep = 0.01f;
@@ -771,7 +783,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
 
-        this.PixelSlider(IdWidth, Strings.FrameWidth, SlotWidth, group, rowY, MinWidth, MaxWidth, false, null);
+        this.PixelSlider(IdWidth, Strings.FrameWidth, SlotWidth, group, rowY, MinWidth, MaxWidth, false, null, WidthStep);
         rowY += pitch;
         this.PixelSlider(IdHeight, Strings.FrameHeight, SlotHeight, group, rowY, MinHeight, MaxHeight, true, null);
         rowY += pitch;
@@ -835,7 +847,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float min,
         float max,
         bool divider,
-        string? hint)
+        string? hint,
+        float step = PixelStep)
     {
         float value = this.SizeValue(slot);
         Chrome.SliderResult result = Chrome.Slider(
@@ -851,7 +864,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             hint,
             null,
             divider,
-            PixelStep);
+            step);
 
         // Applied while the hand is still on it, not on release: the frames are on screen
         // right now, and a size you only see once you let go is a size you set twice. The

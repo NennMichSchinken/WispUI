@@ -151,8 +151,11 @@ public sealed class Configuration : IPluginConfiguration
 
         public float PositionY { get; set; } = 300f;
 
-        /// <summary>90-400. Wide enough for a name and a number at the default.</summary>
-        public float FrameWidth { get; set; } = 168f;
+        /// <summary>
+        /// 90-400, in steps of five. Wide enough for a name and a number at the default; the
+        /// spec's 168 became 170 so that the default sits on a stop of its own slider.
+        /// </summary>
+        public float FrameWidth { get; set; } = 170f;
 
         /// <summary>18-150. The useful range is 30-70; the rest is there for small parties.</summary>
         public float FrameHeight { get; set; } = 38f;

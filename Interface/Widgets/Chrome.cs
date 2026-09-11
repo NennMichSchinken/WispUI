@@ -30,21 +30,6 @@ internal static class Chrome
     private static bool s_closePopups;
     private static bool s_rowSplit;
 
-    /// <summary>
-    /// How much slower a slider moves while shift is held — a quarter speed, which puts four
-    /// mouse pixels behind every step and makes one pixel of a frame width a deliberate act.
-    /// </summary>
-    private const float FineDragFactor = 0.25f;
-
-    // Where a slider drag started. Only one control can hold the mouse at a time, which is
-    // ImGui's own guarantee, so one anchor serves every slider in the suite. This is drag
-    // state, not settings state: it belongs to the hand that is moving, and it is gone the
-    // moment the button comes up.
-    private static bool s_dragging;
-    private static bool s_dragFine;
-    private static bool s_dragRelative;
-    private static float s_dragValue;
-    private static float s_dragMouseX;
 
     /// <summary>
     /// Set for one frame when escape was pressed with a list or panel open. Whoever is drawing
@@ -1154,13 +1139,8 @@ internal static class Chrome
         bool changed = false;
         if (active && travel > 0f)
         {
-            result = Drag(x, radius, travel, value, min, max, step, ImGui.IsItemActivated());
+            result = Drag(x, radius, travel, min, max, step);
             changed = result != value;
-        }
-
-        if (released)
-        {
-            s_dragging = false;
         }
 
         float fraction = max > min ? Math.Clamp((result - min) / (max - min), 0f, 1f) : 0f;
@@ -1193,78 +1173,24 @@ internal static class Chrome
     }
 
     /// <summary>
-    /// What the slider is worth after this frame's mouse movement.
+    /// What the slider is worth at this mouse position.
     /// <para>
     /// The knob stays under the cursor. That is not a nicety — a knob that lags behind the
     /// hand reads as a broken control, whatever it is doing underneath (Florian, 2026-09-12).
-    /// So the value comes from where the mouse is on the track, and it lands on whole steps,
-    /// which is what makes a size settle on a pixel instead of between two.
     /// </para>
     /// <para>
-    /// Where that is not enough is a range wider than the track has pixels: 90 to 400 across
-    /// 162 pixels puts nearly two sizes behind every one of them, and the values in between
-    /// cannot be reached by pointing at all. Holding shift drags at a quarter speed to reach
-    /// them, and a drag that has gone fine stays measured from where it was rather than
-    /// snapping back to the cursor when shift is let go.
-    /// </para>
-    /// <para>
-    /// Every other slider in the suite has a range narrower than the track, so pointing alone
-    /// already reaches every step and shift is never needed.
+    /// What makes a value hittable is the step, not the drag: the slider lands only on whole
+    /// steps, so a size settles on a pixel rather than between two. The rule the callers
+    /// follow is that a slider's range, divided by its step, must leave fewer stops than the
+    /// track has pixels — otherwise there are values no mouse position can reach, which is
+    /// why a frame width steps by five where everything else steps by one.
     /// </para>
     /// </summary>
     /// <param name="step">The smallest move the value may make, or zero for a smooth one.</param>
-    private static float Drag(
-        float x,
-        float radius,
-        float travel,
-        float value,
-        float min,
-        float max,
-        float step,
-        bool activated)
+    private static float Drag(float x, float radius, float travel, float min, float max, float step)
     {
-        float mouseX = ImGui.GetIO().MousePos.X;
-        bool fine = ImGui.GetIO().KeyShift;
-        float range = max - min;
-
-        if (activated)
-        {
-            s_dragging = true;
-            s_dragFine = fine;
-
-            // Shift held before the press starts the drag off fine straight away; otherwise
-            // the knob simply follows the mouse, which is what a slider is.
-            s_dragRelative = fine;
-            s_dragValue = value;
-            s_dragMouseX = mouseX;
-        }
-        else if (!s_dragging)
-        {
-            return value;
-        }
-        else if (fine != s_dragFine)
-        {
-            // Shift taken or let go mid-drag. Measuring starts again from here, and once a
-            // drag has gone relative it stays relative until the button comes up: switching
-            // back would snap the knob to the cursor, and a jump is worse than an offset.
-            s_dragFine = fine;
-            s_dragRelative = true;
-            s_dragValue = value;
-            s_dragMouseX = mouseX;
-        }
-
-        float result;
-
-        if (!s_dragRelative)
-        {
-            float t = Math.Clamp((mouseX - x - radius) / travel, 0f, 1f);
-            result = min + (t * range);
-        }
-        else
-        {
-            float unitsPerPixel = range / travel * (fine ? FineDragFactor : 1f);
-            result = s_dragValue + ((mouseX - s_dragMouseX) * unitsPerPixel);
-        }
+        float t = Math.Clamp((ImGui.GetIO().MousePos.X - x - radius) / travel, 0f, 1f);
+        float result = min + (t * (max - min));
 
         if (step > 0f)
         {
