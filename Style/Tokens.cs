@@ -331,12 +331,12 @@ internal static class Tokens
     public static class Metric
     {
         /// <summary>
-        /// Wider than it was (920) because the rows are single-line now: a label and a control
-        /// share one row, and the selector alone wants 208 px of that. Measured, not guessed —
-        /// 2 x 26 arrow + 16 padding + 60 preview + the name + the counter.
+        /// Wider than it was (920, then 1020) because the rows are single-line now: a label and
+        /// a control share one row. At 1020 the selector clipped its own name to "Gradie" —
+        /// in-game, 2026-09-11 — so both the window and the control column grew again.
         /// </summary>
-        public static float WindowWidth => Px(1020f);
-        public static float WindowHeight => Px(640f);
+        public static float WindowWidth => Px(1080f);
+        public static float WindowHeight => Px(700f);
 
         /// <summary>The window edge: four rings, as measured off the game's own frame.</summary>
         public static float WindowBorder => Line(4f);
@@ -504,14 +504,14 @@ internal static class Tokens
         /// Between two rows. One value for every kind of row, because every row is now built
         /// the same way: label left, control right, one height.
         /// </summary>
-        public static float RowGap => Px(12f);
+        public static float RowGap => Px(16f);
 
         /// <summary>
         /// The control column at the right of every row — the same width whatever stands in it,
         /// so controls line up down a group AND across the two columns. Sized off the widest
         /// thing we have: the arrow selector with its preview and counter.
         /// </summary>
-        public static float ControlWidth => Px(210f);
+        public static float ControlWidth => Px(230f);
 
         /// <summary>Room kept at the right edge of a slider row for its number.</summary>
         public static float ValueWidth => Px(46f);
