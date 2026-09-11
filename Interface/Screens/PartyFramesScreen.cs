@@ -33,13 +33,24 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdNameJobColour = "##wisp-pf-namejobcolour";
     private const string IdShortenNames = "##wisp-pf-shortennames";
 
-    /// <summary>What a bar takes its colour from. FFXIV's own convention, not one of ours.</summary>
-    private static readonly string[] ColourModes =
+    /// <summary>Where a bar takes its colour from.</summary>
+    private enum ColourMode
     {
-        Strings.ColourByRole,
-        Strings.ColourByJob,
-        Strings.ColourFixed,
+        ByRole,
+        ByJob,
+        Fixed,
+    }
+
+    /// <summary>What a bar takes its colour from. FFXIV's own convention, not one of ours.</summary>
+    private static readonly ColourMode[] ColourModes =
+    {
+        ColourMode.ByRole,
+        ColourMode.ByJob,
+        ColourMode.Fixed,
     };
+
+    /// <summary>A few jobs standing in for all of them in the "by job" preview.</summary>
+    private static readonly uint[] JobSample = { 19u, 24u, 25u, 23u };
 
     /// <summary>Where the player name sits on a frame.</summary>
     private static readonly string[] NamePositions =
@@ -53,7 +64,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     private readonly Configuration m_config;
     private readonly ArrowSelector<BarStyle> m_style;
-    private readonly ArrowSelector<string> m_colour;
+    private readonly ArrowSelector<ColourMode> m_colour;
     private readonly ArrowSelector<string> m_namePosition;
 
     private string m_opacityText = string.Empty;
@@ -80,12 +91,18 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             });
 
         // Three entries: no popup, no search, no counter. The same widget, told to be small.
-        m_colour = new ArrowSelector<string>(
+        m_colour = new ArrowSelector<ColourMode>(
             IdColour,
             ColourModes,
-            new ArrowSelectorOptions<string>
+            new ArrowSelectorOptions<ColourMode>
             {
-                Label = static mode => mode,
+                Label = static mode => mode switch
+                {
+                    ColourMode.ByRole => Strings.ColourByRole,
+                    ColourMode.ByJob => Strings.ColourByJob,
+                    _ => Strings.ColourFixed,
+                },
+                DrawPreview = DrawColourPreview,
                 ShowCounter = false,
             });
 
@@ -344,6 +361,43 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         return group;
     }
 
+
+    /// <summary>
+    /// The swatch beside a colour mode: what the bars would actually be coloured with. The
+    /// roles are three stripes in the game's own blue, green and red; "by job" shows four jobs
+    /// standing in for all of them. "Fixed colour" draws nothing — it has no colour until the
+    /// picker arrives with the module, and an invented one would be a promise we cannot keep.
+    /// </summary>
+    private static void DrawColourPreview(ImDrawListPtr dl, ColourMode mode, Vector2 min, Vector2 max)
+    {
+        switch (mode)
+        {
+            case ColourMode.ByRole:
+                Stripes(dl, min, max, Tokens.Col.RoleTank, Tokens.Col.RoleHealer, Tokens.Col.RoleDps);
+                break;
+
+            case ColourMode.ByJob:
+                float width = (max.X - min.X) / JobSample.Length;
+                for (int i = 0; i < JobSample.Length; i++)
+                {
+                    float left = min.X + (i * width);
+                    dl.AddRectFilled(
+                        new Vector2(left, min.Y),
+                        new Vector2(i == JobSample.Length - 1 ? max.X : left + width, max.Y),
+                        Jobs.Colour(JobSample[i]));
+                }
+
+                break;
+        }
+    }
+
+    private static void Stripes(ImDrawListPtr dl, Vector2 min, Vector2 max, uint first, uint second, uint third)
+    {
+        float width = (max.X - min.X) / 3f;
+        dl.AddRectFilled(min, new Vector2(min.X + width, max.Y), first);
+        dl.AddRectFilled(new Vector2(min.X + width, min.Y), new Vector2(max.X - width, max.Y), second);
+        dl.AddRectFilled(new Vector2(max.X - width, min.Y), max, third);
+    }
     private string OpacityCaption(float opacity)
     {
         int percent = (int)MathF.Round(opacity * 100f);

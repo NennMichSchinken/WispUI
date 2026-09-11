@@ -153,6 +153,16 @@ internal static class Tokens
         public static readonly uint GoldSwitchTrack = Rgb(0x4B421F);
 
         /// <summary>
+        /// The three roles, MEASURED off the game's own role markers (Florian, 2026-09-11).
+        /// Not to be "improved" by eye: a player reads these three before they read a name,
+        /// and any drift from the game's own blue, green and red costs exactly that.
+        /// </summary>
+        public static readonly uint RoleTank = Rgb(0x006EFF);
+
+        public static readonly uint RoleHealer = Rgb(0x6EF54D);
+        public static readonly uint RoleDps = Rgb(0xFF6C6C);
+
+        /// <summary>
         /// The window edge, MEASURED pixel by pixel off the game's own frame: four rings,
         /// listed outermost first. The top edge carries the highlight (that near-white second
         /// pixel is what makes the frame read as lit from above); the sides are their own
