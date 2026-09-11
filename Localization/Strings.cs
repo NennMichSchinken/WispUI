@@ -74,11 +74,18 @@ internal static class Strings
     public const string ShortenNames = "Shorten long names";
     public const string ShortenNamesTooltip = "Cuts the surname to an initial.";
 
+    // The nine points a text can hang on, in reading order. One list for every text on every
+    // element, so nobody has to learn the same word twice.
     public const string PositionTopLeft = "Top left";
     public const string PositionTop = "Top";
+    public const string PositionTopRight = "Top right";
+    public const string PositionLeft = "Left";
     public const string PositionCentre = "Centre";
-    public const string PositionBottom = "Bottom";
+    public const string PositionRight = "Right";
     public const string PositionBottomLeft = "Bottom left";
+    public const string PositionBottom = "Bottom";
+    public const string PositionBottomRight = "Bottom right";
+
     public const string BarOpacity = "Health bar opacity";
     public const string SmoothBars = "Smooth bars";
     public const string SmoothBarsTooltip = "Health slides to its new value instead of jumping.";
@@ -86,6 +93,36 @@ internal static class Strings
     public const string ColourByRole = "By role";
     public const string ColourByJob = "By job";
     public const string ColourFixed = "Fixed colour";
+
+    // --- Party frames: health text -------------------------------------------
+    public const string GroupHealthText = "Health text";
+    public const string GroupHealthTextHint = "The figure on the bar.";
+    public const string HealthTextMode = "Shows";
+    public const string HealthTextOff = "Nothing";
+    public const string HealthTextCurrent = "Health";
+    public const string HealthTextPercent = "Percent";
+    public const string HealthTextDeficit = "Missing";
+    public const string HealthTextDeficitTooltip = "How much is gone, and nothing at all while nothing is.";
+
+    public const string TextSize = "Size";
+    public const string TextSizeSmall = "Small";
+    public const string TextSizeNormal = "Normal";
+    public const string TextSizeLarge = "Large";
+    public const string TextPosition = "Position";
+    public const string OffsetX = "Offset X";
+    public const string OffsetY = "Offset Y";
+
+    // --- Party frames: mana ---------------------------------------------------
+    public const string GroupMana = "Mana";
+    public const string GroupManaHint = "A second reading, for who needs one.";
+    public const string ManaStyle = "Style";
+    public const string ManaStyleStrip = "Strip";
+    public const string ManaStyleBar = "Bar";
+    public const string ManaHeight = "Height";
+    public const string ManaHeightHint = "pixels, whatever the frame height";
+    public const string ManaForTanks = "On tanks";
+    public const string ManaForHealers = "On healers";
+    public const string ManaForDps = "On damage";
 
     // --- Global screen ------------------------------------------------------
     public const string SectionInterface = "Interface";

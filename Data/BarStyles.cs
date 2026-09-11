@@ -65,11 +65,20 @@ internal static class BarStyles
     /// Paints a style into a rectangle. The same routine serves the face of the selector and
     /// a row of its popup, which is why it takes the bounds rather than a size.
     /// </summary>
-    public static void DrawPreview(ImDrawListPtr dl, BarStyle style, Vector2 min, Vector2 max)
+    public static void DrawPreview(ImDrawListPtr dl, BarStyle style, Vector2 min, Vector2 max) =>
+        Draw(dl, style, min, max, Tokens.Col.SliderFill, Tokens.Radius.Small);
+
+    /// <summary>
+    /// Paints a style in a colour of its own — what a health bar actually does. The style
+    /// says how the fill is shaped, the colour comes from the mode beside it, and the lit
+    /// tone is derived rather than stored, so a job colour and a role colour are shaded the
+    /// same way without either of them needing a second entry in a table.
+    /// </summary>
+    /// <param name="radius">Zero for a bar inside a frame, whose corners the frame already has.</param>
+    public static void Draw(ImDrawListPtr dl, BarStyle style, Vector2 min, Vector2 max, uint colour, float radius)
     {
-        uint bright = Tokens.Col.SliderFillHi;
-        uint plain = Tokens.Col.SliderFill;
-        float radius = Tokens.Radius.Small;
+        uint plain = colour;
+        uint bright = Lit(colour);
         float height = max.Y - min.Y;
         float line = Tokens.Line(1f);
 
@@ -117,6 +126,14 @@ internal static class BarStyles
                 break;
         }
     }
+
+    /// <summary>
+    /// The lit tone of a colour: the same colour carried towards white, with its opacity left
+    /// alone. Derived rather than listed, because a bar can be painted in any of twenty job
+    /// colours and a second table of highlights is twenty more chances to be one shade off.
+    /// </summary>
+    private static uint Lit(uint colour) =>
+        Tokens.Col.Mix(colour, (colour & 0xFF000000u) | 0x00FFFFFFu, 0.28f);
 
     private static void Bands(ImDrawListPtr dl, Vector2 min, Vector2 max, uint plain, uint bright, float band, float radius)
     {

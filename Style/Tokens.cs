@@ -153,11 +153,6 @@ internal static class Tokens
         public static readonly uint GoldSwitchTrack = Rgb(0x4B421F);
 
         /// <summary>
-        /// The three roles, MEASURED off the game's own role markers (Florian, 2026-09-11).
-        /// Not to be "improved" by eye: a player reads these three before they read a name,
-        /// and any drift from the game's own blue, green and red costs exactly that.
-        /// </summary>
-        /// <summary>
         /// A frame in the world. Darker and more opaque than anything in the window: it lies
         /// over the game, not over a panel of ours, and has to hold its own against whatever
         /// is behind it.
@@ -166,6 +161,30 @@ internal static class Tokens
 
         public static readonly uint FrameEdge = 0xC80A0A0Au;
 
+        /// <summary>
+        /// The empty part of a bar that carries one of its own — the mana bar in its full
+        /// shape. Darker than the frame behind it, so an empty bar still reads as a bar.
+        /// </summary>
+        public static readonly uint BarTrack = 0xC80D0C0Du;
+
+        /// <summary>
+        /// Mana. ⚠️ NOT MEASURED — picked by hand as a calm blue that stays out of the way of
+        /// the three role colours. The game's own mana gauge is there to be pipetted, and this
+        /// value is to be replaced by that reading rather than tuned by eye.
+        /// </summary>
+        public static readonly uint Mana = Rgb(0x4C6FD0);
+
+        /// <summary>
+        /// Under every piece of text a HUD element writes. The frames lie over the world, and
+        /// a bright name on a bright bar is unreadable without something behind it.
+        /// </summary>
+        public static readonly uint HudTextShadow = 0xC0000000u;
+
+        /// <summary>
+        /// The three roles, MEASURED off the game's own role markers (Florian, 2026-09-11).
+        /// Not to be "improved" by eye: a player reads these three before they read a name,
+        /// and any drift from the game's own blue, green and red costs exactly that.
+        /// </summary>
         public static readonly uint RoleTank = Rgb(0x006EFF);
 
         public static readonly uint RoleHealer = Rgb(0x6EF54D);
@@ -546,6 +565,12 @@ internal static class Tokens
         /// (Florian, 2026-09-11).
         /// </summary>
         public static float FramePadding => Px(5f);
+
+        /// <summary>The line a party frame is outlined with, and the gap a second bar sits behind.</summary>
+        public static float FrameBorder => Line(1f);
+
+        /// <summary>How far a HUD text's shadow is offset. One pixel, at whatever the scale is.</summary>
+        public static float HudTextShadow => Line(1f);
 
         public static float BadgeHeight => Px(18f);
         public static float BadgePaddingX => Px(6f);

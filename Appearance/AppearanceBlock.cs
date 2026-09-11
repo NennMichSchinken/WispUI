@@ -24,12 +24,30 @@ internal sealed record AppearanceBlock
 
     public float BarOpacity { get; init; } = 1f;
 
-    /// <summary>Index into the name positions.</summary>
+    /// <summary>Index into the nine anchor points a text hangs on.</summary>
     public int NamePosition { get; init; }
 
     public bool NameInJobColour { get; init; }
 
     public bool ShortenNames { get; init; }
+
+    // The health text, described the same way every text on an element is: what it says, how
+    // big it is, which point it hangs on, and how far it is nudged from there. All of it is
+    // appearance and travels together — where the figure sits on a frame is a look, not a
+    // size, and an element that copies the look and leaves the figure behind copied nothing.
+
+    /// <summary>Index into the health text modes — see <see cref="Hud.HealthTextMode"/>.</summary>
+    public int HpTextMode { get; init; }
+
+    /// <summary>Index into the three text sizes.</summary>
+    public int HpTextSize { get; init; }
+
+    /// <summary>Index into the nine anchor points.</summary>
+    public int HpTextPosition { get; init; }
+
+    public float HpTextX { get; init; }
+
+    public float HpTextY { get; init; }
 }
 
 /// <summary>

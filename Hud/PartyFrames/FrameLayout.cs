@@ -13,6 +13,19 @@ internal enum FrameDirection
     Horizontal = 1,
 }
 
+/// <summary>How mana is shown on a frame that shows it at all.</summary>
+internal enum ManaStyle
+{
+    /// <summary>
+    /// A thin strip along the bottom edge — the default (Florian, 2026-09-10). Mana is a
+    /// second-order reading: present at a glance, never competing with the health bar.
+    /// </summary>
+    Strip = 0,
+
+    /// <summary>A bar of its own, with its own dark track behind it, under the health bar.</summary>
+    Bar = 1,
+}
+
 /// <summary>
 /// Where each frame goes. Nothing but arithmetic: no ImGui containers, no state, no drawing —
 /// which is what lets a layout change take effect on the next frame without an id anywhere

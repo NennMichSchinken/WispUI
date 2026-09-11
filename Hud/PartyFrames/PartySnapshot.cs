@@ -46,6 +46,16 @@ internal sealed class PartySnapshot
     /// <summary>One party's worth of jobs for edit mode: two tanks, two healers, four damage.</summary>
     private static readonly uint[] PlaceholderJobs = { 19u, 32u, 24u, 33u, 22u, 30u, 23u, 25u };
 
+    /// <summary>
+    /// How full the stand-ins are, in hundredths. Not all full: a row of untouched bars says
+    /// nothing about where the health text sits or how a half-empty bar reads, which is the
+    /// whole reason edit mode exists. One of them is left whole, because that case has to be
+    /// looked at too.
+    /// </summary>
+    private static readonly uint[] PlaceholderHealth = { 100u, 64u, 92u, 38u, 100u, 71u, 17u, 85u };
+
+    private static readonly uint[] PlaceholderMana = { 100u, 88u, 46u, 73u, 100u, 95u, 60u, 29u };
+
     private readonly PartyMemberSnapshot[] m_members = new PartyMemberSnapshot[Capacity];
 
     /// <summary>How many entries of <see cref="Members"/> hold someone this frame.</summary>
@@ -125,10 +135,10 @@ internal sealed class PartySnapshot
             slot.JobId = PlaceholderJobs[i];
             slot.Role = Jobs.Role(slot.JobId);
             slot.Name = Strings.PreviewName;
-            slot.MaxHp = 100000u;
-            slot.Hp = slot.MaxHp;
+            slot.MaxHp = 128000u;
+            slot.Hp = slot.MaxHp / 100u * PlaceholderHealth[i];
             slot.MaxMp = 10000u;
-            slot.Mp = slot.MaxMp;
+            slot.Mp = slot.MaxMp / 100u * PlaceholderMana[i];
             slot.IsLocalPlayer = i == 0;
         }
 

@@ -67,6 +67,18 @@ internal static class Ink
     }
 
     /// <summary>
+    /// Writes a string with a shadow under it, for text that lies over the game rather than
+    /// over a panel of ours. A drop shadow rather than an outline: one extra draw instead of
+    /// four or eight, and it keeps the letter shapes, which an outline at this size does not.
+    /// </summary>
+    public static void DrawShadowed(ImDrawListPtr dl, Role role, Vector2 pos, uint colour, string text)
+    {
+        float offset = Style.Tokens.Metric.HudTextShadow;
+        Draw(dl, role, new Vector2(pos.X + offset, pos.Y + offset), Style.Tokens.Col.HudTextShadow, text);
+        Draw(dl, role, pos, colour, text);
+    }
+
+    /// <summary>
     /// Pushes a role onto the ImGui font stack for code that uses the normal widget flow
     /// instead of a draw list. Allocation free, because the lock was already taken this frame.
     /// Always pair it with <see cref="Pop"/>.

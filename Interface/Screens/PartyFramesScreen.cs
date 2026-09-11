@@ -5,6 +5,7 @@ using Dalamud.Bindings.ImGui;
 using WispUI.Appearance;
 using WispUI.Core;
 using WispUI.Data;
+using WispUI.Hud;
 using WispUI.Hud.PartyFrames;
 using WispUI.Interface.Widgets;
 using WispUI.Localization;
@@ -13,19 +14,16 @@ using WispUI.Style;
 namespace WispUI.Interface.Screens;
 
 /// <summary>
-/// The Base tab of the party frames. It is the first real user of both core widgets: the
-/// arrow selector picks the bar style and the colour mode, and the screen implements
-/// <see cref="IAppearanceOwner"/>, which is all it takes to get copy and paste.
-/// <para>
-/// The frames themselves are not drawn yet, so what is set here has no effect on screen —
-/// the widgets are infrastructure and were built first on purpose, so that every element
-/// after this one inherits them instead of growing its own.
-/// </para>
+/// The party frames' own screens. Base says what a frame looks like and what it says; Layout
+/// says how big the frames are and how they are arranged. The split is the suite's own
+/// appearance/layout boundary (CLAUDE.md §5.3), which is also what copy and paste hangs on.
 /// </summary>
 internal sealed class PartyFramesScreen : IAppearanceOwner
 {
     private const string IdHealthGroup = "##wisp-pf-health";
     private const string IdTextGroup = "##wisp-pf-text";
+    private const string IdHealthTextGroup = "##wisp-pf-healthtext";
+    private const string IdManaGroup = "##wisp-pf-mana";
     private const string IdStyle = "##wisp-pf-style";
     private const string IdColour = "##wisp-pf-colour";
     private const string IdOpacity = "##wisp-pf-opacity";
@@ -33,6 +31,16 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdNamePosition = "##wisp-pf-nameposition";
     private const string IdNameJobColour = "##wisp-pf-namejobcolour";
     private const string IdShortenNames = "##wisp-pf-shortennames";
+    private const string IdHealthMode = "##wisp-pf-healthmode";
+    private const string IdHealthSize = "##wisp-pf-healthsize";
+    private const string IdHealthPosition = "##wisp-pf-healthposition";
+    private const string IdHealthX = "##wisp-pf-healthx";
+    private const string IdHealthY = "##wisp-pf-healthy";
+    private const string IdManaStyle = "##wisp-pf-manastyle";
+    private const string IdManaHeight = "##wisp-pf-manaheight";
+    private const string IdManaTanks = "##wisp-pf-manatanks";
+    private const string IdManaHealers = "##wisp-pf-manahealers";
+    private const string IdManaDps = "##wisp-pf-manadps";
     private const string IdArrangeGroup = "##wisp-pf-arrange";
     private const string IdSizeGroup = "##wisp-pf-size";
     private const string IdDirection = "##wisp-pf-direction";
@@ -41,7 +49,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdHeight = "##wisp-pf-height";
     private const string IdSpacing = "##wisp-pf-spacing";
 
-    // The ranges from the spec, 00a74. The useful height is 30-70; the rest is there so a small
+    // The ranges from the spec, §4. The useful height is 30-70; the rest is there so a small
     // party can have tall frames.
     private const float MinWidth = 90f;
     private const float MaxWidth = 400f;
@@ -49,20 +57,29 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const float MaxHeight = 150f;
     private const float MaxSpacing = 24f;
 
-    /// <summary>Where a bar takes its colour from.</summary>
-    private enum ColourMode
-    {
-        ByRole,
-        ByJob,
-        Fixed,
-    }
+    /// <summary>How far a text may be nudged off its anchor, either way.</summary>
+    private const float MaxOffset = 40f;
+
+    /// <summary>Mana strip thickness, in pixels and nothing else (spec §3).</summary>
+    private const float MinManaHeight = 2f;
+    private const float MaxManaHeight = 16f;
+
+    // The slider readouts are kept per slot, so each one is only rebuilt when its own number
+    // moves. The slots are in this order.
+    private const int SlotWidth = 0;
+    private const int SlotHeight = 1;
+    private const int SlotSpacing = 2;
+    private const int SlotHealthX = 3;
+    private const int SlotHealthY = 4;
+    private const int SlotManaHeight = 5;
+    private const int SlotCount = 6;
 
     /// <summary>What a bar takes its colour from. FFXIV's own convention, not one of ours.</summary>
-    private static readonly ColourMode[] ColourModes =
+    private static readonly BarColourMode[] ColourModes =
     {
-        ColourMode.ByRole,
-        ColourMode.ByJob,
-        ColourMode.Fixed,
+        BarColourMode.Role,
+        BarColourMode.Job,
+        BarColourMode.Fixed,
     };
 
     /// <summary>A few jobs standing in for all of them in the "by job" preview.</summary>
@@ -74,20 +91,35 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     /// <summary>Which way the block of frames runs.</summary>
     private static readonly string[] Directions = { Strings.DirectionVertical, Strings.DirectionHorizontal };
 
-    /// <summary>Where the player name sits on a frame.</summary>
-    private static readonly string[] NamePositions =
+    /// <summary>The nine anchor points, in the order <see cref="Anchors.All"/> lists them.</summary>
+    private static readonly string[] AnchorNames =
     {
         Strings.PositionTopLeft,
         Strings.PositionTop,
+        Strings.PositionTopRight,
+        Strings.PositionLeft,
         Strings.PositionCentre,
-        Strings.PositionBottom,
+        Strings.PositionRight,
         Strings.PositionBottomLeft,
+        Strings.PositionBottom,
+        Strings.PositionBottomRight,
     };
+
+    /// <summary>The three sizes Axis is sharp at. A size here names a step, never a pixel count.</summary>
+    private static readonly string[] TextSizes = { Strings.TextSizeSmall, Strings.TextSizeNormal, Strings.TextSizeLarge };
+
+    private static readonly string[] ManaStyles = { Strings.ManaStyleStrip, Strings.ManaStyleBar };
 
     private readonly Configuration m_config;
     private readonly ArrowSelector<BarStyle> m_style;
-    private readonly ArrowSelector<ColourMode> m_colour;
-    private readonly ArrowSelector<string> m_namePosition;
+    private readonly ArrowSelector<BarColourMode> m_colour;
+    private readonly ArrowSelector<Anchor> m_namePosition;
+    private readonly ArrowSelector<HealthTextMode> m_healthMode;
+    private readonly ArrowSelector<string> m_textSize;
+    private readonly ArrowSelector<Anchor> m_healthPosition;
+    private readonly ArrowSelector<string> m_manaStyle;
+    private readonly ArrowSelector<string> m_direction;
+    private readonly ArrowSelector<int> m_lines;
 
     private string m_opacityText = string.Empty;
     private int m_opacityTextFor = -1;
@@ -95,12 +127,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private float m_opacityPreview;
     private bool m_draggingOpacity;
 
-    private readonly ArrowSelector<string> m_direction;
-    private readonly ArrowSelector<int> m_lines;
-
-    /// <summary>One readout per size slider, rebuilt only when its number changes.</summary>
-    private readonly string[] m_sizeText = new string[4];
-    private readonly int[] m_sizeTextFor = { -1, -1, -1, -1 };
+    /// <summary>One readout per slider, rebuilt only when its number changes.</summary>
+    private readonly string[] m_sizeText = new string[SlotCount];
+    private readonly int[] m_sizeTextFor = { -1, -1, -1, -1, -1, -1 };
 
     private string m_arrangementText = string.Empty;
     private int m_arrangementFor = -1;
@@ -123,25 +152,57 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             });
 
         // Three entries: no popup, no search, no counter. The same widget, told to be small.
-        m_colour = new ArrowSelector<ColourMode>(
+        m_colour = new ArrowSelector<BarColourMode>(
             IdColour,
             ColourModes,
-            new ArrowSelectorOptions<ColourMode>
+            new ArrowSelectorOptions<BarColourMode>
             {
                 Label = static mode => mode switch
                 {
-                    ColourMode.ByRole => Strings.ColourByRole,
-                    ColourMode.ByJob => Strings.ColourByJob,
+                    BarColourMode.Role => Strings.ColourByRole,
+                    BarColourMode.Job => Strings.ColourByJob,
                     _ => Strings.ColourFixed,
                 },
                 DrawPreview = DrawColourPreview,
                 ShowCounter = false,
             });
 
-        m_namePosition = new ArrowSelector<string>(
+        // Nine points is more than anyone wants to walk through one arrow at a time, so both
+        // anchor selectors carry the popup. No search: nine lines are read, not searched.
+        m_namePosition = new ArrowSelector<Anchor>(
             IdNamePosition,
-            NamePositions,
-            new ArrowSelectorOptions<string> { Label = static position => position });
+            Anchors.All,
+            new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false });
+
+        m_healthPosition = new ArrowSelector<Anchor>(
+            IdHealthPosition,
+            Anchors.All,
+            new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false });
+
+        m_healthMode = new ArrowSelector<HealthTextMode>(
+            IdHealthMode,
+            HealthText.All,
+            new ArrowSelectorOptions<HealthTextMode>
+            {
+                Label = static mode => mode switch
+                {
+                    HealthTextMode.Current => Strings.HealthTextCurrent,
+                    HealthTextMode.Percent => Strings.HealthTextPercent,
+                    HealthTextMode.Deficit => Strings.HealthTextDeficit,
+                    _ => Strings.HealthTextOff,
+                },
+                ShowCounter = false,
+            });
+
+        m_textSize = new ArrowSelector<string>(
+            IdHealthSize,
+            TextSizes,
+            new ArrowSelectorOptions<string> { Label = static size => size, ShowCounter = false });
+
+        m_manaStyle = new ArrowSelector<string>(
+            IdManaStyle,
+            ManaStyles,
+            new ArrowSelectorOptions<string> { Label = static style => style, ShowCounter = false });
 
         m_direction = new ArrowSelector<string>(
             IdDirection,
@@ -158,7 +219,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     /// <summary>
     /// What this element has. Shape and background are not among them yet, and saying so is
-    /// what lets the paste panel tell the truth about what will carry over.
+    /// what lets the paste panel tell the truth about what will carry over. Mana is not in
+    /// here either: a thickness in pixels is a size, and sizes are never copied.
     /// </summary>
     public AppearanceFields SupportedFields =>
         AppearanceFields.Colours | AppearanceFields.Texture | AppearanceFields.Opacity | AppearanceFields.Text;
@@ -171,6 +233,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         NamePosition = m_config.PartyFrames.NamePosition,
         NameInJobColour = m_config.PartyFrames.NameInJobColour,
         ShortenNames = m_config.PartyFrames.ShortenNames,
+        HpTextMode = m_config.PartyFrames.HpTextMode,
+        HpTextSize = m_config.PartyFrames.HpTextSize,
+        HpTextPosition = m_config.PartyFrames.HpTextPosition,
+        HpTextX = m_config.PartyFrames.HpTextX,
+        HpTextY = m_config.PartyFrames.HpTextY,
     };
 
     public void ApplyAppearance(AppearanceBlock source, AppearanceFields mask)
@@ -196,6 +263,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.PartyFrames.NamePosition = source.NamePosition;
             m_config.PartyFrames.NameInJobColour = source.NameInJobColour;
             m_config.PartyFrames.ShortenNames = source.ShortenNames;
+            m_config.PartyFrames.HpTextMode = source.HpTextMode;
+            m_config.PartyFrames.HpTextSize = source.HpTextSize;
+            m_config.PartyFrames.HpTextPosition = source.HpTextPosition;
+            m_config.PartyFrames.HpTextX = source.HpTextX;
+            m_config.PartyFrames.HpTextY = source.HpTextY;
         }
 
         m_config.MarkDirty();
@@ -206,22 +278,55 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     {
         Vector2 origin = ImGui.GetCursorScreenPos();
         float column = Chrome.ColumnWidth(width);
-        float rowTop = origin.Y;
-
-        Chrome.BeginGroupRow();
+        float y = origin.Y;
 
         // Drawn first and framed afterwards, so the shorter column can be carried down to the
         // taller one's bottom edge. Two groups that each stop where their own rows end leave a
         // step, and every group added later adds another one. Nothing else has to be squared
         // up between the columns: both stack on the same ladder (Chrome.RowPitch).
-        Chrome.GroupScope left = this.DrawHealthBar(Chrome.ColumnX(origin.X, width, 0), rowTop, column, out float leftHeight);
-        Chrome.GroupScope right = this.DrawNameText(Chrome.ColumnX(origin.X, width, 1), rowTop, column, out float rightHeight);
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope bar = this.DrawHealthBar(Chrome.ColumnX(origin.X, width, 0), y, column, out float barHeight);
+        Chrome.GroupScope name = this.DrawNameText(Chrome.ColumnX(origin.X, width, 1), y, column, out float nameHeight);
+        y += FrameRow(bar, barHeight, name, nameHeight);
 
-        float y = rowTop + Chrome.GroupFrameRow(left, leftHeight, right, rightHeight);
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope figure = this.DrawHealthText(Chrome.ColumnX(origin.X, width, 0), y, column, out float figureHeight);
+        Chrome.GroupScope mana = this.DrawMana(Chrome.ColumnX(origin.X, width, 1), y, column, out float manaHeight);
+        y += FrameRow(figure, figureHeight, mana, manaHeight);
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
     }
+
+    /// <summary>
+    /// The Layout tab: how the frames are arranged, and how big they are. Kept apart from Base
+    /// on purpose — colour and style are shared between elements, size and arrangement belong
+    /// to this one and are never copied (CLAUDE.md §5.3).
+    /// </summary>
+    public void DrawLayout(float width)
+    {
+        Vector2 origin = ImGui.GetCursorScreenPos();
+        float column = Chrome.ColumnWidth(width);
+
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope arrange = this.DrawArrangement(Chrome.ColumnX(origin.X, width, 0), origin.Y, column, out float arrangeHeight);
+        Chrome.GroupScope size = this.DrawSize(Chrome.ColumnX(origin.X, width, 1), origin.Y, column, out float sizeHeight);
+        float y = origin.Y + FrameRow(arrange, arrangeHeight, size, sizeHeight);
+
+        ImGui.SetCursorScreenPos(origin);
+        ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
+    }
+
+    /// <summary>
+    /// Frames a row of two groups down to a shared bottom edge and says where the next row
+    /// starts.
+    /// <para>
+    /// The air under a row is the same gutter that sits between the two columns. One measure
+    /// used both ways is what makes a screen read as a grid rather than as stacked pairs.
+    /// </para>
+    /// </summary>
+    private static float FrameRow(in Chrome.GroupScope left, float leftHeight, in Chrome.GroupScope right, float rightHeight) =>
+        Chrome.GroupFrameRow(left, leftHeight, right, rightHeight) + Tokens.Metric.ColumnGutter;
 
     private Chrome.GroupScope DrawHealthBar(float x, float y, float width, out float contentHeight)
     {
@@ -403,63 +508,182 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         return group;
     }
 
-
     /// <summary>
-    /// The swatch beside a colour mode: what the bars would actually be coloured with. The
-    /// roles are three stripes in the game's own blue, green and red; "by job" shows four jobs
-    /// standing in for all of them. "Fixed colour" draws nothing — it has no colour until the
-    /// picker arrives with the module, and an invented one would be a promise we cannot keep.
+    /// The figure on the bar. Five rows, and they are the same five every text on every
+    /// element gets: what it says, how big it is, which point it hangs on, and the two nudges
+    /// off that point (spec §11.2). That anatomy is also why there is no padding slider —
+    /// padding would be a second, vaguer way of saying the same thing.
     /// </summary>
-    private static void DrawColourPreview(ImDrawListPtr dl, ColourMode mode, Vector2 min, Vector2 max)
+    private Chrome.GroupScope DrawHealthText(float x, float y, float width, out float contentHeight)
     {
-        switch (mode)
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdHealthTextGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupHealthText,
+                Description = Strings.GroupHealthTextHint,
+            },
+            x,
+            y,
+            width);
+
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
+
+        int mode = m_config.PartyFrames.HpTextMode;
+        if (m_healthMode.Draw(
+                ref mode,
+                Chrome.Row(Strings.HealthTextMode, group.ContentX, rowY, group.ContentWidth, false),
+                rowY,
+                Chrome.ControlWidth()))
         {
-            case ColourMode.ByRole:
-                Stripes(dl, min, max, Tokens.Col.RoleTank, Tokens.Col.RoleHealer, Tokens.Col.RoleDps);
-                break;
-
-            case ColourMode.ByJob:
-                float width = (max.X - min.X) / JobSample.Length;
-                for (int i = 0; i < JobSample.Length; i++)
-                {
-                    float left = min.X + (i * width);
-                    dl.AddRectFilled(
-                        new Vector2(left, min.Y),
-                        new Vector2(i == JobSample.Length - 1 ? max.X : left + width, max.Y),
-                        Jobs.Colour(JobSample[i]));
-                }
-
-                break;
+            m_config.PartyFrames.HpTextMode = mode;
+            m_config.MarkDirty();
         }
-    }
 
-    private static void Stripes(ImDrawListPtr dl, Vector2 min, Vector2 max, uint first, uint second, uint third)
-    {
-        float width = (max.X - min.X) / 3f;
-        dl.AddRectFilled(min, new Vector2(min.X + width, max.Y), first);
-        dl.AddRectFilled(new Vector2(min.X + width, min.Y), new Vector2(max.X - width, max.Y), second);
-        dl.AddRectFilled(new Vector2(max.X - width, min.Y), max, third);
+        rowY += pitch;
+
+        int size = m_config.PartyFrames.HpTextSize;
+        if (m_textSize.Draw(
+                ref size,
+                Chrome.Row(Strings.TextSize, group.ContentX, rowY, group.ContentWidth, true),
+                rowY,
+                Chrome.ControlWidth()))
+        {
+            m_config.PartyFrames.HpTextSize = size;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+
+        int position = m_config.PartyFrames.HpTextPosition;
+        if (m_healthPosition.Draw(
+                ref position,
+                Chrome.Row(Strings.TextPosition, group.ContentX, rowY, group.ContentWidth, true),
+                rowY,
+                Chrome.ControlWidth()))
+        {
+            m_config.PartyFrames.HpTextPosition = position;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+        this.PixelSlider(IdHealthX, Strings.OffsetX, SlotHealthX, group, rowY, -MaxOffset, MaxOffset, true, null);
+        rowY += pitch;
+        this.PixelSlider(IdHealthY, Strings.OffsetY, SlotHealthY, group, rowY, -MaxOffset, MaxOffset, true, null);
+
+        float used = rowY - group.ContentY + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
     }
 
     /// <summary>
-    /// The Layout tab: how the frames are arranged, and how big they are. Kept apart from Base
-    /// on purpose — colour and style are shared between elements, size and arrangement belong
-    /// to this one and are never copied (CLAUDE.md §5.3).
+    /// Mana. Three switches rather than one "healers only": in a light party a caster's mana
+    /// is worth a glance, in a full one eight of them are noise, and which is which is the
+    /// player's call, not ours.
     /// </summary>
-    public void DrawLayout(float width)
+    private Chrome.GroupScope DrawMana(float x, float y, float width, out float contentHeight)
     {
-        Vector2 origin = ImGui.GetCursorScreenPos();
-        float column = Chrome.ColumnWidth(width);
-        float rowTop = origin.Y;
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdManaGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupMana,
+                Description = Strings.GroupManaHint,
+                Toggle = m_config.PartyFrames.ShowMana,
+            },
+            x,
+            y,
+            width);
 
-        Chrome.BeginGroupRow();
-        Chrome.GroupScope left = this.DrawArrangement(Chrome.ColumnX(origin.X, width, 0), rowTop, column, out float leftHeight);
-        Chrome.GroupScope right = this.DrawSize(Chrome.ColumnX(origin.X, width, 1), rowTop, column, out float rightHeight);
+        if (group.ToggleClicked)
+        {
+            m_config.PartyFrames.ShowMana = !m_config.PartyFrames.ShowMana;
+            m_config.MarkDirty();
+        }
 
-        float y = rowTop + Chrome.GroupFrameRow(left, leftHeight, right, rightHeight);
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
 
-        ImGui.SetCursorScreenPos(origin);
-        ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
+        int style = m_config.PartyFrames.ManaStyle;
+        if (m_manaStyle.Draw(
+                ref style,
+                Chrome.Row(Strings.ManaStyle, group.ContentX, rowY, group.ContentWidth, false),
+                rowY,
+                Chrome.ControlWidth()))
+        {
+            m_config.PartyFrames.ManaStyle = style;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+        this.PixelSlider(
+            IdManaHeight,
+            Strings.ManaHeight,
+            SlotManaHeight,
+            group,
+            rowY,
+            MinManaHeight,
+            MaxManaHeight,
+            true,
+            Strings.ManaHeightHint);
+
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdManaTanks,
+                Strings.ManaForTanks,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.ManaForTanks,
+                Chrome.OptionControl.Tick,
+                null,
+                true,
+                true))
+        {
+            m_config.PartyFrames.ManaForTanks = !m_config.PartyFrames.ManaForTanks;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdManaHealers,
+                Strings.ManaForHealers,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.ManaForHealers,
+                Chrome.OptionControl.Tick,
+                null,
+                true,
+                true))
+        {
+            m_config.PartyFrames.ManaForHealers = !m_config.PartyFrames.ManaForHealers;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdManaDps,
+                Strings.ManaForDps,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.ManaForDps,
+                Chrome.OptionControl.Tick,
+                null,
+                true,
+                true))
+        {
+            m_config.PartyFrames.ManaForDps = !m_config.PartyFrames.ManaForDps;
+            m_config.MarkDirty();
+        }
+
+        float used = rowY - group.ContentY + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
     }
 
     private Chrome.GroupScope DrawArrangement(float x, float y, float width, out float contentHeight)
@@ -491,7 +715,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         rowY += pitch;
 
-        int lines = System.Array.IndexOf(FrameLayout.LineChoices, m_config.PartyFrames.Lines);
+        int lines = Array.IndexOf(FrameLayout.LineChoices, m_config.PartyFrames.Lines);
         lines = lines < 0 ? 0 : lines;
         if (m_lines.Draw(
                 ref lines,
@@ -537,11 +761,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
 
-        this.PixelSlider(IdWidth, Strings.FrameWidth, 0, group, rowY, MinWidth, MaxWidth, false, null);
+        this.PixelSlider(IdWidth, Strings.FrameWidth, SlotWidth, group, rowY, MinWidth, MaxWidth, false, null);
         rowY += pitch;
-        this.PixelSlider(IdHeight, Strings.FrameHeight, 1, group, rowY, MinHeight, MaxHeight, true, null);
+        this.PixelSlider(IdHeight, Strings.FrameHeight, SlotHeight, group, rowY, MinHeight, MaxHeight, true, null);
         rowY += pitch;
-        this.PixelSlider(IdSpacing, Strings.Spacing, 2, group, rowY, 0f, MaxSpacing, true, Strings.SpacingHint);
+        this.PixelSlider(IdSpacing, Strings.Spacing, SlotSpacing, group, rowY, 0f, MaxSpacing, true, Strings.SpacingHint);
 
         float used = rowY - group.ContentY + Chrome.RowHeight();
         Chrome.EndGroupContent(group, used);
@@ -550,8 +774,47 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     }
 
     /// <summary>
-    /// One row of the Size group. The four differ only in which number they move, so they are
-    /// written once: a second copy of a slider row is a second place to fix a spacing bug.
+    /// The swatch beside a colour mode: what the bars would actually be coloured with. The
+    /// roles are three stripes in the game's own blue, green and red; "by job" shows four jobs
+    /// standing in for all of them. "Fixed colour" draws nothing — it has no colour until the
+    /// picker arrives, and an invented one would be a promise we cannot keep.
+    /// </summary>
+    private static void DrawColourPreview(ImDrawListPtr dl, BarColourMode mode, Vector2 min, Vector2 max)
+    {
+        switch (mode)
+        {
+            case BarColourMode.Role:
+                Stripes(dl, min, max, Tokens.Col.RoleTank, Tokens.Col.RoleHealer, Tokens.Col.RoleDps);
+                break;
+
+            case BarColourMode.Job:
+                float width = (max.X - min.X) / JobSample.Length;
+                for (int i = 0; i < JobSample.Length; i++)
+                {
+                    float left = min.X + (i * width);
+                    dl.AddRectFilled(
+                        new Vector2(left, min.Y),
+                        new Vector2(i == JobSample.Length - 1 ? max.X : left + width, max.Y),
+                        Jobs.Colour(JobSample[i]));
+                }
+
+                break;
+        }
+    }
+
+    private static void Stripes(ImDrawListPtr dl, Vector2 min, Vector2 max, uint first, uint second, uint third)
+    {
+        float width = (max.X - min.X) / 3f;
+        dl.AddRectFilled(min, new Vector2(min.X + width, max.Y), first);
+        dl.AddRectFilled(new Vector2(min.X + width, min.Y), new Vector2(max.X - width, max.Y), second);
+        dl.AddRectFilled(new Vector2(max.X - width, min.Y), max, third);
+    }
+
+    private static string AnchorLabel(Anchor anchor) => AnchorNames[(int)anchor];
+
+    /// <summary>
+    /// One slider row. They differ only in which number they move, so they are written once:
+    /// a second copy of a slider row is a second place to fix a spacing bug.
     /// </summary>
     private void PixelSlider(
         string id,
@@ -582,7 +845,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         // Applied while the hand is still on it, not on release: the frames are on screen
         // right now, and a size you only see once you let go is a size you set twice. The
         // interface scale is the one slider that waits, because it resizes the window under
-        // the cursor — this one changes something you are looking at.
+        // the cursor — these change something you are looking at.
         if (result.Changed)
         {
             this.SetSizeValue(slot, MathF.Round(result.Value));
@@ -592,18 +855,24 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     private float SizeValue(int slot) => slot switch
     {
-        0 => m_config.PartyFrames.FrameWidth,
-        1 => m_config.PartyFrames.FrameHeight,
-        _ => m_config.PartyFrames.Spacing,
+        SlotWidth => m_config.PartyFrames.FrameWidth,
+        SlotHeight => m_config.PartyFrames.FrameHeight,
+        SlotSpacing => m_config.PartyFrames.Spacing,
+        SlotHealthX => m_config.PartyFrames.HpTextX,
+        SlotHealthY => m_config.PartyFrames.HpTextY,
+        _ => m_config.PartyFrames.ManaHeight,
     };
 
     private void SetSizeValue(int slot, float value)
     {
         switch (slot)
         {
-            case 0: m_config.PartyFrames.FrameWidth = value; break;
-            case 1: m_config.PartyFrames.FrameHeight = value; break;
-            default: m_config.PartyFrames.Spacing = value; break;
+            case SlotWidth: m_config.PartyFrames.FrameWidth = value; break;
+            case SlotHeight: m_config.PartyFrames.FrameHeight = value; break;
+            case SlotSpacing: m_config.PartyFrames.Spacing = value; break;
+            case SlotHealthX: m_config.PartyFrames.HpTextX = value; break;
+            case SlotHealthY: m_config.PartyFrames.HpTextY = value; break;
+            default: m_config.PartyFrames.ManaHeight = value; break;
         }
     }
 

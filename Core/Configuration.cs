@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -65,13 +65,56 @@ public sealed class Configuration : IPluginConfiguration
         /// <summary>Draw the player name on the frame at all — the switch in the group head.</summary>
         public bool ShowName { get; set; } = true;
 
-        /// <summary>Index into the name positions.</summary>
-        public int NamePosition { get; set; }
+        /// <summary>Index into the nine anchor points.</summary>
+        public int NamePosition { get; set; } = (int)Hud.Anchor.Left;
 
         public bool NameInJobColour { get; set; }
 
         /// <summary>Cut a long name down rather than let it run out of the frame.</summary>
         public bool ShortenNames { get; set; }
+
+        // --- health text --------------------------------------------------------
+        // Every text on a frame is described the same way: whether it shows, how big it is,
+        // which of the nine points it hangs on, and how far it is nudged from there. One
+        // anatomy for all of them, which is also why there is no padding slider (spec §11.2).
+
+        /// <summary>0 off, 1 the current figure, 2 a percentage, 3 what is missing.</summary>
+        public int HpTextMode { get; set; } = 2;
+
+        /// <summary>Index into the three text sizes. Axis is sharp at these and nowhere between.</summary>
+        public int HpTextSize { get; set; } = 1;
+
+        /// <summary>Index into the nine anchor points.</summary>
+        public int HpTextPosition { get; set; } = (int)Hud.Anchor.Right;
+
+        public float HpTextX { get; set; }
+
+        public float HpTextY { get; set; }
+
+        // --- mana ---------------------------------------------------------------
+
+        /// <summary>The master switch. The three role switches decide who it then applies to.</summary>
+        public bool ShowMana { get; set; } = true;
+
+        /// <summary>0 a thin strip along the bottom edge, 1 a bar of its own.</summary>
+        public int ManaStyle { get; set; }
+
+        /// <summary>
+        /// 2-16 px, and a pixel count rather than a share of the frame: a strip that grew with
+        /// the frame was absurd at 150 px tall (Florian, at the prototype). Thin trim follows
+        /// the interface scale and nothing else.
+        /// </summary>
+        public float ManaHeight { get; set; } = 3f;
+
+        /// <summary>
+        /// Who gets a mana bar. Three switches rather than one "healers only": in a light
+        /// party every caster's mana is worth a glance, in a full one it is mostly noise.
+        /// </summary>
+        public bool ManaForTanks { get; set; }
+
+        public bool ManaForHealers { get; set; } = true;
+
+        public bool ManaForDps { get; set; }
 
         // --- layout: never copied between elements, it belongs to this one (CLAUDE.md §5.3) ---
         // Stated at scale 1.0 and put through the interface scale when drawn, like every other
@@ -151,9 +194,21 @@ public sealed class Configuration : IPluginConfiguration
 
     private static void Migrate(Configuration config)
     {
-        // Version 1 is the first shipped format, so there is nothing to convert yet.
-        // Future steps go here one at a time and in order, for example:
-        //   if (config.Version < 2) { ...; }
-        _ = config;
+        // Steps go here one at a time and in order, each one leaving the configuration in the
+        // shape the next step expects.
+        if (config.Version < 2)
+        {
+            // The name used to sit on a list of five positions of its own. Text now hangs on
+            // the nine anchors every element shares, so the five are mapped onto their new
+            // neighbours rather than silently meaning something else.
+            config.PartyFrames.NamePosition = config.PartyFrames.NamePosition switch
+            {
+                1 => (int)Hud.Anchor.Top,
+                2 => (int)Hud.Anchor.Centre,
+                3 => (int)Hud.Anchor.Bottom,
+                4 => (int)Hud.Anchor.BottomLeft,
+                _ => (int)Hud.Anchor.TopLeft,
+            };
+        }
     }
 }
