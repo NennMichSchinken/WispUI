@@ -33,14 +33,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdNameJobColour = "##wisp-pf-namejobcolour";
     private const string IdShortenNames = "##wisp-pf-shortennames";
 
-    /// <summary>
-    /// How many compact options each group opens with. Stated rather than counted, because
-    /// the taller of the two decides where the field cells start in BOTH columns and that has
-    /// to be known before either is drawn.
-    /// </summary>
-    private const int HealthOptionRows = 1;
-    private const int NameOptionRows = 2;
-
     /// <summary>What a bar takes its colour from. FFXIV's own convention, not one of ours.</summary>
     private static readonly string[] ColourModes =
     {
@@ -159,17 +151,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         Chrome.BeginGroupRow();
 
-        // Both columns give their run of options the same room, so the field cells below them
-        // line up across the row instead of one column's control sitting in the other's gap.
-        float options = MathF.Max(
-            Chrome.OptionBlockHeight(HealthOptionRows),
-            Chrome.OptionBlockHeight(NameOptionRows));
-
         // Drawn first and framed afterwards, so the shorter column can be carried down to the
         // taller one's bottom edge. Two groups that each stop where their own rows end leave a
-        // step, and every group added later adds another one.
-        Chrome.GroupScope left = this.DrawHealthBar(Chrome.ColumnX(origin.X, width, 0), rowTop, column, options, out float leftHeight);
-        Chrome.GroupScope right = this.DrawNameText(Chrome.ColumnX(origin.X, width, 1), rowTop, column, options, out float rightHeight);
+        // step, and every group added later adds another one. Nothing else has to be squared
+        // up between the columns: both stack on the same ladder (Chrome.RowPitch).
+        Chrome.GroupScope left = this.DrawHealthBar(Chrome.ColumnX(origin.X, width, 0), rowTop, column, out float leftHeight);
+        Chrome.GroupScope right = this.DrawNameText(Chrome.ColumnX(origin.X, width, 1), rowTop, column, out float rightHeight);
 
         float y = rowTop + Chrome.GroupFrameRow(left, leftHeight, right, rightHeight);
 
@@ -177,7 +164,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
     }
 
-    private Chrome.GroupScope DrawHealthBar(float x, float y, float width, float options, out float contentHeight)
+    private Chrome.GroupScope DrawHealthBar(float x, float y, float width, out float contentHeight)
     {
         Chrome.GroupScope group = Chrome.BeginGroup(
             IdHealthGroup,
@@ -190,9 +177,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             y,
             width);
 
-        // Compact options on top, field rows beneath — LumenUI's block order for a card, and
-        // the reason a group reads as one ladder: the short rows and their dividers carry on
-        // from the head rule, and the tall controls follow once.
+        // Compact options on top, field rows beneath. Every row takes one step of the ladder,
+        // whatever sits in it — that is what keeps this column level with the one beside it,
+        // however many options either of them happens to hold.
+        float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
         if (Chrome.OptionRow(
                 IdSmooth,
@@ -208,9 +196,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        // A short control followed by a tall one gets the wider gap.
-        float used = options;
-        rowY = group.ContentY + used;
+        rowY += pitch;
 
         float drop = Chrome.FieldLabel(Strings.BarStyle, group.ContentX, rowY, group.ContentWidth);
         int style = m_config.PartyFrames.BarStyle;
@@ -220,10 +206,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        // Every field row is the same height, whatever control it holds. That is what keeps
-        // this column level with the one beside it once the rows start stacking up.
-        used += Chrome.FieldRowHeight() + Tokens.Metric.RowGap;
-        rowY = group.ContentY + used;
+        rowY += pitch;
 
         Chrome.FieldLabel(Strings.BarColour, group.ContentX, rowY, group.ContentWidth);
         int colour = m_config.PartyFrames.ColourMode;
@@ -233,8 +216,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        used += Chrome.FieldRowHeight() + Tokens.Metric.RowGap;
-        rowY = group.ContentY + used;
+        rowY += pitch;
 
         float opacity = m_draggingOpacity ? m_opacityPreview : m_config.PartyFrames.BarOpacity;
         Chrome.SliderResult result = Chrome.Slider(
@@ -261,7 +243,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        used += result.Height;
+        // The content ends at the last row's own height, not at the end of its step: the step
+        // exists so the NEXT row starts level, and there is no next row here.
+        float used = rowY - group.ContentY + result.Height;
         Chrome.EndGroupContent(group, used);
         contentHeight = used;
         return group;
@@ -272,7 +256,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     /// visible but go quiet and stop answering — you can still see what the group would give
     /// you, which is the point of dimming rather than hiding.
     /// </summary>
-    private Chrome.GroupScope DrawNameText(float x, float y, float width, float options, out float contentHeight)
+    private Chrome.GroupScope DrawNameText(float x, float y, float width, out float contentHeight)
     {
         Chrome.GroupScope group = Chrome.BeginGroup(
             IdTextGroup,
@@ -294,12 +278,13 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         // The run of compact options first. The first one carries no divider — its top line
         // is the group's own head rule.
-        float used = 0f;
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
         if (Chrome.OptionRow(
                 IdNameJobColour,
                 Strings.NameInJobColour,
                 group.ContentX,
-                group.ContentY,
+                rowY,
                 group.ContentWidth,
                 m_config.PartyFrames.NameInJobColour,
                 Chrome.OptionControl.Switch))
@@ -308,13 +293,13 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        used += Tokens.Metric.OptionRowHeight + Tokens.Metric.RowGap;
+        rowY += pitch;
 
         if (Chrome.OptionRow(
                 IdShortenNames,
                 Strings.ShortenNames,
                 group.ContentX,
-                group.ContentY + used,
+                rowY,
                 group.ContentWidth,
                 m_config.PartyFrames.ShortenNames,
                 Chrome.OptionControl.Tick,
@@ -326,17 +311,17 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        used = options;
+        rowY += pitch;
 
-        float drop = Chrome.FieldLabel(Strings.NamePosition, group.ContentX, group.ContentY + used, group.ContentWidth);
+        float drop = Chrome.FieldLabel(Strings.NamePosition, group.ContentX, rowY, group.ContentWidth);
         int position = m_config.PartyFrames.NamePosition;
-        if (m_namePosition.Draw(ref position, group.ContentX, group.ContentY + used + drop, group.ContentWidth))
+        if (m_namePosition.Draw(ref position, group.ContentX, rowY + drop, group.ContentWidth))
         {
             m_config.PartyFrames.NamePosition = position;
             m_config.MarkDirty();
         }
 
-        used += Chrome.FieldRowHeight();
+        float used = rowY - group.ContentY + Chrome.FieldRowHeight();
         Chrome.EndGroupContent(group, used);
         contentHeight = used;
         return group;

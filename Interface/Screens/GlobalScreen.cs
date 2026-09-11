@@ -47,23 +47,24 @@ internal sealed class GlobalScreen
         float x = origin.X;
         float y = origin.Y;
 
-        // Groups sit on the same two-column grid the controls used to sit on directly. Each
-        // one is exactly as tall as what it holds, so the two columns end where they end
-        // rather than being stretched to match.
+        // Groups sit on the same two-column grid the controls used to sit on directly, both
+        // drawn before either is framed: they share a bottom edge, and their surfaces are
+        // painted under the rows on the lower channel of the row split.
         float column = Chrome.ColumnWidth(width);
         float rowTop = y;
 
-        float left = this.DrawInterface(Chrome.ColumnX(x, width, 0), rowTop, column);
-        float right = this.DrawAccess(Chrome.ColumnX(x, width, 1), rowTop, column);
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope left = this.DrawInterface(Chrome.ColumnX(x, width, 0), rowTop, column, out float leftHeight);
+        Chrome.GroupScope right = this.DrawAccess(Chrome.ColumnX(x, width, 1), rowTop, column, out float rightHeight);
 
-        y = rowTop + MathF.Max(left, right);
+        y = rowTop + Chrome.GroupFrameRow(left, leftHeight, right, rightHeight);
 
         // Tells the scroll area how tall the screen is, the air under the last group included.
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
     }
 
-    private float DrawInterface(float x, float y, float width)
+    private Chrome.GroupScope DrawInterface(float x, float y, float width, out float contentHeight)
     {
         Chrome.GroupScope group = Chrome.BeginGroup(
             IdInterfaceGroup,
@@ -108,10 +109,12 @@ internal sealed class GlobalScreen
             Scaling.Commit(m_config.Scale);
         }
 
-        return Chrome.EndGroup(group, result.Height);
+        Chrome.EndGroupContent(group, result.Height);
+        contentHeight = result.Height;
+        return group;
     }
 
-    private float DrawAccess(float x, float y, float width)
+    private Chrome.GroupScope DrawAccess(float x, float y, float width, out float contentHeight)
     {
         Chrome.GroupScope group = Chrome.BeginGroup(
             IdAccessGroup,
@@ -139,7 +142,11 @@ internal sealed class GlobalScreen
             this.InfoBarPreferenceChanged?.Invoke();
         }
 
-        return Chrome.EndGroup(group, Tokens.Metric.OptionRowHeight);
+        // One option row, so the group is one step of the ladder tall — the row centres its
+        // label and tick in that step.
+        contentHeight = Chrome.RowPitch();
+        Chrome.EndGroupContent(group, contentHeight);
+        return group;
     }
 
     private string ScaleCaption(float scale)

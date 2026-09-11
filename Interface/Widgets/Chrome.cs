@@ -486,7 +486,9 @@ internal static class Chrome
         bool enabled = true,
         bool divider = false)
     {
-        float height = Tokens.Metric.OptionRowHeight;
+        // One step of the ladder, not the height of the control in it: the label and the tick
+        // are centred in the step, and the whole step is the hit box.
+        float height = RowPitch();
 
         ImGui.SetCursorScreenPos(new Vector2(x, y));
         ImGui.InvisibleButton(id, new Vector2(width, height));
@@ -526,8 +528,9 @@ internal static class Chrome
 
         if (divider)
         {
-            // Centred in the gap above, so it sits between the two rows rather than on either.
-            Hairline(dl, x, x + width, MathF.Round(y - (Tokens.Metric.RowGap * 0.5f)), Tokens.Col.RowDivider);
+            // On the step's own top edge. Rows are flush now, so that edge is also the row
+            // above's bottom — one line between two rows, and none under the head rule.
+            Hairline(dl, x, x + width, MathF.Round(y), Tokens.Col.RowDivider);
         }
 
         if (tooltip is not null)
@@ -790,19 +793,22 @@ internal static class Chrome
     }
 
     /// <summary>
-    /// How tall a run of compact option rows is, including the wider gap that closes it.
+    /// One step of the row ladder — the height EVERY row occupies, whatever control it holds.
     /// <para>
-    /// Two groups side by side rarely hold the same number of options, and if each simply
-    /// stacks its own, the field cells in one column come out level with the gaps in the
-    /// other — a control sitting halfway down its neighbour's divider. The screen takes the
-    /// taller run and starts both field blocks there, so the two columns read as rows.
+    /// This is the rule that keeps two groups side by side readable as rows. With a height
+    /// per control type, a column holding one option and then fields comes out level with the
+    /// gaps of a column holding two options: a control sitting halfway down its neighbour's
+    /// divider. On one ladder, row three is row three in both columns whether it is a tick or
+    /// a dropdown, nothing has to know what the other column contains, and what a shorter
+    /// column is missing turns into air at the bottom — where the frame closes it.
+    /// </para>
+    /// <para>
+    /// Taken from the tallest row rather than stated as a number: a field row is a label over
+    /// a control, and the label's height comes from a bitmap font that does NOT scale with
+    /// the interface scale. A fixed pitch would come apart at the first scale change.
     /// </para>
     /// </summary>
-    public static float OptionBlockHeight(int rows) => rows <= 0
-        ? 0f
-        : (rows * Tokens.Metric.OptionRowHeight)
-            + ((rows - 1) * Tokens.Metric.RowGap)
-            + Tokens.Metric.RowGapAfterShort;
+    public static float RowPitch() => FieldRowHeight() + Tokens.Space.Md;
 
     /// <summary>
     /// Opens a row of groups. Called before the first <see cref="BeginGroup"/> of the row,

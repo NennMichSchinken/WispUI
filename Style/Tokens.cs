@@ -483,34 +483,17 @@ internal static class Tokens
         /// <summary>The rule to the first row.</summary>
         public static float GroupRuleGap => Px(16f);
 
-        /// <summary>
-        /// A row that holds one compact control: label on the left, the control hard against
-        /// the right edge of the group. Same height as a selector, so two of them beside a
-        /// field row still line up.
-        /// </summary>
-        public static float OptionRowHeight => Px(28f);
-
         // --- the vertical rhythm of a settings screen ---
-        // Four values, and every block advances by its own MEASURED height plus one of them.
-        // The head gap is the larger one on purpose: a section head is set off from its
-        // controls by space rather than by a line, because the window has exactly two kinds of
-        // divider and neither of them belongs there.
+        // Two values now — everything between rows is the ladder. The head gap stays its own
+        // number: a section head is set off from its controls by space rather than by a line,
+        // because the window has exactly two kinds of divider and neither belongs there.
 
         /// <summary>Section head to its first row.</summary>
         public static float SectionHeadGap => Px(20f);
 
-        // The gap between two rows is chosen by their RELATIONSHIP, not by feel — LumenUI's
-        // semantic rhythm, which it arrived at in play. The principle behind it: a jump in
-        // height needs more air than two rows of the same shape.
-
-        /// <summary>The standard gap between two rows of the same kind.</summary>
-        public static float RowGap => Px(16f);
-
-        /// <summary>
-        /// From a run of compact options to the first field row under it. A short control
-        /// followed by a tall one needs more room, or the tall one reads as crowding it.
-        /// </summary>
-        public static float RowGapAfterShort => Px(24f);
+        // Rows carry no gap of their own: every row takes one step of the ladder
+        // (Chrome.RowPitch), and the air inside the step IS the gap. A gap per kind of row was
+        // what put one column's controls level with the other column's dividers.
 
         /// <summary>Air under the last row, so a scrolled screen does not end flush with the edge.</summary>
         public static float ContentPaddingBottom => Px(24f);
