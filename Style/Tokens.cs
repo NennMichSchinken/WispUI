@@ -94,6 +94,21 @@ internal static class Tokens
         /// </summary>
         public static readonly uint PopupEdge = Rgb(0x6B676B);
 
+        /// <summary>
+        /// A box you type into, when what is behind it is already dark — the search field in
+        /// a popup list.
+        /// <para>
+        /// It is LIGHTER than its surroundings, which is the opposite of <see cref="Input"/>,
+        /// and that is the point. LumenUI's rule, arrived at the hard way: what has to stay
+        /// constant is the STEP over a field's own background, not the colour — perceived lift
+        /// is relative, so one absolute value cannot work across surfaces that span from
+        /// #171617 to #232223. Aim for +8 to +11. Our search box was <see cref="Input"/> at
+        /// #1B1A1B inside a #171617 popup: a step of four, which is nearly nothing, and
+        /// exactly the case Lumen ran into when a menu and the box in it shared a value.
+        /// </para>
+        /// </summary>
+        public static readonly uint FieldOnDark = Rgb(0x222122);
+
         // --- nav (derived) ---
         public static readonly uint NavHover = Rgb(0x2A282A);
         public static readonly uint NavSelected = Rgb(0x2E2C2E);
@@ -216,8 +231,19 @@ internal static class Tokens
         /// <summary>The frame around a settings group — between the window and a control.</summary>
         public static float Group => Px(6f);
 
-        public static float Control => Px(3f);
-        public static float Small => Px(2f);
+        /// <summary>
+        /// Control faces: buttons, tabs, the selector, a popup.
+        /// <para>
+        /// Raised from 3. LumenUI's tested ladder runs chrome : card : control at
+        /// 1 : 0.78 : 0.61, and it got there by bumping the control radius up twice, because
+        /// a square-ish face inside a rounded shell reads as a part from another kit. Ours sat
+        /// at 0.375 of the window radius; five puts it at 0.63.
+        /// </para>
+        /// </summary>
+        public static float Control => Px(5f);
+
+        /// <summary>Tick boxes, badges, the bar preview. Same step below Control that Lumen uses.</summary>
+        public static float Small => Px(3f);
     }
 
     /// <summary>
@@ -348,7 +374,12 @@ internal static class Tokens
         // --- the popup list an arrow selector can open ---
         public static float PopupGap => Px(3f);
         public static float PopupPadding => Px(6f);
-        public static float PopupRowHeight => Px(24f);
+        /// <summary>
+        /// A row of the popup list. Raised from 24: LumenUI went 30 → 35 → 40 screen px on
+        /// its own list rows because cramped ones were rejected twice, and 24 sat below even
+        /// the first value it threw out. 28 leaves six pixels of air around a 16 px line.
+        /// </summary>
+        public static float PopupRowHeight => Px(28f);
         public static float PopupSearchHeight => Px(26f);
 
         /// <summary>How many rows the list shows before it starts to scroll.</summary>
@@ -390,8 +421,12 @@ internal static class Tokens
         // gathers. That keeps the window at two kinds of divider rather than gaining a third,
         // and it needs no surface colour of its own — which the measured palette does not have.
 
-        /// <summary>Inside the group frame, on every side.</summary>
-        public static float GroupPadding => Px(12f);
+        /// <summary>
+        /// Inside the group frame, on every side. Raised from 12 to match the proportion
+        /// LumenUI arrived at after testing: its card padding is 24 screen px against a 41 px
+        /// control, ours is 16 against 28 — the same ratio, at our density.
+        /// </summary>
+        public static float GroupPadding => Px(16f);
 
         /// <summary>The group head to the rule under it.</summary>
         public static float GroupHeadGap => Px(12f);

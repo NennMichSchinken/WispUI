@@ -384,7 +384,7 @@ internal sealed class ArrowSelector<T>
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(0f, Tokens.Space.Sm));
         ImGui.PushStyleColor(ImGuiCol.PopupBg, Tokens.Col.PopupBg);
         ImGui.PushStyleColor(ImGuiCol.Border, Tokens.Col.PopupEdge);
-        ImGui.PushStyleColor(ImGuiCol.FrameBg, Tokens.Col.Input);
+        ImGui.PushStyleColor(ImGuiCol.FrameBg, Tokens.Col.FieldOnDark);
         ImGui.PushStyleColor(ImGuiCol.ChildBg, Tokens.Col.PopupBg);
         ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.Ink);
 
