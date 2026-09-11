@@ -92,6 +92,13 @@ public sealed class Plugin : IDalamudPlugin
     private void OnUpdate(IFramework framework)
     {
         m_config.Tick();
+
+        // Done here because the world makes up its mind about what the mouse is on long
+        // before anything is drawn. One branch on a tick where the window is closed.
+        if (m_configWindow.HasMouse)
+        {
+            NativeUi.TakeMouseFromWorld();
+        }
     }
 
     private void OnInfoBarPreferenceChanged()

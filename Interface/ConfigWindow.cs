@@ -82,8 +82,14 @@ internal sealed class ConfigWindow : Window
     /// <summary>Whether a list or panel of ours is up — worked out once, in <see cref="PreDraw"/>.</summary>
     private bool m_popupOpen;
 
-    /// <summary>Whether ImGui is currently drawing the pointer on our behalf.</summary>
-    private bool m_drawsCursor;
+    /// <summary>Whether the pointer is currently ours to speak for.</summary>
+    private bool m_ownsCursor;
+
+    /// <summary>
+    /// Whether the mouse is on this window. Read from the game's tick, which is a different
+    /// moment from the one that set it — one frame behind, and a frame is not enough to see.
+    /// </summary>
+    public bool HasMouse => m_ownsCursor;
 
     public ConfigWindow(Configuration config)
         : base(
@@ -128,32 +134,33 @@ internal sealed class ConfigWindow : Window
 
     /// <summary>
     /// Hands the pointer back to the game. Called when the window closes and when the plugin
-    /// goes away: a drawn cursor left switched on would outlive the window that asked for it.
+    /// goes away: the switch it turns off is shared by everything running in the game, so it
+    /// must never be left lying the way we wanted it.
     /// </summary>
     public void ReleaseCursor()
     {
-        if (!m_drawsCursor)
+        if (!m_ownsCursor)
         {
             return;
         }
 
-        m_drawsCursor = false;
-        ImGui.GetIO().MouseDrawCursor = false;
+        m_ownsCursor = false;
+        Services.PluginInterface.UiBuilder.OverrideGameCursor = true;
     }
 
     /// <summary>
-    /// Takes over the pointer while the mouse is on this window.
+    /// Takes over the pointer while the mouse is on this window, and lets the game keep
+    /// drawing it.
     /// <para>
-    /// Saying which cursor a control wants is not enough on its own: whether that reaches the
-    /// screen depends on a switch shared by everything in the game, and on the game not
-    /// drawing a pointer of its own over the top. Asking ImGui to draw the cursor settles it
-    /// — the pointer is then part of the same picture as the window it belongs to, so it can
-    /// only ever say what is under it here (Florian, 2026-09-12: the pointer kept answering
-    /// to the door behind the window).
+    /// Dalamud's own answer is to replace the game's pointer with a Windows one over a plugin
+    /// window. That leaves a WispUI button wearing a different pointer from every other thing
+    /// in the game, so we do the opposite: the game keeps its pointer and we tell it which of
+    /// its shapes to wear (Florian, 2026-09-12). <see cref="NativeCursor"/> carries the shape;
+    /// this only decides when the pointer is ours to speak for.
     /// </para>
     /// <para>
-    /// Only while the mouse is ours. Away from the window the game gets its pointer back
-    /// untouched, which is the half of this that must not be broken.
+    /// Away from the window the game gets its pointer back untouched, which is the half of
+    /// this that must not be broken.
     /// </para>
     /// </summary>
     private void TakeCursor()
@@ -163,13 +170,16 @@ internal sealed class ConfigWindow : Window
             | ImGuiHoveredFlags.AllowWhenBlockedByPopup
             | ImGuiHoveredFlags.AllowWhenBlockedByActiveItem);
 
-        if (ours == m_drawsCursor)
+        if (ours == m_ownsCursor)
         {
             return;
         }
 
-        m_drawsCursor = ours;
-        ImGui.GetIO().MouseDrawCursor = ours;
+        m_ownsCursor = ours;
+
+        // Off while it is ours: with it on, Dalamud holds the game's pointer back and puts a
+        // Windows one in its place, and the shape we set would never reach the screen.
+        Services.PluginInterface.UiBuilder.OverrideGameCursor = !ours;
     }
 
     public override void PreDraw()
@@ -208,6 +218,13 @@ internal sealed class ConfigWindow : Window
 
     public override void PostDraw()
     {
+        // After every control has had its say, so the shape is the one the thing under the
+        // mouse asked for on this frame rather than on the last.
+        if (m_ownsCursor)
+        {
+            NativeUi.FollowCursor(ImGui.GetMouseCursor());
+        }
+
         Chrome.EndFrame();
         ImGui.PopStyleColor(4);
         ImGui.PopStyleVar(3);
