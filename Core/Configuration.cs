@@ -238,8 +238,13 @@ public sealed class Configuration : IPluginConfiguration
         /// </summary>
         public bool ShowPartyNumber { get; set; }
 
-        /// <summary>In pixels, like every other text on a frame.</summary>
-        public float PartyNumberSize { get; set; } = DefaultTextSize;
+        /// <summary>
+        /// In pixels, like every other text on a frame, but a step above the body size the
+        /// rest starts at. A single digit has no word around it to be read from, so it needs
+        /// to carry on its own — and 19 px is the next size Axis is drawn at rather than
+        /// scaled to (Florian, 2026-09-12).
+        /// </summary>
+        public float PartyNumberSize { get; set; } = 19f;
 
         /// <summary>Index into the nine anchor points.</summary>
         public int PartyNumberPosition { get; set; } = (int)Hud.Anchor.TopLeft;
