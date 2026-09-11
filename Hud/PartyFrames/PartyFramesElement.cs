@@ -43,6 +43,12 @@ internal sealed class PartyFramesElement : HudElement
 
     public override void Collect()
     {
+        if (EditMode.IsActive)
+        {
+            m_snapshot.FillPlaceholders();
+            return;
+        }
+
         m_snapshot.Collect();
         this.LogIfPartyChanged();
     }
@@ -59,13 +65,23 @@ internal sealed class PartyFramesElement : HudElement
         float y = Tokens.Px(cfg.PositionY);
 
         PartyMemberSnapshot[] members = m_snapshot.Members;
+        int count = m_snapshot.Count;
 
-        for (int i = 0; i < m_snapshot.Count; i++)
+        for (int i = 0; i < count; i++)
         {
             ref PartyMemberSnapshot member = ref members[i];
-            float top = y + (i * (height + spacing));
-            Vector2 min = new(x, top);
-            Vector2 max = new(x + width, top + height);
+            Vector2 offset = FrameLayout.Offset(
+                i,
+                count,
+                (FrameDirection)cfg.Direction,
+                cfg.Lines,
+                width,
+                height,
+                spacing);
+
+            Vector2 min = new(x + offset.X, y + offset.Y);
+            Vector2 max = new(min.X + width, min.Y + height);
+            float top = min.Y;
 
             dl.AddRectFilled(min, max, Tokens.Col.FrameBg);
 

@@ -2,6 +2,7 @@ using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Plugin.Services;
 using WispUI.Core;
 using WispUI.Data;
+using WispUI.Localization;
 
 namespace WispUI.Hud.PartyFrames;
 
@@ -38,6 +39,12 @@ internal sealed class PartySnapshot
 {
     /// <summary>A full party. An alliance is a later module and brings its own snapshot.</summary>
     public const int Capacity = 8;
+
+    /// <summary>Far above any real entity id, so a stand-in can never be mistaken for a player.</summary>
+    private const uint PlaceholderId = 0xF0000000u;
+
+    /// <summary>One party's worth of jobs for edit mode: two tanks, two healers, four damage.</summary>
+    private static readonly uint[] PlaceholderJobs = { 19u, 32u, 24u, 33u, 22u, 30u, 23u, 25u };
 
     private readonly PartyMemberSnapshot[] m_members = new PartyMemberSnapshot[Capacity];
 
@@ -102,6 +109,31 @@ internal sealed class PartySnapshot
         }
 
         this.Count = count;
+    }
+
+    /// <summary>
+    /// Fills the array with a full party of stand-ins. Without a group there is nothing to lay
+    /// out against, and a layout you cannot see while you set it is a layout you set twice —
+    /// so edit mode brings its own eight, one per role, in the order a party is sorted.
+    /// </summary>
+    public void FillPlaceholders()
+    {
+        for (int i = 0; i < Capacity; i++)
+        {
+            ref PartyMemberSnapshot slot = ref m_members[i];
+            slot.EntityId = PlaceholderId + (uint)i;
+            slot.JobId = PlaceholderJobs[i];
+            slot.Role = Jobs.Role(slot.JobId);
+            slot.Name = Strings.PreviewName;
+            slot.MaxHp = 100000u;
+            slot.Hp = slot.MaxHp;
+            slot.MaxMp = 10000u;
+            slot.Mp = slot.MaxMp;
+            slot.IsLocalPlayer = i == 0;
+        }
+
+        this.IsSolo = false;
+        this.Count = Capacity;
     }
 
     private int CollectLocalPlayer()

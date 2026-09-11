@@ -5,6 +5,7 @@ using Dalamud.Bindings.ImGui;
 using WispUI.Appearance;
 using WispUI.Core;
 using WispUI.Data;
+using WispUI.Hud.PartyFrames;
 using WispUI.Interface.Widgets;
 using WispUI.Localization;
 using WispUI.Style;
@@ -32,6 +33,23 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdNamePosition = "##wisp-pf-nameposition";
     private const string IdNameJobColour = "##wisp-pf-namejobcolour";
     private const string IdShortenNames = "##wisp-pf-shortennames";
+    private const string IdArrangeGroup = "##wisp-pf-arrange";
+    private const string IdSizeGroup = "##wisp-pf-size";
+    private const string IdDirection = "##wisp-pf-direction";
+    private const string IdLines = "##wisp-pf-lines";
+    private const string IdWidth = "##wisp-pf-width";
+    private const string IdHeight = "##wisp-pf-height";
+    private const string IdPadding = "##wisp-pf-padding";
+    private const string IdSpacing = "##wisp-pf-spacing";
+
+    // The ranges from the spec, 00a74. The useful height is 30-70; the rest is there so a small
+    // party can have tall frames.
+    private const float MinWidth = 90f;
+    private const float MaxWidth = 400f;
+    private const float MinHeight = 18f;
+    private const float MaxHeight = 150f;
+    private const float MaxPadding = 20f;
+    private const float MaxSpacing = 24f;
 
     /// <summary>Where a bar takes its colour from.</summary>
     private enum ColourMode
@@ -51,6 +69,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     /// <summary>A few jobs standing in for all of them in the "by job" preview.</summary>
     private static readonly uint[] JobSample = { 19u, 24u, 25u, 23u };
+
+    /// <summary>The line counts as text, so the label never builds a string in a draw path.</summary>
+    private static readonly System.Collections.Generic.Dictionary<int, string> LineLabels = new() { { 1, "1" }, { 2, "2" }, { 4, "4" } };
+
+    /// <summary>Which way the block of frames runs.</summary>
+    private static readonly string[] Directions = { Strings.DirectionVertical, Strings.DirectionHorizontal };
 
     /// <summary>Where the player name sits on a frame.</summary>
     private static readonly string[] NamePositions =
@@ -72,6 +96,20 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     private float m_opacityPreview;
     private bool m_draggingOpacity;
+
+    private readonly ArrowSelector<string> m_direction;
+    private readonly ArrowSelector<int> m_lines;
+
+    /// <summary>One readout per size slider, rebuilt only when its number changes.</summary>
+    private readonly string[] m_sizeText = new string[4];
+    private readonly int[] m_sizeTextFor = { -1, -1, -1, -1 };
+
+    /// <summary>Which size slider is under the hand, and what it would set. -1 for none.</summary>
+    private int m_sizeDragging = -1;
+    private float m_sizePreview;
+
+    private string m_arrangementText = string.Empty;
+    private int m_arrangementFor = -1;
 
     public PartyFramesScreen(Configuration config)
     {
@@ -110,6 +148,16 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdNamePosition,
             NamePositions,
             new ArrowSelectorOptions<string> { Label = static position => position });
+
+        m_direction = new ArrowSelector<string>(
+            IdDirection,
+            Directions,
+            new ArrowSelectorOptions<string> { Label = static name => name, ShowCounter = false });
+
+        m_lines = new ArrowSelector<int>(
+            IdLines,
+            FrameLayout.LineChoices,
+            new ArrowSelectorOptions<int> { Label = static lines => LineLabels[lines], ShowCounter = false });
     }
 
     public string DisplayName => Strings.NavPartyFrames;
@@ -398,6 +446,215 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         dl.AddRectFilled(new Vector2(min.X + width, min.Y), new Vector2(max.X - width, max.Y), second);
         dl.AddRectFilled(new Vector2(max.X - width, min.Y), max, third);
     }
+
+    /// <summary>
+    /// The Layout tab: how the frames are arranged, and how big they are. Kept apart from Base
+    /// on purpose — colour and style are shared between elements, size and arrangement belong
+    /// to this one and are never copied (CLAUDE.md §5.3).
+    /// </summary>
+    public void DrawLayout(float width)
+    {
+        Vector2 origin = ImGui.GetCursorScreenPos();
+        float column = Chrome.ColumnWidth(width);
+        float rowTop = origin.Y;
+
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope left = this.DrawArrangement(Chrome.ColumnX(origin.X, width, 0), rowTop, column, out float leftHeight);
+        Chrome.GroupScope right = this.DrawSize(Chrome.ColumnX(origin.X, width, 1), rowTop, column, out float rightHeight);
+
+        float y = rowTop + Chrome.GroupFrameRow(left, leftHeight, right, rightHeight);
+
+        ImGui.SetCursorScreenPos(origin);
+        ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
+    }
+
+    private Chrome.GroupScope DrawArrangement(float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdArrangeGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupArrangement,
+                Description = Strings.GroupArrangementHint,
+            },
+            x,
+            y,
+            width);
+
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
+
+        int direction = m_config.PartyFrames.Direction;
+        if (m_direction.Draw(
+                ref direction,
+                Chrome.Row(Strings.Direction, group.ContentX, rowY, group.ContentWidth, false),
+                rowY,
+                Chrome.ControlWidth()))
+        {
+            m_config.PartyFrames.Direction = direction;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+
+        int lines = System.Array.IndexOf(FrameLayout.LineChoices, m_config.PartyFrames.Lines);
+        lines = lines < 0 ? 0 : lines;
+        if (m_lines.Draw(
+                ref lines,
+                Chrome.Row(Strings.Lines, group.ContentX, rowY, group.ContentWidth, true),
+                rowY,
+                Chrome.ControlWidth()))
+        {
+            m_config.PartyFrames.Lines = FrameLayout.LineChoices[lines];
+            m_config.MarkDirty();
+        }
+
+        // The arrangement written out. Nobody should have to picture what two lines do to
+        // eight frames — the spec asks for this line, and it is the reason the two controls
+        // can stay this plain.
+        rowY += pitch;
+        Ink.Draw(
+            ImGui.GetWindowDrawList(),
+            Ink.Role.Small,
+            new Vector2(group.ContentX, rowY + Tokens.Space.Sm),
+            Tokens.Col.InkFaint,
+            this.ArrangementCaption());
+
+        float used = rowY - group.ContentY + Ink.LineHeight(Ink.Role.Small) + Tokens.Space.Sm;
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
+
+    private Chrome.GroupScope DrawSize(float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdSizeGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupSize,
+                Description = Strings.GroupSizeHint,
+            },
+            x,
+            y,
+            width);
+
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
+
+        this.PixelSlider(IdWidth, Strings.FrameWidth, 0, group, rowY, MinWidth, MaxWidth, false, null);
+        rowY += pitch;
+        this.PixelSlider(IdHeight, Strings.FrameHeight, 1, group, rowY, MinHeight, MaxHeight, true, null);
+        rowY += pitch;
+        this.PixelSlider(IdPadding, Strings.Padding, 2, group, rowY, 0f, MaxPadding, true, Strings.PaddingHint);
+        rowY += pitch;
+        this.PixelSlider(IdSpacing, Strings.Spacing, 3, group, rowY, 0f, MaxSpacing, true, Strings.SpacingHint);
+
+        float used = rowY - group.ContentY + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
+
+    /// <summary>
+    /// One row of the Size group. The four differ only in which number they move, so they are
+    /// written once: a second copy of a slider row is a second place to fix a spacing bug.
+    /// </summary>
+    private void PixelSlider(
+        string id,
+        string label,
+        int slot,
+        in Chrome.GroupScope group,
+        float rowY,
+        float min,
+        float max,
+        bool divider,
+        string? hint)
+    {
+        float value = m_sizeDragging == slot ? m_sizePreview : this.SizeValue(slot);
+        Chrome.SliderResult result = Chrome.Slider(
+            id,
+            label,
+            this.PixelCaption(slot, value),
+            group.ContentX,
+            rowY,
+            group.ContentWidth,
+            value,
+            min,
+            max,
+            hint,
+            null,
+            divider);
+
+        if (result.Changed)
+        {
+            m_sizeDragging = slot;
+            m_sizePreview = MathF.Round(result.Value);
+        }
+
+        if (result.Released && m_sizeDragging == slot)
+        {
+            m_sizeDragging = -1;
+            this.SetSizeValue(slot, MathF.Round(result.Value));
+            m_config.MarkDirty();
+        }
+    }
+
+    private float SizeValue(int slot) => slot switch
+    {
+        0 => m_config.PartyFrames.FrameWidth,
+        1 => m_config.PartyFrames.FrameHeight,
+        2 => m_config.PartyFrames.Padding,
+        _ => m_config.PartyFrames.Spacing,
+    };
+
+    private void SetSizeValue(int slot, float value)
+    {
+        switch (slot)
+        {
+            case 0: m_config.PartyFrames.FrameWidth = value; break;
+            case 1: m_config.PartyFrames.FrameHeight = value; break;
+            case 2: m_config.PartyFrames.Padding = value; break;
+            default: m_config.PartyFrames.Spacing = value; break;
+        }
+    }
+
+    /// <summary>A pixel readout, rebuilt only when the number actually changes.</summary>
+    private string PixelCaption(int slot, float value)
+    {
+        int pixels = (int)MathF.Round(value);
+        if (m_sizeTextFor[slot] != pixels || m_sizeText[slot] is null)
+        {
+            m_sizeTextFor[slot] = pixels;
+            m_sizeText[slot] = pixels.ToString(CultureInfo.InvariantCulture) + " px";
+        }
+
+        return m_sizeText[slot];
+    }
+
+    /// <summary>The arrangement in words, rebuilt only when one of the two controls moves.</summary>
+    private string ArrangementCaption()
+    {
+        int lines = m_config.PartyFrames.Lines;
+        bool vertical = m_config.PartyFrames.Direction == (int)FrameDirection.Vertical;
+        int key = (lines * 2) + (vertical ? 1 : 0);
+
+        if (m_arrangementFor != key || m_arrangementText is null)
+        {
+            m_arrangementFor = key;
+            int perLine = FrameLayout.PerLine(PartySnapshot.Capacity, lines);
+            m_arrangementText = lines <= 1
+                ? vertical ? Strings.ArrangementOneColumn : Strings.ArrangementOneRow
+                : string.Format(
+                    CultureInfo.InvariantCulture,
+                    vertical ? Strings.ArrangementColumns : Strings.ArrangementRows,
+                    lines,
+                    perLine);
+        }
+
+        return m_arrangementText;
+    }
+
     private string OpacityCaption(float opacity)
     {
         int percent = (int)MathF.Round(opacity * 100f);

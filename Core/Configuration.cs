@@ -93,6 +93,12 @@ public sealed class Configuration : IPluginConfiguration
 
         /// <summary>Between two frames. Never mixed with padding.</summary>
         public float Spacing { get; set; } = 4f;
+
+        /// <summary>0 = vertical (the game's own shape), 1 = horizontal.</summary>
+        public int Direction { get; set; }
+
+        /// <summary>How many lines the frames break into: 1, 2 or 4.</summary>
+        public int Lines { get; set; } = 1;
     }
 
     internal static Configuration Load()

@@ -119,4 +119,33 @@ internal static class Strings
     public const string ApplyDisabled = "Nothing ticked that this one has.";
     public const string SelectorAtStart = "Start of the list.";
     public const string SelectorAtEnd = "End of the list.";
+
+    // --- Party frames: layout ------------------------------------------------
+    public const string GroupArrangement = "Arrangement";
+    public const string GroupArrangementHint = "How the frames are laid out.";
+    public const string GroupSize = "Size";
+    public const string GroupSizeHint = "How big each frame is, and how far apart.";
+
+    public const string Direction = "Direction";
+    public const string DirectionVertical = "Vertical";
+    public const string DirectionHorizontal = "Horizontal";
+    public const string Lines = "Lines";
+
+    public const string FrameWidth = "Frame width";
+    public const string FrameHeight = "Frame height";
+    public const string Padding = "Padding";
+    public const string PaddingHint = "inside a frame";
+    public const string Spacing = "Spacing";
+    public const string SpacingHint = "between frames";
+
+    // The arrangement written out, so nobody has to picture it. Filled with the numbers.
+    public const string ArrangementColumns = "{0} columns of {1}";
+    public const string ArrangementRows = "{0} rows of {1}";
+    public const string ArrangementOneColumn = "one column of 8";
+    public const string ArrangementOneRow = "one row of 8";
+
+    // --- Edit mode -----------------------------------------------------------
+    public const string EditModeOn = "Edit Mode is on";
+    public const string EditModeHint = "Shows eight placeholder frames so the layout can be set without a party.";
+    public const string PreviewName = "Placeholder";
 }

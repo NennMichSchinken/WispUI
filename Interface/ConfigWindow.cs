@@ -463,27 +463,40 @@ internal sealed class ConfigWindow : Window
 
         ImGui.SetCursorScreenPos(min);
         ImGui.InvisibleButton(IdEditMode, new Vector2(width, height));
+        bool hovered = ImGui.IsItemHovered();
+        if (ImGui.IsItemClicked())
+        {
+            EditMode.Toggle();
+        }
 
-        // Off until there is a HUD element to move. A disabled control owes a reason.
-        float alpha = Tokens.Col.DisabledAlpha;
+        // While it is on the button carries the accent, the way a switch that is doing
+        // something does. It is the one control here that changes what the world looks like.
+        bool active = EditMode.IsActive;
         Chrome.VerticalFill(
             dl,
             min,
             max,
-            Tokens.Col.Faded(Tokens.Col.Control, alpha),
-            Tokens.Col.Faded(Tokens.Col.Control2, alpha),
+            active ? Tokens.Col.Gold : hovered ? Tokens.Col.ButtonTop : Tokens.Col.Control,
+            active ? Tokens.Col.GoldDim : hovered ? Tokens.Col.ButtonBottom : Tokens.Col.Control2,
             Tokens.Radius.Control);
-        dl.AddRect(min, max, Tokens.Col.Faded(Tokens.Col.ControlEdge, alpha), Tokens.Radius.Control, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
+        dl.AddRect(
+            min,
+            max,
+            active ? Tokens.Col.GoldHi : Tokens.Col.ControlEdge,
+            Tokens.Radius.Control,
+            ImDrawFlags.RoundCornersAll,
+            Tokens.Line(1f));
 
-        float textX = MathF.Round(x + ((width - Ink.Measure(Ink.Role.Body, Strings.EditMode).X) * 0.5f));
+        string label = active ? Strings.EditModeOn : Strings.EditMode;
+        float textX = MathF.Round(x + ((width - Ink.Measure(Ink.Role.Body, label).X) * 0.5f));
         Ink.Draw(
             dl,
             Ink.Role.Body,
             new Vector2(textX, Chrome.CenterY(y, height, Ink.Role.Body)),
-            Tokens.Col.Faded(Tokens.Col.Ink, alpha),
-            Strings.EditMode);
+            active ? Tokens.Col.InkOnGold : Tokens.Col.Ink,
+            label);
 
-        Chrome.TooltipOnHover(Strings.EditModeDisabled);
+        Chrome.TooltipOnHover(Strings.EditModeHint);
     }
 
     private void DrawNewsCard(ImDrawListPtr dl, float x, float y, float width)
@@ -668,6 +681,10 @@ internal sealed class ConfigWindow : Window
             else if (m_screen == Screen.PartyFrames && onBase)
             {
                 m_partyFrames.Draw(inner);
+            }
+            else if (m_screen == Screen.PartyFrames && m_tabIndex[(int)m_screen] == 1)
+            {
+                m_partyFrames.DrawLayout(inner);
             }
             else
             {
