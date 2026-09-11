@@ -555,6 +555,13 @@ internal static class Tokens
         /// <summary>Room kept at the right edge of a slider row for its number.</summary>
         public static float ValueWidth => Px(46f);
 
+        /// <summary>
+        /// The field a slider's number turns into when it is clicked. Shorter than a row, so
+        /// it reads as something that opened inside the row rather than as a control that was
+        /// always standing there.
+        /// </summary>
+        public static float ValueEditHeight => Px(22f);
+
         /// <summary>Air under the last row, so a scrolled screen does not end flush with the edge.</summary>
         public static float ContentPaddingBottom => Px(24f);
 

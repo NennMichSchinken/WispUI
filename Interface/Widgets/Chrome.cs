@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using WispUI.Localization;
@@ -30,6 +31,29 @@ internal static class Chrome
     private static bool s_closePopups;
     private static bool s_rowSplit;
 
+    /// <summary>Fixed ids for the two halves of a slider's number cell, pushed under the row's own id.</summary>
+    private const string IdValueCell = "##value";
+    private const string IdValueField = "##valuefield";
+
+    /// <summary>Long enough for any number a slider in this suite can hold, and no longer.</summary>
+    private const int ValueTextLimit = 8;
+
+    // Which slider's number is being typed into, and what is in the field. Only one can be at
+    // a time, so one set serves them all. This is not settings state — it lives for as long as
+    // the cursor is in the field and no longer.
+    private static string s_editSlider = string.Empty;
+    private static string s_editText = string.Empty;
+    private static bool s_editFocus;
+    private static bool s_editSeen;
+
+    /// <summary>
+    /// True while a slider's number is being typed into. The window reads it to keep escape
+    /// away from itself: the key has to be able to abandon the entry, not close the suite.
+    /// </summary>
+    public static bool IsEditingValue => s_editSlider.Length > 0;
+
+    /// <summary>Abandons an entry in progress. The window calls it when it closes.</summary>
+    public static void CancelValueEdit() => s_editSlider = string.Empty;
 
     /// <summary>
     /// Set for one frame when escape was pressed with a list or panel open. Whoever is drawing
@@ -42,7 +66,20 @@ internal static class Chrome
     public static void RequestClosePopups() => s_closePopups = true;
 
     /// <summary>Called once at the end of the window's frame, after every popup has had its turn.</summary>
-    public static void EndFrame() => s_closePopups = false;
+    public static void EndFrame()
+    {
+        s_closePopups = false;
+
+        // A field whose row was not drawn this frame is a field on a screen nobody is looking
+        // at any more. It is dropped rather than left waiting, the way the undo button had to
+        // be: state that outlives what it belongs to comes back as a ghost later.
+        if (!s_editSeen)
+        {
+            s_editSlider = string.Empty;
+        }
+
+        s_editSeen = false;
+    }
 
     /// <summary>Vertically centres one line of the given role in a box of that height.</summary>
     public static float CenterY(float top, float height, Ink.Role role) =>
@@ -1096,7 +1133,8 @@ internal static class Chrome
         string? hint = null,
         string? tooltip = null,
         bool divider = false,
-        float step = 0f)
+        float step = 0f,
+        float editScale = 0f)
     {
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
 
@@ -1107,8 +1145,12 @@ internal static class Chrome
         float rowWidth = width;
         Row(label, rowX, y, rowWidth, divider, hint);
 
-        float valueX = MathF.Round(rowX + rowWidth - Ink.Measure(Ink.Role.Body, valueText).X);
-        Ink.Draw(dl, Ink.Role.Body, new Vector2(valueX, CenterY(y, RowHeight(), Ink.Role.Body)), Tokens.Col.GoldHi, valueText);
+        bool editing = editScale > 0f && s_editSlider == id;
+        if (!editing)
+        {
+            float valueX = MathF.Round(rowX + rowWidth - Ink.Measure(Ink.Role.Body, valueText).X);
+            Ink.Draw(dl, Ink.Role.Body, new Vector2(valueX, CenterY(y, RowHeight(), Ink.Role.Body)), Tokens.Col.GoldHi, valueText);
+        }
 
         // The track sits in the control column, less the room the value took.
         x = ControlX(rowX, rowWidth);
@@ -1169,7 +1211,144 @@ internal static class Chrome
         Vector2 grabCenter = new(grabCenterX, MathF.Round(trackTop + (trackHeight * 0.5f)));
         MilledKnob(dl, grabCenter, radius, active || hovered ? 0.16f : 0f);
 
+        // Always drawn, even mid-drag: a field that simply vanished when the track was grabbed
+        // would leave the row believing it is still being typed into. A drag in progress still
+        // wins, it just does not get to skip closing the field.
+        if (editScale > 0f)
+        {
+            float typed = ValueCell(
+                dl,
+                id,
+                rowX + rowWidth - valueWidth,
+                boxTop,
+                valueWidth,
+                Ink.Measure(Ink.Role.Body, valueText).X,
+                value,
+                min,
+                max,
+                editScale,
+                editing);
+
+            if (!active && !float.IsNaN(typed) && typed != result)
+            {
+                result = typed;
+                changed = true;
+                released = true;
+            }
+        }
+
         return new SliderResult(result, changed, released, RowHeight());
+    }
+
+    /// <summary>
+    /// The number at the end of a slider row, as something you can click into and type.
+    /// <para>
+    /// A track is only so many pixels long, and a range with more values than that has some
+    /// no mouse position can reach — the step is what makes the reachable ones land on round
+    /// numbers, and this is what reaches the rest. It also answers the plainer case: when you
+    /// already know the number, pointing at it is the long way round.
+    /// </para>
+    /// </summary>
+    /// <param name="scale">
+    /// What the number is in the reader's units: 1 where the value is a pixel count, 100
+    /// where the value is a fraction and the row says a percentage.
+    /// </param>
+    /// <returns>The value that was typed, or <see cref="float.NaN"/> while nothing was.</returns>
+    private static float ValueCell(
+        ImDrawListPtr dl,
+        string id,
+        float x,
+        float y,
+        float width,
+        float textWidth,
+        float value,
+        float min,
+        float max,
+        float scale,
+        bool editing)
+    {
+        float height = RowHeight();
+        float typed = float.NaN;
+        s_editSeen |= editing;
+
+        // Pushed so the cell and its field can use fixed ids: a derived id would have to be
+        // built per frame, and this runs in a draw path like everything else.
+        ImGui.PushID(id);
+
+        if (editing)
+        {
+            if (s_editFocus)
+            {
+                ImGui.SetKeyboardFocusHere();
+                s_editFocus = false;
+            }
+
+            float fieldHeight = Tokens.Metric.ValueEditHeight;
+            float pad = MathF.Round((fieldHeight - Ink.LineHeight(Ink.Role.Body)) * 0.5f);
+
+            ImGui.SetCursorScreenPos(new Vector2(x, MathF.Round(y + ((height - fieldHeight) * 0.5f))));
+            ImGui.SetNextItemWidth(width);
+            ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, Tokens.Radius.Small);
+            ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, Tokens.Line(1f));
+            ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(Tokens.Space.Sm, pad));
+            ImGui.PushStyleColor(ImGuiCol.FrameBg, Tokens.Col.Input);
+            ImGui.PushStyleColor(ImGuiCol.Border, Tokens.Col.ControlEdge);
+            ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.GoldHi);
+            Ink.Push(Ink.Role.Body);
+
+            bool submitted = ImGui.InputText(
+                IdValueField,
+                ref s_editText,
+                ValueTextLimit,
+                ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.CharsDecimal | ImGuiInputTextFlags.AutoSelectAll);
+
+            bool finished = submitted || ImGui.IsItemDeactivated();
+
+            Ink.Pop(Ink.Role.Body);
+            ImGui.PopStyleColor(3);
+            ImGui.PopStyleVar(3);
+
+            // Escape leaves the field with the text it was given, so cancelling simply parses
+            // back to the value that was already there and changes nothing.
+            if (finished)
+            {
+                if (float.TryParse(s_editText, NumberStyles.Float, CultureInfo.InvariantCulture, out float parsed))
+                {
+                    typed = Math.Clamp(parsed / scale, min, max);
+                }
+
+                s_editSlider = string.Empty;
+            }
+        }
+        else
+        {
+            ImGui.SetCursorScreenPos(new Vector2(x, y));
+            ImGui.InvisibleButton(IdValueCell, new Vector2(width, height));
+
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetMouseCursor(ImGuiMouseCursor.TextInput);
+
+                // A hairline under the number, which is the whole invitation it needs: a box
+                // drawn round it would read as a field standing empty beside every slider.
+                float line = MathF.Round(y + ((height + Ink.LineHeight(Ink.Role.Body)) * 0.5f) + Tokens.Space.Xs);
+                Hairline(dl, MathF.Round(x + width - textWidth), x + width, line, Tokens.Col.GoldDim);
+            }
+
+            if (ImGui.IsItemClicked())
+            {
+                s_editSlider = id;
+                s_editText = ((int)MathF.Round(value * scale)).ToString(CultureInfo.InvariantCulture);
+                s_editFocus = true;
+
+                // Counts as seen for this frame as well, or the sweep at the end of it would
+                // drop the entry before it ever drew.
+                s_editSeen = true;
+            }
+        }
+
+        ImGui.PopID();
+        return typed;
     }
 
     /// <summary>

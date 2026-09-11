@@ -116,15 +116,19 @@ internal sealed class ConfigWindow : Window
     public override void OnClose()
     {
         m_clipboard.ForgetUndo();
+        Chrome.CancelValueEdit();
     }
 
     public override void PreDraw()
     {
         // While a list or panel is open, escape belongs to it. Without this the key reaches
         // the window first and shuts the whole suite instead of the popup in front of it.
+        // A number being typed into holds escape for the same reason: the key has to be able
+        // to abandon the entry without taking the window with it.
         bool popupOpen = ImGui.IsPopupOpen(
             string.Empty,
-            ImGuiPopupFlags.AnyPopupId | ImGuiPopupFlags.AnyPopupLevel);
+            ImGuiPopupFlags.AnyPopupId | ImGuiPopupFlags.AnyPopupLevel)
+            || Chrome.IsEditingValue;
 
         this.RespectCloseHotkey = !popupOpen;
         this.HandleEscape(popupOpen);

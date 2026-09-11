@@ -85,6 +85,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     /// <summary>Opacity steps by a percent, which is what the readout beside it says.</summary>
     private const float OpacityStep = 0.01f;
 
+    // What the number at the end of a row means, when it is typed into: a pixel slider holds
+    // the number it shows, opacity holds a fraction of the percentage it shows.
+    private const float PixelEditScale = 1f;
+    private const float OpacityEditScale = 100f;
+
     // The slider readouts are kept per slot, so each one is only rebuilt when its own number
     // moves. The slots are in this order.
     private const int SlotWidth = 0;
@@ -405,7 +410,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             null,
             null,
             true,
-            OpacityStep);
+            OpacityStep,
+            OpacityEditScale);
 
         // Applied while the hand is still on it, like every other slider that changes
         // something already on screen. Opacity is the setting you most want to judge by
@@ -864,7 +870,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             hint,
             null,
             divider,
-            step);
+            step,
+            PixelEditScale);
 
         // Applied while the hand is still on it, not on release: the frames are on screen
         // right now, and a size you only see once you let go is a size you set twice. The
