@@ -1,6 +1,7 @@
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
+using WispUI.Hud.PartyFrames;
 using WispUI.Interface;
 using WispUI.Localization;
 using WispUI.Style;
@@ -18,6 +19,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ConfigWindow m_configWindow;
     private readonly CommandHandler m_commands;
     private readonly InfoBarEntry m_infoBar;
+    private readonly HudManager m_hud = new();
 
     public Plugin(IDalamudPluginInterface pluginInterface)
     {
@@ -35,7 +37,9 @@ public sealed class Plugin : IDalamudPlugin
         m_infoBar.Apply(m_config.ShowInfoBarEntry);
         m_configWindow.InfoBarPreferenceChanged += this.OnInfoBarPreferenceChanged;
 
-        Services.PluginInterface.UiBuilder.Draw += m_windows.Draw;
+        m_hud.Add(new PartyFramesElement(m_config));
+
+        Services.PluginInterface.UiBuilder.Draw += this.OnDraw;
         Services.PluginInterface.UiBuilder.OpenMainUi += m_configWindow.Toggle;
         Services.PluginInterface.UiBuilder.OpenConfigUi += m_configWindow.Toggle;
         Services.Framework.Update += this.OnUpdate;
@@ -47,7 +51,7 @@ public sealed class Plugin : IDalamudPlugin
         m_configWindow.InfoBarPreferenceChanged -= this.OnInfoBarPreferenceChanged;
         Services.PluginInterface.UiBuilder.OpenConfigUi -= m_configWindow.Toggle;
         Services.PluginInterface.UiBuilder.OpenMainUi -= m_configWindow.Toggle;
-        Services.PluginInterface.UiBuilder.Draw -= m_windows.Draw;
+        Services.PluginInterface.UiBuilder.Draw -= this.OnDraw;
 
         m_infoBar.Dispose();
         m_commands.Dispose();
@@ -56,6 +60,22 @@ public sealed class Plugin : IDalamudPlugin
         // A pending change must not be lost just because the plugin is going away.
         m_config.FlushPending();
         Fonts.Dispose();
+    }
+
+    /// <summary>
+    /// One frame of everything WispUI draws. The font locks are taken here rather than inside
+    /// a window, because the HUD writes text too and they must be taken exactly once — twice
+    /// would allocate twice, which is the trap from session 2.
+    /// <para>
+    /// The HUD goes first. It paints into the background draw list, so a settings window is
+    /// never hidden behind the element it configures.
+    /// </para>
+    /// </summary>
+    private void OnDraw()
+    {
+        Ink.BeginFrame();
+        m_hud.Draw();
+        m_windows.Draw();
     }
 
     /// <summary>

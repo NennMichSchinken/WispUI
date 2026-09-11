@@ -157,6 +157,15 @@ internal static class Tokens
         /// Not to be "improved" by eye: a player reads these three before they read a name,
         /// and any drift from the game's own blue, green and red costs exactly that.
         /// </summary>
+        /// <summary>
+        /// A frame in the world. Darker and more opaque than anything in the window: it lies
+        /// over the game, not over a panel of ours, and has to hold its own against whatever
+        /// is behind it.
+        /// </summary>
+        public static readonly uint FrameBg = 0xC8141314u;
+
+        public static readonly uint FrameEdge = 0xC80A0A0Au;
+
         public static readonly uint RoleTank = Rgb(0x006EFF);
 
         public static readonly uint RoleHealer = Rgb(0x6EF54D);

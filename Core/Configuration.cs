@@ -72,6 +72,27 @@ public sealed class Configuration : IPluginConfiguration
 
         /// <summary>Cut a long name down rather than let it run out of the frame.</summary>
         public bool ShortenNames { get; set; }
+
+        // --- layout: never copied between elements, it belongs to this one (CLAUDE.md §5.3) ---
+        // Stated at scale 1.0 and put through the interface scale when drawn, like every other
+        // measurement in the suite. Ranges and defaults come from the spec, §4.
+
+        /// <summary>Where the block of frames starts, from the top left of the screen.</summary>
+        public float PositionX { get; set; } = 100f;
+
+        public float PositionY { get; set; } = 300f;
+
+        /// <summary>90-400. Wide enough for a name and a number at the default.</summary>
+        public float FrameWidth { get; set; } = 168f;
+
+        /// <summary>18-150. The useful range is 30-70; the rest is there for small parties.</summary>
+        public float FrameHeight { get; set; } = 38f;
+
+        /// <summary>Inside a frame, between its edge and what it holds. Never mixed with spacing.</summary>
+        public float Padding { get; set; } = 5f;
+
+        /// <summary>Between two frames. Never mixed with padding.</summary>
+        public float Spacing { get; set; } = 4f;
     }
 
     internal static Configuration Load()

@@ -188,9 +188,6 @@ internal sealed class ConfigWindow : Window
 
     public override void Draw()
     {
-        // Takes this frame's font locks once, so nothing below allocates to write text.
-        Ink.BeginFrame();
-
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
         Vector2 origin = ImGui.GetWindowPos();
         Vector2 size = ImGui.GetWindowSize();
