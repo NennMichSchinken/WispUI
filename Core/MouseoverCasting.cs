@@ -1,6 +1,7 @@
 using System;
 using Dalamud.Hooking;
 using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
 namespace WispUI.Core;
 
@@ -33,6 +34,13 @@ internal sealed unsafe class MouseoverCasting : IDisposable
     /// element that owns the frames, once per frame, and read by the detour in between.
     /// </summary>
     private static ulong s_target;
+
+    /// <summary>
+    /// The same member as a pointer, which is what the game's own "can this be used on them"
+    /// wants. Kept beside the id rather than looked up again: finding an object walks the
+    /// table, and this runs inside the call that uses an action.
+    /// </summary>
+    private static nint s_targetAddress;
 
     private readonly Hook<UseActionDelegate>? m_hook;
 
@@ -73,7 +81,11 @@ internal sealed unsafe class MouseoverCasting : IDisposable
     /// — including the frames where nobody is hovered, because a stale answer here would send
     /// an action to somebody the player stopped pointing at.
     /// </summary>
-    public static void PointAt(ulong gameObjectId) => s_target = gameObjectId;
+    public static void PointAt(ulong gameObjectId, nint address)
+    {
+        s_target = gameObjectId;
+        s_targetAddress = address;
+    }
 
     /// <summary>
     /// Puts the hook in or takes it out to match the setting. Called on the framework tick, so
@@ -95,13 +107,13 @@ internal sealed unsafe class MouseoverCasting : IDisposable
         else
         {
             m_hook.Disable();
-            s_target = 0;
+            PointAt(0ul, 0);
         }
     }
 
     public void Dispose()
     {
-        s_target = 0;
+        PointAt(0ul, 0);
         m_hook?.Dispose();
     }
 
@@ -133,18 +145,25 @@ internal sealed unsafe class MouseoverCasting : IDisposable
     private static ulong Redirect(ActionManager* manager, ActionType actionType, uint actionId, ulong targetId)
     {
         ulong over = s_target;
+        nint address = s_targetAddress;
 
         // Only real actions. Items, mounts, general actions and the rest are either not aimed
         // at anybody or are aimed by something other than a target id.
-        if (over == 0 || over == targetId || actionType != ActionType.Action || manager is null)
+        if (over == 0 || address == 0 || over == targetId || actionType != ActionType.Action || manager is null)
         {
             return targetId;
         }
 
-        // The game's own answer to "could this be used on them". Recast and cast checks are
-        // switched off on purpose: an action queued during a cast or a cooldown is a normal
-        // thing to do, and asking about them here would refuse the redirect and silently send
-        // a weave to the wrong person.
-        return manager->GetActionStatus(actionType, actionId, over, false, false) == 0 ? over : targetId;
+        // 🔴 The game's own answer to the one question that matters: can this action be used
+        // on them. A first attempt asked GetActionStatus with its recast and cast checks
+        // switched off, and that turned out to answer a wider question than target validity —
+        // a damage action came back usable on a party member and the game then refused it as
+        // an invalid target (Florian, 2026-09-12). This asks about the target and nothing else.
+        //
+        // The adjusted id, because that is the action a combo or a job gauge has turned the
+        // pressed one into, and it is the adjusted one the game would have used.
+        return ActionManager.CanUseActionOnTarget(manager->GetAdjustedActionId(actionId), (GameObject*)address)
+            ? over
+            : targetId;
     }
 }

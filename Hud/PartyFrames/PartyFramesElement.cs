@@ -435,9 +435,19 @@ internal sealed class PartyFramesElement : HudElement
                 // frame the mouse is on. The background list is the same one the frames went
                 // into, so appending puts the ring on top of its own frame — and the input
                 // window paints nothing, so there is nothing of it to draw over.
+                // Drawn AROUND the frame, not on it. On it, a three pixel ring sat squarely on
+                // the mana strip, which lives against the bottom inside edge (Florian,
+                // 2026-09-12). Outside, there is nothing of ours for it to cover, whatever the
+                // frame is carrying and wherever the badges were put.
                 if (hovered && cfg.HighlightHovered)
                 {
-                    Ring(dl, m_frameMin[i], m_frameMax[i], Tokens.Metric.FrameHoverRing, Tokens.Col.FrameHover);
+                    float ring = Tokens.Metric.FrameHoverRing;
+                    Ring(
+                        dl,
+                        new Vector2(m_frameMin[i].X - ring, m_frameMin[i].Y - ring),
+                        new Vector2(m_frameMax[i].X + ring, m_frameMax[i].Y + ring),
+                        ring,
+                        Tokens.Col.FrameHover);
                 }
 
                 // The game puts the pointing hand over its own party list, so ours wears it
@@ -471,7 +481,7 @@ internal sealed class PartyFramesElement : HudElement
 
                 // Said whether or not the game is told as well: the two are separate features
                 // and the hook is only in place when the player asked for it.
-                MouseoverCasting.PointAt(target.GameObjectId);
+                MouseoverCasting.PointAt(target.GameObjectId, target.Address);
                 m_pointedAt = true;
 
                 if (cfg.MouseoverTarget)
@@ -525,7 +535,7 @@ internal sealed class PartyFramesElement : HudElement
         if (m_pointedAt)
         {
             m_pointedAt = false;
-            MouseoverCasting.PointAt(0ul);
+            MouseoverCasting.PointAt(0ul, 0);
         }
 
         if (!m_heldMouseOver)
