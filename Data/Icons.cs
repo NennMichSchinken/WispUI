@@ -25,11 +25,10 @@ internal static class Icons
     /// <summary>
     /// The party leader's mark.
     /// <para>
-    /// ⚠️ NOT VERIFIED IN THE GAME. Unlike a job icon there is no rule to derive this from:
-    /// the game's own party list draws the mark from a node of its own
-    /// (<c>AddonPartyList.LeaderMarkResNode</c>), so it is not an id read off a sheet. This is
-    /// the id it is commonly resolved to, and the first look settles whether it is right — if
-    /// the picture is wrong, it is this one number and nothing else.
+    /// Unlike a job icon there is no rule to derive this from — the game's own party list
+    /// draws the mark from a node of its own (<c>AddonPartyList.LeaderMarkResNode</c>), so it
+    /// is not an id read off a sheet. CONFIRMED IN THE GAME against the flag the party list
+    /// shows (Florian, 2026-09-12).
     /// </para>
     /// </summary>
     public const uint PartyLeader = 61521u;

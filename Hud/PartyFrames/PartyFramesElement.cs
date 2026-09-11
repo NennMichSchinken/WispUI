@@ -381,9 +381,9 @@ internal sealed class PartyFramesElement : HudElement
 
         if (cfg.ShowPartyNumber && member.PartyNumber >= 1 && member.PartyNumber <= NumberText.Length)
         {
-            // On a tile, the way the game's own party list draws it. A bare digit over a
-            // health bar is the one piece of text with no shape of its own to be recognised
-            // by, and it read as a stray number rather than as a position (Florian).
+            // In a box, the way the game's own party list puts a position: an outline around
+            // the figure, not a plate under it. A bare digit over a health bar has no shape
+            // of its own to be recognised by and reads as a stray number (Florian).
             string number = NumberText[member.PartyNumber - 1];
             float glyph = Tokens.Px(cfg.PartyNumberSize);
             float plate = MathF.Round(glyph * NumberPlateScale);
@@ -397,12 +397,9 @@ internal sealed class PartyFramesElement : HudElement
             plateAt.X += Tokens.Px(cfg.PartyNumberX);
             plateAt.Y += Tokens.Px(cfg.PartyNumberY);
 
-            dl.AddRectFilled(
-                plateAt,
-                new Vector2(plateAt.X + plate, plateAt.Y + plate),
-                Tokens.Col.NumberPlate,
-                Tokens.Radius.Small,
-                ImDrawFlags.RoundCornersAll);
+            Vector2 plateEnd = new(plateAt.X + plate, plateAt.Y + plate);
+            dl.AddRectFilled(plateAt, plateEnd, Tokens.Col.NumberPlate);
+            dl.AddRect(plateAt, plateEnd, Tokens.Col.NumberEdge, 0f, ImDrawFlags.None, Tokens.Line(1f));
 
             // Centred on the tile rather than anchored to it: a digit is the one text whose
             // width changes with nothing the user did, and it has to stay in the middle.
