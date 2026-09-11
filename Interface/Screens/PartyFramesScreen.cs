@@ -66,8 +66,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const float MaxHeight = 150f;
     private const float MaxSpacing = 24f;
 
-    /// <summary>How far a text may be nudged off its anchor, either way.</summary>
-    private const float MaxOffset = 40f;
+    /// <summary>
+    /// How far a text or an icon may be nudged off its anchor, either way. The number lives
+    /// with the configuration because the element draws within the same reach — one figure,
+    /// not a slider range and a clip that have to be kept in step by hand.
+    /// </summary>
+    private const float MaxOffset = Configuration.MaxTextOffset;
 
     /// <summary>Mana strip thickness, in pixels and nothing else (spec §3).</summary>
     private const float MinManaHeight = 2f;

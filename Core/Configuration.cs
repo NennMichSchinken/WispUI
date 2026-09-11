@@ -47,6 +47,18 @@ public sealed class Configuration : IPluginConfiguration
 
     public const float MaxTextSize = 40f;
 
+    /// <summary>
+    /// How far a name, a figure or an icon may be nudged off its anchor, either way. Far
+    /// enough to leave the frame entirely on every side, because that is a layout people
+    /// build on purpose — the name above the frame with the icons beside it — and not a way
+    /// to get something wrong (Florian, at the first job icon).
+    /// <para>
+    /// It is also the reach an element is drawn within: past this, something has run away
+    /// rather than been placed.
+    /// </para>
+    /// </summary>
+    public const float MaxTextOffset = 60f;
+
     public bool PartyFramesEnabled { get; set; } = true;
 
     public PartyFramesConfig PartyFrames { get; set; } = new();

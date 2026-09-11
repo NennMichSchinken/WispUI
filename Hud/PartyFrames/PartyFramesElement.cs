@@ -53,6 +53,15 @@ internal sealed class PartyFramesElement : HudElement
     private readonly uint[] m_shownHealthFor = new uint[PartySnapshot.Capacity];
 
     /// <summary>
+    /// Each frame's inside, worked out in the first pass and read back in the second. The
+    /// two passes exist so a name or an icon can sit outside its own frame without the next
+    /// frame's ground being painted over it.
+    /// </summary>
+    private readonly Vector2[] m_innerMin = new Vector2[PartySnapshot.Capacity];
+    private readonly Vector2[] m_innerMax = new Vector2[PartySnapshot.Capacity];
+    private readonly bool[] m_hasInside = new bool[PartySnapshot.Capacity];
+
+    /// <summary>
     /// The job icon per slot, resolved while collecting and only painted while drawing.
     /// Looking a texture up is asking Dalamud a question, and the draw path asks nothing.
     /// </summary>
@@ -145,10 +154,14 @@ internal sealed class PartyFramesElement : HudElement
             // A frame smaller than its own edge has no inside to draw into. It cannot happen
             // at the sizes the sliders offer, and one branch is cheaper than handing a draw
             // list a backwards rectangle.
-            if (innerMax.X <= innerMin.X || innerMax.Y <= innerMin.Y)
+            m_hasInside[i] = innerMax.X > innerMin.X && innerMax.Y > innerMin.Y;
+            if (!m_hasInside[i])
             {
                 continue;
             }
+
+            m_innerMin[i] = innerMin;
+            m_innerMax[i] = innerMax;
 
             dl.AddRectFilled(min, max, Tokens.Col.FrameBg);
 
@@ -212,11 +225,33 @@ internal sealed class PartyFramesElement : HudElement
 
             dl.AddRect(min, max, Tokens.Col.FrameEdge, 0f, ImDrawFlags.None, border);
 
-            // Icon and text last and clipped to the frame, so a long name runs out of room
-            // rather than out of the frame and across whatever is beside it. The icon goes
-            // down first: where the two are set to overlap, the name is the one you have to
-            // be able to read.
-            dl.PushClipRect(innerMin, innerMax, true);
+        }
+
+        // The second pass. A name or an icon may be placed outside its own frame — above it,
+        // beside it — and that is a layout people build on purpose, not a mistake to guard
+        // against. Drawn in the same loop as the bars, anything hanging below a frame would
+        // be painted over by the next frame's ground a moment later.
+        float reach = Tokens.Px(Configuration.MaxTextOffset);
+
+        for (int i = 0; i < count; i++)
+        {
+            if (!m_hasInside[i])
+            {
+                continue;
+            }
+
+            ref PartyMemberSnapshot member = ref members[i];
+            Vector2 innerMin = m_innerMin[i];
+            Vector2 innerMax = m_innerMax[i];
+
+            // Clipped to the frame grown by the whole reach of the offset sliders: everything
+            // that can be placed is drawn in full, and a name too long for even that is cut
+            // rather than run across the screen. The icon goes down first — where the two are
+            // set to overlap, the name is the one that has to stay readable.
+            dl.PushClipRect(
+                new Vector2(innerMin.X - reach, innerMin.Y - reach),
+                new Vector2(innerMax.X + reach, innerMax.Y + reach),
+                true);
             this.DrawJobIcon(dl, cfg, i, ref member, innerMin, innerMax);
             this.DrawTexts(dl, cfg, textMode, i, ref member, innerMin, innerMax);
             dl.PopClipRect();
