@@ -486,9 +486,11 @@ internal static class Chrome
         bool enabled = true,
         bool divider = false)
     {
-        // One step of the ladder, not the height of the control in it: the label and the tick
-        // are centred in the step, and the whole step is the hit box.
+        // The whole step is the hit box, but the ink sits in a band at the TOP of it, on the
+        // same line a field label would take. That is what lets an option row and a field row
+        // stand side by side across two columns and read as one row.
         float height = RowPitch();
+        float band = OptionRowHeight();
 
         ImGui.SetCursorScreenPos(new Vector2(x, y));
         ImGui.InvisibleButton(id, new Vector2(width, height));
@@ -501,7 +503,7 @@ internal static class Chrome
         Ink.Draw(
             dl,
             Ink.Role.Body,
-            new Vector2(x, CenterY(y, height, Ink.Role.Body)),
+            new Vector2(x, CenterY(y, band, Ink.Role.Body)),
             Tokens.Col.Faded(hovered ? Tokens.Col.Ink : Tokens.Col.InkDim, alpha),
             label);
 
@@ -511,7 +513,7 @@ internal static class Chrome
             PaintSwitch(
                 dl,
                 MathF.Round(x + width - switchWidth),
-                MathF.Round(y + ((height - Tokens.Metric.SwitchHeight) * 0.5f)),
+                MathF.Round(y + ((band - Tokens.Metric.SwitchHeight) * 0.5f)),
                 value,
                 alpha);
         }
@@ -520,7 +522,7 @@ internal static class Chrome
             float box = Tokens.Metric.CheckBox;
             PaintTick(
                 dl,
-                new Vector2(MathF.Round(x + width - box), MathF.Round(y + ((height - box) * 0.5f))),
+                new Vector2(MathF.Round(x + width - box), MathF.Round(y + ((band - box) * 0.5f))),
                 value,
                 hovered,
                 alpha);
@@ -809,6 +811,14 @@ internal static class Chrome
     /// </para>
     /// </summary>
     public static float RowPitch() => FieldRowHeight() + Tokens.Space.Md;
+
+    /// <summary>
+    /// The ink of a compact option row: one line of text with the tick or switch on it. Taken
+    /// from the text rather than from the control, so an option's label and a field's label
+    /// sit on exactly the same line — the control is centred on that line, not the other way
+    /// round. It is what a group is tall when the last thing in it is an option row.
+    /// </summary>
+    public static float OptionRowHeight() => Ink.LineHeight(Ink.Role.Body);
 
     /// <summary>
     /// Opens a row of groups. Called before the first <see cref="BeginGroup"/> of the row,

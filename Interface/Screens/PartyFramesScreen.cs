@@ -177,26 +177,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             y,
             width);
 
-        // Compact options on top, field rows beneath. Every row takes one step of the ladder,
-        // whatever sits in it — that is what keeps this column level with the one beside it,
-        // however many options either of them happens to hold.
+        // Field cells first, the compact options after them. Every row takes one step of the
+        // ladder whatever sits in it, which is what keeps this column level with the one
+        // beside it; putting the fields first means the first label sits right under the head
+        // rule instead of a tick floating in the middle of the step below it.
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
-        if (Chrome.OptionRow(
-                IdSmooth,
-                Strings.SmoothBars,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.SmoothBars,
-                Chrome.OptionControl.Tick,
-                Strings.SmoothBarsTooltip))
-        {
-            m_config.PartyFrames.SmoothBars = !m_config.PartyFrames.SmoothBars;
-            m_config.MarkDirty();
-        }
-
-        rowY += pitch;
 
         float drop = Chrome.FieldLabel(Strings.BarStyle, group.ContentX, rowY, group.ContentWidth);
         int style = m_config.PartyFrames.BarStyle;
@@ -243,9 +229,29 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
+        rowY += pitch;
+
+        // The run of compact options closes the group. It carries a divider on its top edge:
+        // that line is where the fields end and the switches begin.
+        if (Chrome.OptionRow(
+                IdSmooth,
+                Strings.SmoothBars,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.SmoothBars,
+                Chrome.OptionControl.Tick,
+                Strings.SmoothBarsTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.SmoothBars = !m_config.PartyFrames.SmoothBars;
+            m_config.MarkDirty();
+        }
+
         // The content ends at the last row's own height, not at the end of its step: the step
         // exists so the NEXT row starts level, and there is no next row here.
-        float used = rowY - group.ContentY + result.Height;
+        float used = rowY - group.ContentY + Chrome.OptionRowHeight();
         Chrome.EndGroupContent(group, used);
         contentHeight = used;
         return group;
@@ -276,10 +282,22 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        // The run of compact options first. The first one carries no divider — its top line
-        // is the group's own head rule.
+        // The field cell first, the run of compact options under it — the same order every
+        // group uses, which is what puts row two of this column level with row two of its
+        // neighbour whether either of them holds a dropdown or a tick.
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
+
+        float drop = Chrome.FieldLabel(Strings.NamePosition, group.ContentX, rowY, group.ContentWidth);
+        int position = m_config.PartyFrames.NamePosition;
+        if (m_namePosition.Draw(ref position, group.ContentX, rowY + drop, group.ContentWidth))
+        {
+            m_config.PartyFrames.NamePosition = position;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+
         if (Chrome.OptionRow(
                 IdNameJobColour,
                 Strings.NameInJobColour,
@@ -287,7 +305,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 rowY,
                 group.ContentWidth,
                 m_config.PartyFrames.NameInJobColour,
-                Chrome.OptionControl.Switch))
+                Chrome.OptionControl.Switch,
+                null,
+                true,
+                true))
         {
             m_config.PartyFrames.NameInJobColour = !m_config.PartyFrames.NameInJobColour;
             m_config.MarkDirty();
@@ -311,17 +332,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        rowY += pitch;
-
-        float drop = Chrome.FieldLabel(Strings.NamePosition, group.ContentX, rowY, group.ContentWidth);
-        int position = m_config.PartyFrames.NamePosition;
-        if (m_namePosition.Draw(ref position, group.ContentX, rowY + drop, group.ContentWidth))
-        {
-            m_config.PartyFrames.NamePosition = position;
-            m_config.MarkDirty();
-        }
-
-        float used = rowY - group.ContentY + Chrome.FieldRowHeight();
+        float used = rowY - group.ContentY + Chrome.OptionRowHeight();
         Chrome.EndGroupContent(group, used);
         contentHeight = used;
         return group;

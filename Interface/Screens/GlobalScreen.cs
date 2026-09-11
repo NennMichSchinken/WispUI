@@ -142,9 +142,9 @@ internal sealed class GlobalScreen
             this.InfoBarPreferenceChanged?.Invoke();
         }
 
-        // One option row, so the group is one step of the ladder tall — the row centres its
-        // label and tick in that step.
-        contentHeight = Chrome.RowPitch();
+        // One option row, and it is the last thing in the group: the group is as tall as that
+        // row's ink, not as tall as the step it stands in.
+        contentHeight = Chrome.OptionRowHeight();
         Chrome.EndGroupContent(group, contentHeight);
         return group;
     }
