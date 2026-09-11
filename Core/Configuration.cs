@@ -32,7 +32,47 @@ public sealed class Configuration : IPluginConfiguration
     public bool ShowInfoBarEntry { get; set; } = true;
 
     // --- Modules ------------------------------------------------------------
+
+    /// <summary>The quietest a health bar may be drawn. Below this it stops being readable.</summary>
+    public const float MinBarOpacity = 0.2f;
+
     public bool PartyFramesEnabled { get; set; } = true;
+
+    public PartyFramesConfig PartyFrames { get; set; } = new();
+
+    /// <summary>
+    /// The party frames' own settings. Split the way the whole suite is split: what you see
+    /// here is appearance, which the clipboard can carry between elements — size, position
+    /// and growth direction will live beside it and are never copied.
+    /// </summary>
+    [Serializable]
+    public sealed class PartyFramesConfig
+    {
+        /// <summary>Index into the bar style list.</summary>
+        public int BarStyle { get; set; }
+
+        /// <summary>Index into the colour modes: by role, by job, or a fixed colour.</summary>
+        public int ColourMode { get; set; }
+
+        public float BarOpacity { get; set; } = 1f;
+
+        /// <summary>
+        /// Health slides to its new value instead of jumping. Off by default: movement is
+        /// information, and a bar that is still catching up is lying about the current state.
+        /// </summary>
+        public bool SmoothBars { get; set; }
+
+        /// <summary>Draw the player name on the frame at all — the switch in the group head.</summary>
+        public bool ShowName { get; set; } = true;
+
+        /// <summary>Index into the name positions.</summary>
+        public int NamePosition { get; set; }
+
+        public bool NameInJobColour { get; set; }
+
+        /// <summary>Cut a long name down rather than let it run out of the frame.</summary>
+        public bool ShortenNames { get; set; }
+    }
 
     internal static Configuration Load()
     {

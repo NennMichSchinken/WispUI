@@ -57,13 +57,34 @@ internal static class Tokens
         // Kept as separate tokens on purpose. They happen to be equal today; giving a region
         // its own shade later is then a one-line change here rather than a change in the code.
         public static readonly uint Panel = Rgb(0x232223);
-        public static readonly uint PanelSoft = Rgb(0x232223);
         public static readonly uint Rail = Rgb(0x232223);
         public static readonly uint TitleBar = Rgb(0x232223);
+
+        /// <summary>
+        /// A settings group sits one small step above the window (derived, +5 on the measured
+        /// surface). The game itself separates with lines only, and the frame still does the
+        /// work; this is just enough lift that a group reads as an object on the panel rather
+        /// than as an outline drawn onto it. LumenUI takes a larger step (+9) — deliberately
+        /// not copied, because there the panel is near-black and has the room for it.
+        /// </summary>
+        public static readonly uint GroupBg = Rgb(0x282728);
 
         // Structure comes from these, since the surfaces no longer carry it.
         public static readonly uint EdgeDim = Rgb(0x4A474A);
         public static readonly uint Hairline = Rgb(0x3A383A);
+
+        /// <summary>
+        /// Between two compact options inside a group. Fainter than <see cref="Hairline"/> on
+        /// purpose: at the same strength it would compete with the group frame, and a line
+        /// inside an object must never read as loud as the line around it.
+        /// <para>
+        /// Lifted twice (0x2E2C2E, then 0x343234): a divider that only just clears the surface
+        /// is gone on a bright screen, and a line nobody can see is not a quiet line, it is a
+        /// missing one. The second lift came with the group's own lighter surface, which ate
+        /// most of the first one — the step is over the GROUP colour now, not the panel's.
+        /// </para>
+        /// </summary>
+        public static readonly uint RowDivider = Rgb(0x383638);
 
         // --- controls (derived: the old values neutralised onto the measured hue) ---
         public static readonly uint Control = Rgb(0x3A383A);
@@ -72,6 +93,36 @@ internal static class Tokens
         public static readonly uint ButtonTop = Rgb(0x464346);
         public static readonly uint ButtonBottom = Rgb(0x353335);
         public static readonly uint Input = Rgb(0x1B1A1B);
+
+        // --- floating layers (derived) ---
+
+        /// <summary>
+        /// A popup list or panel. Darker than the surface it covers rather than lighter: a
+        /// floating layer that sits at the same brightness as the window disappears into it,
+        /// and the window has no shadow to fall back on.
+        /// </summary>
+        public static readonly uint PopupBg = Rgb(0x171617);
+
+        /// <summary>
+        /// The edge of a floating layer. Brighter than the hairlines inside the window on
+        /// purpose — it is the one line that says where the layer ends.
+        /// </summary>
+        public static readonly uint PopupEdge = Rgb(0x6B676B);
+
+        /// <summary>
+        /// A box you type into, when what is behind it is already dark — the search field in
+        /// a popup list.
+        /// <para>
+        /// It is LIGHTER than its surroundings, which is the opposite of <see cref="Input"/>,
+        /// and that is the point. LumenUI's rule, arrived at the hard way: what has to stay
+        /// constant is the STEP over a field's own background, not the colour — perceived lift
+        /// is relative, so one absolute value cannot work across surfaces that span from
+        /// #171617 to #232223. Aim for +8 to +11. Our search box was <see cref="Input"/> at
+        /// #1B1A1B inside a #171617 popup: a step of four, which is nearly nothing, and
+        /// exactly the case Lumen ran into when a menu and the box in it shared a value.
+        /// </para>
+        /// </summary>
+        public static readonly uint FieldOnDark = Rgb(0x222122);
 
         // --- nav (derived) ---
         public static readonly uint NavHover = Rgb(0x2A282A);
@@ -100,6 +151,16 @@ internal static class Tokens
         public static readonly uint GoldHi = Rgb(0xEFD58F);
         public static readonly uint GoldDim = Rgb(0x8D7539);
         public static readonly uint GoldSwitchTrack = Rgb(0x4B421F);
+
+        /// <summary>
+        /// The three roles, MEASURED off the game's own role markers (Florian, 2026-09-11).
+        /// Not to be "improved" by eye: a player reads these three before they read a name,
+        /// and any drift from the game's own blue, green and red costs exactly that.
+        /// </summary>
+        public static readonly uint RoleTank = Rgb(0x006EFF);
+
+        public static readonly uint RoleHealer = Rgb(0x6EF54D);
+        public static readonly uint RoleDps = Rgb(0xFF6C6C);
 
         /// <summary>
         /// The window edge, MEASURED pixel by pixel off the game's own frame: four rings,
@@ -143,8 +204,17 @@ internal static class Tokens
 
         public static readonly uint SliderFill = Rgb(0x7FA84A);
         public static readonly uint SliderFillHi = Rgb(0x9DC85F);
-        public static readonly uint SliderGrab = Rgb(0xE4E7EA);
-        public static readonly uint SliderGrabHover = Rgb(0xFFFFFF);
+        /// <summary>
+        /// The knob, as a spun metal disc rather than a flat white dot: ground in circles, so
+        /// the sheen wanders around the face and converges in the middle. The two tones are
+        /// the light and dark of that grind — derived; the finish itself is what the game's
+        /// own knob shows under magnification.
+        /// </summary>
+        public static readonly uint SliderGrab = Rgb(0xE6E4DE);
+
+        public static readonly uint SliderGrabMill = Rgb(0x9B9891);
+        public static readonly uint SliderGrabCore = Rgb(0xBDBAB3);
+        public static readonly uint SliderGrabEdge = Rgb(0x2B2927);
 
         // --- scrollbar ---
         public static readonly uint ScrollTrack = Rgb(0x1B1A1B);
@@ -157,6 +227,24 @@ internal static class Tokens
         public static uint Faded(uint colour, float alpha) =>
             (colour & 0x00FFFFFFu) | ((uint)MathF.Round(Math.Clamp(alpha, 0f, 1f) * 255f) << 24);
 
+        /// <summary>
+        /// Blends two packed colours channel by channel. Used where one run of the window edge
+        /// hands over to the next: at a hard swap the corner shows a seam, and the eye finds a
+        /// seam on a curve faster than anywhere else.
+        /// </summary>
+        public static uint Mix(uint from, uint to, float t)
+        {
+            t = Math.Clamp(t, 0f, 1f);
+            uint result = 0u;
+            for (int shift = 0; shift < 32; shift += 8)
+            {
+                float a = (from >> shift) & 0xFFu;
+                float b = (to >> shift) & 0xFFu;
+                result |= (uint)MathF.Round(a + ((b - a) * t)) << shift;
+            }
+
+            return result;
+        }
     }
 
     /// <summary>The spacing ladder. No free in-between values.</summary>
@@ -169,17 +257,45 @@ internal static class Tokens
         public static float Xl => Px(16f);
     }
 
-    /// <summary>A small, fixed set of radii — not invented per widget.</summary>
+    /// <summary>
+    /// A small, fixed set of radii — not invented per widget. They step down from the outside
+    /// in, so each shell is a little rounder than what sits inside it.
+    /// </summary>
     public static class Radius
     {
         /// <summary>
-        /// Square. The game's frame is four rings of measured pixels with a different sequence
-        /// per edge, and that cannot be bent around a corner — nor does the game bend it.
+        /// The window edge. The four measured rings ARE bendable: each ring is stroked as a
+        /// path whose top and bottom carry their own corner arcs, so the measured colour
+        /// sequence survives and the corner takes the colour of the horizontal edge — the same
+        /// approximation the square version already made.
+        /// <para>
+        /// The honest cost is antialiasing: a straight line lands on whole pixels, an arc does
+        /// not, so four one-pixel rings blur into each other along the curve. FFXIV's own
+        /// corners read darker for exactly that reason (Florian, 2026-09-11), which is why
+        /// this is the game's look rather than a defect of ours.
+        /// </para>
         /// </summary>
-        public static float Window => 0f;
+        public static float Window => Px(8f);
 
-        public static float Control => Px(3f);
-        public static float Small => Px(2f);
+        /// <summary>What is left of the window radius once the frame has taken its four pixels.</summary>
+        public static float WindowInner => MathF.Max(0f, Window - Metric.WindowBorder);
+
+        /// <summary>The frame around a settings group — between the window and a control.</summary>
+        public static float Group => Px(6f);
+
+        /// <summary>
+        /// Control faces: buttons, tabs, the selector, a popup.
+        /// <para>
+        /// Raised from 3. LumenUI's tested ladder runs chrome : card : control at
+        /// 1 : 0.78 : 0.61, and it got there by bumping the control radius up twice, because
+        /// a square-ish face inside a rounded shell reads as a part from another kit. Ours sat
+        /// at 0.375 of the window radius; five puts it at 0.63.
+        /// </para>
+        /// </summary>
+        public static float Control => Px(5f);
+
+        /// <summary>Tick boxes, badges, the bar preview. Same step below Control that Lumen uses.</summary>
+        public static float Small => Px(3f);
     }
 
     /// <summary>
@@ -224,8 +340,13 @@ internal static class Tokens
     /// <summary>Window and chrome measurements, all stated at scale 1.0.</summary>
     public static class Metric
     {
-        public static float WindowWidth => Px(920f);
-        public static float WindowHeight => Px(640f);
+        /// <summary>
+        /// Wider than it was (920, then 1020) because the rows are single-line now: a label and
+        /// a control share one row. At 1020 the selector clipped its own name to "Gradie" —
+        /// in-game, 2026-09-11 — so both the window and the control column grew again.
+        /// </summary>
+        public static float WindowWidth => Px(1080f);
+        public static float WindowHeight => Px(700f);
 
         /// <summary>The window edge: four rings, as measured off the game's own frame.</summary>
         public static float WindowBorder => Line(4f);
@@ -237,6 +358,14 @@ internal static class Tokens
         public static float TitleRuleFade => Px(28f);
 
         public static float TitleBarHeight => Px(42f);
+
+        /// <summary>
+        /// How far down the lit top edge of the title bar reaches before it has arrived at the
+        /// surface colour. The game lights the very top and is back to its background well
+        /// before the title text; a wash across the whole bar reads as a panel of its own.
+        /// </summary>
+        public static float TitleBarFade => Px(14f);
+
         public static float TitleButton => Px(20f);
 
         public static float NavWidth => Px(205f);
@@ -264,7 +393,72 @@ internal static class Tokens
 
         public static float SliderHeight => Px(20f);
         public static float SliderTrack => Px(6f);
-        public static float SliderGrabRadius => Px(8f);
+        public static float SliderGrabRadius => Px(7f);
+
+        // --- the arrow selector, the one selection widget in the suite ---
+
+        /// <summary>
+        /// The box every wide control sits in: selector, slider, and whatever comes after
+        /// them. A control shorter than this — a slider track is — is centred inside it rather
+        /// than sitting at the top.
+        /// <para>
+        /// This is what keeps two columns in step. With each control setting its own height,
+        /// the rows under the first one drift apart the moment a slider stands beside a
+        /// selector; with one box, every field row is the same height and the labels beneath
+        /// keep meeting across the grid.
+        /// </para>
+        /// <para>
+        /// 28: 16 px of text with five pixels of air above and below and a pixel of border.
+        /// One less than a button on purpose — the two never stand side by side, buttons live
+        /// in the screen header — and this way the inner spacing is symmetrical, which a
+        /// bitmap face shows.
+        /// </para>
+        /// </summary>
+        public static float FieldControlHeight => Px(28f);
+
+        /// <summary>
+        /// The width of one arrow. Wide enough to hit while clicking quickly: the whole
+        /// button is the target, not the triangle drawn on it.
+        /// </summary>
+        public static float SelectorArrow => Px(26f);
+
+        public static float SelectorPaddingX => Px(8f);
+
+        /// <summary>
+        /// The live preview inside the face. With textures this preview, not the name, is
+        /// the actual point of the interaction.
+        /// </summary>
+        public static Vector2 SelectorSwatch => Px(60f, 13f);
+
+        /// <summary>The triangle drawn on an arrow button.</summary>
+        public static float SelectorGlyph => Px(7f);
+
+        /// <summary>The fold-away triangle in a group head.</summary>
+        public static float CollapseGlyph => Px(12f);
+
+        // --- the popup list an arrow selector can open ---
+        public static float PopupGap => Px(3f);
+        public static float PopupPadding => Px(6f);
+        /// <summary>
+        /// A row of the popup list. Raised from 24: LumenUI went 30 → 35 → 40 screen px on
+        /// its own list rows because cramped ones were rejected twice, and 24 sat below even
+        /// the first value it threw out. 28 leaves six pixels of air around a 16 px line.
+        /// </summary>
+        public static float PopupRowHeight => Px(28f);
+        public static float PopupSearchHeight => Px(26f);
+
+        /// <summary>How many rows the list shows before it starts to scroll.</summary>
+        public const int PopupRows = 7;
+
+        /// <summary>The swatch in a popup row, smaller than the one in the face.</summary>
+        public static Vector2 PopupSwatch => Px(44f, 11f);
+
+        // --- the appearance clipboard ---
+        public static float PastePanelWidth => Px(268f);
+        public static float PastePanelPadding => Px(10f);
+
+        /// <summary>One tick box in the paste panel to the next.</summary>
+        public static float FieldGap => Px(9f);
 
 
         /// <summary>
@@ -279,22 +473,58 @@ internal static class Tokens
         /// </summary>
         public const int Columns = 2;
 
-        public static float ColumnGutter => Px(28f);
+        /// <summary>
+        /// Between the two columns, and between one group and the one under it — the same
+        /// value in both directions, because a grid of framed boxes shows an uneven gap at
+        /// once. It came down from 28 when groups arrived: bare controls side by side needed
+        /// the air, framed ones already have their own edge.
+        /// </summary>
+        public static float ColumnGutter => Px(16f);
+
+        // --- settings groups ---
+        // A group is the hairline in a second shape: as a stroke it separates, as a frame it
+        // gathers. That keeps the window at two kinds of divider rather than gaining a third,
+        // and it needs no surface colour of its own — which the measured palette does not have.
+
+        /// <summary>
+        /// Inside the group frame, on every side. Raised from 12 to match the proportion
+        /// LumenUI arrived at after testing: its card padding is 24 screen px against a 41 px
+        /// control, ours is 16 against 28 — the same ratio, at our density.
+        /// </summary>
+        public static float GroupPadding => Px(16f);
+
+        /// <summary>The group head to the rule under it.</summary>
+        public static float GroupHeadGap => Px(12f);
+
+        /// <summary>The rule to the first row.</summary>
+        /// <summary>
+        /// Head rule to the first row.
+        /// </summary>
+        public static float GroupRuleGap => Px(16f);
 
         // --- the vertical rhythm of a settings screen ---
-        // Four values, and every block advances by its own MEASURED height plus one of them.
-        // The head gap is the larger one on purpose: a section head is set off from its
-        // controls by space rather than by a line, because the window has exactly two kinds of
-        // divider and neither of them belongs there.
+        // Two values now — everything between rows is the ladder. The head gap stays its own
+        // number: a section head is set off from its controls by space rather than by a line,
+        // because the window has exactly two kinds of divider and neither belongs there.
 
         /// <summary>Section head to its first row.</summary>
         public static float SectionHeadGap => Px(20f);
 
-        /// <summary>One row of controls to the next.</summary>
+        /// <summary>
+        /// Between two rows. One value for every kind of row, because every row is now built
+        /// the same way: label left, control right, one height.
+        /// </summary>
         public static float RowGap => Px(16f);
 
-        /// <summary>Last row to the rule, and the rule on to the next head.</summary>
-        public static float SectionGap => Px(20f);
+        /// <summary>
+        /// The control column at the right of every row — the same width whatever stands in it,
+        /// so controls line up down a group AND across the two columns. Sized off the widest
+        /// thing we have: the arrow selector with its preview and counter.
+        /// </summary>
+        public static float ControlWidth => Px(230f);
+
+        /// <summary>Room kept at the right edge of a slider row for its number.</summary>
+        public static float ValueWidth => Px(46f);
 
         /// <summary>Air under the last row, so a scrolled screen does not end flush with the edge.</summary>
         public static float ContentPaddingBottom => Px(24f);

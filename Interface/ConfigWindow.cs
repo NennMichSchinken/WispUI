@@ -2,7 +2,9 @@ using System;
 using System.Numerics;
 using System.Reflection;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Game.ClientState.Keys;
 using Dalamud.Interface.Windowing;
+using WispUI.Appearance;
 using WispUI.Core;
 using WispUI.Interface.Screens;
 using WispUI.Interface.Widgets;
@@ -29,8 +31,6 @@ internal sealed class ConfigWindow : Window
     private const string IdNews = "##wisp-news";
     private const string IdEditMode = "##wisp-editmode";
     private const string IdModuleSwitch = "##wisp-module-switch";
-    private const string IdCopy = "##wisp-copy";
-    private const string IdPaste = "##wisp-paste";
     private const string IdDefaults = "##wisp-defaults";
 
     private const uint Transparent = 0x00000000u;
@@ -59,6 +59,16 @@ internal sealed class ConfigWindow : Window
 
     private readonly Configuration m_config;
     private readonly GlobalScreen m_global;
+    private readonly PartyFramesScreen m_partyFrames;
+
+    /// <summary>
+    /// One buffer for the whole suite, and one strip that offers it. Both are built here and
+    /// handed to whichever module is on screen — the clipboard belongs to the suite, the
+    /// appearance it holds belongs to an element.
+    /// </summary>
+    private readonly AppearanceClipboard m_clipboard = new();
+
+    private readonly AppearanceBar m_appearance;
 
     /// <summary>Built once — the version never changes while the plugin is loaded.</summary>
     private readonly string m_versionChip;
@@ -68,7 +78,6 @@ internal sealed class ConfigWindow : Window
     private readonly int[] m_tabIndex = new int[Enum.GetValues<Screen>().Length];
 
     private Screen m_screen = Screen.PartyFrames;
-
 
     public ConfigWindow(Configuration config)
         : base(
@@ -82,6 +91,8 @@ internal sealed class ConfigWindow : Window
         m_config = config;
         m_global = new GlobalScreen(config);
         m_global.InfoBarPreferenceChanged += () => this.InfoBarPreferenceChanged?.Invoke();
+        m_partyFrames = new PartyFramesScreen(config);
+        m_appearance = new AppearanceBar(m_clipboard);
 
         string version = ReadVersion();
         m_versionChip = Strings.PluginName + " " + version;
@@ -98,8 +109,26 @@ internal sealed class ConfigWindow : Window
     /// <summary>Raised when the user turns the server info bar entry on or off.</summary>
     public event Action? InfoBarPreferenceChanged;
 
+    /// <summary>
+    /// Closing the window puts the appearance clipboard's step back out of reach. Undo is
+    /// meant for the moment right after a paste, not for whenever you happen to look again.
+    /// </summary>
+    public override void OnClose()
+    {
+        m_clipboard.ForgetUndo();
+    }
+
     public override void PreDraw()
     {
+        // While a list or panel is open, escape belongs to it. Without this the key reaches
+        // the window first and shuts the whole suite instead of the popup in front of it.
+        bool popupOpen = ImGui.IsPopupOpen(
+            string.Empty,
+            ImGuiPopupFlags.AnyPopupId | ImGuiPopupFlags.AnyPopupLevel);
+
+        this.RespectCloseHotkey = !popupOpen;
+        this.HandleEscape(popupOpen);
+
         // The window has a fixed size and is not resizable by hand: dragging an ImGui corner
         // is fiddly, and a settings window that can be pulled to any width never looks right.
         // Its size follows the interface scale in Global, so it is re-applied every frame.
@@ -122,8 +151,39 @@ internal sealed class ConfigWindow : Window
 
     public override void PostDraw()
     {
+        Chrome.EndFrame();
         ImGui.PopStyleColor(4);
         ImGui.PopStyleVar(3);
+    }
+
+    /// <summary>
+    /// Escape closes the open list or panel, and nothing else.
+    /// <para>
+    /// The game does not get the key through a window message; it reads its own key buffer,
+    /// which is why the system menu came up behind the popup no matter what the window did
+    /// about the close hotkey. So the key is taken out of that buffer for as long as a popup
+    /// is open — while one is up it belongs to the popup — and the popup itself is asked to
+    /// close, because only a popup's own body may call ImGui's close.
+    /// </para>
+    /// </summary>
+    private void HandleEscape(bool popupOpen)
+    {
+        if (!popupOpen)
+        {
+            return;
+        }
+
+        // Read from ImGui rather than from the game's key buffer: while a search box has the
+        // keyboard, Dalamud keeps the key away from the game, so the buffer never shows the
+        // press at all and the popup sat there until a second one. ImGui sees every press,
+        // and asking it also means the field and the popup both go on the same one.
+        if (ImGui.IsKeyPressed(ImGuiKey.Escape, false))
+        {
+            Chrome.RequestClosePopups();
+        }
+
+        // Taken out of the game's buffer anyway, for the presses it does see.
+        Services.KeyState[VirtualKey.ESCAPE] = false;
     }
 
     public override void Draw()
@@ -146,8 +206,14 @@ internal sealed class ConfigWindow : Window
 
         // Painted over the whole window, frame inset included. If it stopped at the inset,
         // the pixels the frame normally covers would show through whenever the window loses
-        // focus and the frame is not drawn.
-        dl.AddRectFilled(origin, new Vector2(origin.X + size.X, origin.Y + size.Y), Tokens.Col.Panel);
+        // focus and the frame is not drawn. Rounded to the same radius as the frame: every
+        // surface inside has to stop at the curve, or the corner fills itself back in.
+        dl.AddRectFilled(
+            origin,
+            new Vector2(origin.X + size.X, origin.Y + size.Y),
+            Tokens.Col.Panel,
+            Tokens.Radius.Window,
+            ImDrawFlags.RoundCornersAll);
 
         this.DrawTitleBar(dl, origin.X, origin.X + size.X, origin.Y, top, titleHeight);
         this.DrawNav(dl, left, bodyTop, bottom);
@@ -173,30 +239,108 @@ internal sealed class ConfigWindow : Window
     /// bottom. Drawn only while the window has focus — the game drops its frames when a
     /// window goes to the back.
     /// <para>
-    /// The top and bottom rings run the full width and the side rings fill in between them,
-    /// so each corner takes the colour of the horizontal edge. That is a simplification: the
-    /// game draws its corners as artwork, which a rectangle cannot reproduce.
+    /// Each ring is stroked as three paths: the top edge carrying both of its corner arcs,
+    /// the bottom edge carrying its own, and the two sides as straight lines between them. So
+    /// the corner takes the colour of the horizontal edge, and the measured sequence survives
+    /// the rounding intact — the game draws real artwork there, which no path reproduces, but
+    /// this is the same approximation the square version already made.
+    /// </para>
+    /// <para>
+    /// Strokes sit on half-pixel centres, because a one-pixel line centred on a whole
+    /// coordinate lands half in each neighbouring pixel. Along the arcs that cannot be helped:
+    /// four one-pixel rings blur into one another around a curve. FFXIV's own corners read
+    /// darker for the same reason.
     /// </para>
     /// </summary>
     private static void DrawWindowEdge(ImDrawListPtr dl, Vector2 origin, Vector2 size)
     {
         float ring = Tokens.Line(1f);
+        float radius = Tokens.Radius.Window;
         int rings = Tokens.Col.EdgeTop.Length;
 
         for (int i = 0; i < rings; i++)
         {
+            // Whole-pixel bounds, because the straight runs are filled rectangles rather than
+            // strokes: a one-pixel stroke is antialiased across two pixels, and four of them
+            // side by side average into one another — the near-white second ring ends up
+            // mixed into its dark neighbours and the whole edge reads dark and thin. Filled
+            // rectangles on whole pixels keep each ring its own colour, the way the game's
+            // frame is drawn.
             float inset = i * ring;
-            float left = origin.X + inset;
-            float right = origin.X + size.X - inset;
-            float top = origin.Y + inset;
-            float bottom = origin.Y + size.Y - inset;
+            float left = MathF.Round(origin.X + inset);
+            float right = MathF.Round(origin.X + size.X - inset);
+            float top = MathF.Round(origin.Y + inset);
+            float bottom = MathF.Round(origin.Y + size.Y - inset);
+            float r = MathF.Max(0f, radius - inset);
 
-            dl.AddRectFilled(new Vector2(left, top), new Vector2(right, top + ring), Tokens.Col.EdgeTop[i]);
-            dl.AddRectFilled(new Vector2(left, bottom - ring), new Vector2(right, bottom), Tokens.Col.EdgeBottom[i]);
+            uint topColour = Tokens.Col.EdgeTop[i];
+            uint sideColour = Tokens.Col.EdgeSide[i];
+            uint bottomColour = Tokens.Col.EdgeBottom[i];
 
-            uint side = Tokens.Col.EdgeSide[i];
-            dl.AddRectFilled(new Vector2(left, top + ring), new Vector2(left + ring, bottom - ring), side);
-            dl.AddRectFilled(new Vector2(right - ring, top + ring), new Vector2(right, bottom - ring), side);
+            // The straight runs, each in its own colour.
+            dl.AddRectFilled(new Vector2(left + r, top), new Vector2(right - r, top + ring), topColour);
+            dl.AddRectFilled(new Vector2(left + r, bottom - ring), new Vector2(right - r, bottom), bottomColour);
+            dl.AddRectFilled(new Vector2(left, top + r), new Vector2(left + ring, bottom - r), sideColour);
+            dl.AddRectFilled(new Vector2(right - ring, top + r), new Vector2(right, bottom - r), sideColour);
+
+            if (r <= 0f)
+            {
+                continue;
+            }
+
+            // The arcs still have to be stroked, so they run down the middle of the ring band
+            // the rectangles just filled: half a pixel in, with the radius taken in to match.
+            float half = ring * 0.5f;
+            float arc = r - half;
+            left += half;
+            right -= half;
+            top += half;
+            bottom -= half;
+            r = arc;
+
+            // The corners carry one run into the next. Stroked as short segments with the
+            // colour walked across them, because a corner that simply swaps colours where the
+            // arc ends puts a visible step at the very place the eye follows the curve.
+            BlendedArc(dl, new Vector2(left + r, top + r), r, MathF.PI, MathF.PI * 1.5f, sideColour, topColour, ring);
+            BlendedArc(dl, new Vector2(right - r, top + r), r, MathF.PI * 1.5f, MathF.PI * 2f, topColour, sideColour, ring);
+            BlendedArc(dl, new Vector2(right - r, bottom - r), r, 0f, MathF.PI * 0.5f, sideColour, bottomColour, ring);
+            BlendedArc(dl, new Vector2(left + r, bottom - r), r, MathF.PI * 0.5f, MathF.PI, bottomColour, sideColour, ring);
+        }
+    }
+
+    /// <summary>
+    /// One quarter-circle whose colour walks from <paramref name="from"/> to
+    /// <paramref name="to"/>. Drawn segment by segment: a draw list strokes a path in a single
+    /// colour, and a single colour is exactly what leaves the seam at the corners.
+    /// </summary>
+    private static void BlendedArc(
+        ImDrawListPtr dl,
+        Vector2 centre,
+        float radius,
+        float from,
+        float to,
+        uint colourFrom,
+        uint colourTo,
+        float thickness)
+    {
+        // Enough segments that the arc reads as a curve at the radii we use, few enough that
+        // four rings on four corners stay a rounding error in the frame.
+        const int Segments = 8;
+
+        float step = (to - from) / Segments;
+        Vector2 previous = new(
+            centre.X + (MathF.Cos(from) * radius),
+            centre.Y + (MathF.Sin(from) * radius));
+
+        for (int s = 1; s <= Segments; s++)
+        {
+            float angle = from + (step * s);
+            Vector2 point = new(
+                centre.X + (MathF.Cos(angle) * radius),
+                centre.Y + (MathF.Sin(angle) * radius));
+
+            dl.AddLine(previous, point, Tokens.Col.Mix(colourFrom, colourTo, (s - 0.5f) / Segments), thickness);
+            previous = point;
         }
     }
 
@@ -227,8 +371,17 @@ internal sealed class ConfigWindow : Window
         float left = outerLeft + Tokens.Metric.WindowBorder;
         float right = outerRight - Tokens.Metric.WindowBorder;
 
-        // Lit at the very top and fading down into the surface colour, as measured.
-        Chrome.VerticalFill(dl, min, max, Tokens.Col.TitleBarTop, Tokens.Col.TitleBar);
+        // Lit at the very top and fading down into the surface colour, as measured. Its own
+        // top corners are rounded to the window radius, since it reaches the window edge.
+        Chrome.VerticalFill(
+            dl,
+            min,
+            max,
+            Tokens.Col.TitleBarTop,
+            Tokens.Col.TitleBar,
+            Tokens.Radius.Window,
+            ImDrawFlags.RoundCornersTop,
+            Tokens.Metric.TitleBarFade);
 
         // The three-pixel rule that closes the title bar: dark, surface, light. It fades out
         // towards the corners rather than running into the frame.
@@ -251,7 +404,14 @@ internal sealed class ConfigWindow : Window
         float width = Tokens.Metric.NavWidth;
         float right = left + width;
 
-        dl.AddRectFilled(new Vector2(left, top), new Vector2(right, bottom), Tokens.Col.Rail);
+        // The rail reaches the bottom-left of the window, so that corner follows the curve —
+        // what is left of the window radius once the frame has taken its four pixels.
+        dl.AddRectFilled(
+            new Vector2(left, top),
+            new Vector2(right, bottom),
+            Tokens.Col.Rail,
+            Tokens.Radius.WindowInner,
+            ImDrawFlags.RoundCornersBottomLeft);
         dl.AddRectFilled(new Vector2(right - Tokens.Line(1f), top), new Vector2(right, bottom), Tokens.Col.EdgeDim);
 
         float y = top + Tokens.Space.Md;
@@ -428,6 +588,10 @@ internal sealed class ConfigWindow : Window
         float height = Tokens.Metric.ModuleHeaderHeight;
         float x = left + Tokens.Metric.SectionPaddingX;
 
+        // Told every frame, not only on the frames where the strip is drawn — that is what
+        // makes the step back disappear when you leave the module.
+        m_appearance.NoteOwner(isModule ? m_partyFrames : null);
+
         if (isModule)
         {
             float switchY = MathF.Round(top + ((height - Tokens.Metric.SwitchHeight) * 0.5f));
@@ -463,11 +627,7 @@ internal sealed class ConfigWindow : Window
 
         if (isModule)
         {
-            cursor -= Tokens.Space.Md + Chrome.MeasureButton(Strings.PasteAppearance);
-            Chrome.Button(IdPaste, Strings.PasteAppearance, cursor, buttonY, false, Strings.ClipboardDisabled);
-
-            cursor -= Tokens.Space.Sm + Chrome.MeasureButton(Strings.CopyAppearance);
-            Chrome.Button(IdCopy, Strings.CopyAppearance, cursor, buttonY, false, Strings.ClipboardDisabled);
+            m_appearance.Draw(m_partyFrames, cursor - Tokens.Space.Md, buttonY);
         }
 
         return top + height;
@@ -482,7 +642,9 @@ internal sealed class ConfigWindow : Window
             return;
         }
 
-        ImGui.PushStyleColor(ImGuiCol.ChildBg, Tokens.Col.PanelSoft);
+        // Transparent rather than filled: the surface behind it is already the same colour, and
+        // a filled child would paint a square corner back over the window's rounded bottom right.
+        ImGui.PushStyleColor(ImGuiCol.ChildBg, Transparent);
         ImGui.PushStyleColor(ImGuiCol.ScrollbarBg, Tokens.Col.ScrollTrack);
         ImGui.PushStyleColor(ImGuiCol.ScrollbarGrab, Tokens.Col.ScrollGrab);
         ImGui.PushStyleColor(ImGuiCol.ScrollbarGrabHovered, Tokens.Col.ScrollGrabHover);
@@ -501,9 +663,14 @@ internal sealed class ConfigWindow : Window
             ImGui.SetCursorPos(new Vector2(padX, padY));
 
             float inner = width - (padX * 2f);
+            bool onBase = m_tabIndex[(int)m_screen] == 0;
             if (m_screen == Screen.Global)
             {
                 m_global.Draw(inner);
+            }
+            else if (m_screen == Screen.PartyFrames && onBase)
+            {
+                m_partyFrames.Draw(inner);
             }
             else
             {
