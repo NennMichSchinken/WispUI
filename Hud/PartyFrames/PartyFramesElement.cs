@@ -379,6 +379,16 @@ internal sealed class PartyFramesElement : HudElement
 
         if (ImGui.Begin(IdInput, InputWindowFlags))
         {
+            // The pointer over a frame stays the game's own, and stays whatever shape the game
+            // chose. Without this Dalamud paints a Windows arrow over the block, which is a
+            // different pointer from the one in the rest of the game (Florian, 2026-09-12).
+            // No shape is asked for on purpose: a unit frame is a thing you point at, not a
+            // button, and the game's own party list does not put a hand on one either.
+            if (ImGui.IsWindowHovered(ImGuiHoveredFlags.RootAndChildWindows))
+            {
+                NativeUi.KeepGameCursor();
+            }
+
             PartyMemberSnapshot[] members = m_snapshot.Members;
 
             for (int i = 0; i < count; i++)

@@ -2,7 +2,6 @@ using System;
 using System.Globalization;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
-using Dalamud.Game.Config;
 using WispUI.Appearance;
 using WispUI.Core;
 using WispUI.Data;
@@ -994,34 +993,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         }
 
         float used = rowY - group.ContentY + Chrome.RowHeight();
-
-        // Only when it is actually off, and only ever read. Turning a setting of the game's on
-        // behalf is exactly the kind of reach WispUI does not make — so this says where it is
-        // and leaves it to the player.
-        if (m_config.PartyFrames.MouseoverTarget && !MouseoverSelectEnabled())
-        {
-            float noteY = rowY + Chrome.RowHeight() + Tokens.Space.Sm;
-            Ink.Draw(
-                ImGui.GetWindowDrawList(),
-                Ink.Role.Small,
-                new Vector2(group.ContentX, noteY),
-                Tokens.Col.InkFaint,
-                Strings.MouseoverGameSettingOff);
-
-            used += Tokens.Space.Sm + Ink.LineHeight(Ink.Role.Small);
-        }
-
         Chrome.EndGroupContent(group, used);
         contentHeight = used;
         return group;
     }
-
-    /// <summary>
-    /// Whether the game itself will act on what the mouse is pointing at. Read, never written:
-    /// the switch belongs to the player and lives in their character configuration.
-    /// </summary>
-    private static bool MouseoverSelectEnabled() =>
-        Services.GameConfig.TryGet(UiConfigOption.TargetEnableMouseOverSelect, out uint value) && value != 0u;
 
     /// <summary>The leader's mark. The same four rows every badge on a frame gets.</summary>
     private Chrome.GroupScope DrawLeaderIcon(float x, float y, float width, out float contentHeight)

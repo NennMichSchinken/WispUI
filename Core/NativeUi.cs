@@ -15,6 +15,57 @@ namespace WispUI.Core;
 internal static class NativeUi
 {
     /// <summary>
+    /// Whether anything of ours wants the game to keep drawing its own pointer this frame,
+    /// and what we last told Dalamud.
+    /// <para>
+    /// One switch, shared by everything running in the game, so it gets exactly one writer.
+    /// The settings window and the party frames both sit under the mouse at times, and two
+    /// of them writing it directly is how a pointer gets left the way the last one wanted it.
+    /// </para>
+    /// </summary>
+    private static bool s_gameCursorWanted;
+    private static bool s_gameCursorHeld;
+
+    /// <summary>
+    /// Says, while drawing, that the pointer over this thing should stay the game's own.
+    /// Anything the mouse can be over says it; the frame settles it once at the end.
+    /// </summary>
+    public static void KeepGameCursor() => s_gameCursorWanted = true;
+
+    /// <summary>
+    /// Called once at the end of the frame, after everything has had its say. Writes only on
+    /// a change, so the common case costs a comparison.
+    /// </summary>
+    public static void SettleCursor()
+    {
+        if (s_gameCursorWanted != s_gameCursorHeld)
+        {
+            s_gameCursorHeld = s_gameCursorWanted;
+
+            // Off while it is ours: with it on, Dalamud holds the game's pointer back and puts
+            // a Windows one in its place, and the shape we set would never reach the screen.
+            Services.PluginInterface.UiBuilder.OverrideGameCursor = !s_gameCursorWanted;
+        }
+
+        s_gameCursorWanted = false;
+    }
+
+    /// <summary>
+    /// Hands the pointer back for good. Called when the plugin goes away: the switch is shared
+    /// by everything in the game and must never be left lying the way we wanted it.
+    /// </summary>
+    public static void ReleaseCursor()
+    {
+        s_gameCursorWanted = false;
+
+        if (s_gameCursorHeld)
+        {
+            s_gameCursorHeld = false;
+            Services.PluginInterface.UiBuilder.OverrideGameCursor = true;
+        }
+    }
+
+    /// <summary>
     /// Sets the game's own pointer to match what ImGui asked for this frame.
     /// <para>
     /// The game keeps a cursor with a set of shapes — an arrow, a hand for something

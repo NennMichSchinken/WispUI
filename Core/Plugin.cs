@@ -39,11 +39,10 @@ public sealed class Plugin : IDalamudPlugin
 
         m_hud.Add(new PartyFramesElement(m_config));
 
-        // Dalamud only keeps the game's cursor away from a plugin window while this is on. It
-        // is the default, but it is a single switch shared by everything running in the game,
-        // and anything that turns it off leaves our window taking its pointer from whatever
-        // door happens to be behind it. Asserted once at load rather than fought for per frame.
-        Services.PluginInterface.UiBuilder.OverrideGameCursor = true;
+        // The pointer switch is shared by everything running in the game, so its state is put
+        // back to the game's at load rather than assumed. From here on it has one writer and
+        // is settled once per frame.
+        NativeUi.ReleaseCursor();
 
         Services.PluginInterface.UiBuilder.Draw += this.OnDraw;
         Services.PluginInterface.UiBuilder.OpenMainUi += m_configWindow.Toggle;
@@ -83,6 +82,10 @@ public sealed class Plugin : IDalamudPlugin
         Ink.BeginFrame();
         m_hud.Draw();
         m_windows.Draw();
+
+        // After everything has said whether the mouse is on it. One writer, one decision, and
+        // the switch goes back to the game's the moment nothing of ours is under the pointer.
+        NativeUi.SettleCursor();
     }
 
     /// <summary>

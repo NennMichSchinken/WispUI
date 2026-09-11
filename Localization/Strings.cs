@@ -145,10 +145,10 @@ internal static class Strings
     public const string ClickToTarget = "Click to select";
     public const string ClickToTargetTooltip = "Left-click a frame to target that member.";
     public const string MouseoverTarget = "Mouseover target";
-    public const string MouseoverTargetTooltip = "Makes <mo> macros work on whoever you point at.";
 
-    /// <summary>Shown only while the game's own setting is off. Says where it is, nothing more.</summary>
-    public const string MouseoverGameSettingOff = "For hotbar actions, turn on Mouseover Targeting in Character Configuration.";
+    // Says exactly what it does and no more. A hotbar key still goes to the selected target —
+    // the game has no setting that changes that, whatever we assumed (Florian, 2026-09-12).
+    public const string MouseoverTargetTooltip = "Makes <mo> macros act on whoever you point at.";
 
     public const string GroupLeader = "Leader";
     public const string GroupLeaderHint = "Who is in charge of the party.";

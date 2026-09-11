@@ -164,13 +164,8 @@ internal sealed class ConfigWindow : Window
     /// </summary>
     public void ReleaseCursor()
     {
-        if (!m_ownsCursor)
-        {
-            return;
-        }
-
         m_ownsCursor = false;
-        Services.PluginInterface.UiBuilder.OverrideGameCursor = true;
+        NativeUi.ReleaseCursor();
     }
 
     /// <summary>
@@ -195,16 +190,15 @@ internal sealed class ConfigWindow : Window
             | ImGuiHoveredFlags.AllowWhenBlockedByPopup
             | ImGuiHoveredFlags.AllowWhenBlockedByActiveItem);
 
-        if (ours == m_ownsCursor)
-        {
-            return;
-        }
-
         m_ownsCursor = ours;
 
-        // Off while it is ours: with it on, Dalamud holds the game's pointer back and puts a
-        // Windows one in its place, and the shape we set would never reach the screen.
-        Services.PluginInterface.UiBuilder.OverrideGameCursor = !ours;
+        // Said rather than written: the party frames ask for the same thing when the mouse is
+        // on them, and one switch shared by the whole game gets exactly one writer. NativeUi
+        // settles it once the frame is done.
+        if (ours)
+        {
+            NativeUi.KeepGameCursor();
+        }
     }
 
     public override void PreDraw()
