@@ -90,7 +90,13 @@ public sealed class Configuration : IPluginConfiguration
         /// </summary>
         public float NameSize { get; set; } = DefaultTextSize;
 
-        public float NameX { get; set; }
+        /// <summary>
+        /// Starts clear of the job icon rather than under it: both hang on the left edge by
+        /// default, and a name printed across an icon is not a default worth shipping. With
+        /// the icon moved or switched off the name is simply indented, which is a look rather
+        /// than a fault.
+        /// </summary>
+        public float NameX { get; set; } = 22f;
 
         public float NameY { get; set; }
 
@@ -141,6 +147,35 @@ public sealed class Configuration : IPluginConfiguration
         public bool ManaForHealers { get; set; } = true;
 
         public bool ManaForDps { get; set; }
+
+        // --- job icon -----------------------------------------------------------
+        // Described exactly like a text is (spec §11.2): a switch, a size, one of the nine
+        // anchors, and the two nudges off it. An icon is not a text, but where something sits
+        // on a frame is the same question whatever it is, and answering it twice in two
+        // vocabularies is how a settings screen stops being learnable.
+
+        /// <summary>The group's own switch.</summary>
+        public bool ShowJobIcon { get; set; } = true;
+
+        /// <summary>
+        /// In pixels, and square. Big enough at the default to read a job off at a glance in
+        /// a 38 px frame without crowding the name beside it.
+        /// </summary>
+        public float JobIconSize { get; set; } = 20f;
+
+        /// <summary>Index into the nine anchor points.</summary>
+        public int JobIconPosition { get; set; } = (int)Hud.Anchor.Left;
+
+        public float JobIconX { get; set; }
+
+        public float JobIconY { get; set; }
+
+        /// <summary>
+        /// Hide it on damage dealers. In a light party every icon is a landmark; in a full one
+        /// the six damage icons are the ones you never look at, and leaving them out is what
+        /// makes the two tanks and two healers findable.
+        /// </summary>
+        public bool JobIconHideDps { get; set; }
 
         // --- layout: never copied between elements, it belongs to this one (CLAUDE.md §5.3) ---
         // Stated at scale 1.0 and put through the interface scale when drawn, like every other

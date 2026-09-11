@@ -49,6 +49,12 @@ internal sealed class Services
     /// <summary>Asked one thing only: whether the player has hidden the game's interface.</summary>
     [PluginService] internal static IGameGui GameGui { get; private set; } = null!;
 
+    /// <summary>
+    /// Game icons. Dalamud keeps the textures itself, so nothing here loads or creates one —
+    /// an icon is asked for by id, once, and the handle is kept.
+    /// </summary>
+    [PluginService] internal static ITextureProvider Textures { get; private set; } = null!;
+
     internal static void Initialize(IDalamudPluginInterface pluginInterface)
     {
         pluginInterface.Create<Services>();

@@ -58,6 +58,25 @@ internal sealed record AppearanceBlock
     public float HpTextX { get; init; }
 
     public float HpTextY { get; init; }
+
+    // The job icon, described the same way: whether it shows, how big it is, which point it
+    // hangs on, and how far it is nudged from there. Size is in here rather than out with the
+    // layout because an icon's size is what it looks like, the way a text size is — the frame
+    // it sits in is the thing whose size belongs to the element alone.
+
+    public bool ShowJobIcon { get; init; }
+
+    /// <summary>In pixels, and square.</summary>
+    public float JobIconSize { get; init; }
+
+    /// <summary>Index into the nine anchor points.</summary>
+    public int JobIconPosition { get; init; }
+
+    public float JobIconX { get; init; }
+
+    public float JobIconY { get; init; }
+
+    public bool JobIconHideDps { get; init; }
 }
 
 /// <summary>

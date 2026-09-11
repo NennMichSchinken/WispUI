@@ -52,6 +52,12 @@ internal sealed class PartyFramesElement : HudElement
     private readonly float[] m_shownHealth = new float[PartySnapshot.Capacity];
     private readonly uint[] m_shownHealthFor = new uint[PartySnapshot.Capacity];
 
+    /// <summary>
+    /// The job icon per slot, resolved while collecting and only painted while drawing.
+    /// Looking a texture up is asking Dalamud a question, and the draw path asks nothing.
+    /// </summary>
+    private readonly ImTextureID[] m_icon = new ImTextureID[PartySnapshot.Capacity];
+
     /// <summary>What the party looked like when it was last written to the log.</summary>
     private readonly uint[] m_logged = new uint[PartySnapshot.Capacity];
     private int m_loggedCount = -1;
@@ -70,11 +76,32 @@ internal sealed class PartyFramesElement : HudElement
         if (EditMode.IsActive)
         {
             m_snapshot.FillPlaceholders();
+            this.CollectIcons();
             return;
         }
 
         m_snapshot.Collect();
+        this.CollectIcons();
         this.LogIfPartyChanged();
+    }
+
+    /// <summary>
+    /// Picks up this frame's job icons. Dalamud only promises a texture for the frame it was
+    /// asked in, so it is asked every frame — but here, once per member, and never from inside
+    /// the loop that paints.
+    /// </summary>
+    private void CollectIcons()
+    {
+        if (!m_config.PartyFrames.ShowJobIcon)
+        {
+            return;
+        }
+
+        PartyMemberSnapshot[] members = m_snapshot.Members;
+        for (int i = 0; i < m_snapshot.Count; i++)
+        {
+            m_icon[i] = Icons.Handle(Jobs.IconId(members[i].JobId));
+        }
     }
 
     public override void Draw(ImDrawListPtr dl)
@@ -185,12 +212,55 @@ internal sealed class PartyFramesElement : HudElement
 
             dl.AddRect(min, max, Tokens.Col.FrameEdge, 0f, ImDrawFlags.None, border);
 
-            // Text last and clipped to the frame, so a long name runs out of room rather than
-            // out of the frame and across whatever is beside it.
+            // Icon and text last and clipped to the frame, so a long name runs out of room
+            // rather than out of the frame and across whatever is beside it. The icon goes
+            // down first: where the two are set to overlap, the name is the one you have to
+            // be able to read.
             dl.PushClipRect(innerMin, innerMax, true);
+            this.DrawJobIcon(dl, cfg, i, ref member, innerMin, innerMax);
             this.DrawTexts(dl, cfg, textMode, i, ref member, innerMin, innerMax);
             dl.PopClipRect();
         }
+    }
+
+    /// <summary>
+    /// The job icon, hung on one of the nine points like everything else on a frame. It is
+    /// square: a job icon is drawn square, and letting it be stretched would only offer a way
+    /// to make it wrong.
+    /// </summary>
+    private void DrawJobIcon(
+        ImDrawListPtr dl,
+        Configuration.PartyFramesConfig cfg,
+        int slot,
+        ref PartyMemberSnapshot member,
+        Vector2 innerMin,
+        Vector2 innerMax)
+    {
+        if (!cfg.ShowJobIcon || (cfg.JobIconHideDps && member.Role == JobRole.Dps))
+        {
+            return;
+        }
+
+        ImTextureID icon = m_icon[slot];
+        if (icon.Handle == 0)
+        {
+            // Not loaded yet, or a class the game has no icon for. Nothing is drawn rather
+            // than a grey square where an icon is meant to be.
+            return;
+        }
+
+        float size = Tokens.Px(cfg.JobIconSize);
+        Vector2 at = Anchors.Place(
+            Anchors.At(cfg.JobIconPosition),
+            innerMin,
+            innerMax,
+            new Vector2(size, size),
+            Tokens.Metric.FramePadding);
+
+        at.X += Tokens.Px(cfg.JobIconX);
+        at.Y += Tokens.Px(cfg.JobIconY);
+
+        dl.AddImage(icon, at, new Vector2(at.X + size, at.Y + size));
     }
 
     private void DrawTexts(

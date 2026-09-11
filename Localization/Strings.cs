@@ -61,6 +61,7 @@ internal static class Strings
     public const string FieldText = "Text";
     public const string FieldBackground = "Background";
     public const string FieldOpacity = "Opacity";
+    public const string FieldIcon = "Icon";
 
     // --- Party Frames --------------------------------------------------------
     public const string GroupHealthBar = "Health bar";
@@ -118,6 +119,13 @@ internal static class Strings
     public const string ManaForTanks = "On tanks";
     public const string ManaForHealers = "On healers";
     public const string ManaForDps = "On damage";
+
+    // --- Party frames: job icon -----------------------------------------------
+    public const string GroupJobIcon = "Job icon";
+    public const string GroupJobIconHint = "Who is what, before you read a name.";
+    public const string IconSize = "Size";
+    public const string IconHideDps = "Hide on damage";
+    public const string IconHideDpsTooltip = "Leaves the two tanks and two healers easy to find.";
 
     // --- Global screen ------------------------------------------------------
     public const string SectionInterface = "Interface";

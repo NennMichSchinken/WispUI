@@ -33,5 +33,13 @@ internal enum AppearanceFields
 
     Opacity = 1 << 5,
 
-    All = Colours | Texture | Shape | Text | Background | Opacity,
+    /// <summary>
+    /// A picture on the element, and where it sits: the job icon today, role icons and raid
+    /// markers later. Its own part rather than a corner of <see cref="Text"/> — an icon and a
+    /// name are two different things to want carried over, and the panel's whole job is to let
+    /// you say which.
+    /// </summary>
+    Icon = 1 << 6,
+
+    All = Colours | Texture | Shape | Text | Background | Opacity | Icon,
 }
