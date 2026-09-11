@@ -377,7 +377,7 @@ internal static class Tokens
 
         public static float SliderHeight => Px(20f);
         public static float SliderTrack => Px(6f);
-        public static float SliderGrabRadius => Px(8f);
+        public static float SliderGrabRadius => Px(7f);
 
         // --- the arrow selector, the one selection widget in the suite ---
 
