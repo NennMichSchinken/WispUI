@@ -28,6 +28,8 @@ internal sealed record AppearanceBlock
     public int NamePosition { get; init; }
 
     public bool NameInJobColour { get; init; }
+
+    public bool ShortenNames { get; init; }
 }
 
 /// <summary>

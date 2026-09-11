@@ -71,6 +71,8 @@ internal static class Strings
     public const string BarColour = "Bar colour";
     public const string NamePosition = "Position";
     public const string NameInJobColour = "Name in job colour";
+    public const string ShortenNames = "Shorten long names";
+    public const string ShortenNamesTooltip = "Cuts the surname to an initial.";
 
     public const string PositionTopLeft = "Top left";
     public const string PositionTop = "Top";

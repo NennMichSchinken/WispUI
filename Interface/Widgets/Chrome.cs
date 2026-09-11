@@ -411,6 +411,11 @@ internal static class Chrome
     /// same line instead.
     /// </para>
     /// </summary>
+    /// <param name="divider">
+    /// Draws a faint line in the gap below, to be passed on every option of a run except the
+    /// last. A run of ticks and switches needs the line to read as a list; a slider or a
+    /// selector does not, because its own body already ends the row.
+    /// </param>
     public static bool OptionRow(
         string id,
         string label,
@@ -420,7 +425,8 @@ internal static class Chrome
         bool value,
         OptionControl control = OptionControl.Tick,
         string? tooltip = null,
-        bool enabled = true)
+        bool enabled = true,
+        bool divider = false)
     {
         float height = Tokens.Metric.OptionRowHeight;
 
@@ -458,6 +464,12 @@ internal static class Chrome
                 value,
                 hovered,
                 alpha);
+        }
+
+        if (divider)
+        {
+            // Centred in the gap to the next row, so it belongs to neither and separates both.
+            Hairline(dl, x, x + width, MathF.Round(y + height + (Tokens.Metric.RowGap * 0.5f)), Tokens.Col.RowDivider);
         }
 
         if (tooltip is not null)
@@ -781,6 +793,14 @@ internal static class Chrome
     /// A few words after the label for what a label alone cannot say. Dropped rather than
     /// crowded if the column is too narrow for both.
     /// </param>
+    /// <summary>
+    /// How tall a field row is, label included: one value for the whole suite, so a selector
+    /// row and a slider row take exactly the same space and the rows under them stay level
+    /// across the two columns.
+    /// </summary>
+    public static float FieldRowHeight() =>
+        Ink.LineHeight(Ink.Role.Body) + Tokens.Space.Sm + Tokens.Metric.FieldControlHeight;
+
     public static float FieldLabel(string label, float x, float y, float width, string? hint = null)
     {
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
@@ -919,12 +939,20 @@ internal static class Chrome
             }
         }
 
-        float trackRowTop = MathF.Round(y + Ink.LineHeight(Ink.Role.Body) + Tokens.Space.Sm);
+        // The control box is the same height for every field control in the suite. A slider
+        // body is shorter than a selector, so it is centred in that box rather than hung from
+        // the top — which is what keeps a slider and a selector side by side looking level,
+        // and keeps the rows beneath them from drifting apart.
+        float boxTop = MathF.Round(y + Ink.LineHeight(Ink.Role.Body) + Tokens.Space.Sm);
+        float boxHeight = Tokens.Metric.FieldControlHeight;
         float rowHeight = Tokens.Metric.SliderHeight;
+        float trackRowTop = MathF.Round(boxTop + ((boxHeight - rowHeight) * 0.5f));
         float radius = Tokens.Metric.SliderGrabRadius;
 
-        ImGui.SetCursorScreenPos(new Vector2(x, trackRowTop));
-        ImGui.InvisibleButton(id, new Vector2(width, rowHeight));
+        // The hit box is the whole cell, not just the track: an easier grab, and it costs
+        // nothing, since the value only ever comes from the horizontal position.
+        ImGui.SetCursorScreenPos(new Vector2(x, boxTop));
+        ImGui.InvisibleButton(id, new Vector2(width, boxHeight));
         bool active = ImGui.IsItemActive();
         bool hovered = ImGui.IsItemHovered();
         bool released = ImGui.IsItemDeactivated();
@@ -972,8 +1000,7 @@ internal static class Chrome
         dl.AddCircleFilled(grabCenter, radius, active || hovered ? Tokens.Col.SliderGrabHover : Tokens.Col.SliderGrab);
         dl.AddCircle(grabCenter, radius, Tokens.Col.EdgeDim, 0, Tokens.Line(1f));
 
-        float height = trackRowTop + rowHeight - y;
-        return new SliderResult(result, changed, released, height);
+        return new SliderResult(result, changed, released, FieldRowHeight());
     }
 
     /// <summary>

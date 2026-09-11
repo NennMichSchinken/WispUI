@@ -69,6 +69,9 @@ public sealed class Configuration : IPluginConfiguration
         public int NamePosition { get; set; }
 
         public bool NameInJobColour { get; set; }
+
+        /// <summary>Cut a long name down rather than let it run out of the frame.</summary>
+        public bool ShortenNames { get; set; }
     }
 
     internal static Configuration Load()

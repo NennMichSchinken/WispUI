@@ -64,6 +64,13 @@ internal static class Tokens
         public static readonly uint EdgeDim = Rgb(0x4A474A);
         public static readonly uint Hairline = Rgb(0x3A383A);
 
+        /// <summary>
+        /// Between two compact options inside a group. Fainter than <see cref="Hairline"/> on
+        /// purpose: at the same strength it would compete with the group frame, and a line
+        /// inside an object must never read as loud as the line around it.
+        /// </summary>
+        public static readonly uint RowDivider = Rgb(0x2E2C2E);
+
         // --- controls (derived: the old values neutralised onto the measured hue) ---
         public static readonly uint Control = Rgb(0x3A383A);
         public static readonly uint Control2 = Rgb(0x2E2C2E);
@@ -300,12 +307,23 @@ internal static class Tokens
         // --- the arrow selector, the one selection widget in the suite ---
 
         /// <summary>
-        /// 16 px of text with five pixels of air above and below it and a pixel of border.
-        /// One pixel shorter than a button on purpose: the two never stand side by side —
-        /// buttons live in the screen header, selectors in the settings grid — and this way
-        /// the inner spacing comes out symmetrical, which a bitmap face shows.
+        /// The box every wide control sits in: selector, slider, and whatever comes after
+        /// them. A control shorter than this — a slider track is — is centred inside it rather
+        /// than sitting at the top.
+        /// <para>
+        /// This is what keeps two columns in step. With each control setting its own height,
+        /// the rows under the first one drift apart the moment a slider stands beside a
+        /// selector; with one box, every field row is the same height and the labels beneath
+        /// keep meeting across the grid.
+        /// </para>
+        /// <para>
+        /// 28: 16 px of text with five pixels of air above and below and a pixel of border.
+        /// One less than a button on purpose — the two never stand side by side, buttons live
+        /// in the screen header — and this way the inner spacing is symmetrical, which a
+        /// bitmap face shows.
+        /// </para>
         /// </summary>
-        public static float SelectorHeight => Px(28f);
+        public static float FieldControlHeight => Px(28f);
 
         /// <summary>
         /// The width of one arrow. Wide enough to hit while clicking quickly: the whole

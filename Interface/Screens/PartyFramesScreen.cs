@@ -31,6 +31,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdSmooth = "##wisp-pf-smooth";
     private const string IdNamePosition = "##wisp-pf-nameposition";
     private const string IdNameJobColour = "##wisp-pf-namejobcolour";
+    private const string IdShortenNames = "##wisp-pf-shortennames";
 
     /// <summary>What a bar takes its colour from. FFXIV's own convention, not one of ours.</summary>
     private static readonly string[] ColourModes =
@@ -110,6 +111,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         BarOpacity = m_config.PartyFrames.BarOpacity,
         NamePosition = m_config.PartyFrames.NamePosition,
         NameInJobColour = m_config.PartyFrames.NameInJobColour,
+        ShortenNames = m_config.PartyFrames.ShortenNames,
     };
 
     public void ApplyAppearance(AppearanceBlock source, AppearanceFields mask)
@@ -134,6 +136,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         {
             m_config.PartyFrames.NamePosition = source.NamePosition;
             m_config.PartyFrames.NameInJobColour = source.NameInJobColour;
+            m_config.PartyFrames.ShortenNames = source.ShortenNames;
         }
 
         m_config.MarkDirty();
@@ -179,7 +182,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        used += drop + ArrowSelector<BarStyle>.Height + Tokens.Metric.RowGap;
+        // Every field row is the same height, whatever control it holds. That is what keeps
+        // this column level with the one beside it once the rows start stacking up.
+        used += Chrome.FieldRowHeight() + Tokens.Metric.RowGap;
         rowY = group.ContentY + used;
 
         Chrome.FieldLabel(Strings.BarColour, group.ContentX, rowY, group.ContentWidth);
@@ -190,7 +195,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        used += drop + ArrowSelector<string>.Height + Tokens.Metric.RowGap;
+        used += Chrome.FieldRowHeight() + Tokens.Metric.RowGap;
         rowY = group.ContentY + used;
 
         float opacity = m_draggingOpacity ? m_opacityPreview : m_config.PartyFrames.BarOpacity;
@@ -272,8 +277,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        float used = drop + ArrowSelector<string>.Height + Tokens.Metric.RowGap;
+        float used = Chrome.FieldRowHeight() + Tokens.Metric.RowGap;
 
+        // Two options in a row, so the divider between them has something to divide. The last
+        // one in a run never carries it: a line right above the group's inner padding reads
+        // as a cut rather than as a separator.
         if (Chrome.OptionRow(
                 IdNameJobColour,
                 Strings.NameInJobColour,
@@ -281,9 +289,28 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 group.ContentY + used,
                 group.ContentWidth,
                 m_config.PartyFrames.NameInJobColour,
-                Chrome.OptionControl.Switch))
+                Chrome.OptionControl.Switch,
+                null,
+                true,
+                true))
         {
             m_config.PartyFrames.NameInJobColour = !m_config.PartyFrames.NameInJobColour;
+            m_config.MarkDirty();
+        }
+
+        used += Tokens.Metric.OptionRowHeight + Tokens.Metric.RowGap;
+
+        if (Chrome.OptionRow(
+                IdShortenNames,
+                Strings.ShortenNames,
+                group.ContentX,
+                group.ContentY + used,
+                group.ContentWidth,
+                m_config.PartyFrames.ShortenNames,
+                Chrome.OptionControl.Tick,
+                Strings.ShortenNamesTooltip))
+        {
+            m_config.PartyFrames.ShortenNames = !m_config.PartyFrames.ShortenNames;
             m_config.MarkDirty();
         }
 

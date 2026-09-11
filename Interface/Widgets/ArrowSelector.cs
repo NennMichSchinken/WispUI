@@ -96,7 +96,7 @@ internal sealed class ArrowSelector<T>
     }
 
     /// <summary>How tall the control is. The caller advances by this plus a rhythm token.</summary>
-    public static float Height => Tokens.Metric.SelectorHeight;
+    public static float Height => Tokens.Metric.FieldControlHeight;
 
     /// <summary>
     /// Draws the control and reports whether the selection changed this frame. A change is
@@ -104,7 +104,7 @@ internal sealed class ArrowSelector<T>
     /// </summary>
     public bool Draw(ref int index, float x, float y, float width)
     {
-        float height = Tokens.Metric.SelectorHeight;
+        float height = Tokens.Metric.FieldControlHeight;
         float arrow = Tokens.Metric.SelectorArrow;
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
 
