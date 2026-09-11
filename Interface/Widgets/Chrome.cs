@@ -24,6 +24,9 @@ internal static class Chrome
     private const string IdGroupAction = "##wisp-group-action";
     private const string IdGroupCollapse = "##wisp-group-collapse";
 
+    /// <summary>Only ever mixed towards, never painted: the step a control takes under the hand.</summary>
+    private const uint White = 0xFFFFFFFFu;
+
     private static bool s_closePopups;
     private static bool s_rowSplit;
 
@@ -1111,21 +1114,44 @@ internal static class Chrome
 
         // No outline on the track. The rounded ends are the shape; a border around them only
         // made the bar look boxed in.
-        // The knob is domed rather than flat: a shaded disc, a body shifted up into the light
-        // and a small highlight. Three concentric circles are enough — the eye reads the
-        // offset as a curve, and it costs no gradient the draw list would have to fake.
         Vector2 grabCenter = new(grabCenterX, MathF.Round(trackTop + (trackHeight * 0.5f)));
-        uint body = active || hovered ? Tokens.Col.SliderGrabHover : Tokens.Col.SliderGrab;
-
-        dl.AddCircleFilled(grabCenter, radius, Tokens.Col.SliderGrabShade);
-        dl.AddCircleFilled(new Vector2(grabCenter.X, grabCenter.Y - (radius * 0.16f)), radius * 0.84f, body);
-        dl.AddCircleFilled(
-            new Vector2(grabCenter.X, grabCenter.Y - (radius * 0.38f)),
-            radius * 0.42f,
-            Tokens.Col.SliderGrabHighlight);
-        dl.AddCircle(grabCenter, radius, Tokens.Col.EdgeDim, 0, Tokens.Line(1f));
+        MilledKnob(dl, grabCenter, radius, active || hovered ? 0.16f : 0f);
 
         return new SliderResult(result, changed, released, FieldRowHeight());
+    }
+
+    /// <summary>
+    /// The slider knob: a milled metal disc, bright at the rim, darker towards the middle,
+    /// with radial grooves across the face. Built from wedges rather than a gradient, because
+    /// a draw list has no radial fill and the grooves are what make it read as metal at all.
+    /// <paramref name="lift"/> raises every tone towards white while the knob is in hand.
+    /// </summary>
+    private static void MilledKnob(ImDrawListPtr dl, Vector2 centre, float radius, float lift)
+    {
+        // Even, so opposite grooves line up, and few enough to stay legible at this size.
+        const int Grooves = 12;
+
+        uint face = Tokens.Col.Mix(Tokens.Col.SliderGrab, White, lift);
+        uint groove = Tokens.Col.Mix(Tokens.Col.SliderGrabMill, White, lift);
+        uint core = Tokens.Col.Mix(Tokens.Col.SliderGrabCore, White, lift);
+
+        dl.AddCircleFilled(centre, radius, face);
+
+        float step = MathF.PI * 2f / Grooves;
+        for (int i = 0; i < Grooves; i += 2)
+        {
+            float from = i * step;
+            Vector2 a = new(centre.X + (MathF.Cos(from) * radius), centre.Y + (MathF.Sin(from) * radius));
+            Vector2 b = new(
+                centre.X + (MathF.Cos(from + step) * radius),
+                centre.Y + (MathF.Sin(from + step) * radius));
+
+            dl.AddTriangleFilled(centre, a, b, groove);
+        }
+
+        // The turned centre, and the dark rim that sets the whole disc off the track.
+        dl.AddCircleFilled(centre, radius * 0.34f, core);
+        dl.AddCircle(centre, radius, Tokens.Col.SliderGrabEdge, 0, Tokens.Line(1f));
     }
 
     /// <summary>
