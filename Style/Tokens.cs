@@ -175,13 +175,16 @@ internal static class Tokens
         public static readonly uint Mana = Rgb(0x4C6FD0);
 
         /// <summary>
-        /// The party number's plate, the shape the game's own list gives a position: a light
-        /// rounded square with a black edge and the figure dark in the middle of it. Two
-        /// wrong readings of this came first — a plate with no edge, then an outline with no
-        /// plate — and it is both (Florian, 2026-09-12).
-        /// ⚠️ NOT MEASURED — our own ink and a true black, so nothing here is invented.
+        /// The party number's plate, the shape the game's own list gives a position: a white
+        /// rounded square with a black edge and the figure dark in the middle of it.
+        /// <para>
+        /// White and fully opaque, and deliberately NOT the body ink at nine tenths: over the
+        /// game, a grey at less than full cover picks up whatever is behind it and reads as
+        /// dirty rather than as light (Florian, 2026-09-12). This is the one place in the
+        /// suite where a pure white belongs, because it is a plate and not a surface.
+        /// </para>
         /// </summary>
-        public static readonly uint NumberPlate = 0xE6C3C3C3u;
+        public static readonly uint NumberPlate = 0xFFFFFFFFu;
 
         public static readonly uint NumberEdge = 0xFF000000u;
 
