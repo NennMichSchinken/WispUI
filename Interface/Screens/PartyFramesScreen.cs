@@ -177,16 +177,18 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             y,
             width);
 
-        // Field cells first, the compact options after them. Every row takes one step of the
-        // ladder whatever sits in it, which is what keeps this column level with the one
-        // beside it; putting the fields first means the first label sits right under the head
-        // rule instead of a tick floating in the middle of the step below it.
+        // One row per setting, all built the same: label left, control right. Nothing has to
+        // be squared up with the column beside it — every row is the same height, so row three
+        // is row three over there too, whatever either of them holds.
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
 
-        float drop = Chrome.FieldLabel(Strings.BarStyle, group.ContentX, rowY, group.ContentWidth);
         int style = m_config.PartyFrames.BarStyle;
-        if (m_style.Draw(ref style, group.ContentX, rowY + drop, group.ContentWidth))
+        if (m_style.Draw(
+                ref style,
+                Chrome.Row(Strings.BarStyle, group.ContentX, rowY, group.ContentWidth, false),
+                rowY,
+                Chrome.ControlWidth()))
         {
             m_config.PartyFrames.BarStyle = style;
             m_config.MarkDirty();
@@ -194,9 +196,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         rowY += pitch;
 
-        Chrome.FieldLabel(Strings.BarColour, group.ContentX, rowY, group.ContentWidth);
         int colour = m_config.PartyFrames.ColourMode;
-        if (m_colour.Draw(ref colour, group.ContentX, rowY + drop, group.ContentWidth))
+        if (m_colour.Draw(
+                ref colour,
+                Chrome.Row(Strings.BarColour, group.ContentX, rowY, group.ContentWidth, true),
+                rowY,
+                Chrome.ControlWidth()))
         {
             m_config.PartyFrames.ColourMode = colour;
             m_config.MarkDirty();
@@ -214,7 +219,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             group.ContentWidth,
             opacity,
             Configuration.MinBarOpacity,
-            1f);
+            1f,
+            null,
+            null,
+            true);
 
         if (result.Changed)
         {
@@ -231,8 +239,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         rowY += pitch;
 
-        // The run of compact options closes the group. It carries a divider on its top edge:
-        // that line is where the fields end and the switches begin.
         if (Chrome.OptionRow(
                 IdSmooth,
                 Strings.SmoothBars,
@@ -249,9 +255,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        // The content ends at the last row's own height, not at the end of its step: the step
-        // exists so the NEXT row starts level, and there is no next row here.
-        float used = Chrome.OptionRowEnd(rowY) - group.ContentY;
+        // The group ends with its last row, not with the gap that would follow it.
+        float used = rowY - group.ContentY + Chrome.RowHeight();
         Chrome.EndGroupContent(group, used);
         contentHeight = used;
         return group;
@@ -282,15 +287,16 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        // The field cell first, the run of compact options under it — the same order every
-        // group uses, which is what puts row two of this column level with row two of its
-        // neighbour whether either of them holds a dropdown or a tick.
+        // One row per setting, same as everywhere: label left, control right, one height.
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
 
-        float drop = Chrome.FieldLabel(Strings.NamePosition, group.ContentX, rowY, group.ContentWidth);
         int position = m_config.PartyFrames.NamePosition;
-        if (m_namePosition.Draw(ref position, group.ContentX, rowY + drop, group.ContentWidth))
+        if (m_namePosition.Draw(
+                ref position,
+                Chrome.Row(Strings.NamePosition, group.ContentX, rowY, group.ContentWidth, false),
+                rowY,
+                Chrome.ControlWidth()))
         {
             m_config.PartyFrames.NamePosition = position;
             m_config.MarkDirty();
@@ -332,7 +338,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        float used = Chrome.OptionRowEnd(rowY) - group.ContentY;
+        float used = rowY - group.ContentY + Chrome.RowHeight();
         Chrome.EndGroupContent(group, used);
         contentHeight = used;
         return group;

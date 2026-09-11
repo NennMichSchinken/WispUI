@@ -109,8 +109,8 @@ internal sealed class GlobalScreen
             Scaling.Commit(m_config.Scale);
         }
 
-        Chrome.EndGroupContent(group, Tokens.Metric.RowInset + result.Height);
-        contentHeight = Tokens.Metric.RowInset + result.Height;
+        Chrome.EndGroupContent(group, result.Height);
+        contentHeight = result.Height;
         return group;
     }
 
@@ -142,9 +142,8 @@ internal sealed class GlobalScreen
             this.InfoBarPreferenceChanged?.Invoke();
         }
 
-        // One option row, and it is the last thing in the group: the group is as tall as that
-        // row's ink, not as tall as the step it stands in.
-        contentHeight = Chrome.OptionRowEnd(group.ContentY) - group.ContentY;
+        // One row, and it is the whole group.
+        contentHeight = Chrome.RowHeight();
         Chrome.EndGroupContent(group, contentHeight);
         return group;
     }

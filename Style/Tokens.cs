@@ -330,7 +330,12 @@ internal static class Tokens
     /// <summary>Window and chrome measurements, all stated at scale 1.0.</summary>
     public static class Metric
     {
-        public static float WindowWidth => Px(920f);
+        /// <summary>
+        /// Wider than it was (920) because the rows are single-line now: a label and a control
+        /// share one row, and the selector alone wants 208 px of that. Measured, not guessed —
+        /// 2 x 26 arrow + 16 padding + 60 preview + the name + the counter.
+        /// </summary>
+        public static float WindowWidth => Px(1020f);
         public static float WindowHeight => Px(640f);
 
         /// <summary>The window edge: four rings, as measured off the game's own frame.</summary>
@@ -483,18 +488,9 @@ internal static class Tokens
 
         /// <summary>The rule to the first row.</summary>
         /// <summary>
-        /// Head rule to the first row's step. Small because the step carries an inset of its
-        /// own (<see cref="RowInset"/>): together they make the same air under the rule that
-        /// the gap alone used to make.
+        /// Head rule to the first row.
         /// </summary>
-        public static float GroupRuleGap => Px(8f);
-
-        /// <summary>
-        /// Air at the top of every row's step, before its ink. The step's boundary is where a
-        /// divider is drawn, so without this a label sits ON the line above it. Given to every
-        /// kind of row alike, which is what keeps their labels on one line.
-        /// </summary>
-        public static float RowInset => Px(8f);
+        public static float GroupRuleGap => Px(16f);
 
         // --- the vertical rhythm of a settings screen ---
         // Two values now — everything between rows is the ladder. The head gap stays its own
@@ -504,9 +500,21 @@ internal static class Tokens
         /// <summary>Section head to its first row.</summary>
         public static float SectionHeadGap => Px(20f);
 
-        // Rows carry no gap of their own: every row takes one step of the ladder
-        // (Chrome.RowPitch), and the air inside the step IS the gap. A gap per kind of row was
-        // what put one column's controls level with the other column's dividers.
+        /// <summary>
+        /// Between two rows. One value for every kind of row, because every row is now built
+        /// the same way: label left, control right, one height.
+        /// </summary>
+        public static float RowGap => Px(12f);
+
+        /// <summary>
+        /// The control column at the right of every row — the same width whatever stands in it,
+        /// so controls line up down a group AND across the two columns. Sized off the widest
+        /// thing we have: the arrow selector with its preview and counter.
+        /// </summary>
+        public static float ControlWidth => Px(210f);
+
+        /// <summary>Room kept at the right edge of a slider row for its number.</summary>
+        public static float ValueWidth => Px(46f);
 
         /// <summary>Air under the last row, so a scrolled screen does not end flush with the edge.</summary>
         public static float ContentPaddingBottom => Px(24f);

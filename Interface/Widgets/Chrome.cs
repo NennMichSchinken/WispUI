@@ -486,16 +486,9 @@ internal static class Chrome
         bool enabled = true,
         bool divider = false)
     {
-        // The whole step is the hit box, but the ink sits in a band at the TOP of it, on the
-        // same line a field label would take. That is what lets an option row and a field row
-        // stand side by side across two columns and read as one row.
-        // The whole step is the hit box; the ink sits on the CONTROL line of the step, the one
-        // a dropdown or a slider occupies. Centred in the step it lined up with nothing —
-        // neither the label above it nor the control beside it — and three heights in one row
-        // is what made the columns look like they were drifting.
-        float height = RowPitch();
-        float band = OptionRowHeight();
-        float ink = OptionInkTop(y, band);
+        // The same row every other setting gets: label left, one control against the right
+        // edge, one height. The whole row is the hit box.
+        float height = RowHeight();
 
         ImGui.SetCursorScreenPos(new Vector2(x, y));
         ImGui.InvisibleButton(id, new Vector2(width, height));
@@ -508,8 +501,8 @@ internal static class Chrome
         Ink.Draw(
             dl,
             Ink.Role.Body,
-            new Vector2(x, CenterY(ink, band, Ink.Role.Body)),
-            Tokens.Col.Faded(hovered ? Tokens.Col.Ink : Tokens.Col.InkDim, alpha),
+            new Vector2(x, CenterY(y, height, Ink.Role.Body)),
+            Tokens.Col.Faded(Tokens.Col.Ink, alpha),
             label);
 
         if (control == OptionControl.Switch)
@@ -518,7 +511,7 @@ internal static class Chrome
             PaintSwitch(
                 dl,
                 MathF.Round(x + width - switchWidth),
-                MathF.Round(ink + ((band - Tokens.Metric.SwitchHeight) * 0.5f)),
+                MathF.Round(y + ((height - Tokens.Metric.SwitchHeight) * 0.5f)),
                 value,
                 alpha);
         }
@@ -527,7 +520,7 @@ internal static class Chrome
             float box = Tokens.Metric.CheckBox;
             PaintTick(
                 dl,
-                new Vector2(MathF.Round(x + width - box), MathF.Round(ink + ((band - box) * 0.5f))),
+                new Vector2(MathF.Round(x + width - box), MathF.Round(y + ((height - box) * 0.5f))),
                 value,
                 hovered,
                 alpha);
@@ -535,9 +528,8 @@ internal static class Chrome
 
         if (divider)
         {
-            // On the step's own top edge. Rows are flush now, so that edge is also the row
-            // above's bottom — one line between two rows, and none under the head rule.
-            Hairline(dl, x, x + width, MathF.Round(y), Tokens.Col.RowDivider);
+            // Centred in the air above the row, so it sits between two rows, not on either.
+            Hairline(dl, x, x + width, MathF.Round(y - (Tokens.Metric.RowGap * 0.5f)), Tokens.Col.RowDivider);
         }
 
         if (tooltip is not null)
@@ -800,55 +792,61 @@ internal static class Chrome
     }
 
     /// <summary>
-    /// One step of the row ladder — the height EVERY row occupies, whatever control it holds.
+    /// One row of a settings group: the label on the left, one control hard against the right
+    /// edge. EVERY row is built this way — a dropdown, a slider and a tick all take the same
+    /// height, so nothing in one column can come out level with a gap in another.
     /// <para>
-    /// This is the rule that keeps two groups side by side readable as rows. With a height
-    /// per control type, a column holding one option and then fields comes out level with the
-    /// gaps of a column holding two options: a control sitting halfway down its neighbour's
-    /// divider. On one ladder, row three is row three in both columns whether it is a tick or
-    /// a dropdown, nothing has to know what the other column contains, and what a shorter
-    /// column is missing turns into air at the bottom — where the frame closes it.
-    /// </para>
-    /// <para>
-    /// Taken from the tallest row rather than stated as a number: a field row is a label over
-    /// a control, and the label's height comes from a bitmap font that does NOT scale with
-    /// the interface scale. A fixed pitch would come apart at the first scale change.
+    /// This is FFXIV's own row, and it is what the two-line version (label above control) cost
+    /// us: with two row heights in play, a compact row could be aligned to a field's label, to
+    /// its control, or to the middle of its step, and each of the three left the other two
+    /// looking wrong. One height, one question, no answer needed.
     /// </para>
     /// </summary>
-    public static float RowPitch() => Tokens.Metric.RowInset + FieldRowHeight();
+    public static float RowHeight() => Tokens.Metric.FieldControlHeight;
+
+    /// <summary>Row to row, the height plus the air between two of them.</summary>
+    public static float RowPitch() => RowHeight() + Tokens.Metric.RowGap;
 
     /// <summary>
-    /// Where a row that starts at <paramref name="stepTop"/> and holds ink of
-    /// <paramref name="inkHeight"/> ends. Used by the last row of a group, which is as tall as
-    /// its ink rather than as tall as its step — the step is there so the NEXT row starts
-    /// level, and there is no next row.
+    /// How wide every control is, whatever it is. Taken as a fixed column off the right edge
+    /// rather than as a share of the row, so controls line up down the screen AND across the
+    /// two columns; the label takes what is left.
     /// </summary>
-    public static float RowEnd(float stepTop, float inkHeight) => stepTop + Tokens.Metric.RowInset + inkHeight;
+    public static float ControlWidth() => Tokens.Metric.ControlWidth;
 
-    /// <summary>Where a compact option row ends — its ink sits on the step's control line.</summary>
-    public static float OptionRowEnd(float stepTop) =>
-        OptionInkTop(stepTop, OptionRowHeight()) + OptionRowHeight();
+    /// <summary>Where a row's control starts — the right-hand column of the row.</summary>
+    public static float ControlX(float rowX, float rowWidth) => rowX + rowWidth - ControlWidth();
 
     /// <summary>
-    /// The top of a compact row's ink: on the control line of the step, centred against the
-    /// box a field control fills. A tick beside a dropdown then shares its centre line, which
-    /// is the alignment the eye actually reads across two columns — a compact row has no label
-    /// line of its own to match, only a control.
+    /// Draws a row's divider and its label, and hands back where the control goes. The divider
+    /// is centred in the air above the row, so it sits between two rows rather than on either.
     /// </summary>
-    private static float OptionInkTop(float stepTop, float band) => MathF.Round(
-        stepTop
-        + Tokens.Metric.RowInset
-        + Ink.LineHeight(Ink.Role.Body)
-        + Tokens.Space.Sm
-        + ((Tokens.Metric.FieldControlHeight - band) * 0.5f));
+    public static float Row(string label, float x, float y, float width, bool divider, string? hint = null)
+    {
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
 
-    /// <summary>
-    /// The ink of a compact option row: one line of text with the tick or switch on it. Taken
-    /// from the text rather than from the control, so an option's label and a field's label
-    /// sit on exactly the same line — the control is centred on that line, not the other way
-    /// round. It is what a group is tall when the last thing in it is an option row.
-    /// </summary>
-    public static float OptionRowHeight() => Ink.LineHeight(Ink.Role.Body);
+        if (divider)
+        {
+            Hairline(dl, x, x + width, MathF.Round(y - (Tokens.Metric.RowGap * 0.5f)), Tokens.Col.RowDivider);
+        }
+
+        float labelY = CenterY(y, RowHeight(), Ink.Role.Body);
+        Ink.Draw(dl, Ink.Role.Body, new Vector2(x, labelY), Tokens.Col.Ink, label);
+
+        if (hint is not null)
+        {
+            // On the label's baseline, in the smallest role, and dropped rather than crowded
+            // if the control column has taken the room.
+            float hintX = MathF.Round(x + Ink.Measure(Ink.Role.Body, label).X + Tokens.Space.Md);
+            float hintY = MathF.Round(labelY + Ink.LineHeight(Ink.Role.Body) - Ink.LineHeight(Ink.Role.Small));
+            if (hintX + Ink.Measure(Ink.Role.Small, hint).X + Tokens.Space.Md <= ControlX(x, width))
+            {
+                Ink.Draw(dl, Ink.Role.Small, new Vector2(hintX, hintY), Tokens.Col.InkFaint, hint);
+            }
+        }
+
+        return ControlX(x, width);
+    }
 
     /// <summary>
     /// Opens a row of groups. Called before the first <see cref="BeginGroup"/> of the row,
@@ -997,46 +995,6 @@ internal static class Chrome
         contentLeft + (column * (ColumnWidth(contentWidth) + Tokens.Metric.ColumnGutter));
 
     /// <summary>
-    /// The label above a control, which is how a settings row is built: name on top, control
-    /// beneath it, the pair filling one column of the grid. Returns the drop from the label's
-    /// top to the control's top, so the caller places the control by adding it — the row
-    /// anatomy is written here once instead of being retyped on every screen.
-    /// </summary>
-    /// <param name="hint">
-    /// A few words after the label for what a label alone cannot say. Dropped rather than
-    /// crowded if the column is too narrow for both.
-    /// </param>
-    /// <summary>
-    /// How tall a field row is, label included: one value for the whole suite, so a selector
-    /// row and a slider row take exactly the same space and the rows under them stay level
-    /// across the two columns.
-    /// </summary>
-    public static float FieldRowHeight() =>
-        Ink.LineHeight(Ink.Role.Body) + Tokens.Space.Sm + Tokens.Metric.FieldControlHeight;
-
-    public static float FieldLabel(string label, float x, float y, float width, string? hint = null)
-    {
-        // Takes the top of the STEP and sets its own ink below the inset, the way every row
-        // does — that is what puts this label and an option row's label on one line.
-        y += Tokens.Metric.RowInset;
-
-        ImDrawListPtr dl = ImGui.GetWindowDrawList();
-        Ink.Draw(dl, Ink.Role.Body, new Vector2(x, y), Tokens.Col.Ink, label);
-
-        if (hint is not null)
-        {
-            float hintX = MathF.Round(x + Ink.Measure(Ink.Role.Body, label).X + Tokens.Space.Md);
-            if (hintX + Ink.Measure(Ink.Role.Small, hint).X <= x + width)
-            {
-                float hintY = MathF.Round(y + Ink.LineHeight(Ink.Role.Body) - Ink.LineHeight(Ink.Role.Small));
-                Ink.Draw(dl, Ink.Role.Small, new Vector2(hintX, hintY), Tokens.Col.InkFaint, hint);
-            }
-        }
-
-        return Tokens.Metric.RowInset + Ink.LineHeight(Ink.Role.Body) + Tokens.Space.Sm;
-    }
-
-    /// <summary>
     /// How tall a check box row is. The caller advances by this rather than by a row token of
     /// its own, so the gap under a check box is the same gap as under everything else.
     /// </summary>
@@ -1135,36 +1093,27 @@ internal static class Chrome
         float min,
         float max,
         string? hint = null,
-        string? tooltip = null)
+        string? tooltip = null,
+        bool divider = false)
     {
-        // The step's inset, the same one every other row takes.
-        y += Tokens.Metric.RowInset;
-
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
 
-        // --- caption row: label left, value right, and an inline note between them ---
-        Ink.Draw(dl, Ink.Role.Body, new Vector2(x, y), Tokens.Col.Ink, label);
-        float valueX = MathF.Round(x + width - Ink.Measure(Ink.Role.Body, valueText).X);
-        Ink.Draw(dl, Ink.Role.Body, new Vector2(valueX, y), Tokens.Col.GoldHi, valueText);
+        // The row's own label and note, and the value at the very right — the number belongs
+        // to the reader, so it keeps the edge and the track gives up the room for it.
+        float valueWidth = Tokens.Metric.ValueWidth;
+        float rowX = x;
+        float rowWidth = width;
+        Row(label, rowX, y, rowWidth, divider, hint);
 
-        if (hint is not null)
-        {
-            // Sits on the label's baseline, in the smallest role. Dropped rather than crowded
-            // if the value has taken the room: a note is worth less than a readable number.
-            float hintX = MathF.Round(x + Ink.Measure(Ink.Role.Body, label).X + Tokens.Space.Md);
-            float hintY = MathF.Round(y + Ink.LineHeight(Ink.Role.Body) - Ink.LineHeight(Ink.Role.Small));
-            if (hintX + Ink.Measure(Ink.Role.Small, hint).X + Tokens.Space.Md <= valueX)
-            {
-                Ink.Draw(dl, Ink.Role.Small, new Vector2(hintX, hintY), Tokens.Col.InkFaint, hint);
-            }
-        }
+        float valueX = MathF.Round(rowX + rowWidth - Ink.Measure(Ink.Role.Body, valueText).X);
+        Ink.Draw(dl, Ink.Role.Body, new Vector2(valueX, CenterY(y, RowHeight(), Ink.Role.Body)), Tokens.Col.GoldHi, valueText);
 
-        // The control box is the same height for every field control in the suite. A slider
-        // body is shorter than a selector, so it is centred in that box rather than hung from
-        // the top — which is what keeps a slider and a selector side by side looking level,
-        // and keeps the rows beneath them from drifting apart.
-        float boxTop = MathF.Round(y + Ink.LineHeight(Ink.Role.Body) + Tokens.Space.Sm);
-        float boxHeight = Tokens.Metric.FieldControlHeight;
+        // The track sits in the control column, less the room the value took.
+        x = ControlX(rowX, rowWidth);
+        width = ControlWidth() - valueWidth - Tokens.Space.Md;
+
+        float boxTop = y;
+        float boxHeight = RowHeight();
         float rowHeight = Tokens.Metric.SliderHeight;
         float trackRowTop = MathF.Round(boxTop + ((boxHeight - rowHeight) * 0.5f));
         float radius = Tokens.Metric.SliderGrabRadius;
@@ -1219,7 +1168,7 @@ internal static class Chrome
         Vector2 grabCenter = new(grabCenterX, MathF.Round(trackTop + (trackHeight * 0.5f)));
         MilledKnob(dl, grabCenter, radius, active || hovered ? 0.16f : 0f);
 
-        return new SliderResult(result, changed, released, FieldRowHeight());
+        return new SliderResult(result, changed, released, RowHeight());
     }
 
     /// <summary>
