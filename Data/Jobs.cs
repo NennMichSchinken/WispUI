@@ -40,7 +40,11 @@ internal static class Jobs
     /// <summary>One past the highest ClassJob row id we know (PCT is 42).</summary>
     private const int Count = 43;
 
-    /// <summary>The framed job icon of a job is its row id offset by this.</summary>
+    /// <summary>
+    /// Job icons run in sets of a hundred from 62000, and a job's icon is its row id added to
+    /// the set: 62000 is the plain set, 62100 the framed one we use. Verified against two
+    /// independent plugins that resolve them the same way.
+    /// </summary>
     private const int IconBase = 62100;
 
     private static readonly uint[] Colours = new uint[Count];
