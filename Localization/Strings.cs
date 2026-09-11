@@ -149,6 +149,8 @@ internal static class Strings
     // Says exactly what it does and no more. A hotbar key still goes to the selected target —
     // the game has no setting that changes that, whatever we assumed (Florian, 2026-09-12).
     public const string MouseoverTargetTooltip = "Makes <mo> macros act on whoever you point at.";
+    public const string MouseoverCasting = "Cast on mouseover";
+    public const string MouseoverCastingTooltip = "Sends an action to the frame under the cursor, without selecting them first.";
 
     public const string GroupLeader = "Leader";
     public const string GroupLeaderHint = "Who is in charge of the party.";

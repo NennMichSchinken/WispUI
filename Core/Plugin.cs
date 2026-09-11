@@ -21,6 +21,9 @@ public sealed class Plugin : IDalamudPlugin
     private readonly InfoBarEntry m_infoBar;
     private readonly HudManager m_hud = new();
 
+    /// <summary>The one feature that hooks the game. Owned here so it is always disposed.</summary>
+    private readonly MouseoverCasting m_mouseover;
+
     public Plugin(IDalamudPluginInterface pluginInterface)
     {
         Services.Initialize(pluginInterface);
@@ -38,6 +41,11 @@ public sealed class Plugin : IDalamudPlugin
         m_configWindow.InfoBarPreferenceChanged += this.OnInfoBarPreferenceChanged;
 
         m_hud.Add(new PartyFramesElement(m_config));
+
+        // Made now, put in place only if the player has asked for it. The hook it owns is the
+        // suite's one reach into what a key press does, so it is never installed on spec.
+        m_mouseover = new MouseoverCasting();
+        m_mouseover.Sync(m_config.PartyFrames.MouseoverCasting);
 
         // The pointer switch is shared by everything running in the game, so its state is put
         // back to the game's at load rather than assumed. From here on it has one writer and
@@ -58,6 +66,7 @@ public sealed class Plugin : IDalamudPlugin
         Services.PluginInterface.UiBuilder.OpenMainUi -= m_configWindow.Toggle;
         Services.PluginInterface.UiBuilder.Draw -= this.OnDraw;
 
+        m_mouseover.Dispose();
         m_configWindow.ReleaseCursor();
         m_infoBar.Dispose();
         m_commands.Dispose();
@@ -95,6 +104,10 @@ public sealed class Plugin : IDalamudPlugin
     private void OnUpdate(IFramework framework)
     {
         m_config.Tick();
+
+        // Two booleans compared. The hook goes in and comes out with the setting rather than
+        // sitting installed and inert, so a player who never turns it on never carries it.
+        m_mouseover.Sync(m_config.PartyFrames.MouseoverCasting);
     }
 
     private void OnInfoBarPreferenceChanged()

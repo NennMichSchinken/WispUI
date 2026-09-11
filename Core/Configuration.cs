@@ -221,6 +221,16 @@ public sealed class Configuration : IPluginConfiguration
         /// </summary>
         public bool MouseoverTarget { get; set; } = true;
 
+        /// <summary>
+        /// Send an action to whoever the mouse is over instead of to the selected target.
+        /// <para>
+        /// Off until asked for, and the only setting in the suite that deserves to be. The two
+        /// above change what is shown or what is selected; this changes what a key press does,
+        /// and nobody should find that out by surprise.
+        /// </para>
+        /// </summary>
+        public bool MouseoverCasting { get; set; }
+
         // --- leader mark --------------------------------------------------------
         // The same anatomy again. No "hide on" switch: there is exactly one leader, and one
         // mark is never the thing that makes a party unreadable.

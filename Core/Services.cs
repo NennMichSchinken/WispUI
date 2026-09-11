@@ -62,6 +62,13 @@ internal sealed class Services
     /// </summary>
     [PluginService] internal static ITargetManager Targets { get; private set; } = null!;
 
+    /// <summary>
+    /// Hooking. Used by exactly one feature — sending an action to whoever the mouse is over —
+    /// and by nothing else. Everything in the suite reads the game and draws; that one thing
+    /// reaches into what a key press does, which is why it is named here and kept to itself.
+    /// </summary>
+    [PluginService] internal static IGameInteropProvider Interop { get; private set; } = null!;
+
     internal static void Initialize(IDalamudPluginInterface pluginInterface)
     {
         pluginInterface.Create<Services>();

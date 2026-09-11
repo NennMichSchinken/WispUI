@@ -125,6 +125,9 @@ internal sealed class PartyFramesElement : HudElement
     /// </summary>
     private bool m_heldMouseOver;
 
+    /// <summary>Whether we told the action hook somebody was under the mouse.</summary>
+    private bool m_pointedAt;
+
     /// <summary>
     /// The job icon per slot, resolved while collecting and only painted while drawing.
     /// Looking a texture up is asking Dalamud a question, and the draw path asks nothing.
@@ -437,7 +440,17 @@ internal sealed class PartyFramesElement : HudElement
                     Services.Targets.Target = target;
                 }
 
-                if (hovered && cfg.MouseoverTarget)
+                if (!hovered)
+                {
+                    continue;
+                }
+
+                // Said whether or not the game is told as well: the two are separate features
+                // and the hook is only in place when the player asked for it.
+                MouseoverCasting.PointAt(target.GameObjectId);
+                m_pointedAt = true;
+
+                if (cfg.MouseoverTarget)
                 {
                     Services.Targets.MouseOverTarget = target;
                     m_heldMouseOver = true;
@@ -459,9 +472,19 @@ internal sealed class PartyFramesElement : HudElement
         }
     }
 
-    /// <summary>Hands the mouseover back, but only if we were the ones holding it.</summary>
+    /// <summary>
+    /// Says the mouse is over nobody, and hands the game's mouseover back if we were the ones
+    /// holding it. Both have to happen on the frame the mouse leaves: a stale answer here
+    /// sends the next action to somebody the player stopped pointing at.
+    /// </summary>
     private void ReleaseMouseOver()
     {
+        if (m_pointedAt)
+        {
+            m_pointedAt = false;
+            MouseoverCasting.PointAt(0ul);
+        }
+
         if (!m_heldMouseOver)
         {
             return;
