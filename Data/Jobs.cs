@@ -78,7 +78,7 @@ internal static class Jobs
         Set(27, JobRole.Dps, 0x2D9B78); // Summoner
         Set(35, JobRole.Dps, 0xE87B7B); // Red Mage
         Set(42, JobRole.Dps, 0xFC92E1); // Pictomancer — measured off an FF Logs chart
-        Set(36, JobRole.Dps, 0x1512FC); // Blue Mage — chosen by hand, never ranked, so nothing to take
+        Set(36, JobRole.Dps, 0x4B48FF); // Blue Mage — chosen by hand, never ranked, so nothing to take
 
         // The classes a job grows out of. They keep the job's colour and role, so a party
         // member below level 30 is not suddenly uncoloured.
