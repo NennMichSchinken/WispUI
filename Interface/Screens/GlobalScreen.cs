@@ -144,7 +144,7 @@ internal sealed class GlobalScreen
 
         // One option row, and it is the last thing in the group: the group is as tall as that
         // row's ink, not as tall as the step it stands in.
-        contentHeight = Tokens.Metric.RowInset + Chrome.OptionRowHeight();
+        contentHeight = Chrome.OptionRowEnd(group.ContentY) - group.ContentY;
         Chrome.EndGroupContent(group, contentHeight);
         return group;
     }

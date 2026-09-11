@@ -78,12 +78,13 @@ internal static class Tokens
         /// purpose: at the same strength it would compete with the group frame, and a line
         /// inside an object must never read as loud as the line around it.
         /// <para>
-        /// Lifted a step towards the hairline (was 0x2E2C2E): a divider that only just clears
-        /// the surface is gone on a bright screen, and a line nobody can see is not a quiet
-        /// line, it is a missing one.
+        /// Lifted twice (0x2E2C2E, then 0x343234): a divider that only just clears the surface
+        /// is gone on a bright screen, and a line nobody can see is not a quiet line, it is a
+        /// missing one. The second lift came with the group's own lighter surface, which ate
+        /// most of the first one — the step is over the GROUP colour now, not the panel's.
         /// </para>
         /// </summary>
-        public static readonly uint RowDivider = Rgb(0x343234);
+        public static readonly uint RowDivider = Rgb(0x383638);
 
         // --- controls (derived: the old values neutralised onto the measured hue) ---
         public static readonly uint Control = Rgb(0x3A383A);
