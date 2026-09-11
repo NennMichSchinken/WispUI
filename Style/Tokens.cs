@@ -302,6 +302,12 @@ internal static class Tokens
         public static float BadgeHeight => Px(18f);
         public static float BadgePaddingX => Px(6f);
 
+        /// <summary>
+        /// How wide a tooltip may run before it wraps. Without a wrap width ImGui sets a
+        /// tooltip as a single line, which on a wide screen reaches right across the game.
+        /// </summary>
+        public static float TooltipWrap => Px(280f);
+
         public static float ScrollbarWidth => Px(11f);
         public static float SectionPaddingX => Px(16f);
         public static float SectionPaddingY => Px(16f);

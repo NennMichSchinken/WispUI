@@ -118,13 +118,31 @@ internal static class Chrome
             colour);
     }
 
-    /// <summary>Shows a tooltip while the last item is hovered. Used to say why something is off.</summary>
+    /// <summary>
+    /// Shows a tooltip while the last item is hovered — the one place a longer explanation
+    /// belongs, since it is not in the flow of the screen.
+    /// <para>
+    /// Built by hand rather than through <c>SetTooltip</c> for two reasons: ImGui sets a
+    /// tooltip as a single unbroken line, which on a wide screen runs right across the game,
+    /// and the default font is not the one the rest of the window is written in.
+    /// </para>
+    /// </summary>
     public static void TooltipOnHover(string text)
     {
-        if (ImGui.IsItemHovered())
+        if (!ImGui.IsItemHovered())
         {
-            ImGui.SetTooltip(text);
+            return;
         }
+
+        Ink.Push(Ink.Role.Body);
+        ImGui.BeginTooltip();
+        ImGui.PushTextWrapPos(Tokens.Metric.TooltipWrap);
+        ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.Ink);
+        ImGui.TextUnformatted(text);
+        ImGui.PopStyleColor();
+        ImGui.PopTextWrapPos();
+        ImGui.EndTooltip();
+        Ink.Pop(Ink.Role.Body);
     }
 
     /// <summary>
