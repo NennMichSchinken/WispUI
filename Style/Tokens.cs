@@ -206,8 +206,9 @@ internal static class Tokens
 
         // --- slider ---
         // FFXIV fills its own sliders green rather than in the gold it uses for ticks and
-        // arrows, and WispUI follows that. These greens are read by eye from the game and
-        // are the first values to correct if they sit wrong next to it.
+        // arrows, and WispUI follows that. Set by eye rather than with a dropper, then held
+        // against the game's own slider in-game and accepted (Florian, 2026-09-11): SETTLED,
+        // not provisional. Treat these like a measured value — do not re-tune them by feel.
         /// <summary>The unfilled part of a slider — darker than a text field, so the fill reads clearly.</summary>
         public static readonly uint SliderTrackBg = Rgb(0x131213);
 
