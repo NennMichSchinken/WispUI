@@ -231,6 +231,12 @@ public sealed class Configuration : IPluginConfiguration
         /// </summary>
         public bool MouseoverCasting { get; set; }
 
+        /// <summary>
+        /// Ring the frame the mouse is over. On, because the game's own party list does it and
+        /// a frame that answers the mouse without saying so is a frame you aim at twice.
+        /// </summary>
+        public bool HighlightHovered { get; set; } = true;
+
         // --- leader mark --------------------------------------------------------
         // The same anatomy again. No "hide on" switch: there is exactly one leader, and one
         // mark is never the thing that makes a party unreadable.

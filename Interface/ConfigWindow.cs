@@ -237,13 +237,8 @@ internal sealed class ConfigWindow : Window
 
     public override void PostDraw()
     {
-        // After every control has had its say, so the shape is the one the thing under the
-        // mouse asked for on this frame rather than on the last.
-        if (m_ownsCursor)
-        {
-            NativeUi.FollowCursor(ImGui.GetMouseCursor());
-        }
-
+        // The shape itself is set once for the whole frame by NativeUi, after the HUD has had
+        // its say too — this window is no longer the only thing the mouse can be over.
         Chrome.EndFrame();
         ImGui.PopStyleColor(4);
         ImGui.PopStyleVar(3);

@@ -334,7 +334,7 @@ internal sealed class PartyFramesElement : HudElement
             dl.PopClipRect();
         }
 
-        this.TakeTheMouse(cfg, count);
+        this.TakeTheMouse(dl, cfg, count);
     }
 
     /// <summary>
@@ -350,7 +350,7 @@ internal sealed class PartyFramesElement : HudElement
     /// ImGui takes every button or none.
     /// </para>
     /// </summary>
-    private void TakeTheMouse(Configuration.PartyFramesConfig cfg, int count)
+    private void TakeTheMouse(ImDrawListPtr dl, Configuration.PartyFramesConfig cfg, int count)
     {
         // Nothing to take while the layout is being set against stand-ins: there is nobody to
         // select, and edit mode wants the same button for dragging.
@@ -424,6 +424,23 @@ internal sealed class PartyFramesElement : HudElement
 
                 hitAnything = true;
 
+                // Drawn now rather than in the pass above, because only here is it known which
+                // frame the mouse is on. The background list is the same one the frames went
+                // into, so appending puts the ring on top of its own frame — and the input
+                // window paints nothing, so there is nothing of it to draw over.
+                if (hovered && cfg.HighlightHovered)
+                {
+                    Ring(dl, m_frameMin[i], m_frameMax[i], Tokens.Line(2f), Tokens.Col.FrameHover);
+                }
+
+                // The game puts the pointing hand over its own party list, so ours wears it
+                // too (Florian, 2026-09-12). NativeUi turns it into the game's own shape at
+                // the end of the frame; asking for it here is only saying what this is.
+                if (hovered)
+                {
+                    ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+                }
+
                 // Only now is the game object worth looking up. Finding one walks the object
                 // table, so it happens for the one member under the cursor and never for all
                 // eight of them (spec 12.5).
@@ -470,6 +487,25 @@ internal sealed class PartyFramesElement : HudElement
         {
             this.ReleaseMouseOver();
         }
+    }
+
+    /// <summary>
+    /// A rectangle drawn as four filled bars rather than as a stroke. ImGui centres a stroke
+    /// on its path, so half of it falls outside the rectangle and is antialiased — the same
+    /// reason the window's rings and the party number's edge are filled shapes.
+    /// </summary>
+    private static void Ring(ImDrawListPtr dl, Vector2 min, Vector2 max, float thickness, uint colour)
+    {
+        float t = MathF.Min(thickness, MathF.Min(max.X - min.X, max.Y - min.Y) * 0.5f);
+        if (t <= 0f)
+        {
+            return;
+        }
+
+        dl.AddRectFilled(min, new Vector2(max.X, min.Y + t), colour);
+        dl.AddRectFilled(new Vector2(min.X, max.Y - t), max, colour);
+        dl.AddRectFilled(new Vector2(min.X, min.Y + t), new Vector2(min.X + t, max.Y - t), colour);
+        dl.AddRectFilled(new Vector2(max.X - t, min.Y + t), new Vector2(max.X, max.Y - t), colour);
     }
 
     /// <summary>

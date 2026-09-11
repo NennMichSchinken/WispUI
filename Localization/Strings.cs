@@ -142,6 +142,8 @@ internal static class Strings
     // --- Party frames: the mouse ----------------------------------------------
     public const string GroupMouse = "Mouse";
     public const string GroupMouseHint = "What clicking and pointing do.";
+    public const string HighlightHovered = "Ring the frame under the cursor";
+    public const string HighlightHoveredTooltip = "The game's own party list marks it too.";
     public const string ClickToTarget = "Click to select";
     public const string ClickToTargetTooltip = "Left-click a frame to target that member.";
     public const string MouseoverTarget = "Mouseover target";

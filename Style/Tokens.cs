@@ -162,6 +162,15 @@ internal static class Tokens
         public static readonly uint FrameEdge = 0xC80A0A0Au;
 
         /// <summary>
+        /// The ring around the frame under the mouse. White, because it has to read against a
+        /// bar in any of the role or job colours and against the world behind an empty one —
+        /// there is no tint that stays legible over all of them. The game's own party list
+        /// answers the same question by brightening; a ring keeps the bar's colour honest,
+        /// which matters more here because ours is a colour the player chose.
+        /// </summary>
+        public static readonly uint FrameHover = 0xD2FFFFFFu;
+
+        /// <summary>
         /// The empty part of a bar that carries one of its own — the mana bar in its full
         /// shape. Darker than the frame behind it, so an empty bar still reads as a bar.
         /// </summary>

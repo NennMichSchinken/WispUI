@@ -38,16 +38,26 @@ internal static class NativeUi
     /// </summary>
     public static void SettleCursor()
     {
-        if (s_gameCursorWanted != s_gameCursorHeld)
+        bool ours = s_gameCursorWanted;
+        s_gameCursorWanted = false;
+
+        if (ours != s_gameCursorHeld)
         {
-            s_gameCursorHeld = s_gameCursorWanted;
+            s_gameCursorHeld = ours;
 
             // Off while it is ours: with it on, Dalamud holds the game's pointer back and puts
             // a Windows one in its place, and the shape we set would never reach the screen.
-            Services.PluginInterface.UiBuilder.OverrideGameCursor = !s_gameCursorWanted;
+            Services.PluginInterface.UiBuilder.OverrideGameCursor = !ours;
         }
 
-        s_gameCursorWanted = false;
+        if (ours)
+        {
+            // The shape comes last, after every window and every HUD element has had its say,
+            // so it is what the thing under the mouse asked for on this frame rather than on
+            // the one before. The game picks its own shape earlier, which is what makes this
+            // the later word.
+            FollowCursor(ImGui.GetMouseCursor());
+        }
     }
 
     /// <summary>

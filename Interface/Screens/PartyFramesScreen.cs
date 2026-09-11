@@ -48,6 +48,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdClickToTarget = "##wisp-pf-clicktarget";
     private const string IdMouseover = "##wisp-pf-mouseover";
     private const string IdMouseoverCasting = "##wisp-pf-mocast";
+    private const string IdHighlight = "##wisp-pf-highlight";
     private const string IdLeaderGroup = "##wisp-pf-leader";
     private const string IdLeaderSize = "##wisp-pf-leadersize";
     private const string IdLeaderPosition = "##wisp-pf-leaderposition";
@@ -960,6 +961,24 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float rowY = group.ContentY;
 
         if (Chrome.OptionRow(
+                IdHighlight,
+                Strings.HighlightHovered,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.HighlightHovered,
+                Chrome.OptionControl.Tick,
+                Strings.HighlightHoveredTooltip,
+                true,
+                false))
+        {
+            m_config.PartyFrames.HighlightHovered = !m_config.PartyFrames.HighlightHovered;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+
+        if (Chrome.OptionRow(
                 IdClickToTarget,
                 Strings.ClickToTarget,
                 group.ContentX,
@@ -969,7 +988,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 Chrome.OptionControl.Switch,
                 Strings.ClickToTargetTooltip,
                 true,
-                false))
+                true))
         {
             m_config.PartyFrames.ClickToTarget = !m_config.PartyFrames.ClickToTarget;
             m_config.MarkDirty();
