@@ -435,15 +435,31 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         Chrome.GroupScope mana = this.DrawMana(Chrome.ColumnX(origin.X, width, 1), y, column, out float manaHeight);
         y += FrameRow(figure, figureHeight, mana, manaHeight);
 
-        // The badges: what somebody is, what number they answer to, and who is in charge.
-        Chrome.BeginGroupRow();
-        Chrome.GroupScope icon = this.DrawJobIcon(Chrome.ColumnX(origin.X, width, 0), y, column, out float iconHeight);
-        Chrome.GroupScope number = this.DrawPartyNumber(Chrome.ColumnX(origin.X, width, 1), y, column, out float numberHeight);
-        y += FrameRow(icon, iconHeight, number, numberHeight);
+        ImGui.SetCursorScreenPos(origin);
+        ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
+    }
+
+    /// <summary>
+    /// The Icons tab: the badges a frame carries. They are together because they are the same
+    /// kind of thing and are set the same way — a size, one of the nine points, and the two
+    /// nudges off it — not because they happen to be pictures.
+    /// </summary>
+    public void DrawIcons(float width)
+    {
+        Vector2 origin = ImGui.GetCursorScreenPos();
+        float column = Chrome.ColumnWidth(width);
 
         Chrome.BeginGroupRow();
-        Chrome.GroupScope leader = this.DrawLeaderIcon(Chrome.ColumnX(origin.X, width, 0), y, column, out float leaderHeight);
-        y += Chrome.GroupFrame(leader, leaderHeight) + Tokens.Metric.ColumnGutter;
+        Chrome.GroupScope icon = this.DrawJobIcon(Chrome.ColumnX(origin.X, width, 0), origin.Y, column, out float iconHeight);
+        Chrome.GroupScope leader = this.DrawLeaderIcon(Chrome.ColumnX(origin.X, width, 1), origin.Y, column, out float leaderHeight);
+        float y = origin.Y + FrameRow(icon, iconHeight, leader, leaderHeight);
+
+        // One group in the second row. It keeps its column rather than stretching across both:
+        // a group twice as wide as the one above it reads as a different kind of thing, and
+        // this is the same kind of thing with fewer rows.
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope number = this.DrawPartyNumber(Chrome.ColumnX(origin.X, width, 0), y, column, out float numberHeight);
+        y += Chrome.GroupFrame(number, numberHeight) + Tokens.Metric.ColumnGutter;
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));

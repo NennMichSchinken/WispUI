@@ -32,6 +32,7 @@ internal static class Strings
 
     // --- Tabs ---------------------------------------------------------------
     public const string TabBase = "Base";
+    public const string TabIcons = "Icons";
     public const string TabLayout = "Layout";
     public const string TabAuras = "Auras";
 

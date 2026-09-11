@@ -40,7 +40,19 @@ internal sealed class ConfigWindow : Window
 
     private static readonly string[] TabsGlobal = { Strings.TabBase };
     private static readonly string[] TabsProfile = { Strings.TabBase };
-    private static readonly string[] TabsPartyFrames = { Strings.TabBase, Strings.TabLayout, Strings.TabAuras };
+    /// <summary>
+    /// Split by what kind of thing a setting is, not by subject: the bar and what it says, the
+    /// badges on it, where the frames go, and what is on the person. Each tab lands at three
+    /// or four groups, which is a two by two grid and no scrolling — one tab carrying seven
+    /// groups was the state that made the question worth asking (Florian, 2026-09-12).
+    /// </summary>
+    private static readonly string[] TabsPartyFrames =
+    {
+        Strings.TabBase,
+        Strings.TabIcons,
+        Strings.TabLayout,
+        Strings.TabAuras,
+    };
 
     /// <summary>
     /// The navigation tree. Suite-wide entries first, then a separator, then the HUD
@@ -745,16 +757,21 @@ internal sealed class ConfigWindow : Window
             ImGui.SetCursorPos(new Vector2(padX, padY));
 
             float inner = width - (padX * 2f);
-            bool onBase = m_tabIndex[(int)m_screen] == 0;
+            int tab = m_tabIndex[(int)m_screen];
+
             if (m_screen == Screen.Global)
             {
                 m_global.Draw(inner);
             }
-            else if (m_screen == Screen.PartyFrames && onBase)
+            else if (m_screen == Screen.PartyFrames && tab == 0)
             {
                 m_partyFrames.Draw(inner);
             }
-            else if (m_screen == Screen.PartyFrames && m_tabIndex[(int)m_screen] == 1)
+            else if (m_screen == Screen.PartyFrames && tab == 1)
+            {
+                m_partyFrames.DrawIcons(inner);
+            }
+            else if (m_screen == Screen.PartyFrames && tab == 2)
             {
                 m_partyFrames.DrawLayout(inner);
             }
