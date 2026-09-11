@@ -393,6 +393,12 @@ internal sealed class ArrowSelector<T>
 
         if (ImGui.BeginPopup(m_idPopup))
         {
+            // Escape is handled by the window, which cannot close a popup from the outside.
+            if (Chrome.ClosePopupRequested)
+            {
+                ImGui.CloseCurrentPopup();
+            }
+
             if (m_options.EnableSearch)
             {
                 if (m_focusSearch)

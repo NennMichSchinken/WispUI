@@ -23,6 +23,13 @@ internal sealed class Services
 
     [PluginService] internal static IDtrBar DtrBar { get; private set; } = null!;
 
+    /// <summary>
+    /// Read and written: the game keeps its own key buffer, and a key we act on has to be
+    /// taken out of it, or the game acts on it as well. See the escape handling in the
+    /// configuration window.
+    /// </summary>
+    [PluginService] internal static IKeyState KeyState { get; private set; } = null!;
+
     internal static void Initialize(IDalamudPluginInterface pluginInterface)
     {
         pluginInterface.Create<Services>();

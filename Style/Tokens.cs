@@ -68,8 +68,13 @@ internal static class Tokens
         /// Between two compact options inside a group. Fainter than <see cref="Hairline"/> on
         /// purpose: at the same strength it would compete with the group frame, and a line
         /// inside an object must never read as loud as the line around it.
+        /// <para>
+        /// Lifted a step towards the hairline (was 0x2E2C2E): a divider that only just clears
+        /// the surface is gone on a bright screen, and a line nobody can see is not a quiet
+        /// line, it is a missing one.
+        /// </para>
         /// </summary>
-        public static readonly uint RowDivider = Rgb(0x2E2C2E);
+        public static readonly uint RowDivider = Rgb(0x343234);
 
         // --- controls (derived: the old values neutralised onto the measured hue) ---
         public static readonly uint Control = Rgb(0x3A383A);
@@ -179,8 +184,17 @@ internal static class Tokens
 
         public static readonly uint SliderFill = Rgb(0x7FA84A);
         public static readonly uint SliderFillHi = Rgb(0x9DC85F);
-        public static readonly uint SliderGrab = Rgb(0xE4E7EA);
-        public static readonly uint SliderGrabHover = Rgb(0xFFFFFF);
+        /// <summary>
+        /// The knob, as a small domed piece of metal rather than a flat white dot: the game's
+        /// own knob is lit from above and falls off towards the bottom, and a plain filled
+        /// circle read as a sticker sitting on the track. Three tones, painted as a shaded
+        /// base, a body lifted towards the light and a highlight — derived, not measured.
+        /// </summary>
+        public static readonly uint SliderGrab = Rgb(0xBFBCB4);
+
+        public static readonly uint SliderGrabHover = Rgb(0xD5D2C9);
+        public static readonly uint SliderGrabShade = Rgb(0x7E7B74);
+        public static readonly uint SliderGrabHighlight = Rgb(0xF1EEE5);
 
         // --- scrollbar ---
         public static readonly uint ScrollTrack = Rgb(0x1B1A1B);
@@ -193,6 +207,24 @@ internal static class Tokens
         public static uint Faded(uint colour, float alpha) =>
             (colour & 0x00FFFFFFu) | ((uint)MathF.Round(Math.Clamp(alpha, 0f, 1f) * 255f) << 24);
 
+        /// <summary>
+        /// Blends two packed colours channel by channel. Used where one run of the window edge
+        /// hands over to the next: at a hard swap the corner shows a seam, and the eye finds a
+        /// seam on a curve faster than anywhere else.
+        /// </summary>
+        public static uint Mix(uint from, uint to, float t)
+        {
+            t = Math.Clamp(t, 0f, 1f);
+            uint result = 0u;
+            for (int shift = 0; shift < 32; shift += 8)
+            {
+                float a = (from >> shift) & 0xFFu;
+                float b = (to >> shift) & 0xFFu;
+                result |= (uint)MathF.Round(a + ((b - a) * t)) << shift;
+            }
+
+            return result;
+        }
     }
 
     /// <summary>The spacing ladder. No free in-between values.</summary>

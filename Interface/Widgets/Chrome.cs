@@ -24,6 +24,21 @@ internal static class Chrome
     private const string IdGroupAction = "##wisp-group-action";
     private const string IdGroupCollapse = "##wisp-group-collapse";
 
+    private static bool s_closePopups;
+
+    /// <summary>
+    /// Set for one frame when escape was pressed with a list or panel open. Whoever is drawing
+    /// a popup this frame reads it and closes itself: only the popup's own body may call
+    /// ImGui's close, so the key cannot act on it from the outside.
+    /// </summary>
+    public static bool ClosePopupRequested => s_closePopups;
+
+    /// <summary>Asks every popup drawn this frame to close. Cleared again by <see cref="EndFrame"/>.</summary>
+    public static void RequestClosePopups() => s_closePopups = true;
+
+    /// <summary>Called once at the end of the window's frame, after every popup has had its turn.</summary>
+    public static void EndFrame() => s_closePopups = false;
+
     /// <summary>Vertically centres one line of the given role in a box of that height.</summary>
     public static float CenterY(float top, float height, Ink.Role role) =>
         MathF.Round(top + ((height - Ink.LineHeight(role)) * 0.5f));
@@ -708,11 +723,18 @@ internal static class Chrome
     /// </summary>
     public static float EndGroup(in GroupScope scope, float contentHeight)
     {
-        float pad = Tokens.Metric.GroupPadding;
-        float bottom = scope.Collapsed
-            ? scope.ContentY + pad
-            : scope.ContentY + contentHeight + pad;
+        EndGroupContent(scope, contentHeight);
+        return GroupFrame(scope, contentHeight);
+    }
 
+    /// <summary>
+    /// Closes what a group contains without drawing its frame: lifts the disabled block and
+    /// the id, and veils the rows if the group is off. Split out from <see cref="EndGroup"/>
+    /// for the side-by-side case, where neither frame can be drawn until both columns have
+    /// said how tall they are — see <see cref="GroupFrameRow"/>.
+    /// </summary>
+    public static void EndGroupContent(in GroupScope scope, float contentHeight)
+    {
         if (!scope.Enabled && !scope.Collapsed)
         {
             ImGui.EndDisabled();
@@ -726,8 +748,41 @@ internal static class Chrome
                 Tokens.Col.Faded(Tokens.Col.Panel, 1f - Tokens.Col.DisabledAlpha));
         }
 
-        // Drawn after the rows on purpose: it is an outline with nothing behind it, so
-        // covering the content is impossible, and this way it can wrap whatever height came out.
+        ImGui.PopID();
+    }
+
+    /// <summary>
+    /// Draws one group's frame around the height its rows turned out to be, and returns the
+    /// whole height so the screen can move on.
+    /// </summary>
+    public static float GroupFrame(in GroupScope scope, float contentHeight) =>
+        FrameTo(scope, GroupBottom(scope, contentHeight));
+
+    /// <summary>
+    /// Frames two groups that sit side by side, both down to the lower of the two bottom
+    /// edges. Two columns of different length would otherwise end in a step, and every group
+    /// added later would add another one; a shared bottom edge keeps the row one object.
+    /// A folded-away group keeps its own small height — stretching it would undo the fold.
+    /// </summary>
+    public static float GroupFrameRow(in GroupScope left, float leftHeight, in GroupScope right, float rightHeight)
+    {
+        float bottom = MathF.Max(GroupBottom(left, leftHeight), GroupBottom(right, rightHeight));
+
+        float used = FrameTo(left, left.Collapsed ? GroupBottom(left, leftHeight) : bottom);
+        float other = FrameTo(right, right.Collapsed ? GroupBottom(right, rightHeight) : bottom);
+        return MathF.Max(used, other);
+    }
+
+    private static float GroupBottom(in GroupScope scope, float contentHeight) => scope.Collapsed
+        ? scope.ContentY + Tokens.Metric.GroupPadding
+        : scope.ContentY + contentHeight + Tokens.Metric.GroupPadding;
+
+    /// <summary>
+    /// Drawn after the rows on purpose: it is an outline with nothing behind it, so covering
+    /// the content is impossible, and this way it can wrap whatever height came out.
+    /// </summary>
+    private static float FrameTo(in GroupScope scope, float bottom)
+    {
         ImGui.GetWindowDrawList().AddRect(
             new Vector2(scope.X, scope.Y),
             new Vector2(scope.X + scope.Width, bottom),
@@ -736,7 +791,6 @@ internal static class Chrome
             ImDrawFlags.RoundCornersAll,
             Tokens.Line(1f));
 
-        ImGui.PopID();
         return bottom - scope.Y;
     }
 
@@ -1001,8 +1055,18 @@ internal static class Chrome
 
         // No outline on the track. The rounded ends are the shape; a border around them only
         // made the bar look boxed in.
+        // The knob is domed rather than flat: a shaded disc, a body shifted up into the light
+        // and a small highlight. Three concentric circles are enough — the eye reads the
+        // offset as a curve, and it costs no gradient the draw list would have to fake.
         Vector2 grabCenter = new(grabCenterX, MathF.Round(trackTop + (trackHeight * 0.5f)));
-        dl.AddCircleFilled(grabCenter, radius, active || hovered ? Tokens.Col.SliderGrabHover : Tokens.Col.SliderGrab);
+        uint body = active || hovered ? Tokens.Col.SliderGrabHover : Tokens.Col.SliderGrab;
+
+        dl.AddCircleFilled(grabCenter, radius, Tokens.Col.SliderGrabShade);
+        dl.AddCircleFilled(new Vector2(grabCenter.X, grabCenter.Y - (radius * 0.16f)), radius * 0.84f, body);
+        dl.AddCircleFilled(
+            new Vector2(grabCenter.X, grabCenter.Y - (radius * 0.38f)),
+            radius * 0.42f,
+            Tokens.Col.SliderGrabHighlight);
         dl.AddCircle(grabCenter, radius, Tokens.Col.EdgeDim, 0, Tokens.Line(1f));
 
         return new SliderResult(result, changed, released, FieldRowHeight());

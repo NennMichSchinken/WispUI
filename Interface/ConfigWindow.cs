@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using System.Reflection;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Game.ClientState.Keys;
 using Dalamud.Interface.Windowing;
 using WispUI.Appearance;
 using WispUI.Core;
@@ -78,6 +79,8 @@ internal sealed class ConfigWindow : Window
 
     private Screen m_screen = Screen.PartyFrames;
 
+    /// <summary>Escape has to act once per press, not once per frame it is held down.</summary>
+    private bool m_escapeHeld;
 
     public ConfigWindow(Configuration config)
         : base(
@@ -122,9 +125,12 @@ internal sealed class ConfigWindow : Window
     {
         // While a list or panel is open, escape belongs to it. Without this the key reaches
         // the window first and shuts the whole suite instead of the popup in front of it.
-        this.RespectCloseHotkey = !ImGui.IsPopupOpen(
+        bool popupOpen = ImGui.IsPopupOpen(
             string.Empty,
             ImGuiPopupFlags.AnyPopupId | ImGuiPopupFlags.AnyPopupLevel);
+
+        this.RespectCloseHotkey = !popupOpen;
+        this.HandleEscape(popupOpen);
 
         // The window has a fixed size and is not resizable by hand: dragging an ImGui corner
         // is fiddly, and a settings window that can be pulled to any width never looks right.
@@ -148,8 +154,37 @@ internal sealed class ConfigWindow : Window
 
     public override void PostDraw()
     {
+        Chrome.EndFrame();
         ImGui.PopStyleColor(4);
         ImGui.PopStyleVar(3);
+    }
+
+    /// <summary>
+    /// Escape closes the open list or panel, and nothing else.
+    /// <para>
+    /// The game does not get the key through a window message; it reads its own key buffer,
+    /// which is why the system menu came up behind the popup no matter what the window did
+    /// about the close hotkey. So the key is taken out of that buffer for as long as a popup
+    /// is open — while one is up it belongs to the popup — and the popup itself is asked to
+    /// close, because only a popup's own body may call ImGui's close.
+    /// </para>
+    /// </summary>
+    private void HandleEscape(bool popupOpen)
+    {
+        if (!popupOpen)
+        {
+            m_escapeHeld = false;
+            return;
+        }
+
+        bool down = Services.KeyState[VirtualKey.ESCAPE];
+        if (down && !m_escapeHeld)
+        {
+            Chrome.RequestClosePopups();
+        }
+
+        m_escapeHeld = down;
+        Services.KeyState[VirtualKey.ESCAPE] = false;
     }
 
     public override void Draw()
@@ -233,37 +268,64 @@ internal sealed class ConfigWindow : Window
             float bottom = origin.Y + size.Y - inset;
             float r = MathF.Max(0f, radius - (i * ring));
 
-            // Top edge: the left corner arc, the straight run between (implied by the path),
-            // then the right corner arc.
-            if (r > 0f)
-            {
-                dl.PathArcTo(new Vector2(left + r, top + r), r, MathF.PI, MathF.PI * 1.5f);
-                dl.PathArcTo(new Vector2(right - r, top + r), r, MathF.PI * 1.5f, MathF.PI * 2f);
-            }
-            else
-            {
-                dl.PathLineTo(new Vector2(left, top));
-                dl.PathLineTo(new Vector2(right, top));
-            }
+            uint topColour = Tokens.Col.EdgeTop[i];
+            uint sideColour = Tokens.Col.EdgeSide[i];
+            uint bottomColour = Tokens.Col.EdgeBottom[i];
 
-            dl.PathStroke(Tokens.Col.EdgeTop[i], ImDrawFlags.None, ring);
+            // The straight runs, each in its own colour.
+            dl.AddLine(new Vector2(left + r, top), new Vector2(right - r, top), topColour, ring);
+            dl.AddLine(new Vector2(left + r, bottom), new Vector2(right - r, bottom), bottomColour, ring);
+            dl.AddLine(new Vector2(left, top + r), new Vector2(left, bottom - r), sideColour, ring);
+            dl.AddLine(new Vector2(right, top + r), new Vector2(right, bottom - r), sideColour, ring);
 
-            if (r > 0f)
+            if (r <= 0f)
             {
-                dl.PathArcTo(new Vector2(right - r, bottom - r), r, 0f, MathF.PI * 0.5f);
-                dl.PathArcTo(new Vector2(left + r, bottom - r), r, MathF.PI * 0.5f, MathF.PI);
-            }
-            else
-            {
-                dl.PathLineTo(new Vector2(right, bottom));
-                dl.PathLineTo(new Vector2(left, bottom));
+                continue;
             }
 
-            dl.PathStroke(Tokens.Col.EdgeBottom[i], ImDrawFlags.None, ring);
+            // The corners carry one run into the next. Stroked as short segments with the
+            // colour walked across them, because a corner that simply swaps colours where the
+            // arc ends puts a visible step at the very place the eye follows the curve.
+            BlendedArc(dl, new Vector2(left + r, top + r), r, MathF.PI, MathF.PI * 1.5f, sideColour, topColour, ring);
+            BlendedArc(dl, new Vector2(right - r, top + r), r, MathF.PI * 1.5f, MathF.PI * 2f, topColour, sideColour, ring);
+            BlendedArc(dl, new Vector2(right - r, bottom - r), r, 0f, MathF.PI * 0.5f, sideColour, bottomColour, ring);
+            BlendedArc(dl, new Vector2(left + r, bottom - r), r, MathF.PI * 0.5f, MathF.PI, bottomColour, sideColour, ring);
+        }
+    }
 
-            uint side = Tokens.Col.EdgeSide[i];
-            dl.AddLine(new Vector2(left, top + r), new Vector2(left, bottom - r), side, ring);
-            dl.AddLine(new Vector2(right, top + r), new Vector2(right, bottom - r), side, ring);
+    /// <summary>
+    /// One quarter-circle whose colour walks from <paramref name="from"/> to
+    /// <paramref name="to"/>. Drawn segment by segment: a draw list strokes a path in a single
+    /// colour, and a single colour is exactly what leaves the seam at the corners.
+    /// </summary>
+    private static void BlendedArc(
+        ImDrawListPtr dl,
+        Vector2 centre,
+        float radius,
+        float from,
+        float to,
+        uint colourFrom,
+        uint colourTo,
+        float thickness)
+    {
+        // Enough segments that the arc reads as a curve at the radii we use, few enough that
+        // four rings on four corners stay a rounding error in the frame.
+        const int Segments = 8;
+
+        float step = (to - from) / Segments;
+        Vector2 previous = new(
+            centre.X + (MathF.Cos(from) * radius),
+            centre.Y + (MathF.Sin(from) * radius));
+
+        for (int s = 1; s <= Segments; s++)
+        {
+            float angle = from + (step * s);
+            Vector2 point = new(
+                centre.X + (MathF.Cos(angle) * radius),
+                centre.Y + (MathF.Sin(angle) * radius));
+
+            dl.AddLine(previous, point, Tokens.Col.Mix(colourFrom, colourTo, (s - 0.5f) / Segments), thickness);
+            previous = point;
         }
     }
 

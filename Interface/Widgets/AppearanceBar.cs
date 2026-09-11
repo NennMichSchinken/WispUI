@@ -155,6 +155,12 @@ internal sealed class AppearanceBar
 
         if (ImGui.BeginPopup(IdPanel))
         {
+            // Escape is handled by the window, which cannot close a popup from the outside.
+            if (Chrome.ClosePopupRequested)
+            {
+                ImGui.CloseCurrentPopup();
+            }
+
             ImDrawListPtr dl = ImGui.GetWindowDrawList();
             Vector2 origin = ImGui.GetWindowPos();
             float x = origin.X + pad;

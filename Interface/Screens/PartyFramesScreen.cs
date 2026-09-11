@@ -149,16 +149,19 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float column = Chrome.ColumnWidth(width);
         float rowTop = origin.Y;
 
-        float left = this.DrawHealthBar(Chrome.ColumnX(origin.X, width, 0), rowTop, column);
-        float right = this.DrawNameText(Chrome.ColumnX(origin.X, width, 1), rowTop, column);
+        // Both columns are drawn first and framed afterwards, so the shorter one can be
+        // carried down to the taller one's bottom edge. Two groups that each stop where their
+        // own rows end leave a step, and every group added later adds another one.
+        Chrome.GroupScope left = this.DrawHealthBar(Chrome.ColumnX(origin.X, width, 0), rowTop, column, out float leftHeight);
+        Chrome.GroupScope right = this.DrawNameText(Chrome.ColumnX(origin.X, width, 1), rowTop, column, out float rightHeight);
 
-        float y = rowTop + MathF.Max(left, right);
+        float y = rowTop + Chrome.GroupFrameRow(left, leftHeight, right, rightHeight);
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
     }
 
-    private float DrawHealthBar(float x, float y, float width)
+    private Chrome.GroupScope DrawHealthBar(float x, float y, float width, out float contentHeight)
     {
         Chrome.GroupScope group = Chrome.BeginGroup(
             IdHealthGroup,
@@ -243,7 +246,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         }
 
         used += result.Height;
-        return Chrome.EndGroup(group, used);
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
     }
 
     /// <summary>
@@ -251,7 +256,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     /// visible but go quiet and stop answering — you can still see what the group would give
     /// you, which is the point of dimming rather than hiding.
     /// </summary>
-    private float DrawNameText(float x, float y, float width)
+    private Chrome.GroupScope DrawNameText(float x, float y, float width, out float contentHeight)
     {
         Chrome.GroupScope group = Chrome.BeginGroup(
             IdTextGroup,
@@ -316,7 +321,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         }
 
         used += Chrome.FieldRowHeight();
-        return Chrome.EndGroup(group, used);
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
     }
 
     private string OpacityCaption(float opacity)
