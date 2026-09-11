@@ -437,7 +437,7 @@ internal sealed class PartyFramesElement : HudElement
                 // window paints nothing, so there is nothing of it to draw over.
                 if (hovered && cfg.HighlightHovered)
                 {
-                    Ring(dl, m_frameMin[i], m_frameMax[i], Tokens.Line(2f), Tokens.Col.FrameHover);
+                    Ring(dl, m_frameMin[i], m_frameMax[i], Tokens.Metric.FrameHoverRing, Tokens.Col.FrameHover);
                 }
 
                 // The game puts the pointing hand over its own party list, so ours wears it

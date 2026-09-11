@@ -601,6 +601,14 @@ internal static class Tokens
         /// <summary>The line a party frame is outlined with, and the gap a second bar sits behind.</summary>
         public static float FrameBorder => Line(1f);
 
+        /// <summary>
+        /// The ring on the frame under the mouse. Three pixels rather than the frame's own
+        /// one: at two it was there but had to be looked for, and a highlight you look for is
+        /// not doing its job (Florian, 2026-09-12). Thicker than the frame edge on purpose —
+        /// it has to read as something arriving, not as the edge having changed colour.
+        /// </summary>
+        public static float FrameHoverRing => Line(3f);
+
         /// <summary>How far a HUD text's shadow is offset. One pixel, at whatever the scale is.</summary>
         public static float HudTextShadow => Line(1f);
 
