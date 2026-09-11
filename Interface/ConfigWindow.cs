@@ -109,8 +109,23 @@ internal sealed class ConfigWindow : Window
     /// <summary>Raised when the user turns the server info bar entry on or off.</summary>
     public event Action? InfoBarPreferenceChanged;
 
+    /// <summary>
+    /// Closing the window puts the appearance clipboard's step back out of reach. Undo is
+    /// meant for the moment right after a paste, not for whenever you happen to look again.
+    /// </summary>
+    public override void OnClose()
+    {
+        m_clipboard.ForgetUndo();
+    }
+
     public override void PreDraw()
     {
+        // While a list or panel is open, escape belongs to it. Without this the key reaches
+        // the window first and shuts the whole suite instead of the popup in front of it.
+        this.RespectCloseHotkey = !ImGui.IsPopupOpen(
+            string.Empty,
+            ImGuiPopupFlags.AnyPopupId | ImGuiPopupFlags.AnyPopupLevel);
+
         // The window has a fixed size and is not resizable by hand: dragging an ImGui corner
         // is fiddly, and a settings window that can be pulled to any width never looks right.
         // Its size follows the interface scale in Global, so it is re-applied every frame.
@@ -438,6 +453,10 @@ internal sealed class ConfigWindow : Window
         bool isModule = m_screen == Screen.PartyFrames;
         float height = Tokens.Metric.ModuleHeaderHeight;
         float x = left + Tokens.Metric.SectionPaddingX;
+
+        // Told every frame, not only on the frames where the strip is drawn — that is what
+        // makes the step back disappear when you leave the module.
+        m_appearance.NoteOwner(isModule ? m_partyFrames : null);
 
         if (isModule)
         {

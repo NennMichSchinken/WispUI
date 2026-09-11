@@ -73,6 +73,21 @@ internal static class Tokens
         public static readonly uint ButtonBottom = Rgb(0x353335);
         public static readonly uint Input = Rgb(0x1B1A1B);
 
+        // --- floating layers (derived) ---
+
+        /// <summary>
+        /// A popup list or panel. Darker than the surface it covers rather than lighter: a
+        /// floating layer that sits at the same brightness as the window disappears into it,
+        /// and the window has no shadow to fall back on.
+        /// </summary>
+        public static readonly uint PopupBg = Rgb(0x171617);
+
+        /// <summary>
+        /// The edge of a floating layer. Brighter than the hairlines inside the window on
+        /// purpose — it is the one line that says where the layer ends.
+        /// </summary>
+        public static readonly uint PopupEdge = Rgb(0x6B676B);
+
         // --- nav (derived) ---
         public static readonly uint NavHover = Rgb(0x2A282A);
         public static readonly uint NavSelected = Rgb(0x2E2C2E);

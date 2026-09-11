@@ -371,19 +371,21 @@ internal sealed class ArrowSelector<T>
         ImGui.SetNextWindowPos(new Vector2(x, y));
         ImGui.SetNextWindowSize(new Vector2(width, 0f));
 
+        // A popup takes its rounding and its border from the popup style vars, not from the
+        // window ones — setting WindowBorderSize here leaves it with no border at all.
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(pad, pad));
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, Tokens.Radius.Control);
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, Tokens.Line(1f));
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupRounding, Tokens.Radius.Control);
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupBorderSize, Tokens.Line(1f));
         ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, Tokens.Radius.Control);
         ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, Tokens.Line(1f));
         ImGui.PushStyleVar(
             ImGuiStyleVar.FramePadding,
             new Vector2(Tokens.Space.Md, MathF.Round((Tokens.Metric.PopupSearchHeight - Ink.LineHeight(Ink.Role.Body)) * 0.5f)));
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(0f, Tokens.Space.Sm));
-        ImGui.PushStyleColor(ImGuiCol.PopupBg, Tokens.Col.Panel);
-        ImGui.PushStyleColor(ImGuiCol.Border, Tokens.Col.EdgeDim);
+        ImGui.PushStyleColor(ImGuiCol.PopupBg, Tokens.Col.PopupBg);
+        ImGui.PushStyleColor(ImGuiCol.Border, Tokens.Col.PopupEdge);
         ImGui.PushStyleColor(ImGuiCol.FrameBg, Tokens.Col.Input);
-        ImGui.PushStyleColor(ImGuiCol.ChildBg, Tokens.Col.Panel);
+        ImGui.PushStyleColor(ImGuiCol.ChildBg, Tokens.Col.PopupBg);
         ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.Ink);
 
         bool changed = false;

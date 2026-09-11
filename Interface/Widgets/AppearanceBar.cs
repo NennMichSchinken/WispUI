@@ -50,19 +50,34 @@ internal sealed class AppearanceBar
     }
 
     /// <summary>
+    /// Says which element is on screen — <c>null</c> for a screen that has no appearance at
+    /// all. Leaving the element takes the step back with it, and so does closing the window:
+    /// an undo button that outlives the moment it belonged to is worse than none.
+    /// <para>
+    /// This has to be called on every frame, including the frames where the strip itself is
+    /// not drawn. That was the bug behind an undo button that sat there through a screen
+    /// change: a bar that only notices a change while it is on screen never notices it.
+    /// </para>
+    /// </summary>
+    public void NoteOwner(IAppearanceOwner? owner)
+    {
+        if (ReferenceEquals(owner, m_lastOwner))
+        {
+            return;
+        }
+
+        m_lastOwner = owner;
+        m_clipboard.ForgetUndo();
+        m_open = false;
+    }
+
+    /// <summary>
     /// Draws the buttons right to left from <paramref name="right"/> and returns the left
     /// edge of the leftmost one, so the caller knows what room is left.
     /// </summary>
     public float Draw(IAppearanceOwner owner, float right, float y)
     {
-        // Leaving the screen takes the step back with it. An undo button that outlives the
-        // thing it would undo is worse than no undo button.
-        if (!ReferenceEquals(owner, m_lastOwner))
-        {
-            m_lastOwner = owner;
-            m_clipboard.ForgetUndo();
-            m_open = false;
-        }
+        this.NoteOwner(owner);
 
         float cursor = right - Chrome.MeasureButton(Strings.PasteAppearance);
         if (Chrome.Button(IdPaste, Strings.PasteAppearance, cursor, y, m_clipboard.HasContent, Strings.PasteDisabled))
@@ -130,11 +145,13 @@ internal sealed class AppearanceBar
         ImGui.SetNextWindowPos(new Vector2(right - width, y));
         ImGui.SetNextWindowSize(new Vector2(width, height));
 
+        // Popup style vars, not window ones: a popup ignores WindowBorderSize entirely, which
+        // is why this panel first went out with no edge at all.
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, Tokens.Radius.Control);
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, line);
-        ImGui.PushStyleColor(ImGuiCol.PopupBg, Tokens.Col.Panel);
-        ImGui.PushStyleColor(ImGuiCol.Border, Tokens.Col.EdgeDim);
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupRounding, Tokens.Radius.Control);
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupBorderSize, line);
+        ImGui.PushStyleColor(ImGuiCol.PopupBg, Tokens.Col.PopupBg);
+        ImGui.PushStyleColor(ImGuiCol.Border, Tokens.Col.PopupEdge);
 
         if (ImGui.BeginPopup(IdPanel))
         {
