@@ -491,6 +491,7 @@ internal static class Chrome
         // stand side by side across two columns and read as one row.
         float height = RowPitch();
         float band = OptionRowHeight();
+        float ink = y + Tokens.Metric.RowInset;
 
         ImGui.SetCursorScreenPos(new Vector2(x, y));
         ImGui.InvisibleButton(id, new Vector2(width, height));
@@ -503,7 +504,7 @@ internal static class Chrome
         Ink.Draw(
             dl,
             Ink.Role.Body,
-            new Vector2(x, CenterY(y, band, Ink.Role.Body)),
+            new Vector2(x, CenterY(ink, band, Ink.Role.Body)),
             Tokens.Col.Faded(hovered ? Tokens.Col.Ink : Tokens.Col.InkDim, alpha),
             label);
 
@@ -513,7 +514,7 @@ internal static class Chrome
             PaintSwitch(
                 dl,
                 MathF.Round(x + width - switchWidth),
-                MathF.Round(y + ((band - Tokens.Metric.SwitchHeight) * 0.5f)),
+                MathF.Round(ink + ((band - Tokens.Metric.SwitchHeight) * 0.5f)),
                 value,
                 alpha);
         }
@@ -522,7 +523,7 @@ internal static class Chrome
             float box = Tokens.Metric.CheckBox;
             PaintTick(
                 dl,
-                new Vector2(MathF.Round(x + width - box), MathF.Round(y + ((band - box) * 0.5f))),
+                new Vector2(MathF.Round(x + width - box), MathF.Round(ink + ((band - box) * 0.5f))),
                 value,
                 hovered,
                 alpha);
@@ -810,7 +811,15 @@ internal static class Chrome
     /// the interface scale. A fixed pitch would come apart at the first scale change.
     /// </para>
     /// </summary>
-    public static float RowPitch() => FieldRowHeight() + Tokens.Space.Md;
+    public static float RowPitch() => Tokens.Metric.RowInset + FieldRowHeight();
+
+    /// <summary>
+    /// Where a row that starts at <paramref name="stepTop"/> and holds ink of
+    /// <paramref name="inkHeight"/> ends. Used by the last row of a group, which is as tall as
+    /// its ink rather than as tall as its step — the step is there so the NEXT row starts
+    /// level, and there is no next row.
+    /// </summary>
+    public static float RowEnd(float stepTop, float inkHeight) => stepTop + Tokens.Metric.RowInset + inkHeight;
 
     /// <summary>
     /// The ink of a compact option row: one line of text with the tick or switch on it. Taken
@@ -986,6 +995,10 @@ internal static class Chrome
 
     public static float FieldLabel(string label, float x, float y, float width, string? hint = null)
     {
+        // Takes the top of the STEP and sets its own ink below the inset, the way every row
+        // does — that is what puts this label and an option row's label on one line.
+        y += Tokens.Metric.RowInset;
+
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
         Ink.Draw(dl, Ink.Role.Body, new Vector2(x, y), Tokens.Col.Ink, label);
 
@@ -999,7 +1012,7 @@ internal static class Chrome
             }
         }
 
-        return Ink.LineHeight(Ink.Role.Body) + Tokens.Space.Sm;
+        return Tokens.Metric.RowInset + Ink.LineHeight(Ink.Role.Body) + Tokens.Space.Sm;
     }
 
     /// <summary>
@@ -1103,6 +1116,9 @@ internal static class Chrome
         string? hint = null,
         string? tooltip = null)
     {
+        // The step's inset, the same one every other row takes.
+        y += Tokens.Metric.RowInset;
+
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
 
         // --- caption row: label left, value right, and an inline note between them ---

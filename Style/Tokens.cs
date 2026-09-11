@@ -481,7 +481,19 @@ internal static class Tokens
         public static float GroupHeadGap => Px(12f);
 
         /// <summary>The rule to the first row.</summary>
-        public static float GroupRuleGap => Px(16f);
+        /// <summary>
+        /// Head rule to the first row's step. Small because the step carries an inset of its
+        /// own (<see cref="RowInset"/>): together they make the same air under the rule that
+        /// the gap alone used to make.
+        /// </summary>
+        public static float GroupRuleGap => Px(8f);
+
+        /// <summary>
+        /// Air at the top of every row's step, before its ink. The step's boundary is where a
+        /// divider is drawn, so without this a label sits ON the line above it. Given to every
+        /// kind of row alike, which is what keeps their labels on one line.
+        /// </summary>
+        public static float RowInset => Px(8f);
 
         // --- the vertical rhythm of a settings screen ---
         // Two values now — everything between rows is the ladder. The head gap stays its own

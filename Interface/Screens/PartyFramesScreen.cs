@@ -251,7 +251,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         // The content ends at the last row's own height, not at the end of its step: the step
         // exists so the NEXT row starts level, and there is no next row here.
-        float used = rowY - group.ContentY + Chrome.OptionRowHeight();
+        float used = Chrome.RowEnd(rowY, Chrome.OptionRowHeight()) - group.ContentY;
         Chrome.EndGroupContent(group, used);
         contentHeight = used;
         return group;
@@ -332,7 +332,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        float used = rowY - group.ContentY + Chrome.OptionRowHeight();
+        float used = Chrome.RowEnd(rowY, Chrome.OptionRowHeight()) - group.ContentY;
         Chrome.EndGroupContent(group, used);
         contentHeight = used;
         return group;

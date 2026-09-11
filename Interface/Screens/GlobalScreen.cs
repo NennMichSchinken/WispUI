@@ -109,8 +109,8 @@ internal sealed class GlobalScreen
             Scaling.Commit(m_config.Scale);
         }
 
-        Chrome.EndGroupContent(group, result.Height);
-        contentHeight = result.Height;
+        Chrome.EndGroupContent(group, Tokens.Metric.RowInset + result.Height);
+        contentHeight = Tokens.Metric.RowInset + result.Height;
         return group;
     }
 
@@ -144,7 +144,7 @@ internal sealed class GlobalScreen
 
         // One option row, and it is the last thing in the group: the group is as tall as that
         // row's ink, not as tall as the step it stands in.
-        contentHeight = Chrome.OptionRowHeight();
+        contentHeight = Tokens.Metric.RowInset + Chrome.OptionRowHeight();
         Chrome.EndGroupContent(group, contentHeight);
         return group;
     }
