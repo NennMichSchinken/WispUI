@@ -35,8 +35,27 @@ internal sealed class ConfigWindow : Window
 
     private const uint Transparent = 0x00000000u;
 
-    /// <summary>Tab hit boxes only need to be unique while their screen is on show.</summary>
-    private static readonly string[] TabIds = { "##wisp-tab0", "##wisp-tab1", "##wisp-tab2" };
+    /// <summary>
+    /// Tab hit boxes. They only need to be unique while their screen is on show, so one set
+    /// serves every screen.
+    /// <para>
+    /// 🔴 Kept well ahead of the longest tab list on purpose. The loop below stops at whichever
+    /// of the two runs out, so a list longer than this array does not fail — it silently drops
+    /// the tabs past the end, which is how a fourth tab once went missing without a word
+    /// (Florian, 2026-09-12). Adding a tab means checking this line.
+    /// </para>
+    /// </summary>
+    private static readonly string[] TabIds =
+    {
+        "##wisp-tab0",
+        "##wisp-tab1",
+        "##wisp-tab2",
+        "##wisp-tab3",
+        "##wisp-tab4",
+        "##wisp-tab5",
+        "##wisp-tab6",
+        "##wisp-tab7",
+    };
 
     private static readonly string[] TabsGlobal = { Strings.TabBase };
     private static readonly string[] TabsProfile = { Strings.TabBase };
