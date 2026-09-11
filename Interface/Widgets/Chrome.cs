@@ -253,7 +253,18 @@ internal static class Chrome
     /// A standard button. A disabled one still answers a hover, because a disabled control
     /// owes the user a reason. Pass it in <paramref name="disabledReason"/>.
     /// </summary>
-    public static bool Button(string id, string label, float x, float y, bool enabled, string? disabledReason = null)
+    /// <param name="primary">
+    /// Marks the one button in a group that finishes the job — it carries the gold edge that
+    /// a hovered button otherwise gets. At most one per group, or the emphasis says nothing.
+    /// </param>
+    public static bool Button(
+        string id,
+        string label,
+        float x,
+        float y,
+        bool enabled,
+        string? disabledReason = null,
+        bool primary = false)
     {
         float width = MeasureButton(label);
         float height = Tokens.Metric.ButtonHeight;
@@ -275,10 +286,10 @@ internal static class Chrome
             Tokens.Col.Faded(Tokens.Col.ButtonBottom, alpha),
             Tokens.Radius.Control);
 
-        uint edge = enabled && hovered ? Tokens.Col.GoldDim : Tokens.Col.ControlEdge;
+        uint edge = enabled && (hovered || primary) ? Tokens.Col.GoldDim : Tokens.Col.ControlEdge;
         dl.AddRect(min, max, Tokens.Col.Faded(edge, alpha), Tokens.Radius.Control, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
 
-        uint ink = enabled && hovered ? Tokens.Col.GoldHi : Tokens.Col.Ink;
+        uint ink = enabled && (hovered || primary) ? Tokens.Col.GoldHi : Tokens.Col.Ink;
         Ink.Draw(
             dl,
             Ink.Role.Body,
@@ -390,6 +401,34 @@ internal static class Chrome
     }
 
     /// <summary>
+    /// The label above a control, which is how a settings row is built: name on top, control
+    /// beneath it, the pair filling one column of the grid. Returns the drop from the label's
+    /// top to the control's top, so the caller places the control by adding it — the row
+    /// anatomy is written here once instead of being retyped on every screen.
+    /// </summary>
+    /// <param name="hint">
+    /// A few words after the label for what a label alone cannot say. Dropped rather than
+    /// crowded if the column is too narrow for both.
+    /// </param>
+    public static float FieldLabel(string label, float x, float y, float width, string? hint = null)
+    {
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        Ink.Draw(dl, Ink.Role.Body, new Vector2(x, y), Tokens.Col.Ink, label);
+
+        if (hint is not null)
+        {
+            float hintX = MathF.Round(x + Ink.Measure(Ink.Role.Body, label).X + Tokens.Space.Md);
+            if (hintX + Ink.Measure(Ink.Role.Small, hint).X <= x + width)
+            {
+                float hintY = MathF.Round(y + Ink.LineHeight(Ink.Role.Body) - Ink.LineHeight(Ink.Role.Small));
+                Ink.Draw(dl, Ink.Role.Small, new Vector2(hintX, hintY), Tokens.Col.InkFaint, hint);
+            }
+        }
+
+        return Ink.LineHeight(Ink.Role.Body) + Tokens.Space.Sm;
+    }
+
+    /// <summary>
     /// A quiet line of explanation under a control, in the smallest role. Long prose does not
     /// belong in the flow of a settings screen — a short inline note beside the label carries
     /// most of it, and the rest belongs in the tooltip.
@@ -415,7 +454,19 @@ internal static class Chrome
         MathF.Max(Tokens.Metric.CheckBox, Ink.LineHeight(Ink.Role.Body));
 
     /// <summary>A check box with its label to the right of it, the way the game writes its own.</summary>
-    public static bool CheckBox(string id, string label, float x, float y, bool value, string? tooltip = null)
+    /// <param name="enabled">
+    /// A disabled box is still drawn and still answers a hover — the paste panel uses this to
+    /// show a part the target element does not have, rather than leaving it off the list and
+    /// letting the user wonder where it went.
+    /// </param>
+    public static bool CheckBox(
+        string id,
+        string label,
+        float x,
+        float y,
+        bool value,
+        string? tooltip = null,
+        bool enabled = true)
     {
         float box = Tokens.Metric.CheckBox;
         float labelWidth = Ink.Measure(Ink.Role.Body, label).X;
@@ -424,18 +475,19 @@ internal static class Chrome
 
         ImGui.SetCursorScreenPos(new Vector2(x, y));
         ImGui.InvisibleButton(id, new Vector2(width, height));
-        bool hovered = ImGui.IsItemHovered();
-        bool clicked = ImGui.IsItemClicked();
+        bool hovered = ImGui.IsItemHovered() && enabled;
+        bool clicked = ImGui.IsItemClicked() && enabled;
 
         Vector2 min = new(x, MathF.Round(y + ((height - box) * 0.5f)));
         Vector2 max = new(min.X + box, min.Y + box);
 
+        float alpha = enabled ? 1f : Tokens.Col.DisabledAlpha;
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
-        dl.AddRectFilled(min, max, value ? Tokens.Col.Gold : Tokens.Col.Input, Tokens.Radius.Small);
+        dl.AddRectFilled(min, max, Tokens.Col.Faded(value ? Tokens.Col.Gold : Tokens.Col.Input, alpha), Tokens.Radius.Small);
         dl.AddRect(
             min,
             max,
-            value ? Tokens.Col.GoldHi : hovered ? Tokens.Col.GoldDim : Tokens.Col.ControlEdge,
+            Tokens.Col.Faded(value ? Tokens.Col.GoldHi : hovered ? Tokens.Col.GoldDim : Tokens.Col.ControlEdge, alpha),
             Tokens.Radius.Small,
             ImDrawFlags.RoundCornersAll,
             Tokens.Line(1f));
@@ -452,7 +504,7 @@ internal static class Chrome
             dl.AddLine(
                 new Vector2(min.X + (box * 0.44f), min.Y + (box * 0.72f)),
                 new Vector2(min.X + (box * 0.78f), min.Y + (box * 0.28f)),
-                Tokens.Col.InkOnGold,
+                Tokens.Col.Faded(Tokens.Col.InkOnGold, alpha),
                 thickness);
         }
 
@@ -460,7 +512,7 @@ internal static class Chrome
             dl,
             Ink.Role.Body,
             new Vector2(max.X + Tokens.Space.Md, CenterY(y, height, Ink.Role.Body)),
-            hovered ? Tokens.Col.Ink : Tokens.Col.InkDim,
+            Tokens.Col.Faded(hovered ? Tokens.Col.Ink : Tokens.Col.InkDim, alpha),
             label);
 
         if (tooltip is not null)

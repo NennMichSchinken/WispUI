@@ -38,8 +38,42 @@ internal static class Strings
     // --- Module header ------------------------------------------------------
     public const string CopyAppearance = "Copy appearance";
     public const string PasteAppearance = "Paste\u2026";
+    public const string UndoPaste = "Undo paste";
     public const string StateOn = "on";
     public const string StateOff = "off";
+
+    // --- Arrow selector -----------------------------------------------------
+    public const string SearchHint = "Search";
+    public const string SelectorEmpty = "Nothing to choose from";
+    public const string SearchNoMatch = "Nothing matches.";
+
+    // --- Appearance clipboard ------------------------------------------------
+    public const string PasteFrom = "from: ";
+    public const string PasteApply = "Apply";
+    public const string PasteCancel = "Cancel";
+
+    /// <summary>Beside a field the target element does not have. A few words, not a sentence.</summary>
+    public const string FieldUnsupported = "not on this one";
+
+    public const string FieldColours = "Colours";
+    public const string FieldTexture = "Texture";
+    public const string FieldShape = "Shape";
+    public const string FieldText = "Text";
+    public const string FieldBackground = "Background";
+    public const string FieldOpacity = "Opacity";
+
+    // --- Party Frames --------------------------------------------------------
+    public const string SectionAppearance = "Appearance";
+    public const string SectionAppearanceHint = "Colour and style. Shared by every party frame.";
+    public const string BarStyle = "Bar style";
+    public const string BarColour = "Bar colour";
+    public const string BarOpacity = "Health bar opacity";
+    public const string SmoothBars = "Smooth bars";
+    public const string SmoothBarsTooltip = "Health slides to its new value instead of jumping.";
+
+    public const string ColourByRole = "By role";
+    public const string ColourByJob = "By job";
+    public const string ColourFixed = "Fixed colour";
 
     // --- Global screen ------------------------------------------------------
     public const string SectionInterface = "Interface";
@@ -70,4 +104,8 @@ internal static class Strings
     public const string EditModeDisabled = "Needs a HUD element to move.";
     public const string DefaultsDisabled = "Nothing to reset yet.";
     public const string ClipboardDisabled = "Arrives with the first HUD element.";
+    public const string PasteDisabled = "Nothing copied yet.";
+    public const string ApplyDisabled = "Nothing ticked that this one has.";
+    public const string SelectorAtStart = "Start of the list.";
+    public const string SelectorAtEnd = "End of the list.";
 }

@@ -266,6 +266,52 @@ internal static class Tokens
         public static float SliderTrack => Px(6f);
         public static float SliderGrabRadius => Px(8f);
 
+        // --- the arrow selector, the one selection widget in the suite ---
+
+        /// <summary>
+        /// 16 px of text with five pixels of air above and below it and a pixel of border.
+        /// One pixel shorter than a button on purpose: the two never stand side by side —
+        /// buttons live in the screen header, selectors in the settings grid — and this way
+        /// the inner spacing comes out symmetrical, which a bitmap face shows.
+        /// </summary>
+        public static float SelectorHeight => Px(28f);
+
+        /// <summary>
+        /// The width of one arrow. Wide enough to hit while clicking quickly: the whole
+        /// button is the target, not the triangle drawn on it.
+        /// </summary>
+        public static float SelectorArrow => Px(26f);
+
+        public static float SelectorPaddingX => Px(8f);
+
+        /// <summary>
+        /// The live preview inside the face. With textures this preview, not the name, is
+        /// the actual point of the interaction.
+        /// </summary>
+        public static Vector2 SelectorSwatch => Px(60f, 13f);
+
+        /// <summary>The triangle drawn on an arrow button.</summary>
+        public static float SelectorGlyph => Px(7f);
+
+        // --- the popup list an arrow selector can open ---
+        public static float PopupGap => Px(3f);
+        public static float PopupPadding => Px(6f);
+        public static float PopupRowHeight => Px(24f);
+        public static float PopupSearchHeight => Px(26f);
+
+        /// <summary>How many rows the list shows before it starts to scroll.</summary>
+        public const int PopupRows = 7;
+
+        /// <summary>The swatch in a popup row, smaller than the one in the face.</summary>
+        public static Vector2 PopupSwatch => Px(44f, 11f);
+
+        // --- the appearance clipboard ---
+        public static float PastePanelWidth => Px(268f);
+        public static float PastePanelPadding => Px(10f);
+
+        /// <summary>One tick box in the paste panel to the next.</summary>
+        public static float FieldGap => Px(9f);
+
 
         /// <summary>
         /// Settings are laid out on a two-column grid. A control fills one column and never
