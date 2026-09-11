@@ -790,6 +790,21 @@ internal static class Chrome
     }
 
     /// <summary>
+    /// How tall a run of compact option rows is, including the wider gap that closes it.
+    /// <para>
+    /// Two groups side by side rarely hold the same number of options, and if each simply
+    /// stacks its own, the field cells in one column come out level with the gaps in the
+    /// other — a control sitting halfway down its neighbour's divider. The screen takes the
+    /// taller run and starts both field blocks there, so the two columns read as rows.
+    /// </para>
+    /// </summary>
+    public static float OptionBlockHeight(int rows) => rows <= 0
+        ? 0f
+        : (rows * Tokens.Metric.OptionRowHeight)
+            + ((rows - 1) * Tokens.Metric.RowGap)
+            + Tokens.Metric.RowGapAfterShort;
+
+    /// <summary>
     /// Opens a row of groups. Called before the first <see cref="BeginGroup"/> of the row,
     /// because a group's surface has to go down before its rows and the height is only known
     /// afterwards: the draw list is split in two, the rows go on the upper channel, and the
