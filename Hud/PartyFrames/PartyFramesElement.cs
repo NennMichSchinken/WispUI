@@ -129,6 +129,17 @@ internal sealed class PartyFramesElement : HudElement
     private bool m_pointedAt;
 
     /// <summary>
+    /// How strongly the frame being drawn right now is faded. One for a member who is there,
+    /// less for one the game has stopped reporting.
+    /// <para>
+    /// Frame-local drawing state rather than a setting, which is why it lives here and not in
+    /// the configuration: it is set at the top of each member and read by everything that
+    /// paints part of that member.
+    /// </para>
+    /// </summary>
+    private float m_dim = 1f;
+
+    /// <summary>
     /// The job icon per slot, resolved while collecting and only painted while drawing.
     /// Looking a texture up is asking Dalamud a question, and the draw path asks nothing.
     /// </summary>
@@ -297,7 +308,13 @@ internal sealed class PartyFramesElement : HudElement
             m_frameMin[i] = min;
             m_frameMax[i] = max;
 
-            dl.AddRectFilled(min, max, Tokens.Col.FrameBg);
+            // 🔴 One factor for the whole frame, set here and read by everything that draws
+            // part of it. Dimming only the bar left a frame whose name, icons and number were
+            // as loud as everybody else's, so it did not read as stepped back at all
+            // (Florian, 2026-09-12).
+            m_dim = member.HasData ? 1f : Tokens.Metric.OutOfRangeDim;
+
+            dl.AddRectFilled(min, max, this.Dim(Tokens.Col.FrameBg));
 
             float healthBottom = innerMax.Y;
             bool mana = ShowsMana(cfg, ref member);
@@ -317,10 +334,9 @@ internal sealed class PartyFramesElement : HudElement
                 }
             }
 
-            // Dimmed rather than recoloured when there is nothing to report, so the frame is
-            // still recognisably that person's job at a glance.
-            float opacity = member.HasData ? cfg.BarOpacity : cfg.BarOpacity * Tokens.Metric.OutOfRangeDim;
-            uint colour = Tokens.Col.Faded(BarColour(colourMode, ref member), opacity);
+            // Dimmed rather than recoloured, so the frame is still recognisably that
+            // person's job at a glance.
+            uint colour = this.Dim(Tokens.Col.Faded(BarColour(colourMode, ref member), cfg.BarOpacity));
             float fraction = this.HealthFraction(i, ref member, cfg.SmoothBars, delta);
             Vector2 barMin = innerMin;
             Vector2 barMax = new(innerMax.X, healthBottom);
@@ -347,7 +363,7 @@ internal sealed class PartyFramesElement : HudElement
                 // adds a second line. A bar wide enough to read as a bar gets one.
                 if (manaStyle == ManaStyle.Bar)
                 {
-                    dl.AddRectFilled(manaMin, innerMax, Tokens.Col.BarTrack);
+                    dl.AddRectFilled(manaMin, innerMax, this.Dim(Tokens.Col.BarTrack));
                 }
 
                 if (manaFraction > 0f)
@@ -356,11 +372,11 @@ internal sealed class PartyFramesElement : HudElement
                     dl.AddRectFilled(
                         manaMin,
                         new Vector2(manaRight, innerMax.Y),
-                        Tokens.Col.Faded(Tokens.Col.Mana, cfg.BarOpacity));
+                        this.Dim(Tokens.Col.Faded(Tokens.Col.Mana, cfg.BarOpacity)));
                 }
             }
 
-            dl.AddRect(min, max, Tokens.Col.FrameEdge, 0f, ImDrawFlags.None, border);
+            dl.AddRect(min, max, this.Dim(Tokens.Col.FrameEdge), 0f, ImDrawFlags.None, border);
 
         }
 
@@ -398,6 +414,7 @@ internal sealed class PartyFramesElement : HudElement
             this.DrawJobIcon(dl, cfg, i, ref member, innerMin, innerMax);
             this.DrawLeaderIcon(dl, cfg, ref member, innerMin, innerMax);
             this.DrawTexts(dl, cfg, textMode, i, ref member, innerMin, innerMax);
+            DrawPresenceNote(dl, cfg, ref member, innerMin, innerMax);
             dl.PopClipRect();
         }
     }
@@ -722,6 +739,60 @@ internal sealed class PartyFramesElement : HudElement
     private static uint LocalJobId() => Services.Objects.LocalPlayer?.ClassJob.RowId ?? 0u;
 
     /// <summary>
+    /// Says what is wrong with a member the game has no numbers for, across the middle of
+    /// their frame.
+    /// <para>
+    /// 🔴 In the middle, not where the health figure goes. The figure is a setting somebody
+    /// can switch off, and this is not — a frame that has stopped reporting has to say so
+    /// whatever else is turned on (Florian, 2026-09-12, who runs without one).
+    /// </para>
+    /// <para>
+    /// Out of range says nothing at all. It is the common case, it lasts a few seconds, and a
+    /// word written across four frames every time the group spreads out is noise. The dimming
+    /// already carries it; the other two are the ones worth a word.
+    /// </para>
+    /// </summary>
+    private static void DrawPresenceNote(
+        ImDrawListPtr dl,
+        Configuration.PartyFramesConfig cfg,
+        ref PartyMemberSnapshot member,
+        Vector2 innerMin,
+        Vector2 innerMax)
+    {
+        if (member.HasData)
+        {
+            return;
+        }
+
+        string note = member.Presence switch
+        {
+            PartyPresence.Offline => Strings.PresenceOffline,
+            PartyPresence.Away => Strings.PresenceAway,
+            _ => string.Empty,
+        };
+
+        if (note.Length == 0)
+        {
+            return;
+        }
+
+        float size = Tokens.Px(cfg.HpTextSize);
+        float width = Ink.MeasureWidth(size, note);
+
+        Vector2 at = new(
+            MathF.Round(innerMin.X + (((innerMax.X - innerMin.X) - width) * 0.5f)),
+            MathF.Round(innerMin.Y + (((innerMax.Y - innerMin.Y) - size) * 0.5f)));
+
+        Ink.DrawScaledEdged(dl, size, at, Tokens.Col.HudInk, note, cfg.Edge);
+    }
+
+    /// <summary>
+    /// This colour, faded by however much the frame being drawn is stepped back. A no-op on a
+    /// member who is there, which is nearly always.
+    /// </summary>
+    private uint Dim(uint colour) => m_dim >= 1f ? colour : Tokens.Col.Faded(colour, m_dim);
+
+    /// <summary>
     /// A rectangle drawn as four filled bars rather than as a stroke. ImGui centres a stroke
     /// on its path, so half of it falls outside the rectangle and is antialiased — the same
     /// reason the window's rings and the party number's edge are filled shapes.
@@ -780,7 +851,7 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        DrawIcon(dl, m_icon[slot], cfg.JobIconSize, cfg.JobIconPosition, cfg.JobIconX, cfg.JobIconY, innerMin, innerMax);
+        this.DrawIcon(dl, m_icon[slot], cfg.JobIconSize, cfg.JobIconPosition, cfg.JobIconX, cfg.JobIconY, innerMin, innerMax);
     }
 
     /// <summary>The leader's mark, on whoever leads. Same anatomy, same placement.</summary>
@@ -796,7 +867,7 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        DrawIcon(dl, m_leaderIcon, cfg.LeaderIconSize, cfg.LeaderIconPosition, cfg.LeaderIconX, cfg.LeaderIconY, innerMin, innerMax);
+        this.DrawIcon(dl, m_leaderIcon, cfg.LeaderIconSize, cfg.LeaderIconPosition, cfg.LeaderIconX, cfg.LeaderIconY, innerMin, innerMax);
     }
 
     /// <summary>
@@ -804,7 +875,7 @@ internal sealed class PartyFramesElement : HudElement
     /// every icon a frame will ever carry — job, leader, raid marker — is placed the same way,
     /// and a second copy of this is a second place to fix a rounding.
     /// </summary>
-    private static void DrawIcon(
+    private void DrawIcon(
         ImDrawListPtr dl,
         ImTextureID icon,
         float size,
@@ -832,7 +903,9 @@ internal sealed class PartyFramesElement : HudElement
         at.X += Tokens.Px(offsetX);
         at.Y += Tokens.Px(offsetY);
 
-        dl.AddImage(icon, at, new Vector2(at.X + side, at.Y + side));
+        // Tinted white at the frame's own fade, so an icon steps back with the rest of it
+        // rather than staying the one bright thing on a frame that has gone quiet.
+        dl.AddImage(icon, at, new Vector2(at.X + side, at.Y + side), Vector2.Zero, Vector2.One, this.Dim(0xFFFFFFFFu));
     }
 
     private void DrawTexts(
@@ -859,7 +932,7 @@ internal sealed class PartyFramesElement : HudElement
             // Your own name is drawn like everyone else's. It used to come out gold, which
             // looked like a state rather than a whose-name-is-this, and the one frame you
             // never have to search for is your own (Florian, 2026-09-12).
-            uint colour = cfg.NameInJobColour ? Jobs.Colour(member.JobId) : Tokens.Col.HudInk;
+            uint colour = this.Dim(cfg.NameInJobColour ? Jobs.Colour(member.JobId) : Tokens.Col.HudInk);
 
             Ink.DrawScaledEdged(dl, size, at, colour, name, cfg.Edge);
         }
@@ -932,7 +1005,7 @@ internal sealed class PartyFramesElement : HudElement
         healthAt.X += Tokens.Px(cfg.HpTextX);
         healthAt.Y += Tokens.Px(cfg.HpTextY);
 
-        Ink.DrawScaledEdged(dl, healthSize, healthAt, Tokens.Col.HudInk, health, cfg.Edge);
+        Ink.DrawScaledEdged(dl, healthSize, healthAt, this.Dim(Tokens.Col.HudInk), health, cfg.Edge);
     }
 
     /// <summary>Whether this member is one of the ones mana was switched on for.</summary>
@@ -975,13 +1048,22 @@ internal sealed class PartyFramesElement : HudElement
     /// </summary>
     private float HealthFraction(int slot, ref PartyMemberSnapshot member, bool smooth, float delta)
     {
-        // 🔴 A member the game has no numbers for is drawn full, not empty. Out of range, in
-        // another instance or offline, the party list reports zero — and an empty bar is a
-        // statement about their health, which is exactly the thing we do not know. Full and
-        // dimmed says "no reading" instead (Florian, 2026-09-12).
-        float target = !member.HasData
-            ? 1f
-            : (member.MaxHp > 0 ? Math.Clamp(member.Hp / (float)member.MaxHp, 0f, 1f) : 0f);
+        // 🔴 A member who is merely unreachable is drawn full, not empty: an empty bar is a
+        // statement about their health, and that is the thing we do not know. Full and dimmed
+        // says "no reading" instead.
+        //
+        // Offline is the exception and is drawn empty, because there it is not a missing
+        // reading — the person is gone, and a full bar would say they are fine (Florian,
+        // 2026-09-12).
+        if (!member.HasData)
+        {
+            float away = member.Presence == PartyPresence.Offline ? 0f : 1f;
+            m_shownHealthFor[slot] = member.EntityId;
+            m_shownHealth[slot] = away;
+            return away;
+        }
+
+        float target = member.MaxHp > 0 ? Math.Clamp(member.Hp / (float)member.MaxHp, 0f, 1f) : 0f;
 
         // A slot that changed hands holds a different person, not a health change: their bar
         // starts where they are rather than sliding out of the last member's value.
@@ -1004,18 +1086,13 @@ internal sealed class PartyFramesElement : HudElement
 
     private string HealthFigure(int slot, ref PartyMemberSnapshot member, HealthTextMode mode)
     {
-        // 🔴 Why there is no number, in place of the number. "0" or "100%" about somebody the
-        // game has no reading for is an invention — but a blank frame only says something is
-        // wrong, not what, and two of these three mean very different things to a healer: out
-        // of range comes back, another zone does not (Florian, 2026-09-12).
+        // Nothing rather than a number. "0" or "100%" about somebody the game has no reading
+        // for is an invention. What is wrong with them is said in the middle of the frame
+        // instead — see PresenceNote, which has to be somewhere the player has not switched
+        // off (Florian, 2026-09-12, who runs without a health figure).
         if (!member.HasData)
         {
-            return member.Presence switch
-            {
-                PartyPresence.Offline => Strings.PresenceOffline,
-                PartyPresence.Away => Strings.PresenceAway,
-                _ => Strings.PresenceOutOfRange,
-            };
+            return string.Empty;
         }
 
         if (m_healthText[slot] is null

@@ -657,11 +657,12 @@ internal static class Tokens
         /// <para>
         /// Deliberately gentle. It has to say "no reading right now" without saying
         /// "unimportant": these are the people you are about to run back to, and a frame faded
-        /// to a ghost is one you stop checking (Florian, 2026-09-12, asked for 80 to 90 per
-        /// cent).
+        /// to a ghost is one you stop checking. Applied to the WHOLE frame — bar, background,
+        /// name, icons — because dimming only the bar left everything else as loud as a member
+        /// who is actually there (Florian, 2026-09-12).
         /// </para>
         /// </summary>
-        public const float OutOfRangeDim = 0.85f;
+        public const float OutOfRangeDim = 0.65f;
 
         public static float BadgeHeight => Px(18f);
         public static float BadgePaddingX => Px(6f);
