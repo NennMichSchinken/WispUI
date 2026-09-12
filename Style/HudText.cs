@@ -90,6 +90,28 @@ internal static class HudText
         _ => 1f,
     };
 
+    /// <summary>
+    /// How much air to add between letters at this weight, as a share of the text size.
+    /// <para>
+    /// 🔴 Weight without this is the bug it shipped with. Laying a face down more densely
+    /// makes the strokes heavier but does not touch the advance width the face was drawn
+    /// with, so the letters grow into the gaps between them and start to touch. Two things
+    /// then look wrong at once: the word reads as crowded, and the outline — which is the
+    /// same glyph drawn again, offset — runs together where two letters meet, so the black
+    /// line thickens in some places and disappears in others (Florian, 2026-09-12).
+    /// </para>
+    /// <para>
+    /// A share of the size rather than a fixed number of pixels, because the crowding is
+    /// proportional: a heavier stroke at forty pixels eats forty pixels' worth of gap.
+    /// </para>
+    /// </summary>
+    public static float Tracking(TextWeight weight) => weight switch
+    {
+        TextWeight.Medium => 0.035f,
+        TextWeight.Bold => 0.07f,
+        _ => 0f,
+    };
+
     /// <summary>The edges, in the order the segments sit.</summary>
     public static readonly TextEdge[] Edges =
     {

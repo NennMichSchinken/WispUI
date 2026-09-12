@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using System.IO;
 using Dalamud.Interface.GameFonts;
 using Dalamud.Interface.ManagedFontAtlas;
@@ -255,11 +256,20 @@ internal static class Fonts
             // which is the difference between bold and a smear (session 7).
             float multiply = HudText.Multiplier(s_hudWeight);
 
+            // And the tracking with it, never without it. A denser stroke grows into the gap
+            // the face was drawn with; see HudText.Tracking for what that looks like.
+            float tracking = MathF.Round(sizePx * HudText.Tracking(s_hudWeight));
+
             return atlas.NewDelegateFontHandle(
                 e => e.OnPreBuild(
                     tk => tk.AddFontFromMemory(
                         bytes,
-                        new SafeFontConfig { SizePx = sizePx, RasterizerMultiply = multiply },
+                        new SafeFontConfig
+                        {
+                            SizePx = sizePx,
+                            RasterizerMultiply = multiply,
+                            GlyphExtraSpacing = new Vector2(tracking, 0f),
+                        },
                         name)));
         }
         catch (Exception ex)
