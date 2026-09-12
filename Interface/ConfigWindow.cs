@@ -70,6 +70,7 @@ internal sealed class ConfigWindow : Window
         Strings.TabBase,
         Strings.TabIcons,
         Strings.TabLayout,
+        Strings.TabBindings,
         Strings.TabAuras,
     };
 
@@ -782,6 +783,10 @@ internal sealed class ConfigWindow : Window
             else if (m_screen == Screen.PartyFrames && tab == 2)
             {
                 m_partyFrames.DrawLayout(inner);
+            }
+            else if (m_screen == Screen.PartyFrames && tab == 3)
+            {
+                m_partyFrames.DrawBindings(inner);
             }
             else
             {

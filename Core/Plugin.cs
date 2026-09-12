@@ -34,6 +34,7 @@ public sealed class Plugin : IDalamudPlugin
         // Before anything asks for a face by name. Reading the folder touches the disk, so it
         // happens once here and again only when the player asks for it.
         FontLibrary.Refresh();
+        Data.JobList.Load();
 
         Scaling.Commit(m_config.Scale);
         Scaling.LogGameScaleReadings();

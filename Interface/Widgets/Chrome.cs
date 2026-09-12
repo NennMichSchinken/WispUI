@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using WispUI.Core;
 using WispUI.Localization;
 using WispUI.Style;
 
@@ -1596,4 +1597,185 @@ internal static class Chrome
 
         return clicked;
     }
+
+    private const string IdKeybindField = "##wisp-keybind";
+
+    /// <summary>
+    /// A row whose control is a mouse binding: it shows what is bound, and clicking it waits
+    /// for the next button press and takes that instead.
+    /// <para>
+    /// Captured by pressing rather than assembled from two lists. A binding is a thing you
+    /// perform — the player already knows which button they mean and can simply do it, where
+    /// picking "button four" and "shift" out of two dropdowns is a translation they have to do
+    /// in their head (Florian, 2026-09-12, on the bindings tab).
+    /// </para>
+    /// </summary>
+    /// <param name="id">Id scope for this row.</param>
+    /// <param name="label">What is bound — an action name, or what the button does.</param>
+    /// <param name="listening">Whether this field is the one waiting for a press.</param>
+    /// <param name="button">The bound button, as ImGui counts them.</param>
+    /// <param name="modifiers">The modifiers held with it.</param>
+    /// <returns>True when a new binding was captured this frame.</returns>
+    public static bool KeybindRow(
+        string id,
+        string label,
+        float x,
+        float y,
+        float width,
+        ref bool listening,
+        ref int button,
+        ref int modifiers,
+        bool divider = false,
+        string? hint = null)
+    {
+        float controlX = Row(label, x, y, width, divider, hint);
+        float height = RowHeight();
+        float controlWidth = ControlWidth();
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        Vector2 min = new(MathF.Round(controlX), MathF.Round(y));
+        Vector2 max = new(min.X + controlWidth, min.Y + height);
+
+        ImGui.PushID(id);
+        ImGui.SetCursorScreenPos(min);
+        ImGui.InvisibleButton(IdKeybindField, max - min);
+        bool hovered = ImGui.IsItemHovered();
+        bool pressed = ImGui.IsItemClicked();
+        ImGui.PopID();
+
+        ShowHand(hovered);
+
+        dl.AddRectFilled(min, max, Tokens.Col.Input, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll);
+        dl.AddRect(
+            min,
+            max,
+            listening ? Tokens.Col.Gold : Tokens.Col.ControlEdge,
+            Tokens.Radius.Control,
+            ImDrawFlags.RoundCornersAll,
+            Tokens.Line(1f));
+
+        bool captured = false;
+
+        if (listening)
+        {
+            // The click that started listening is still being released this frame, so the
+            // first thing asked about is deliberately a press and not a release — otherwise
+            // the field would instantly capture the very click that opened it.
+            int caught = PressedButton();
+
+            if (caught >= 0)
+            {
+                button = caught;
+                modifiers = (int)HeldMods();
+                listening = false;
+                captured = true;
+            }
+            else if (ImGui.IsKeyPressed(ImGuiKey.Escape))
+            {
+                listening = false;
+            }
+        }
+        else if (pressed)
+        {
+            listening = true;
+        }
+
+        string text = listening ? Strings.KeybindListening : KeybindText(button, modifiers);
+        Vector2 size = Ink.Measure(Ink.Role.Body, text);
+        Ink.Draw(
+            dl,
+            Ink.Role.Body,
+            new Vector2(
+                MathF.Round(min.X + ((controlWidth - size.X) * 0.5f)),
+                CenterY(y, height, Ink.Role.Body)),
+            listening ? Tokens.Col.Gold : Tokens.Col.Ink,
+            text);
+
+        return captured;
+    }
+
+    /// <summary>
+    /// Which mouse button is being pressed right now, or -1. Press and not release, because
+    /// this is asked in the frame after a click that is still letting go.
+    /// </summary>
+    private static int PressedButton()
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            if (ImGui.IsMouseClicked((ImGuiMouseButton)i))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static BindingModifiers HeldMods()
+    {
+        ImGuiIOPtr io = ImGui.GetIO();
+        BindingModifiers held = BindingModifiers.None;
+
+        if (io.KeyCtrl)
+        {
+            held |= BindingModifiers.Ctrl;
+        }
+
+        if (io.KeyShift)
+        {
+            held |= BindingModifiers.Shift;
+        }
+
+        if (io.KeyAlt)
+        {
+            held |= BindingModifiers.Alt;
+        }
+
+        return held;
+    }
+
+    /// <summary>
+    /// A binding written out the way it is pressed: modifiers first, then the button. Built
+    /// fresh each frame, which is acceptable here and nowhere near the HUD — a settings row
+    /// only exists while the window is open.
+    /// </summary>
+    public static string KeybindText(int button, int modifiers)
+    {
+        var mods = (BindingModifiers)modifiers;
+        string name = ButtonName(button);
+
+        if (mods == BindingModifiers.None)
+        {
+            return name;
+        }
+
+        string prefix = string.Empty;
+
+        if ((mods & BindingModifiers.Ctrl) != 0)
+        {
+            prefix += Strings.ModCtrl + " + ";
+        }
+
+        if ((mods & BindingModifiers.Shift) != 0)
+        {
+            prefix += Strings.ModShift + " + ";
+        }
+
+        if ((mods & BindingModifiers.Alt) != 0)
+        {
+            prefix += Strings.ModAlt + " + ";
+        }
+
+        return prefix + name;
+    }
+
+    private static string ButtonName(int button) => button switch
+    {
+        0 => Strings.MouseLeft,
+        1 => Strings.MouseRight,
+        2 => Strings.MouseMiddle,
+        3 => Strings.MouseFour,
+        4 => Strings.MouseFive,
+        _ => Strings.MouseLeft,
+    };
 }

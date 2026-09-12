@@ -67,6 +67,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdTextEdge = "##wisp-pf-textedge";
     private const string IdTextWeight = "##wisp-pf-textweight";
     private const string IdTextStyleGroup = "##wisp-pf-textstyle";
+    private const string IdBindingsGroup = "##wisp-pf-bindings";
+    private const string IdBindingKey = "##wisp-pf-bindkey";
+    private const string IdBindingJob = "##wisp-pf-bindjob";
     private const string IdIconPosition = "##wisp-pf-iconposition";
     private const string IdIconX = "##wisp-pf-iconx";
     private const string IdIconY = "##wisp-pf-icony";
@@ -213,6 +216,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private readonly ArrowSelector<Anchor> m_namePosition;
     private readonly ArrowSelector<HealthTextMode> m_healthMode;
     private readonly ArrowSelector<FontChoice> m_font;
+    private readonly ArrowSelector<JobEntry> m_jobSelector;
+
+    /// <summary>Which job the bindings tab is showing, and which row is waiting for a press.</summary>
+    private int m_bindingJob = -1;
+    private int m_listening = -1;
     private readonly ArrowSelector<Anchor> m_healthPosition;
     private readonly ArrowSelector<string> m_manaStyle;
     private readonly ArrowSelector<Anchor> m_iconPosition;
@@ -300,6 +308,19 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             new ArrowSelectorOptions<FontChoice>
             {
                 Label = static face => face.Name,
+                EnablePopupList = true,
+                EnableSearch = true,
+                ShowCounter = false,
+            });
+
+        // Twenty-one jobs is well past what two arrows are for, so this one carries the popup
+        // and its search — the same reasoning as the font list.
+        m_jobSelector = new ArrowSelector<JobEntry>(
+            IdBindingJob,
+            JobList.All,
+            new ArrowSelectorOptions<JobEntry>
+            {
+                Label = static job => job.Name,
                 EnablePopupList = true,
                 EnableSearch = true,
                 ShowCounter = false,
@@ -1188,6 +1209,151 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         Chrome.EndGroupContent(group, used);
         contentHeight = used;
         return group;
+    }
+
+    /// <summary>
+    /// The Bindings tab: what each mouse button does on a frame, for one job at a time.
+    /// <para>
+    /// A job at the top and a list under it, because the bindings are per job and there is no
+    /// reading of the list that makes sense without knowing which job it belongs to.
+    /// </para>
+    /// </summary>
+    public void DrawBindings(float width)
+    {
+        Vector2 origin = ImGui.GetCursorScreenPos();
+        float column = Chrome.ColumnWidth(width);
+        float y = origin.Y;
+
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope group = this.DrawBindingList(Chrome.ColumnX(origin.X, width, 0), y, column, out float height);
+        y += Chrome.GroupFrame(group, height) + Tokens.Metric.ColumnGutter;
+
+        ImGui.SetCursorScreenPos(origin);
+        ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
+    }
+
+    private Chrome.GroupScope DrawBindingList(float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdBindingsGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupBindings,
+                Description = Strings.GroupBindingsHint,
+            },
+            x,
+            y,
+            width);
+
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
+
+        // Which job is being set up. Defaults to the one being played, so opening the tab
+        // mid-session lands on the list that is actually in force.
+        if (m_bindingJob < 0)
+        {
+            m_bindingJob = Math.Max(0, JobList.IndexOf(Services.Objects.LocalPlayer?.ClassJob.RowId ?? 0u));
+        }
+
+        int job = m_bindingJob;
+        if (m_jobSelector.Draw(
+                ref job,
+                Chrome.Row(Strings.BindingJob, group.ContentX, rowY, group.ContentWidth, true, Strings.BindingJobTooltip),
+                rowY,
+                Chrome.ControlWidth()))
+        {
+            m_bindingJob = job;
+            m_listening = -1;
+        }
+
+        rowY += pitch;
+
+        JobEntry entry = JobList.At(m_bindingJob);
+        System.Collections.Generic.List<MouseBinding> bindings = m_config.PartyFrames.Bindings.Edit(entry.Id);
+
+        rowY = this.DrawBindingRows(group, bindings, entry, rowY, pitch);
+
+        float used = rowY - group.ContentY + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
+
+    /// <summary>
+    /// One row per binding, plus the button that adds another. A row is the binding's own
+    /// grammar: what it does on the left, the button that does it on the right.
+    /// </summary>
+    private float DrawBindingRows(
+        Chrome.GroupScope group,
+        System.Collections.Generic.List<MouseBinding> bindings,
+        JobEntry job,
+        float rowY,
+        float pitch)
+    {
+        ActionEntry[] actions = ActionList.For(job.Id);
+
+        for (int i = 0; i < bindings.Count; i++)
+        {
+            MouseBinding binding = bindings[i];
+            string label = this.BindingLabel(binding, actions);
+
+            bool listening = m_listening == i;
+            int button = binding.Button;
+            int mods = (int)binding.Modifiers;
+
+            ImGui.PushID(i);
+
+            if (Chrome.KeybindRow(
+                    IdBindingKey,
+                    label,
+                    group.ContentX,
+                    rowY,
+                    group.ContentWidth,
+                    ref listening,
+                    ref button,
+                    ref mods,
+                    i > 0))
+            {
+                binding.Button = button;
+                binding.Modifiers = (BindingModifiers)mods;
+                m_config.MarkDirty();
+            }
+
+            ImGui.PopID();
+
+            m_listening = listening ? i : (m_listening == i ? -1 : m_listening);
+            rowY += pitch;
+        }
+
+        return rowY;
+    }
+
+    /// <summary>
+    /// What a binding is called in its row: the action's own name, or what the two built-in
+    /// kinds do. An action the job no longer has falls back to its number rather than to an
+    /// empty row, so it can still be seen and removed.
+    /// </summary>
+    private string BindingLabel(MouseBinding binding, ActionEntry[] actions)
+    {
+        switch (binding.Kind)
+        {
+            case BindingKind.Target:
+                return Strings.BindingTarget;
+
+            case BindingKind.ContextMenu:
+                return Strings.BindingContextMenu;
+
+            default:
+                for (int i = 0; i < actions.Length; i++)
+                {
+                    if (actions[i].Id == binding.ActionId)
+                    {
+                        return actions[i].Name;
+                    }
+                }
+
+                return Strings.BindingAction;
+        }
     }
 
     /// <summary>The leader's mark. The same four rows every badge on a frame gets.</summary>

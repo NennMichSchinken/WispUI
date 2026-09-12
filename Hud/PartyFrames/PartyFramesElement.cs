@@ -418,7 +418,7 @@ internal sealed class PartyFramesElement : HudElement
         // select, and edit mode wants the same button for dragging.
         if (count == 0
             || EditMode.IsActive
-            || (!cfg.ClickToTarget && !cfg.MouseoverTarget && !cfg.ContextMenu))
+            || (cfg.Bindings.For(LocalJobId()).Count == 0 && !cfg.MouseoverTarget && !cfg.HighlightHovered))
         {
             this.ReleaseMouseOver();
             return;
@@ -493,12 +493,15 @@ internal sealed class PartyFramesElement : HudElement
                 // from the player either way — ImGui captures every button over the block, all
                 // or none (spec §15) — but a button that is claimed and then handed nothing is
                 // worse than one that was never claimed, and this way the flags say which it is.
+                // Every button the bindings could want, which is all of them: ImGui takes them
+                // over this window whatever is asked for here (spec §15), so claiming fewer
+                // would only mean a button that is taken from the player and handed nothing.
                 bool clicked = ImGui.InvisibleButton(
                     IdSlot,
                     m_frameMax[i] - m_frameMin[i],
-                    cfg.ContextMenu
-                        ? ImGuiButtonFlags.MouseButtonLeft | ImGuiButtonFlags.MouseButtonRight
-                        : ImGuiButtonFlags.MouseButtonLeft);
+                    ImGuiButtonFlags.MouseButtonLeft
+                    | ImGuiButtonFlags.MouseButtonRight
+                    | ImGuiButtonFlags.MouseButtonMiddle);
                 bool hovered = ImGui.IsItemHovered();
 
                 // Held down and dragged off the block is still our press. Without this the
@@ -551,26 +554,12 @@ internal sealed class PartyFramesElement : HudElement
                     continue;
                 }
 
-                if (clicked)
-                {
-                    // Which button it was, asked of the frame the button answered on. A button
-                    // set to answer on release reports in the very frame the release happens,
-                    // so the release that is still fresh this frame is the one that did it.
-                    // Right is asked first: it is only ever claimed when it has a menu to open,
-                    // so anything else that got through is the left one.
-                    if (cfg.ContextMenu && ImGui.IsMouseReleased(ImGuiMouseButton.Right))
-                    {
-                        // By place in the game's own party list, not by object — see
-                        // NativeUi.OpenPartyContextMenu. The number on the frame is that
-                        // place, counting from one.
-                        //
-                        NativeUi.OpenPartyContextMenu(members[i].PartyNumber - 1);
-                    }
-                    else if (cfg.ClickToTarget)
-                    {
-                        Services.Targets.Target = target;
-                    }
-                }
+                // The bindings, asked of the frame a release happened on. A button set to
+                // answer on release reports in the very frame of that release, so whichever
+                // button is fresh right now is the one that did it. The two side buttons never
+                // reach the invisible button at all — ImGui has no flag for them — so they are
+                // asked about directly, gated on the frame being hovered.
+                this.Fire(cfg, clicked, hovered, ref members[i], target);
 
                 if (!hovered)
                 {
@@ -605,6 +594,129 @@ internal sealed class PartyFramesElement : HudElement
     }
 
     /// <summary>
+
+    /// <summary>
+    /// Runs whatever the player has bound to the button they just released on this frame.
+    /// <para>
+    /// The set is the one for the job they are on, so the same button is a heal on a White
+    /// Mage and nothing on a Warrior — which is the point of keeping them per job.
+    /// </para>
+    /// </summary>
+    private void Fire(
+        Configuration.PartyFramesConfig cfg,
+        bool clicked,
+        bool hovered,
+        ref PartyMemberSnapshot member,
+        IGameObject target)
+    {
+        int button = ReleasedButton(clicked, hovered);
+
+        if (button < 0)
+        {
+            return;
+        }
+
+        BindingModifiers held = HeldModifiers();
+        System.Collections.Generic.List<MouseBinding> bindings = cfg.Bindings.For(LocalJobId());
+
+        for (int i = 0; i < bindings.Count; i++)
+        {
+            MouseBinding binding = bindings[i];
+
+            if (!binding.Matches(button, held))
+            {
+                continue;
+            }
+
+            switch (binding.Kind)
+            {
+                case BindingKind.Target:
+                    Services.Targets.Target = target;
+                    break;
+
+                case BindingKind.ContextMenu:
+                    // By place in the game's own party list, not by object — see
+                    // NativeUi.OpenPartyContextMenu. The number on the frame is that place,
+                    // counting from one.
+                    NativeUi.OpenPartyContextMenu(member.PartyNumber - 1);
+                    break;
+
+                case BindingKind.Action:
+                    ActionUse.On(binding.ActionId, target.GameObjectId, target.Address);
+                    break;
+            }
+
+            // One binding per press. Two that match the same button and modifiers is a
+            // configuration nobody meant, and running both would be the worse reading of it.
+            return;
+        }
+    }
+
+    /// <summary>
+    /// Which button was just released on this frame, or -1 for none.
+    /// <para>
+    /// The first three come from the invisible button, which answers on release and only
+    /// inside its own area — that is what lets a press slide off a frame without counting,
+    /// the way the game's own party list behaves. The two side buttons have no ImGui flag, so
+    /// they are asked about directly and only while the frame is hovered.
+    /// </para>
+    /// </summary>
+    private static int ReleasedButton(bool clicked, bool hovered)
+    {
+        if (clicked)
+        {
+            if (ImGui.IsMouseReleased(ImGuiMouseButton.Right))
+            {
+                return 1;
+            }
+
+            if (ImGui.IsMouseReleased(ImGuiMouseButton.Middle))
+            {
+                return 2;
+            }
+
+            return 0;
+        }
+
+        if (!hovered)
+        {
+            return -1;
+        }
+
+        if (ImGui.IsMouseReleased((ImGuiMouseButton)3))
+        {
+            return 3;
+        }
+
+        return ImGui.IsMouseReleased((ImGuiMouseButton)4) ? 4 : -1;
+    }
+
+    /// <summary>What is being held right now, as the bindings describe it.</summary>
+    private static BindingModifiers HeldModifiers()
+    {
+        ImGuiIOPtr io = ImGui.GetIO();
+        BindingModifiers held = BindingModifiers.None;
+
+        if (io.KeyCtrl)
+        {
+            held |= BindingModifiers.Ctrl;
+        }
+
+        if (io.KeyShift)
+        {
+            held |= BindingModifiers.Shift;
+        }
+
+        if (io.KeyAlt)
+        {
+            held |= BindingModifiers.Alt;
+        }
+
+        return held;
+    }
+
+    /// <summary>The job the player is on, or zero when there is nobody to ask.</summary>
+    private static uint LocalJobId() => Services.Objects.LocalPlayer?.ClassJob.RowId ?? 0u;
 
     /// <summary>
     /// A rectangle drawn as four filled bars rather than as a stroke. ImGui centres a stroke

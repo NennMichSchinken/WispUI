@@ -132,6 +132,12 @@ public sealed class Configuration : IPluginConfiguration
         public int TextWeight { get; set; } = 1;
 
         /// <summary>
+        /// What each mouse button does on a frame, per job. See <see cref="BindingSet"/> for
+        /// why it is per job and what a job answers to before anybody has set it up.
+        /// </summary>
+        public BindingSet Bindings { get; set; } = new();
+
+        /// <summary>
         /// The old position in a fixed list of six faces. Nothing writes it any more; it is
         /// here so the migration to version 5 can read what the user had. Droppable once no
         /// stored configuration is older than that.
