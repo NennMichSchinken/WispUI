@@ -666,9 +666,9 @@ internal sealed class PartyFramesElement : HudElement
             // Your own name is drawn like everyone else's. It used to come out gold, which
             // looked like a state rather than a whose-name-is-this, and the one frame you
             // never have to search for is your own (Florian, 2026-09-12).
-            uint colour = cfg.NameInJobColour ? Jobs.Colour(member.JobId) : Tokens.Col.Ink;
+            uint colour = cfg.NameInJobColour ? Jobs.Colour(member.JobId) : Tokens.Col.HudInk;
 
-            Ink.DrawScaledShadowed(dl, size, at, colour, name);
+            Ink.DrawScaledEdged(dl, size, at, colour, name, cfg.Edge);
         }
 
         if (cfg.ShowPartyNumber && member.PartyNumber >= 1 && member.PartyNumber <= NumberText.Length)
@@ -739,7 +739,7 @@ internal sealed class PartyFramesElement : HudElement
         healthAt.X += Tokens.Px(cfg.HpTextX);
         healthAt.Y += Tokens.Px(cfg.HpTextY);
 
-        Ink.DrawScaledShadowed(dl, healthSize, healthAt, Tokens.Col.Ink, health);
+        Ink.DrawScaledEdged(dl, healthSize, healthAt, Tokens.Col.HudInk, health, cfg.Edge);
     }
 
     /// <summary>Whether this member is one of the ones mana was switched on for.</summary>

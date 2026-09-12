@@ -63,6 +63,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdIconGroup = "##wisp-pf-icon";
     private const string IdIconStyle = "##wisp-pf-iconstyle";
     private const string IdIconSize = "##wisp-pf-iconsize";
+    private const string IdFont = "##wisp-pf-font";
+    private const string IdTextEdge = "##wisp-pf-textedge";
+    private const string IdTextStyleGroup = "##wisp-pf-textstyle";
     private const string IdIconPosition = "##wisp-pf-iconposition";
     private const string IdIconX = "##wisp-pf-iconx";
     private const string IdIconY = "##wisp-pf-icony";
@@ -148,6 +151,14 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const int SlotLeaderY = 18;
     private const int SlotCount = 19;
 
+    /// <summary>The three edges, in the order the segments sit. Built once, not per frame.</summary>
+    private static readonly string[] EdgeNames =
+    {
+        Strings.TextEdgeNone,
+        Strings.TextEdgeShadow,
+        Strings.TextEdgeOutline,
+    };
+
     /// <summary>What a bar takes its colour from. FFXIV's own convention, not one of ours.</summary>
     private static readonly BarColourMode[] ColourModes =
     {
@@ -192,6 +203,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private readonly ArrowSelector<BarColourMode> m_colour;
     private readonly ArrowSelector<Anchor> m_namePosition;
     private readonly ArrowSelector<HealthTextMode> m_healthMode;
+    private readonly ArrowSelector<HudFontFace> m_font;
     private readonly ArrowSelector<Anchor> m_healthPosition;
     private readonly ArrowSelector<string> m_manaStyle;
     private readonly ArrowSelector<Anchor> m_iconPosition;
@@ -266,6 +278,21 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                     HealthTextMode.Current => Strings.HealthTextCurrent,
                     HealthTextMode.Deficit => Strings.HealthTextDeficit,
                     _ => Strings.HealthTextPercent,
+                },
+                ShowCounter = false,
+            });
+
+        m_font = new ArrowSelector<HudFontFace>(
+            IdFont,
+            HudText.Faces,
+            new ArrowSelectorOptions<HudFontFace>
+            {
+                Label = static face => face switch
+                {
+                    HudFontFace.MiedingerMid => Strings.FontMiedingerMid,
+                    HudFontFace.TrumpGothic => Strings.FontTrumpGothic,
+                    HudFontFace.Jupiter => Strings.FontJupiter,
+                    _ => Strings.FontAxis,
                 },
                 ShowCounter = false,
             });
@@ -443,7 +470,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         Chrome.BeginGroupRow();
         Chrome.GroupScope mouse = this.DrawMouse(Chrome.ColumnX(origin.X, width, 0), y, column, out float mouseHeight);
-        y += Chrome.GroupFrame(mouse, mouseHeight) + Tokens.Metric.ColumnGutter;
+        Chrome.GroupScope lettering = this.DrawTextStyle(Chrome.ColumnX(origin.X, width, 1), y, column, out float letteringHeight);
+        y += FrameRow(mouse, mouseHeight, lettering, letteringHeight);
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
@@ -1046,6 +1074,65 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 true))
         {
             m_config.PartyFrames.MouseoverCasting = !m_config.PartyFrames.MouseoverCasting;
+            m_config.MarkDirty();
+        }
+
+        float used = rowY - group.ContentY + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
+
+    /// <summary>
+    /// How every text on a frame is lettered: which face, and what carries it over the world.
+    /// <para>
+    /// Two rows for all of them rather than two rows each. Both questions are about reading a
+    /// frame at a glance, not about the name and the figure separately — and a face is one
+    /// font atlas entry for the whole HUD, so it could not honestly be offered per text.
+    /// </para>
+    /// </summary>
+    private Chrome.GroupScope DrawTextStyle(float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdTextStyleGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupLettering,
+                Description = Strings.GroupLetteringHint,
+            },
+            x,
+            y,
+            width);
+
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
+
+        int face = m_config.PartyFrames.Font;
+        if (m_font.Draw(
+                ref face,
+                Chrome.Row(Strings.TextFont, group.ContentX, rowY, group.ContentWidth, true, Strings.TextFontTooltip),
+                rowY,
+                Chrome.ControlWidth()))
+        {
+            m_config.PartyFrames.Font = face;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+
+        int edge = m_config.PartyFrames.TextEdge;
+        if (Chrome.SegmentRow(
+                IdTextEdge,
+                Strings.TextEdge,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                EdgeNames,
+                ref edge,
+                false,
+                Strings.TextEdgeTooltip))
+        {
+            m_config.PartyFrames.TextEdge = edge;
             m_config.MarkDirty();
         }
 

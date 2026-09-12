@@ -88,6 +88,41 @@ public sealed class Configuration : IPluginConfiguration
         /// <summary>Draw the player name on the frame at all — the switch in the group head.</summary>
         public bool ShowName { get; set; } = true;
 
+        // --- how every text on a frame is carried ---------------------------------
+        // Two settings for all of them rather than two per text. Which face and what is
+        // behind it are questions about reading a frame, not about the name or the numbers
+        // separately, and answering them once is what keeps the tab to four groups (§3.1).
+
+        /// <summary>
+        /// What is drawn behind every text on a frame so it reads over the world.
+        /// <para>
+        /// Shadow by default, which is what the frames shipped with. Outline is the game's own
+        /// floating-text look, and what a bright background needs; None is for anyone who
+        /// finds both noisy (Florian, 2026-09-12).
+        /// </para>
+        /// </summary>
+        public int TextEdge { get; set; } = 1;
+
+        /// <summary>
+        /// The chosen edge, as the value the drawing code wants. Internal, which is also what
+        /// keeps it out of the saved file: the stored shape is the index above, and a second
+        /// spelling of the same setting in the JSON would be one to keep in step for nothing.
+        /// </summary>
+        internal Style.TextEdge Edge => Style.HudText.EdgeAt(this.TextEdge);
+
+        /// <summary>
+        /// Which of the game's own faces the frames are lettered in. Axis is the game's
+        /// interface face and the suite's own; it is also light, which is what prompted the
+        /// choice (Florian, 2026-09-12).
+        /// <para>
+        /// ⚠️ One face for the whole HUD, not one per element: a face is a font atlas entry
+        /// and a lock per frame, so a second element asking for a second face would cost real
+        /// work every frame. It lives here because the frames are the only HUD element there
+        /// is; a second one means moving this to Global rather than copying it.
+        /// </para>
+        /// </summary>
+        public int Font { get; set; }
+
         // --- name text ----------------------------------------------------------
         // Every text on a frame is described the same way: whether it shows, how big it is,
         // which of the nine points it hangs on, and how far it is nudged from there. One

@@ -108,6 +108,12 @@ public sealed class Plugin : IDalamudPlugin
         // Two booleans compared. The hook goes in and comes out with the setting rather than
         // sitting installed and inert, so a player who never turns it on never carries it.
         m_mouseover.Sync(m_config.PartyFrames.MouseoverCasting);
+
+        // Here rather than in the draw, because changing it disposes font handles and builds
+        // new ones. Doing that between the frame's font locks and the text they are holding
+        // for would pull a face out from under something already drawing with it. Two enums
+        // compared on the frames where it has not changed, which is all of them but one.
+        Style.Fonts.SetHudFace(Style.HudText.FaceAt(m_config.PartyFrames.Font));
     }
 
     private void OnInfoBarPreferenceChanged()
