@@ -202,8 +202,25 @@ internal static class Tokens
         /// <summary>
         /// Under every piece of text a HUD element writes. The frames lie over the world, and
         /// a bright name on a bright bar is unreadable without something behind it.
+        /// <para>
+        /// Two layers, not one. A single hard copy at three quarters black read as a second,
+        /// dirty letter offset from the first rather than as a shadow (Florian, 2026-09-12);
+        /// a near one and a fainter far one fall off instead of stopping, which is what makes
+        /// it read as shade.
+        /// </para>
         /// </summary>
-        public static readonly uint HudTextShadow = 0xC0000000u;
+        public static readonly uint HudTextShadow = 0x8C000000u;
+
+        /// <summary>The second, wider and fainter layer of the same shadow.</summary>
+        public static readonly uint HudTextShadowFar = 0x46000000u;
+
+        /// <summary>
+        /// The outline, which is a different job from the shadow and therefore a different
+        /// colour. A shadow suggests depth and may be soft; an outline cuts the letter out of
+        /// whatever is behind it and has to be hard and fully black to do that at all
+        /// (Florian, 2026-09-12).
+        /// </summary>
+        public static readonly uint HudTextOutline = 0xFF000000u;
 
         /// <summary>
         /// Text on a HUD element. Plain white, and the reason it is its own token is that the

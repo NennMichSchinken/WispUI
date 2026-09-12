@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 
@@ -97,27 +98,7 @@ internal static class Ink
     /// </summary>
     public static void DrawEdged(ImDrawListPtr dl, Role role, Vector2 pos, uint colour, string text, TextEdge edge)
     {
-        float offset = Style.Tokens.Metric.HudTextShadow;
-        uint dark = Style.Tokens.Col.HudTextShadow;
-
-        switch (edge)
-        {
-            case TextEdge.Shadow:
-                Draw(dl, role, new Vector2(pos.X + offset, pos.Y + offset), dark, text);
-                break;
-
-            case TextEdge.Outline:
-                // Four, not eight. At one pixel a ring of eight puts its diagonals on pixels
-                // the four have already darkened, so the extra four cost a draw each per
-                // string and change nothing on screen.
-                Draw(dl, role, new Vector2(pos.X - offset, pos.Y), dark, text);
-                Draw(dl, role, new Vector2(pos.X + offset, pos.Y), dark, text);
-                Draw(dl, role, new Vector2(pos.X, pos.Y - offset), dark, text);
-                Draw(dl, role, new Vector2(pos.X, pos.Y + offset), dark, text);
-                break;
-        }
-
-        Draw(dl, role, pos, colour, text);
+        DrawScaledEdged(dl, Sizes[HudBase + (int)role], pos, colour, text, edge);
     }
 
     // --- Text at a size the user chose ---------------------------------------
@@ -186,25 +167,65 @@ internal static class Ink
         string text,
         TextEdge edge)
     {
-        float offset = Style.Tokens.Metric.HudTextShadow;
-        uint dark = Style.Tokens.Col.HudTextShadow;
+        float offset = EdgeWidth(pixels);
 
         switch (edge)
         {
             case TextEdge.Shadow:
-                DrawScaled(dl, pixels, new Vector2(pos.X + offset, pos.Y + offset), dark, text);
+                DrawScaled(dl, pixels, Snap(pos, offset * 2f, offset * 2f), Style.Tokens.Col.HudTextShadowFar, text);
+                DrawScaled(dl, pixels, Snap(pos, offset, offset), Style.Tokens.Col.HudTextShadow, text);
                 break;
 
             case TextEdge.Outline:
-                DrawScaled(dl, pixels, new Vector2(pos.X - offset, pos.Y), dark, text);
-                DrawScaled(dl, pixels, new Vector2(pos.X + offset, pos.Y), dark, text);
-                DrawScaled(dl, pixels, new Vector2(pos.X, pos.Y - offset), dark, text);
-                DrawScaled(dl, pixels, new Vector2(pos.X, pos.Y + offset), dark, text);
+                uint dark = Style.Tokens.Col.HudTextOutline;
+
+                // The four sides, then the four corners. At one pixel the corners land where
+                // the sides already are and cost nothing but four draws — but the width grows
+                // with the text now, and at two pixels and up a ring of four leaves the
+                // diagonals open, which is exactly the fraying that was reported (Florian,
+                // 2026-09-12).
+                DrawScaled(dl, pixels, Snap(pos, -offset, 0f), dark, text);
+                DrawScaled(dl, pixels, Snap(pos, offset, 0f), dark, text);
+                DrawScaled(dl, pixels, Snap(pos, 0f, -offset), dark, text);
+                DrawScaled(dl, pixels, Snap(pos, 0f, offset), dark, text);
+
+                if (offset > 1f)
+                {
+                    DrawScaled(dl, pixels, Snap(pos, -offset, -offset), dark, text);
+                    DrawScaled(dl, pixels, Snap(pos, offset, -offset), dark, text);
+                    DrawScaled(dl, pixels, Snap(pos, -offset, offset), dark, text);
+                    DrawScaled(dl, pixels, Snap(pos, offset, offset), dark, text);
+                }
+
                 break;
         }
 
         DrawScaled(dl, pixels, pos, colour, text);
     }
+
+    /// <summary>
+    /// How thick the edge under a text of this size is, in whole pixels.
+    /// <para>
+    /// 🔴 It follows the text rather than being one pixel for everything. One pixel is right
+    /// at sixteen and invisible at forty, which is what a fixed width always ends up being at
+    /// one end of a range the user can set (Florian, 2026-09-12). Whole pixels because half a
+    /// one is what made the outline look soft: a glyph drawn at a fractional offset is
+    /// resampled across two pixel columns and comes back grey.
+    /// </para>
+    /// </summary>
+    private static float EdgeWidth(float pixels)
+    {
+        float scaled = Style.Tokens.Metric.HudTextShadow;
+        return MathF.Max(scaled, MathF.Round(pixels / 16f) * scaled);
+    }
+
+    /// <summary>
+    /// A position nudged by whole pixels. The nudge is rounded, not the result: the text's own
+    /// position is where the layout put it, and moving it to a pixel boundary here would move
+    /// the letters rather than the edge under them.
+    /// </summary>
+    private static Vector2 Snap(Vector2 pos, float dx, float dy) =>
+        new(pos.X + MathF.Round(dx), pos.Y + MathF.Round(dy));
 
     /// <summary>Writes a string at a chosen pixel size, in the face the HUD was set to.</summary>
     public static void DrawScaled(ImDrawListPtr dl, float pixels, Vector2 pos, uint colour, string text)
