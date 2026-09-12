@@ -87,12 +87,19 @@ internal sealed class HudManager
 
         if (EditMode.IsActive)
         {
+            // 🔴 Asked for explicitly, every frame, or the game keeps the keyboard.
+            //
+            // An ImGui window only takes the keyboard when something in it wants typing into.
+            // Ours never does, so the arrows turned the camera and Escape opened the game's
+            // own menu — and since Escape was also how edit mode was meant to end, there was
+            // no way out of it at all (Florian, 2026-09-12, stuck in it).
+            ImGui.SetNextFrameWantCaptureKeyboard(true);
+
             this.Arrange(dl);
             EditOverlay.DrawHint(dl);
 
-            // Escape ends it. Read here rather than from the game's own input, because while
-            // edit mode is on the arranging window has the keyboard — and because a mode the
-            // player cannot leave with the key every mode is left with is a trap.
+            // Escape ends it, which is the key every mode is left with. A mode the player
+            // cannot leave that way is a trap.
             if (ImGui.IsKeyPressed(ImGuiKey.Escape))
             {
                 EditMode.Stop();

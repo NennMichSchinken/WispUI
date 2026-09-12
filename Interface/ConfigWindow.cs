@@ -129,6 +129,7 @@ internal sealed class ConfigWindow : Window
         m_config = config;
         m_global = new GlobalScreen(config);
         m_global.InfoBarPreferenceChanged += () => this.InfoBarPreferenceChanged?.Invoke();
+
         m_partyFrames = new PartyFramesScreen(config);
         m_appearance = new AppearanceBar(m_clipboard);
 

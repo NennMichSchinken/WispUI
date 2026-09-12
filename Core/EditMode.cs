@@ -49,6 +49,16 @@ internal static class EditMode
 
     public static float? HeldY { get; private set; }
 
+    /// <summary>
+    /// Raised when arranging ends, however it ended — the button or the escape key.
+    /// <para>
+    /// The settings window listens, so leaving edit mode puts the player back where they
+    /// started from rather than on an empty screen. Going in closed that window; coming out
+    /// owes them it back (Florian, 2026-09-12).
+    /// </para>
+    /// </summary>
+    public static event Action? Finished;
+
     public static void Toggle() => Set(!IsActive);
 
     /// <summary>Left on its own when the window closes — arranging outlives looking at the settings.</summary>
@@ -56,11 +66,17 @@ internal static class EditMode
 
     private static void Set(bool active)
     {
+        if (active == IsActive)
+        {
+            return;
+        }
+
         IsActive = active;
 
         if (!active)
         {
             EndDrag();
+            Finished?.Invoke();
         }
     }
 

@@ -47,6 +47,12 @@ public sealed class Plugin : IDalamudPlugin
         m_infoBar.Apply(m_config.ShowInfoBarEntry);
         m_configWindow.InfoBarPreferenceChanged += this.OnInfoBarPreferenceChanged;
 
+        // Coming out of edit mode puts the settings window back. Going in closed it, and
+        // finishing on an empty screen with nothing to return to is a dead end (Florian,
+        // 2026-09-12). Subscribed here rather than in the window, because this is where it
+        // can be released again.
+        EditMode.Finished += this.OnEditModeFinished;
+
         m_hud.Add(new PartyFramesElement(m_config));
 
         // Made now, put in place only if the player has asked for it. The hook it owns is the
@@ -68,6 +74,7 @@ public sealed class Plugin : IDalamudPlugin
     public void Dispose()
     {
         Services.Framework.Update -= this.OnUpdate;
+        EditMode.Finished -= this.OnEditModeFinished;
         m_configWindow.InfoBarPreferenceChanged -= this.OnInfoBarPreferenceChanged;
         Services.PluginInterface.UiBuilder.OpenConfigUi -= m_configWindow.Toggle;
         Services.PluginInterface.UiBuilder.OpenMainUi -= m_configWindow.Toggle;
@@ -148,6 +155,9 @@ public sealed class Plugin : IDalamudPlugin
 
         Fonts.SyncHud(!m_config.HasPendingChanges, cfg.FontName, HudText.WeightAt(cfg.TextWeight), sizes);
     }
+
+    /// <summary>Puts the settings window back when arranging ends, however it ended.</summary>
+    private void OnEditModeFinished() => m_configWindow.IsOpen = true;
 
     private void OnInfoBarPreferenceChanged()
     {
