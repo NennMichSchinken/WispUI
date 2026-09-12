@@ -356,6 +356,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 // The action's own icon, which is how a spell is recognised before its name is
                 // read. Icons.Handle caches the lookup and hands back a null handle for
                 // anything not loaded, which the selector simply does not draw.
+                // Square, because an action icon is. The default preview strip is wide and
+                // short for bar fills, and an icon stretched into it comes out smeared.
+                PreviewSize = Tokens.Px(22f, 22f),
+
                 DrawPreview = static (dl, action, min, max) =>
                 {
                     ImTextureID icon = Icons.Handle(action.Icon);

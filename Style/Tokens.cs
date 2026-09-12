@@ -536,6 +536,13 @@ internal static class Tokens
         /// <summary>How many rows the list shows before it starts to scroll.</summary>
         public const int PopupRows = 7;
 
+        /// <summary>
+        /// How wide a popup list may get. A list of names needs the width of the longest name,
+        /// not the width of whatever opened it — a full-width row would otherwise put six short
+        /// entries in a very large box (Florian, 2026-09-12).
+        /// </summary>
+        public static float PopupMaxWidth => Px(300f);
+
         /// <summary>The swatch in a popup row, smaller than the one in the face.</summary>
         public static Vector2 PopupSwatch => Px(44f, 11f);
 
@@ -643,6 +650,18 @@ internal static class Tokens
 
         /// <summary>How far a HUD text's shadow is offset. One pixel, at whatever the scale is.</summary>
         public static float HudTextShadow => Line(1f);
+
+        /// <summary>
+        /// What a frame's opacity is multiplied by when the game has no numbers for that
+        /// member — out of range, another instance, or offline.
+        /// <para>
+        /// Deliberately gentle. It has to say "no reading right now" without saying
+        /// "unimportant": these are the people you are about to run back to, and a frame faded
+        /// to a ghost is one you stop checking (Florian, 2026-09-12, asked for 80 to 90 per
+        /// cent).
+        /// </para>
+        /// </summary>
+        public const float OutOfRangeDim = 0.85f;
 
         public static float BadgeHeight => Px(18f);
         public static float BadgePaddingX => Px(6f);

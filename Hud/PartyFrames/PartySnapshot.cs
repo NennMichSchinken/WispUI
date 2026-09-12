@@ -30,6 +30,22 @@ internal struct PartyMemberSnapshot
     public bool IsLeader;
 
     /// <summary>
+    /// Whether the game is telling us anything real about this member right now.
+    /// <para>
+    /// 🔴 It stops when they are too far away, in another instance, or offline: the party list
+    /// keeps the slot but reports zero for health, which drew a black frame with no fill at
+    /// all until somebody walked back into range (Florian, 2026-09-12, in a real party). A
+    /// frame that says "this person has no health" about somebody who is merely elsewhere is
+    /// worse than saying nothing.
+    /// </para>
+    /// <para>
+    /// Out of range and offline cannot be told apart here — both come back as a slot with no
+    /// numbers — so both read the same way: the frame keeps its colour and is dimmed.
+    /// </para>
+    /// </summary>
+    public bool HasData;
+
+    /// <summary>
     /// Taken from the game's own string once, when this slot starts holding someone else.
     /// A name is the one field here that cannot be a number, and reading it allocates.
     /// </summary>
@@ -121,6 +137,10 @@ internal sealed class PartySnapshot
             slot.IsLocalPlayer = entityId == Services.Objects.LocalPlayer?.EntityId;
             slot.IsLeader = i == leader;
 
+            // Zero maximum health is the party list saying it has nothing for this slot — out
+            // of range, another instance, or offline. Current health can legitimately be zero.
+            slot.HasData = member.MaxHP > 0;
+
             count++;
         }
 
@@ -152,6 +172,7 @@ internal sealed class PartySnapshot
             slot.Name = Strings.PreviewName;
             slot.MaxHp = 128000u;
             slot.Hp = slot.MaxHp / 100u * PlaceholderHealth[i];
+            slot.HasData = true;
             slot.MaxMp = 10000u;
             slot.Mp = slot.MaxMp / 100u * PlaceholderMana[i];
             slot.IsLocalPlayer = i == 0;
@@ -183,6 +204,7 @@ internal sealed class PartySnapshot
         slot.Role = Jobs.Role(slot.JobId);
         slot.Hp = player.CurrentHp;
         slot.MaxHp = player.MaxHp;
+        slot.HasData = true;
         slot.Mp = player.CurrentMp;
         slot.MaxMp = player.MaxMp;
         slot.IsLocalPlayer = true;

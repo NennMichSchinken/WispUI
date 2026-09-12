@@ -317,7 +317,10 @@ internal sealed class PartyFramesElement : HudElement
                 }
             }
 
-            uint colour = Tokens.Col.Faded(BarColour(colourMode, ref member), cfg.BarOpacity);
+            // Dimmed rather than recoloured when there is nothing to report, so the frame is
+            // still recognisably that person's job at a glance.
+            float opacity = member.HasData ? cfg.BarOpacity : cfg.BarOpacity * Tokens.Metric.OutOfRangeDim;
+            uint colour = Tokens.Col.Faded(BarColour(colourMode, ref member), opacity);
             float fraction = this.HealthFraction(i, ref member, cfg.SmoothBars, delta);
             Vector2 barMin = innerMin;
             Vector2 barMax = new(innerMax.X, healthBottom);
@@ -972,9 +975,13 @@ internal sealed class PartyFramesElement : HudElement
     /// </summary>
     private float HealthFraction(int slot, ref PartyMemberSnapshot member, bool smooth, float delta)
     {
-        float target = member.MaxHp > 0
-            ? Math.Clamp(member.Hp / (float)member.MaxHp, 0f, 1f)
-            : 0f;
+        // 🔴 A member the game has no numbers for is drawn full, not empty. Out of range, in
+        // another instance or offline, the party list reports zero — and an empty bar is a
+        // statement about their health, which is exactly the thing we do not know. Full and
+        // dimmed says "no reading" instead (Florian, 2026-09-12).
+        float target = !member.HasData
+            ? 1f
+            : (member.MaxHp > 0 ? Math.Clamp(member.Hp / (float)member.MaxHp, 0f, 1f) : 0f);
 
         // A slot that changed hands holds a different person, not a health change: their bar
         // starts where they are rather than sliding out of the last member's value.
@@ -997,6 +1004,13 @@ internal sealed class PartyFramesElement : HudElement
 
     private string HealthFigure(int slot, ref PartyMemberSnapshot member, HealthTextMode mode)
     {
+        // Nothing rather than a number. "0" or "100%" about somebody the game has no reading
+        // for is an invention, and the dimmed bar already says there is no reading.
+        if (!member.HasData)
+        {
+            return string.Empty;
+        }
+
         if (m_healthText[slot] is null
             || m_healthTextMode[slot] != (int)mode
             || m_healthTextHp[slot] != member.Hp

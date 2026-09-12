@@ -68,6 +68,17 @@ internal sealed class ArrowSelectorOptions<T>
     /// </para>
     /// </summary>
     public bool Flat { get; init; }
+
+    /// <summary>
+    /// How large the preview is drawn, or null for the default strip.
+    /// <para>
+    /// The default is wide and short, which is the right shape for what previews were built
+    /// for — a bar fill, a texture, a gradient. An icon is square, and stretched into that
+    /// strip it comes out smeared (Florian, 2026-09-12). The shape belongs to what is being
+    /// previewed, so the caller says.
+    /// </para>
+    /// </summary>
+    public Vector2? PreviewSize { get; init; }
 }
 
 /// <summary>
@@ -351,7 +362,7 @@ internal sealed class ArrowSelector<T>
 
         if (m_options.DrawPreview is not null)
         {
-            Vector2 swatch = Tokens.Metric.SelectorSwatch;
+            Vector2 swatch = m_options.PreviewSize ?? Tokens.Metric.SelectorSwatch;
             float swatchTop = MathF.Round(y + ((height - swatch.Y) * 0.5f));
             Vector2 swatchMin = new(left, swatchTop);
             Vector2 swatchMax = new(left + swatch.X, swatchTop + swatch.Y);
@@ -412,8 +423,14 @@ internal sealed class ArrowSelector<T>
         float pad = Tokens.Metric.PopupPadding;
         float rowHeight = Tokens.Metric.PopupRowHeight;
 
+        // 🔴 Never wider than the list needs, whatever the control under it is. On a bindings
+        // row the name takes most of the row, and a popup that matched it was a column of
+        // short names in a very wide box (Florian, 2026-09-12). It still may not be narrower
+        // than the control, or it would look like it belongs to something else.
+        float popupWidth = MathF.Min(width, Tokens.Metric.PopupMaxWidth);
+
         ImGui.SetNextWindowPos(new Vector2(x, y));
-        ImGui.SetNextWindowSize(new Vector2(width, 0f));
+        ImGui.SetNextWindowSize(new Vector2(popupWidth, 0f));
 
         // A popup takes its rounding and its border from the popup style vars, not from the
         // window ones — setting WindowBorderSize here leaves it with no border at all.
@@ -532,7 +549,7 @@ internal sealed class ArrowSelector<T>
         float left = min.X + Tokens.Space.Md;
         if (m_options.DrawPreview is not null)
         {
-            Vector2 swatch = Tokens.Metric.PopupSwatch;
+            Vector2 swatch = m_options.PreviewSize ?? Tokens.Metric.PopupSwatch;
             float top = MathF.Round(min.Y + ((rowHeight - swatch.Y) * 0.5f));
             m_options.DrawPreview(dl, item, new Vector2(left, top), new Vector2(left + swatch.X, top + swatch.Y));
             left += swatch.X + Tokens.Space.Md;
