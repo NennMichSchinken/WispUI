@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using WispUI.Core;
+using WispUI.Interface.Widgets;
 using WispUI.Localization;
 using WispUI.Style;
 
@@ -112,8 +113,21 @@ internal static class EditOverlay
             TextEdge.None);
     }
 
-    /// <summary>The one line of instruction, along the bottom of the screen.</summary>
-    public static void DrawHint(ImDrawListPtr dl)
+    /// <summary>
+    /// The bar that says arranging is happening and ends it.
+    /// <para>
+    /// 🔴 A button rather than a key, because a key was not available. Dalamud only hands a
+    /// plugin the keyboard while <c>io.WantTextInput</c> is set — that is, while something is
+    /// genuinely being typed into — so Escape and the arrows went to the game and edit mode
+    /// had no way out at all (Florian, 2026-09-12, stuck in it, who then suggested this).
+    /// </para>
+    /// <para>
+    /// It is also the better answer regardless: a mode that covers the screen should say so
+    /// in words and offer the way out in the same place, rather than rely on a key nobody was
+    /// told about.
+    /// </para>
+    /// </summary>
+    public static void DrawBar()
     {
         if (!EditMode.IsActive)
         {
@@ -121,17 +135,74 @@ internal static class EditOverlay
         }
 
         Vector2 screen = ImGui.GetIO().DisplaySize;
-        float size = Tokens.Px(Configuration.DefaultTextSize);
-        float width = Ink.MeasureWidth(size, Strings.EditModeKeys);
+        float pad = Tokens.Space.Lg;
+        float rowHeight = Chrome.RowHeight();
 
-        Ink.DrawScaledEdged(
-            dl,
-            size,
-            new Vector2(
-                MathF.Round((screen.X - width) * 0.5f),
-                MathF.Round(screen.Y - (size * 3f))),
-            Tokens.Col.HudInkQuiet,
-            Strings.EditModeKeys,
-            TextEdge.Shadow);
+        // Placed at the top the first time it appears, and left wherever it is pushed after
+        // that — the thing being arranged may well be at the top of the screen.
+        ImGui.SetNextWindowPos(
+            new Vector2(MathF.Round(screen.X * 0.5f), Tokens.Px(48f)),
+            ImGuiCond.Appearing,
+            new Vector2(0.5f, 0f));
+
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(pad, pad));
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, Tokens.Line(1f));
+        ImGui.PushStyleColor(ImGuiCol.WindowBg, Tokens.Col.Panel);
+        ImGui.PushStyleColor(ImGuiCol.Border, Tokens.Col.EdgeDim);
+
+        if (ImGui.Begin(IdBar, BarFlags))
+        {
+            Vector2 at = ImGui.GetCursorScreenPos();
+            ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+            Ink.Draw(
+                dl,
+                Ink.Role.Title,
+                new Vector2(at.X, Chrome.CenterY(at.Y, rowHeight, Ink.Role.Title)),
+                Tokens.Col.Heading,
+                Strings.EditMode);
+
+            float titleWidth = Ink.Measure(Ink.Role.Title, Strings.EditMode).X;
+            float hintX = at.X + titleWidth + Tokens.Space.Lg;
+
+            Ink.Draw(
+                dl,
+                Ink.Role.Small,
+                new Vector2(hintX, Chrome.CenterY(at.Y, rowHeight, Ink.Role.Small)),
+                Tokens.Col.InkFaint,
+                Strings.EditModeKeys);
+
+            float hintWidth = Ink.Measure(Ink.Role.Small, Strings.EditModeKeys).X;
+            float buttonX = hintX + hintWidth + Tokens.Space.Xl;
+
+            if (Chrome.PillButton(IdBarDone, Strings.EditModeDone, buttonX, at.Y))
+            {
+                EditMode.Stop();
+            }
+
+            // The window sizes itself to what was drawn into it, which nothing here does
+            // through ImGui's own cursor — so it is told.
+            float width = buttonX - at.X + Ink.Measure(Ink.Role.Body, Strings.EditModeDone).X + (Tokens.Space.Lg * 2f);
+            ImGui.Dummy(new Vector2(width, rowHeight));
+        }
+
+        ImGui.End();
+        ImGui.PopStyleColor(2);
+        ImGui.PopStyleVar(2);
     }
+
+    private const string IdBar = "##wisp-editbar";
+    private const string IdBarDone = "##wisp-editbar-done";
+
+    /// <summary>
+    /// Movable, unlike everything else the suite puts on screen while arranging: the bar may
+    /// well be sitting exactly where an element needs to go.
+    /// </summary>
+    private const ImGuiWindowFlags BarFlags =
+        ImGuiWindowFlags.NoTitleBar
+        | ImGuiWindowFlags.NoResize
+        | ImGuiWindowFlags.NoScrollbar
+        | ImGuiWindowFlags.NoCollapse
+        | ImGuiWindowFlags.NoSavedSettings
+        | ImGuiWindowFlags.AlwaysAutoResize;
 }

@@ -50,7 +50,7 @@ internal sealed class HudManager
 
     private readonly List<HudElement> m_elements = new();
 
-    /// <summary>Which element was last picked up, so the arrow keys know what they move.</summary>
+    /// <summary>Which element was last picked up, so its outline stays marked.</summary>
     private int m_selected = -1;
 
     /// <summary>Adds an element. Draw order is the order they are added in (spec §5).</summary>
@@ -87,24 +87,8 @@ internal sealed class HudManager
 
         if (EditMode.IsActive)
         {
-            // 🔴 Asked for explicitly, every frame, or the game keeps the keyboard.
-            //
-            // An ImGui window only takes the keyboard when something in it wants typing into.
-            // Ours never does, so the arrows turned the camera and Escape opened the game's
-            // own menu — and since Escape was also how edit mode was meant to end, there was
-            // no way out of it at all (Florian, 2026-09-12, stuck in it).
-            ImGui.SetNextFrameWantCaptureKeyboard(true);
-
             this.Arrange(dl);
-            EditOverlay.DrawHint(dl);
-
-            // Escape ends it, which is the key every mode is left with. A mode the player
-            // cannot leave that way is a trap.
-            if (ImGui.IsKeyPressed(ImGuiKey.Escape))
-            {
-                EditMode.Stop();
-                m_selected = -1;
-            }
+            EditOverlay.DrawBar();
         }
     }
 
@@ -190,19 +174,14 @@ internal sealed class HudManager
             EditMode.EndDrag();
         }
 
-        // Arrow keys move whatever was last picked up, which is the only way to place
-        // something on an exact pixel — a cursor cannot be trusted to the pixel and a drag
-        // cannot be nudged.
-        if (m_selected == index && !active)
-        {
-            Vector2 step = Arrows(io);
-
-            if (step != Vector2.Zero)
-            {
-                element.MoveTo(min + step);
-            }
-        }
-
+        // 🔴 No arrow keys, and none possible from here. Dalamud only passes a plugin the
+        // keyboard while io.WantTextInput is set — while something is genuinely being typed
+        // into — so every key goes to the game instead: the arrows turned the camera and
+        // Escape opened the game's menu (Florian, 2026-09-12).
+        //
+        // Fine-tuning to the pixel therefore lives where it always did, on the two position
+        // sliders in the Layout tab, which can also be typed into. Dragging is for placing;
+        // the numbers are for placing exactly.
         if (hovered)
         {
             ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeAll);
@@ -211,34 +190,6 @@ internal sealed class HudManager
         EditOverlay.DrawHandle(dl, min, max, element.Name, hovered || active || m_selected == index);
     }
 
-    /// <summary>Which way the arrow keys are asking to move, and how far.</summary>
-    private static Vector2 Arrows(ImGuiIOPtr io)
-    {
-        float step = EditMode.Nudge(io.KeyShift);
-        Vector2 move = Vector2.Zero;
-
-        if (ImGui.IsKeyPressed(ImGuiKey.LeftArrow, true))
-        {
-            move.X -= step;
-        }
-
-        if (ImGui.IsKeyPressed(ImGuiKey.RightArrow, true))
-        {
-            move.X += step;
-        }
-
-        if (ImGui.IsKeyPressed(ImGuiKey.UpArrow, true))
-        {
-            move.Y -= step;
-        }
-
-        if (ImGui.IsKeyPressed(ImGuiKey.DownArrow, true))
-        {
-            move.Y += step;
-        }
-
-        return move;
-    }
 
     private static bool ShouldDraw()
     {
