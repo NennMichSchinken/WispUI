@@ -124,6 +124,14 @@ public sealed class Configuration : IPluginConfiguration
         public string FontName { get; set; } = Style.FontLibrary.DefaultName;
 
         /// <summary>
+        /// How heavily the face is laid down. Medium by default, not Normal: against a black
+        /// edge every face reads thinner than it is, and the first build shipped at Normal was
+        /// called thin for every face including the one brought in to compare against
+        /// (Florian, 2026-09-12).
+        /// </summary>
+        public int TextWeight { get; set; } = 1;
+
+        /// <summary>
         /// The old position in a fixed list of six faces. Nothing writes it any more; it is
         /// here so the migration to version 5 can read what the user had. Droppable once no
         /// stored configuration is older than that.

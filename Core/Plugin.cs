@@ -144,7 +144,7 @@ public sealed class Plugin : IDalamudPlugin
         sizes[1] = Tokens.Px(cfg.HpTextSize);
         sizes[2] = Tokens.Px(cfg.PartyNumberSize);
 
-        Fonts.SyncHud(!m_config.HasPendingChanges, cfg.FontName, sizes);
+        Fonts.SyncHud(!m_config.HasPendingChanges, cfg.FontName, HudText.WeightAt(cfg.TextWeight), sizes);
     }
 
     private void OnInfoBarPreferenceChanged()

@@ -44,6 +44,7 @@ internal static class Fonts
     private static int s_hudCount;
 
     private static string s_hudFaceName = FontLibrary.DefaultName;
+    private static TextWeight s_hudWeight = TextWeight.Medium;
 
     /// <summary>The shipped face currently in memory, and its bytes.</summary>
     private static string? s_loadedFontFile;
@@ -101,7 +102,7 @@ internal static class Fonts
     /// <param name="settled">Whether the configuration has stopped changing.</param>
     /// <param name="face">The face the HUD is set to.</param>
     /// <param name="sizes">The pixel sizes in use. Duplicates and sizes past the budget are dropped.</param>
-    public static void SyncHud(bool settled, string faceName, ReadOnlySpan<float> sizes)
+    public static void SyncHud(bool settled, string faceName, TextWeight weight, ReadOnlySpan<float> sizes)
     {
         if (!settled || !Ready)
         {
@@ -111,12 +112,13 @@ internal static class Fonts
         Span<float> wanted = stackalloc float[MaxHudSizes];
         int count = Gather(sizes, wanted);
 
-        if (Matches(faceName, wanted[..count]))
+        if (weight == s_hudWeight && Matches(faceName, wanted[..count]))
         {
             return;
         }
 
         s_hudFaceName = faceName;
+        s_hudWeight = weight;
         RebuildHud(wanted[..count]);
     }
 
@@ -194,7 +196,14 @@ internal static class Fonts
                 // A face out of the game files. Dalamud picks the nearest size the game ships
                 // and resamples; there is no way around that, which is the point of offering
                 // the vector faces beside these.
-                HudHandle[i] = atlas.NewGameFontHandle(new GameFontStyle(face.GameFamily, size));
+                //
+                // The weight has its own knob here, applied by Dalamud as it renders the game's
+                // bitmap rather than as rasteriser coverage. Same three steps to the player,
+                // so the setting means one thing whichever kind of face is chosen.
+                HudHandle[i] = atlas.NewGameFontHandle(new GameFontStyle(face.GameFamily, size)
+                {
+                    Weight = GameWeight(s_hudWeight),
+                });
                 continue;
             }
 
@@ -216,6 +225,18 @@ internal static class Fonts
     /// and the setting can say so out loud instead of silently showing the wrong face.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// The same three steps as a weight the game's own renderer understands. Small numbers:
+    /// this thickens a bitmap that is already being resampled, and past a little of it the
+    /// glyphs stop being letters.
+    /// </summary>
+    private static float GameWeight(TextWeight weight) => weight switch
+    {
+        TextWeight.Medium => 0.25f,
+        TextWeight.Bold => 0.5f,
+        _ => 0f,
+    };
+
     private static IFontHandle? BuildFromFile(IFontAtlas atlas, string path, float sizePx)
     {
         byte[]? bytes = FontBytes(path);
@@ -229,9 +250,17 @@ internal static class Fonts
 
         try
         {
+            // The weight is applied here, as coverage, not by drawing the glyph twice. That
+            // makes the strokes denser while the letterforms stay exactly as they were cut —
+            // which is the difference between bold and a smear (session 7).
+            float multiply = HudText.Multiplier(s_hudWeight);
+
             return atlas.NewDelegateFontHandle(
                 e => e.OnPreBuild(
-                    tk => tk.AddFontFromMemory(bytes, new SafeFontConfig { SizePx = sizePx }, name)));
+                    tk => tk.AddFontFromMemory(
+                        bytes,
+                        new SafeFontConfig { SizePx = sizePx, RasterizerMultiply = multiply },
+                        name)));
         }
         catch (Exception ex)
         {

@@ -65,6 +65,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdIconSize = "##wisp-pf-iconsize";
     private const string IdFont = "##wisp-pf-font";
     private const string IdTextEdge = "##wisp-pf-textedge";
+    private const string IdTextWeight = "##wisp-pf-textweight";
     private const string IdTextStyleGroup = "##wisp-pf-textstyle";
     private const string IdIconPosition = "##wisp-pf-iconposition";
     private const string IdIconX = "##wisp-pf-iconx";
@@ -150,6 +151,14 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const int SlotLeaderX = 17;
     private const int SlotLeaderY = 18;
     private const int SlotCount = 19;
+
+    /// <summary>The three weights, in the order the segments sit. Built once, not per frame.</summary>
+    private static readonly string[] WeightNames =
+    {
+        Strings.TextWeightNormal,
+        Strings.TextWeightMedium,
+        Strings.TextWeightBold,
+    };
 
     /// <summary>The three edges, in the order the segments sit. Built once, not per frame.</summary>
     private static readonly string[] EdgeNames =
@@ -1117,6 +1126,24 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 Chrome.ControlWidth()))
         {
             m_config.PartyFrames.FontName = FontLibrary.NameAt(face);
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+
+        int weight = m_config.PartyFrames.TextWeight;
+        if (Chrome.SegmentRow(
+                IdTextWeight,
+                Strings.TextWeight,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                WeightNames,
+                ref weight,
+                true,
+                Strings.TextWeightTooltip))
+        {
+            m_config.PartyFrames.TextWeight = weight;
             m_config.MarkDirty();
         }
 

@@ -85,7 +85,7 @@ internal static class FontLibrary
         Add("Jupiter", GameFontFamily.Jupiter);
 
         // The two that ship with the plugin, if the build put them where it should.
-        AddFile("Figtree", ShippedPath("Figtree-SemiBold.ttf"));
+        AddFile("Figtree", ShippedPath("Figtree-Bold.ttf"));
         AddFile("DM Sans", ShippedPath("DMSans-Bold.ttf"));
 
         AddUserFonts();

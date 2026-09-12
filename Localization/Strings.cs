@@ -151,6 +151,11 @@ internal static class Strings
     public const string GroupLetteringHint = "The face every text on a frame is set in, and what carries it over the world.";
     public const string TextFont = "Font";
     public const string TextFontTooltip = "The game's own faces, two that ship with WispUI, and any .ttf you put in the plugin's Fonts folder.";
+    public const string TextWeight = "Weight";
+    public const string TextWeightTooltip = "Lays the face down more heavily. Not a second font 2014 the letterforms do not change.";
+    public const string TextWeightNormal = "Normal";
+    public const string TextWeightMedium = "Medium";
+    public const string TextWeightBold = "Bold";
     public const string TextEdge = "Edge";
     public const string TextEdgeTooltip = "What sits behind the letters so they read over a bright background.";
     public const string TextEdgeNone = "None";
