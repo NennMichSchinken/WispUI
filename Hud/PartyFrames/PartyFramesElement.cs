@@ -830,21 +830,23 @@ internal sealed class PartyFramesElement : HudElement
         }
 
         float size = Tokens.Px(cfg.HpTextSize);
-        float width = Ink.MeasureWidth(size, note);
+        float width = Ink.MeasureNote(size, note);
 
         Vector2 at = new(
             MathF.Round(innerMin.X + (((innerMax.X - innerMin.X) - width) * 0.5f)),
             MathF.Round(innerMin.Y + (((innerMax.Y - innerMin.Y) - size) * 0.5f)));
 
-        // Grey, not white. The note explains why a frame is quiet; it is not the thing on the
-        // frame to read, and white is what this palette keeps for what must be read.
+        // 🔴 Not styled like the frame's own text, on any of the three counts.
         //
-        // 🔴 And never outlined, whatever the lettering is set to. An outline is what makes a
-        // text cut itself out of a bright background and shout — exactly right for a name over
-        // the world, exactly wrong for a note whose whole job is to be quiet (Florian,
-        // 2026-09-12). It keeps a shadow if one was asked for, and nothing if it was not.
+        // Grey, not white: the note explains why a frame is quiet, and white is what this
+        // palette keeps for what must be read. Never outlined, whatever the lettering is set
+        // to: an outline makes text cut itself out of the background and shout, which is right
+        // for a name over the world and wrong for this. And always in the interface face,
+        // never the chosen one — a name belongs to the frame and follows the player's taste, a
+        // status the plugin reports does not, and in a serif face it would read as part of the
+        // design rather than as a message (Florian, 2026-09-12).
         TextEdge edge = cfg.Edge == TextEdge.None ? TextEdge.None : TextEdge.Shadow;
-        Ink.DrawScaledEdged(dl, size, at, Tokens.Col.HudInkQuiet, note, edge);
+        Ink.DrawNote(dl, size, at, Tokens.Col.HudInkQuiet, note, edge);
     }
 
     /// <summary>
