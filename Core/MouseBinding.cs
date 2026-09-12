@@ -61,12 +61,25 @@ public sealed class MouseBinding
     public uint ActionId { get; set; }
 
     /// <summary>
+    /// Whether this binding answers at all.
+    /// <para>
+    /// Distinct from removing it, and worth the switch for that reason: putting a binding
+    /// aside for one fight and taking the button back is not the same as throwing away the
+    /// action and the key you chose for it.
+    /// </para>
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Whether this row may be taken away. The two the frames come with may not.</summary>
+    public bool Removable => this.Kind == BindingKind.Action;
+
+    /// <summary>
     /// Whether this binding answers to what is being held right now. Compared against the
     /// exact set, not a subset: Shift+Left and plain Left are different bindings, and a plain
     /// Left that also fired while Shift was down would make the second one unreachable.
     /// </summary>
     public bool Matches(int button, BindingModifiers held) =>
-        this.Button == button && this.Modifiers == held;
+        this.Enabled && this.Button == button && this.Modifiers == held;
 
     /// <summary>A copy, for the editing that happens before a change is kept.</summary>
     public MouseBinding Clone() => new()
@@ -75,5 +88,6 @@ public sealed class MouseBinding
         Modifiers = this.Modifiers,
         Kind = this.Kind,
         ActionId = this.ActionId,
+        Enabled = this.Enabled,
     };
 }

@@ -56,6 +56,18 @@ internal sealed class ArrowSelectorOptions<T>
     /// </para>
     /// </summary>
     public bool HideArrows { get; init; }
+
+    /// <summary>
+    /// Drops the box as well: no edge, no filled face, just what the item looks like and what
+    /// it is called, with the whole strip clickable.
+    /// <para>
+    /// For a list that reads as a list rather than as a form. On a bindings row the left-hand
+    /// side is a statement of what the binding does, and a field drawn round it would make the
+    /// row look like two settings side by side instead of one thing with a key beside it
+    /// (Florian, 2026-09-12).
+    /// </para>
+    /// </summary>
+    public bool Flat { get; init; }
 }
 
 /// <summary>
@@ -167,7 +179,11 @@ internal sealed class ArrowSelector<T>
         Vector2 groupMin = new(x, y);
         Vector2 groupMax = new(x + width, y + height);
         float line = Tokens.Line(1f);
-        dl.AddRect(groupMin, groupMax, Tokens.Col.ControlEdge, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll, line);
+
+        if (!m_options.Flat)
+        {
+            dl.AddRect(groupMin, groupMax, Tokens.Col.ControlEdge, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll, line);
+        }
 
         if (!bare)
         {
@@ -322,7 +338,11 @@ internal sealed class ArrowSelector<T>
         focused = ImGui.IsItemFocused();
 
         bool openable = m_options.EnablePopupList;
-        dl.AddRectFilled(min, max, hovered && openable ? Tokens.Col.Panel : Tokens.Col.Input);
+
+        if (!m_options.Flat)
+        {
+            dl.AddRectFilled(min, max, hovered && openable ? Tokens.Col.Panel : Tokens.Col.Input);
+        }
 
         T item = m_items[index];
         float pad = Tokens.Metric.SelectorPaddingX;

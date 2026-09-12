@@ -71,6 +71,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdBindingAction = "##wisp-pf-bindaction";
     private const string IdBindingAdd = "##wisp-pf-bindadd";
     private const string IdBindingRemoveRow = "##wisp-pf-bindremoverow";
+    private const string IdBindingName = "##wisp-pf-bindname";
+    private const string IdBindingOn = "##wisp-pf-bindon";
     private const string IdIconPosition = "##wisp-pf-iconposition";
     private const string IdIconX = "##wisp-pf-iconx";
     private const string IdIconY = "##wisp-pf-icony";
@@ -344,10 +346,25 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 EnableSearch = true,
                 ShowCounter = false,
 
-                // No arrows on this one. Stepping through a job's whole action list one at a
-                // time is not a way anybody would use it, and arrows that suggest it are
-                // furniture (Florian, 2026-09-12).
+                // No arrows and no box. Stepping through a job's whole action list one at a
+                // time is not a way anybody would use it, and a field drawn round the name
+                // would make the row read as two settings rather than one binding (Florian,
+                // 2026-09-12).
                 HideArrows = true,
+                Flat = true,
+
+                // The action's own icon, which is how a spell is recognised before its name is
+                // read. Icons.Handle caches the lookup and hands back a null handle for
+                // anything not loaded, which the selector simply does not draw.
+                DrawPreview = static (dl, action, min, max) =>
+                {
+                    ImTextureID icon = Icons.Handle(action.Icon);
+
+                    if (!icon.IsNull)
+                    {
+                        dl.AddImage(icon, min, max);
+                    }
+                },
             });
 
         m_iconPosition = new ArrowSelector<Anchor>(
@@ -1278,10 +1295,14 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     /// <summary>
     /// One row per binding, plus the button that adds another.
     /// <para>
-    /// A row is the pair: the action on the left, the button that triggers it on the right,
-    /// and a remove button at the end. That is the one place in the suite where a row carries
-    /// more than one control, and it is not an exception to the grammar so much as a different
-    /// kind of row — a binding is a pair, and half of one says nothing.
+    /// A row reads as one thing with a key beside it: what it does on the left — an icon and a
+    /// name, clickable when there is a list behind it — then the button that triggers it, a
+    /// switch, and, for the ones that were added, a way to take them away.
+    /// </para>
+    /// <para>
+    /// 🔴 The one group in the suite that takes the full width, and the one row that carries
+    /// more than one control. Everywhere else that grammar is what keeps a settings screen
+    /// readable; a binding is not a setting but a pair, and half of a pair says nothing.
     /// </para>
     /// </summary>
     private float DrawBindingRows(
@@ -1292,9 +1313,16 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float pitch)
     {
         ActionEntry[] actions = ActionList.For(job.Id);
-        float fieldWidth = Chrome.BindingFieldWidth(group.ContentWidth);
-        float keyX = group.ContentX + fieldWidth + Tokens.Space.Md;
-        float removeX = keyX + Chrome.KeybindWidth() + Tokens.Space.Md;
+
+        float toggleWidth = Tokens.Px(30f);
+        float trash = Tokens.Metric.TitleButton;
+        float gap = Tokens.Space.Md;
+
+        float trashX = group.ContentX + group.ContentWidth - trash;
+        float toggleX = trashX - gap - toggleWidth;
+        float keyX = toggleX - gap - Chrome.KeybindWidth();
+        float nameWidth = keyX - gap - group.ContentX;
+
         int remove = -1;
 
         for (int i = 0; i < bindings.Count; i++)
@@ -1311,13 +1339,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 Chrome.RowDivider(group.ContentX, group.ContentX + group.ContentWidth, rowY);
             }
 
-            // What it does. The two built-in kinds are stated rather than chosen: there is no
-            // list to pick "select target" out of, it simply is what that row does.
             if (binding.Kind == BindingKind.Action)
             {
                 int pick = this.ActionIndex(binding.ActionId);
 
-                if (m_actionPicker.Draw(ref pick, group.ContentX, rowY, fieldWidth)
+                if (m_actionPicker.Draw(ref pick, group.ContentX, rowY, nameWidth)
                     && pick >= 0 && pick < m_actionChoices.Count)
                 {
                     binding.ActionId = m_actionChoices[pick].Id;
@@ -1326,11 +1352,17 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             }
             else
             {
-                Chrome.StaticField(
+                // Nothing to choose: this row does one built-in thing and says so. Drawn the
+                // same shape as the picker beside it so the column still lines up.
+                Chrome.BindingName(
+                    IdBindingName,
                     group.ContentX,
                     rowY,
-                    fieldWidth,
-                    binding.Kind == BindingKind.Target ? Strings.BindingTarget : Strings.BindingContextMenu);
+                    nameWidth,
+                    default,
+                    binding.Kind == BindingKind.Target ? Strings.BindingTarget : Strings.BindingContextMenu,
+                    false,
+                    true);
             }
 
             if (Chrome.KeybindField(IdBindingKey, keyX, rowY, ref listening, ref button, ref mods))
@@ -1340,14 +1372,21 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 m_config.MarkDirty();
             }
 
-            // Only a row that was added can be taken away. The two the frames come with are
-            // rebindable but not removable: a frame with no way to select anybody is not a
-            // configuration somebody arrives at on purpose.
-            if (binding.Kind == BindingKind.Action)
+            if (Chrome.BindingToggle(IdBindingOn, toggleX, rowY, binding.Enabled))
             {
-                float removeY = MathF.Round(rowY + ((Chrome.RowHeight() - Tokens.Metric.TitleButton) * 0.5f));
+                binding.Enabled = !binding.Enabled;
+                m_config.MarkDirty();
+            }
 
-                if (Chrome.CloseButton(IdBindingRemoveRow, removeX, removeY))
+            // 🔴 Only a row that was added can be taken away. Selecting and the game's menu
+            // stay: a frame with no way to select anybody is not a state somebody arrives at
+            // on purpose, and the switch beside it already covers turning one off (Florian,
+            // 2026-09-12).
+            if (binding.Removable)
+            {
+                float trashY = MathF.Round(rowY + ((Chrome.RowHeight() - trash) * 0.5f));
+
+                if (Chrome.CloseButton(IdBindingRemoveRow, trashX, trashY))
                 {
                     remove = i;
                 }
@@ -1372,9 +1411,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     }
 
     /// <summary>
-    /// The button that adds a binding. It appends a row rather than opening anything: the row
-    /// it makes is where the choosing happens, which is the same place every later change to
-    /// that binding is made.
+    /// The button that adds a binding. A pill under the list rather than a bar across it: it
+    /// is one more thing you can do with the list, not a row of the list.
     /// </summary>
     private float DrawAddBinding(
         Chrome.GroupScope group,
@@ -1396,7 +1434,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             return rowY + Chrome.RowPitch();
         }
 
-        if (Chrome.WideButton(IdBindingAdd, Strings.BindingAdd, group.ContentX, rowY, group.ContentWidth))
+        Chrome.RowDivider(group.ContentX, group.ContentX + group.ContentWidth, rowY);
+
+        if (Chrome.PillButton(IdBindingAdd, Strings.BindingAdd, group.ContentX, rowY))
         {
             bindings.Add(new MouseBinding
             {

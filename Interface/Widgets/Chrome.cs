@@ -1608,13 +1608,6 @@ internal static class Chrome
     public static float KeybindWidth() => Tokens.Px(150f);
 
     /// <summary>
-    /// Where the action field starts and how wide it is on a binding row: everything left of
-    /// the keybind field and the remove button.
-    /// </summary>
-    public static float BindingFieldWidth(float width) =>
-        width - KeybindWidth() - Tokens.Metric.TitleButton - (Tokens.Space.Md * 2f);
-
-    /// <summary>
     /// The keybind field on its own, without a label: the right-hand half of a binding row.
     /// </summary>
     /// <returns>True when a new binding was captured this frame.</returns>
@@ -1692,27 +1685,102 @@ internal static class Chrome
     }
 
     /// <summary>
-    /// A field that only states something, shaped like the controls beside it so a row of
-    /// mixed kinds still reads as one row. Used where a binding does something built in and
-    /// there is nothing to choose.
+    /// The name end of a binding row: an icon and a label, clickable when there is something
+    /// to choose.
+    /// <para>
+    /// No box around it. What is on the left of a binding row is a statement of what the
+    /// binding does, not a form field — the reference this follows reads as a list of things
+    /// with a key beside each, and a field drawn round the name would make it look like two
+    /// settings side by side instead (Florian, 2026-09-12).
+    /// </para>
     /// </summary>
-    public static void StaticField(float x, float y, float width, string text)
+    /// <returns>True when the name was clicked and a list should open.</returns>
+    public static bool BindingName(
+        string id,
+        float x,
+        float y,
+        float width,
+        ImTextureID icon,
+        string label,
+        bool clickable,
+        bool dimmed)
     {
         float height = RowHeight();
-        Vector2 min = new(MathF.Round(x), MathF.Round(y));
-        Vector2 max = new(min.X + width, min.Y + height);
-
+        float iconSize = Tokens.Px(22f);
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
-        dl.AddRectFilled(min, max, Tokens.Col.Control2, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll);
-        dl.AddRect(min, max, Tokens.Col.EdgeDim, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
 
+        bool clicked = false;
+        bool hovered = false;
+
+        if (clickable)
+        {
+            ImGui.SetCursorScreenPos(new Vector2(x, y));
+            ImGui.InvisibleButton(id, new Vector2(width, height));
+            hovered = ImGui.IsItemHovered();
+            clicked = ImGui.IsItemClicked();
+            ShowHand(hovered);
+        }
+
+        float iconY = MathF.Round(y + ((height - iconSize) * 0.5f));
+        Vector2 iconMin = new(MathF.Round(x), iconY);
+        Vector2 iconMax = new(iconMin.X + iconSize, iconY + iconSize);
+
+        if (!icon.IsNull)
+        {
+            dl.AddImage(icon, iconMin, iconMax);
+        }
+        else
+        {
+            // A placeholder square rather than nothing: the built-in bindings have no icon,
+            // and a name that starts further left than the one above it breaks the column.
+            dl.AddRectFilled(iconMin, iconMax, Tokens.Col.Control2, Tokens.Radius.Control);
+        }
+
+        uint ink = dimmed ? Tokens.Col.InkDim : (hovered ? Tokens.Col.GoldHi : Tokens.Col.Ink);
         Ink.Draw(
             dl,
             Ink.Role.Body,
-            new Vector2(MathF.Round(min.X + Tokens.Space.Md), CenterY(y, height, Ink.Role.Body)),
-            Tokens.Col.InkDim,
-            text);
+            new Vector2(MathF.Round(iconMax.X + Tokens.Space.Md), CenterY(y, height, Ink.Role.Body)),
+            ink,
+            label);
+
+        return clicked;
     }
+
+    /// <summary>
+    /// The small switch at the end of a binding row. Smaller than an option row's switch,
+    /// because it belongs to one line in a list rather than to a setting of its own.
+    /// </summary>
+    public static bool BindingToggle(string id, float x, float y, bool on)
+    {
+        float trackWidth = Tokens.Px(30f);
+        float trackHeight = Tokens.Px(16f);
+        float rowHeight = RowHeight();
+        float top = MathF.Round(y + ((rowHeight - trackHeight) * 0.5f));
+
+        Vector2 min = new(MathF.Round(x), top);
+        Vector2 max = new(min.X + trackWidth, top + trackHeight);
+
+        ImGui.SetCursorScreenPos(min);
+        ImGui.InvisibleButton(id, new Vector2(trackWidth, trackHeight));
+        bool hovered = ImGui.IsItemHovered();
+        bool clicked = ImGui.IsItemClicked();
+        ShowHand(hovered);
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        float radius = trackHeight * 0.5f;
+        dl.AddRectFilled(min, max, on ? Tokens.Col.GoldSwitchTrack : Tokens.Col.Control2, radius);
+
+        float knob = MathF.Round(radius - Tokens.Px(2f));
+        float knobX = on ? max.X - radius : min.X + radius;
+        dl.AddCircleFilled(
+            new Vector2(knobX, MathF.Round(min.Y + radius)),
+            knob,
+            on ? (hovered ? Tokens.Col.GoldHi : Tokens.Col.Gold) : Tokens.Col.InkFaint);
+
+        return clicked;
+    }
+
 
     /// <summary>The divider a row draws above itself, at the full width of its group.</summary>
     public static void RowDivider(float left, float right, float y) =>
@@ -1724,11 +1792,14 @@ internal static class Chrome
             Tokens.Col.RowDivider);
 
     /// <summary>
-    /// A button that spans the row, for the one action a list offers rather than a setting.
+    /// A rounded button sized to its own label, for something you can do with a list rather
+    /// than a setting in it. Sits under the list, aligned with its left edge.
     /// </summary>
-    public static bool WideButton(string id, string label, float x, float y, float width)
+    public static bool PillButton(string id, string label, float x, float y)
     {
         float height = RowHeight();
+        float width = MathF.Round(Ink.Measure(Ink.Role.Body, label).X + (Tokens.Space.Lg * 2f));
+
         Vector2 min = new(MathF.Round(x), MathF.Round(y));
         Vector2 max = new(min.X + width, min.Y + height);
 
@@ -1739,12 +1810,13 @@ internal static class Chrome
         ShowHand(hovered);
 
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
-        dl.AddRectFilled(min, max, hovered ? Tokens.Col.Control : Tokens.Col.Control2, Tokens.Radius.Control);
+        float radius = height * 0.5f;
+        dl.AddRectFilled(min, max, hovered ? Tokens.Col.Control : Tokens.Col.Control2, radius);
         dl.AddRect(
             min,
             max,
-            hovered ? Tokens.Col.Gold : Tokens.Col.ControlEdge,
-            Tokens.Radius.Control,
+            hovered ? Tokens.Col.Gold : Tokens.Col.GoldDim,
+            radius,
             ImDrawFlags.RoundCornersAll,
             Tokens.Line(1f));
 
@@ -1755,124 +1827,13 @@ internal static class Chrome
             new Vector2(
                 MathF.Round(min.X + ((width - size.X) * 0.5f)),
                 CenterY(y, height, Ink.Role.Body)),
-            hovered ? Tokens.Col.GoldHi : Tokens.Col.Ink,
+            hovered ? Tokens.Col.GoldHi : Tokens.Col.Gold,
             label);
 
         return clicked;
     }
 
-    /// <summary>
-    /// A row whose control is a mouse binding: it shows what is bound, and clicking it waits
-    /// for the next button press and takes that instead.
-    /// <para>
-    /// Captured by pressing rather than assembled from two lists. A binding is a thing you
-    /// perform — the player already knows which button they mean and can simply do it, where
-    /// picking "button four" and "shift" out of two dropdowns is a translation they have to do
-    /// in their head (Florian, 2026-09-12, on the bindings tab).
-    /// </para>
-    /// </summary>
-    /// <param name="id">Id scope for this row.</param>
-    /// <param name="label">What is bound — an action name, or what the button does.</param>
-    /// <param name="listening">Whether this field is the one waiting for a press.</param>
-    /// <param name="button">The bound button, as ImGui counts them.</param>
-    /// <param name="modifiers">The modifiers held with it.</param>
-    /// <returns>True when a new binding was captured this frame.</returns>
-    public static bool KeybindRow(
-        string id,
-        string label,
-        float x,
-        float y,
-        float width,
-        ref bool listening,
-        ref int button,
-        ref int modifiers,
-        out bool removeClicked,
-        bool removable = false,
-        bool divider = false,
-        string? hint = null)
-    {
-        float controlX = Row(label, x, y, width, divider, hint);
-        removeClicked = false;
 
-        // The remove button sits just left of the field, and only on a row that may be
-        // removed at all — the two built-in bindings are not among them. It is the one place
-        // a row carries a second control, which the grammar allows because it is not a
-        // setting: it takes the row away rather than changing it.
-        if (removable)
-        {
-            float removeSize = Tokens.Metric.TitleButton;
-            float removeX = MathF.Round(controlX - removeSize - Tokens.Space.Md);
-            float removeY = MathF.Round(y + ((RowHeight() - removeSize) * 0.5f));
-
-            ImGui.PushID(id);
-            removeClicked = CloseButton(IdBindingRemove, removeX, removeY);
-            ImGui.PopID();
-        }
-
-        float height = RowHeight();
-        float controlWidth = ControlWidth();
-        ImDrawListPtr dl = ImGui.GetWindowDrawList();
-
-        Vector2 min = new(MathF.Round(controlX), MathF.Round(y));
-        Vector2 max = new(min.X + controlWidth, min.Y + height);
-
-        ImGui.PushID(id);
-        ImGui.SetCursorScreenPos(min);
-        ImGui.InvisibleButton(IdKeybindField, max - min);
-        bool hovered = ImGui.IsItemHovered();
-        bool pressed = ImGui.IsItemClicked();
-        ImGui.PopID();
-
-        ShowHand(hovered);
-
-        dl.AddRectFilled(min, max, Tokens.Col.Input, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll);
-        dl.AddRect(
-            min,
-            max,
-            listening ? Tokens.Col.Gold : Tokens.Col.ControlEdge,
-            Tokens.Radius.Control,
-            ImDrawFlags.RoundCornersAll,
-            Tokens.Line(1f));
-
-        bool captured = false;
-
-        if (listening)
-        {
-            // The click that started listening is still being released this frame, so the
-            // first thing asked about is deliberately a press and not a release — otherwise
-            // the field would instantly capture the very click that opened it.
-            int caught = PressedButton();
-
-            if (caught >= 0)
-            {
-                button = caught;
-                modifiers = (int)HeldMods();
-                listening = false;
-                captured = true;
-            }
-            else if (ImGui.IsKeyPressed(ImGuiKey.Escape))
-            {
-                listening = false;
-            }
-        }
-        else if (pressed)
-        {
-            listening = true;
-        }
-
-        string text = listening ? Strings.KeybindListening : KeybindText(button, modifiers);
-        Vector2 size = Ink.Measure(Ink.Role.Body, text);
-        Ink.Draw(
-            dl,
-            Ink.Role.Body,
-            new Vector2(
-                MathF.Round(min.X + ((controlWidth - size.X) * 0.5f)),
-                CenterY(y, height, Ink.Role.Body)),
-            listening ? Tokens.Col.Gold : Tokens.Col.Ink,
-            text);
-
-        return captured;
-    }
 
     /// <summary>
     /// Which mouse button is being pressed right now, or -1. Press and not release, because
