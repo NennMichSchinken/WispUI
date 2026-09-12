@@ -45,11 +45,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdManaHealers = "##wisp-pf-manahealers";
     private const string IdManaDps = "##wisp-pf-manadps";
     private const string IdMouseGroup = "##wisp-pf-mouse";
-    private const string IdClickToTarget = "##wisp-pf-clicktarget";
     private const string IdMouseover = "##wisp-pf-mouseover";
     private const string IdMouseoverCasting = "##wisp-pf-mocast";
     private const string IdHighlight = "##wisp-pf-highlight";
-    private const string IdContextMenu = "##wisp-pf-contextmenu";
     private const string IdLeaderGroup = "##wisp-pf-leader";
     private const string IdLeaderSize = "##wisp-pf-leadersize";
     private const string IdLeaderPosition = "##wisp-pf-leaderposition";
@@ -70,6 +68,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdBindingsGroup = "##wisp-pf-bindings";
     private const string IdBindingKey = "##wisp-pf-bindkey";
     private const string IdBindingJob = "##wisp-pf-bindjob";
+    private const string IdBindingAction = "##wisp-pf-bindaction";
     private const string IdIconPosition = "##wisp-pf-iconposition";
     private const string IdIconX = "##wisp-pf-iconx";
     private const string IdIconY = "##wisp-pf-icony";
@@ -217,10 +216,16 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private readonly ArrowSelector<HealthTextMode> m_healthMode;
     private readonly ArrowSelector<FontChoice> m_font;
     private readonly ArrowSelector<JobEntry> m_jobSelector;
+    private readonly ArrowSelector<ActionEntry> m_actionPicker;
 
     /// <summary>Which job the bindings tab is showing, and which row is waiting for a press.</summary>
     private int m_bindingJob = -1;
     private int m_listening = -1;
+
+    /// <summary>The actions the picker offers, refilled when the job changes.</summary>
+    private readonly System.Collections.Generic.List<ActionEntry> m_actionChoices = new();
+    private uint m_choicesFor = uint.MaxValue;
+    private int m_pickedAction;
     private readonly ArrowSelector<Anchor> m_healthPosition;
     private readonly ArrowSelector<string> m_manaStyle;
     private readonly ArrowSelector<Anchor> m_iconPosition;
@@ -321,6 +326,19 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             new ArrowSelectorOptions<JobEntry>
             {
                 Label = static job => job.Name,
+                EnablePopupList = true,
+                EnableSearch = true,
+                ShowCounter = false,
+            });
+
+        // The one list that changes while the window is open: it holds whatever the chosen
+        // job can aim at a party member, and is refilled in place when that job changes.
+        m_actionPicker = new ArrowSelector<ActionEntry>(
+            IdBindingAction,
+            m_actionChoices,
+            new ArrowSelectorOptions<ActionEntry>
+            {
+                Label = static action => action.Name,
                 EnablePopupList = true,
                 EnableSearch = true,
                 ShowCounter = false,
@@ -1035,41 +1053,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         }
 
         rowY += pitch;
-
-        if (Chrome.OptionRow(
-                IdClickToTarget,
-                Strings.ClickToTarget,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.ClickToTarget,
-                Chrome.OptionControl.Switch,
-                Strings.ClickToTargetTooltip,
-                true,
-                true))
-        {
-            m_config.PartyFrames.ClickToTarget = !m_config.PartyFrames.ClickToTarget;
-            m_config.MarkDirty();
-        }
-
-        rowY += pitch;
-
-        if (Chrome.OptionRow(
-                IdContextMenu,
-                Strings.ContextMenu,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.ContextMenu,
-                Chrome.OptionControl.Switch,
-                Strings.ContextMenuTooltip,
-                true,
-                true))
-        {
-            m_config.PartyFrames.ContextMenu = !m_config.PartyFrames.ContextMenu;
-            m_config.MarkDirty();
-        }
-
         rowY += pitch;
 
         if (Chrome.OptionRow(
@@ -1269,6 +1252,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         rowY += pitch;
 
         JobEntry entry = JobList.At(m_bindingJob);
+        this.SyncActionChoices(entry.Id);
+
         System.Collections.Generic.List<MouseBinding> bindings = m_config.PartyFrames.Bindings.Edit(entry.Id);
 
         rowY = this.DrawBindingRows(group, bindings, entry, rowY, pitch);
@@ -1291,6 +1276,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float pitch)
     {
         ActionEntry[] actions = ActionList.For(job.Id);
+        int remove = -1;
 
         for (int i = 0; i < bindings.Count; i++)
         {
@@ -1303,29 +1289,131 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
             ImGui.PushID(i);
 
-            if (Chrome.KeybindRow(
-                    IdBindingKey,
-                    label,
-                    group.ContentX,
-                    rowY,
-                    group.ContentWidth,
-                    ref listening,
-                    ref button,
-                    ref mods,
-                    i > 0))
+            bool captured = Chrome.KeybindRow(
+                IdBindingKey,
+                label,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                ref listening,
+                ref button,
+                ref mods,
+                out bool removeClicked,
+                binding.Kind == BindingKind.Action,
+                i > 0);
+
+            ImGui.PopID();
+
+            if (captured)
             {
                 binding.Button = button;
                 binding.Modifiers = (BindingModifiers)mods;
                 m_config.MarkDirty();
             }
 
-            ImGui.PopID();
+            if (removeClicked)
+            {
+                remove = i;
+            }
 
             m_listening = listening ? i : (m_listening == i ? -1 : m_listening);
             rowY += pitch;
         }
 
+        // After the loop, never inside it: taking a row out while walking the list is how a
+        // row gets skipped and an index ends up pointing at the wrong binding.
+        if (remove >= 0)
+        {
+            bindings.RemoveAt(remove);
+            m_listening = -1;
+            m_config.MarkDirty();
+        }
+
+        rowY = this.DrawAddBinding(group, bindings, actions, rowY);
         return rowY;
+    }
+
+    /// <summary>
+    /// The row that adds a binding: pick an action and it appears below, waiting for the
+    /// button that should trigger it.
+    /// <para>
+    /// Picking is the whole interaction — there is no separate "add" to press afterwards.
+    /// Choosing an action out of this list has no other meaning, so asking twice would only
+    /// be a step to forget.
+    /// </para>
+    /// </summary>
+    private float DrawAddBinding(
+        Chrome.GroupScope group,
+        System.Collections.Generic.List<MouseBinding> bindings,
+        ActionEntry[] actions,
+        float rowY)
+    {
+        if (actions.Length == 0)
+        {
+            // A tank has nothing to aim at a party member. Saying so is better than an empty
+            // list somebody has to open to find out it is empty.
+            Ink.Draw(
+                ImGui.GetWindowDrawList(),
+                Ink.Role.Small,
+                new Vector2(group.ContentX, rowY + Tokens.Space.Sm),
+                Tokens.Col.InkFaint,
+                Strings.BindingNoActions);
+
+            return rowY + Chrome.RowPitch();
+        }
+
+        // The same list object throughout, refilled when the job changes: the selector holds
+        // the reference it was built with and cannot be handed a new one.
+        int pick = m_pickedAction;
+
+        if (m_actionPicker.Draw(
+                ref pick,
+                Chrome.Row(Strings.BindingAdd, group.ContentX, rowY, group.ContentWidth, true),
+                rowY,
+                Chrome.ControlWidth())
+            && pick >= 0 && pick < m_actionChoices.Count)
+        {
+            m_pickedAction = pick;
+
+            bindings.Add(new MouseBinding
+            {
+                Kind = BindingKind.Action,
+                ActionId = m_actionChoices[pick].Id,
+
+                // Middle by default, because left and right are already spoken for and a new
+                // binding that silently shadowed one of them would be the worst first
+                // impression this tab could make. It is meant to be changed straight away.
+                Button = 2,
+            });
+
+            // Straight into waiting for a button, so the obvious next step is the one that
+            // happens without being asked for.
+            m_listening = bindings.Count - 1;
+            m_config.MarkDirty();
+        }
+
+        return rowY + Chrome.RowPitch();
+    }
+
+    /// <summary>
+    /// Refills the action list the picker holds, when the job it is showing has changed.
+    /// <para>
+    /// The same list object is kept and its contents replaced, because a selector holds the
+    /// reference it was built with. Refilled only on a change, so this costs a comparison on
+    /// every frame but the one where the job was switched.
+    /// </para>
+    /// </summary>
+    private void SyncActionChoices(uint jobId)
+    {
+        if (m_choicesFor == jobId)
+        {
+            return;
+        }
+
+        m_choicesFor = jobId;
+        m_pickedAction = 0;
+        m_actionChoices.Clear();
+        m_actionChoices.AddRange(ActionList.For(jobId));
     }
 
     /// <summary>

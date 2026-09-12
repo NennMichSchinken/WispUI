@@ -65,7 +65,7 @@ internal static class JobList
     /// would recognise — and because within a group the order is the one the game uses, which
     /// is not alphabetical either.
     /// </summary>
-    private static readonly (uint Id, JobGroup Group)[] Order =
+    internal static readonly (uint Id, JobGroup Group)[] Order =
     {
         (19, JobGroup.Tank),           // Paladin
         (21, JobGroup.Tank),           // Warrior

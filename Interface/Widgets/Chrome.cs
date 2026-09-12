@@ -1599,6 +1599,7 @@ internal static class Chrome
     }
 
     private const string IdKeybindField = "##wisp-keybind";
+    private const string IdBindingRemove = "##wisp-bindremove";
 
     /// <summary>
     /// A row whose control is a mouse binding: it shows what is bound, and clicking it waits
@@ -1625,10 +1626,29 @@ internal static class Chrome
         ref bool listening,
         ref int button,
         ref int modifiers,
+        out bool removeClicked,
+        bool removable = false,
         bool divider = false,
         string? hint = null)
     {
         float controlX = Row(label, x, y, width, divider, hint);
+        removeClicked = false;
+
+        // The remove button sits just left of the field, and only on a row that may be
+        // removed at all — the two built-in bindings are not among them. It is the one place
+        // a row carries a second control, which the grammar allows because it is not a
+        // setting: it takes the row away rather than changing it.
+        if (removable)
+        {
+            float removeSize = Tokens.Metric.TitleButton;
+            float removeX = MathF.Round(controlX - removeSize - Tokens.Space.Md);
+            float removeY = MathF.Round(y + ((RowHeight() - removeSize) * 0.5f));
+
+            ImGui.PushID(id);
+            removeClicked = CloseButton(IdBindingRemove, removeX, removeY);
+            ImGui.PopID();
+        }
+
         float height = RowHeight();
         float controlWidth = ControlWidth();
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
