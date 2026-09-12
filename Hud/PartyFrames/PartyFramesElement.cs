@@ -187,7 +187,65 @@ internal sealed class PartyFramesElement : HudElement
         }
     }
 
+    /// <summary>
+    /// One frame of party frames, with the game's own right-click menu left uncovered.
+    /// <para>
+    /// 🔴 Nothing WispUI draws can go behind a game window: ImGui renders after the entire
+    /// game interface. So the menu is allowed to open where the game puts it — at the pointer,
+    /// the way its own party list does — and the frames simply leave that patch unpainted.
+    /// </para>
+    /// <para>
+    /// A clip cannot cut a hole, so the screen is cut into the strips around the menu and the
+    /// frames are drawn once per strip. The hole is set a little inside the menu's own window
+    /// (see <see cref="NativeUi.ContextMenuBounds"/>), because the window is larger than the
+    /// panel it paints and cutting to its full size left a gap that read as a border.
+    /// </para>
+    /// </summary>
     public override void Draw(ImDrawListPtr dl)
+    {
+        if (!NativeUi.ContextMenuBounds(out Vector2 menuMin, out Vector2 menuMax))
+        {
+            this.DrawContent(dl);
+            return;
+        }
+
+        Vector2 screen = ImGui.GetIO().DisplaySize;
+        Span<Vector4> strips = stackalloc Vector4[4];
+        int stripCount = 0;
+
+        if (menuMin.Y > 0f)
+        {
+            strips[stripCount++] = new Vector4(0f, 0f, screen.X, menuMin.Y);
+        }
+
+        if (menuMax.Y < screen.Y)
+        {
+            strips[stripCount++] = new Vector4(0f, menuMax.Y, screen.X, screen.Y);
+        }
+
+        if (menuMin.X > 0f)
+        {
+            strips[stripCount++] = new Vector4(0f, menuMin.Y, menuMin.X, menuMax.Y);
+        }
+
+        if (menuMax.X < screen.X)
+        {
+            strips[stripCount++] = new Vector4(menuMax.X, menuMin.Y, screen.X, menuMax.Y);
+        }
+
+        for (int i = 0; i < stripCount; i++)
+        {
+            Vector4 strip = strips[i];
+            dl.PushClipRect(new Vector2(strip.X, strip.Y), new Vector2(strip.Z, strip.W), true);
+
+            // No special case for the mouse: while a menu is up the frames have already let go
+            // of it, so nothing in here asks ImGui for anything that could be counted twice.
+            this.DrawContent(dl);
+            dl.PopClipRect();
+        }
+    }
+
+    private void DrawContent(ImDrawListPtr dl)
     {
         Configuration.PartyFramesConfig cfg = m_config.PartyFrames;
 
@@ -358,7 +416,9 @@ internal sealed class PartyFramesElement : HudElement
     {
         // Nothing to take while the layout is being set against stand-ins: there is nobody to
         // select, and edit mode wants the same button for dragging.
-        if (count == 0 || EditMode.IsActive || (!cfg.ClickToTarget && !cfg.MouseoverTarget && !cfg.ContextMenu))
+        if (count == 0
+            || EditMode.IsActive
+            || (!cfg.ClickToTarget && !cfg.MouseoverTarget && !cfg.ContextMenu))
         {
             this.ReleaseMouseOver();
             return;
@@ -376,6 +436,18 @@ internal sealed class PartyFramesElement : HudElement
 
             blockMin = Vector2.Min(blockMin, m_frameMin[i]);
             blockMax = Vector2.Max(blockMax, m_frameMax[i]);
+        }
+
+
+        // 🔴 And while one is up, the frames let go of the mouse. This window takes every
+        // button over itself, so a menu that overlaps it at all was on screen and unclickable
+        // — the click went to the frame underneath instead (Florian, 2026-09-12). For those
+        // few seconds the mouse belongs to the menu, which is the only thing it can sensibly
+        // belong to.
+        if (NativeUi.ContextMenuOpen())
+        {
+            this.ReleaseMouseOver();
+            return;
         }
 
         ImGui.SetNextWindowPos(blockMin);
@@ -488,7 +560,11 @@ internal sealed class PartyFramesElement : HudElement
                     // so anything else that got through is the left one.
                     if (cfg.ContextMenu && ImGui.IsMouseReleased(ImGuiMouseButton.Right))
                     {
-                        NativeUi.OpenContextMenuFor(target.Address);
+                        // By place in the game's own party list, not by object — see
+                        // NativeUi.OpenPartyContextMenu. The number on the frame is that
+                        // place, counting from one.
+                        //
+                        NativeUi.OpenPartyContextMenu(members[i].PartyNumber - 1);
                     }
                     else if (cfg.ClickToTarget)
                     {
@@ -527,6 +603,8 @@ internal sealed class PartyFramesElement : HudElement
             this.ReleaseMouseOver();
         }
     }
+
+    /// <summary>
 
     /// <summary>
     /// A rectangle drawn as four filled bars rather than as a stroke. ImGui centres a stroke

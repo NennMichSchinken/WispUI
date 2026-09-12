@@ -115,6 +115,7 @@ public sealed class Plugin : IDalamudPlugin
         // sitting installed and inert, so a player who never turns it on never carries it.
         m_mouseover.Sync(m_config.PartyFrames.MouseoverCasting);
 
+
         this.SyncHudFonts();
     }
 

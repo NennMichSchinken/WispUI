@@ -1,3 +1,7 @@
+using System;
+using System.Numerics;
+using Dalamud.Game.NativeWrapper;
+using WispUI.Style;
 using Dalamud.Bindings.ImGui;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
@@ -117,10 +121,10 @@ internal static class NativeUi
     /// list it opens this. The frames are meant to replace that list, so they owe it the menu.
     /// </para>
     /// </summary>
-    /// <param name="gameObject">The member, as the game's own object. Nothing happens for zero.</param>
-    public static unsafe void OpenContextMenuFor(nint gameObject)
+    /// <param name="hudIndex">The member's place in the game's own party list, counting from zero.</param>
+    public static unsafe void OpenPartyContextMenu(int hudIndex)
     {
-        if (gameObject == 0)
+        if (hudIndex < 0)
         {
             return;
         }
@@ -131,8 +135,84 @@ internal static class NativeUi
             return;
         }
 
-        hud->OpenContextMenuFromTarget((GameObject*)gameObject);
+        // 🔴 Opened in the name of the game's own party list, not from the target.
+        //
+        // Both calls put up the same menu, and the obvious one — from the target — puts it
+        // under the cursor. The cursor is on one of our frames, and ImGui draws after the
+        // entire game interface, so the menu opens underneath the frame it belongs to. That
+        // order cannot be reversed: nothing of ours can go behind a game window.
+        //
+        // It is the party list's menu either way, which is what makes it carry the entries for
+        // a party member rather than for a stranger.
+        //
+        // Where it comes up is not decided here and no longer needs to be. Three attempts went
+        // into moving it somewhere the frames are not — asking for a position (ignored on this
+        // route), placing it beside the block (works, and is not where the pointer is), hiding
+        // the frames (works, and removes what is being read). The frames now leave a hole
+        // where it lands instead, so it can open at the pointer like the game's own does.
+        ushort addonId = Services.GameGui.GetAddonByName("_PartyList", 1).Id;
+
+        if (addonId == 0)
+        {
+            return;
+        }
+
+        hud->OpenContextMenuFromPartyAddon(addonId, hudIndex);
     }
+
+    /// <summary>
+    /// How far inside the menu's own window the hole is cut, per side.
+    /// <para>
+    /// 🔴 Inside, never flush. A game window is larger than the panel you can see — there is
+    /// border and shadow in its node tree that it does not paint over. Cutting the hole to the
+    /// window's full size therefore left a gap all the way round the menu, which read as a
+    /// frame drawn around it (Florian, 2026-09-12).
+    /// </para>
+    /// <para>
+    /// Erring inwards is the safe direction: too small a hole leaves a sliver of frame along
+    /// the menu's edge, too large a one leaves a visible hole in the world. The first is hard
+    /// to notice, the second is what was reported.
+    /// </para>
+    /// </summary>
+    private const float MenuInset = 6f;
+
+    /// <summary>
+    /// The rectangle the game's own right-click menu actually covers, or false when none is
+    /// open. Used to leave that area unpainted rather than to move anything.
+    /// </summary>
+    public static bool ContextMenuBounds(out Vector2 min, out Vector2 max)
+    {
+        min = default;
+        max = default;
+
+        AtkUnitBasePtr addon = Services.GameGui.GetAddonByName("ContextMenu", 1);
+
+        if (!addon.IsVisible)
+        {
+            return false;
+        }
+
+        Vector2 size = addon.ScaledSize;
+        float inset = Tokens.Px(MenuInset);
+
+        min = addon.Position + new Vector2(inset, inset);
+        max = addon.Position + size - new Vector2(inset, inset);
+
+        // A menu that has been put up but not laid out yet has no size worth cutting around.
+        return max.X > min.X && max.Y > min.Y;
+    }
+
+    /// <summary>
+    /// Whether the game's own right-click menu is on screen.
+    /// <para>
+    /// 🔴 Asked so the frames can let go of the mouse while it is up. The frames hold every
+    /// mouse button over themselves (spec §15), and a menu opened on a frame appears partly
+    /// over that same area — so without this the menu is there and cannot be clicked, and the
+    /// click lands on a frame instead (Florian, 2026-09-12).
+    /// </para>
+    /// </summary>
+    public static bool ContextMenuOpen() =>
+        Services.GameGui.GetAddonByName("ContextMenu", 1).IsVisible;
 
     // Objects in the world still light up behind the window — a postbox under the pointer is
     // highlighted even though the pointer is really on a settings row.
