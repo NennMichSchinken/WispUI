@@ -35,12 +35,43 @@ internal sealed class ConfigWindow : Window
 
     private const uint Transparent = 0x00000000u;
 
-    /// <summary>Tab hit boxes only need to be unique while their screen is on show.</summary>
-    private static readonly string[] TabIds = { "##wisp-tab0", "##wisp-tab1", "##wisp-tab2" };
+    /// <summary>
+    /// Tab hit boxes. They only need to be unique while their screen is on show, so one set
+    /// serves every screen.
+    /// <para>
+    /// 🔴 Kept well ahead of the longest tab list on purpose. The loop below stops at whichever
+    /// of the two runs out, so a list longer than this array does not fail — it silently drops
+    /// the tabs past the end, which is how a fourth tab once went missing without a word
+    /// (Florian, 2026-09-12). Adding a tab means checking this line.
+    /// </para>
+    /// </summary>
+    private static readonly string[] TabIds =
+    {
+        "##wisp-tab0",
+        "##wisp-tab1",
+        "##wisp-tab2",
+        "##wisp-tab3",
+        "##wisp-tab4",
+        "##wisp-tab5",
+        "##wisp-tab6",
+        "##wisp-tab7",
+    };
 
     private static readonly string[] TabsGlobal = { Strings.TabBase };
     private static readonly string[] TabsProfile = { Strings.TabBase };
-    private static readonly string[] TabsPartyFrames = { Strings.TabBase, Strings.TabLayout, Strings.TabAuras };
+    /// <summary>
+    /// Split by what kind of thing a setting is, not by subject: the bar and what it says, the
+    /// badges on it, where the frames go, and what is on the person. Each tab lands at three
+    /// or four groups, which is a two by two grid and no scrolling — one tab carrying seven
+    /// groups was the state that made the question worth asking (Florian, 2026-09-12).
+    /// </summary>
+    private static readonly string[] TabsPartyFrames =
+    {
+        Strings.TabBase,
+        Strings.TabIcons,
+        Strings.TabLayout,
+        Strings.TabAuras,
+    };
 
     /// <summary>
     /// The navigation tree. Suite-wide entries first, then a separator, then the HUD
@@ -79,6 +110,12 @@ internal sealed class ConfigWindow : Window
 
     private Screen m_screen = Screen.PartyFrames;
 
+    /// <summary>Whether a list or panel of ours is up — worked out once, in <see cref="PreDraw"/>.</summary>
+    private bool m_popupOpen;
+
+    /// <summary>Whether the pointer is currently ours to speak for.</summary>
+    private bool m_ownsCursor;
+
     public ConfigWindow(Configuration config)
         : base(
             Strings.WindowId,
@@ -116,18 +153,67 @@ internal sealed class ConfigWindow : Window
     public override void OnClose()
     {
         m_clipboard.ForgetUndo();
+        Chrome.CancelValueEdit();
+        this.ReleaseCursor();
+    }
+
+    /// <summary>
+    /// Hands the pointer back to the game. Called when the window closes and when the plugin
+    /// goes away: the switch it turns off is shared by everything running in the game, so it
+    /// must never be left lying the way we wanted it.
+    /// </summary>
+    public void ReleaseCursor()
+    {
+        m_ownsCursor = false;
+        NativeUi.ReleaseCursor();
+    }
+
+    /// <summary>
+    /// Takes over the pointer while the mouse is on this window, and lets the game keep
+    /// drawing it.
+    /// <para>
+    /// Dalamud's own answer is to replace the game's pointer with a Windows one over a plugin
+    /// window. That leaves a WispUI button wearing a different pointer from every other thing
+    /// in the game, so we do the opposite: the game keeps its pointer and we tell it which of
+    /// its shapes to wear (Florian, 2026-09-12). <see cref="NativeCursor"/> carries the shape;
+    /// this only decides when the pointer is ours to speak for.
+    /// </para>
+    /// <para>
+    /// Away from the window the game gets its pointer back untouched, which is the half of
+    /// this that must not be broken.
+    /// </para>
+    /// </summary>
+    private void TakeCursor()
+    {
+        bool ours = m_popupOpen || ImGui.IsWindowHovered(
+            ImGuiHoveredFlags.RootAndChildWindows
+            | ImGuiHoveredFlags.AllowWhenBlockedByPopup
+            | ImGuiHoveredFlags.AllowWhenBlockedByActiveItem);
+
+        m_ownsCursor = ours;
+
+        // Said rather than written: the party frames ask for the same thing when the mouse is
+        // on them, and one switch shared by the whole game gets exactly one writer. NativeUi
+        // settles it once the frame is done.
+        if (ours)
+        {
+            NativeUi.KeepGameCursor();
+        }
     }
 
     public override void PreDraw()
     {
         // While a list or panel is open, escape belongs to it. Without this the key reaches
         // the window first and shuts the whole suite instead of the popup in front of it.
-        bool popupOpen = ImGui.IsPopupOpen(
+        // A number being typed into holds escape for the same reason: the key has to be able
+        // to abandon the entry without taking the window with it.
+        m_popupOpen = ImGui.IsPopupOpen(
             string.Empty,
-            ImGuiPopupFlags.AnyPopupId | ImGuiPopupFlags.AnyPopupLevel);
+            ImGuiPopupFlags.AnyPopupId | ImGuiPopupFlags.AnyPopupLevel)
+            || Chrome.IsEditingValue;
 
-        this.RespectCloseHotkey = !popupOpen;
-        this.HandleEscape(popupOpen);
+        this.RespectCloseHotkey = !m_popupOpen;
+        this.HandleEscape(m_popupOpen);
 
         // The window has a fixed size and is not resizable by hand: dragging an ImGui corner
         // is fiddly, and a settings window that can be pulled to any width never looks right.
@@ -151,6 +237,8 @@ internal sealed class ConfigWindow : Window
 
     public override void PostDraw()
     {
+        // The shape itself is set once for the whole frame by NativeUi, after the HUD has had
+        // its say too — this window is no longer the only thing the mouse can be over.
         Chrome.EndFrame();
         ImGui.PopStyleColor(4);
         ImGui.PopStyleVar(3);
@@ -188,8 +276,7 @@ internal sealed class ConfigWindow : Window
 
     public override void Draw()
     {
-        // Takes this frame's font locks once, so nothing below allocates to write text.
-        Ink.BeginFrame();
+        this.TakeCursor();
 
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
         Vector2 origin = ImGui.GetWindowPos();
@@ -466,27 +553,41 @@ internal sealed class ConfigWindow : Window
 
         ImGui.SetCursorScreenPos(min);
         ImGui.InvisibleButton(IdEditMode, new Vector2(width, height));
+        bool hovered = ImGui.IsItemHovered();
+        Chrome.ShowHand(hovered);
+        if (ImGui.IsItemClicked())
+        {
+            EditMode.Toggle();
+        }
 
-        // Off until there is a HUD element to move. A disabled control owes a reason.
-        float alpha = Tokens.Col.DisabledAlpha;
+        // While it is on the button carries the accent, the way a switch that is doing
+        // something does. It is the one control here that changes what the world looks like.
+        bool active = EditMode.IsActive;
         Chrome.VerticalFill(
             dl,
             min,
             max,
-            Tokens.Col.Faded(Tokens.Col.Control, alpha),
-            Tokens.Col.Faded(Tokens.Col.Control2, alpha),
+            active ? Tokens.Col.Gold : hovered ? Tokens.Col.ButtonTop : Tokens.Col.Control,
+            active ? Tokens.Col.GoldDim : hovered ? Tokens.Col.ButtonBottom : Tokens.Col.Control2,
             Tokens.Radius.Control);
-        dl.AddRect(min, max, Tokens.Col.Faded(Tokens.Col.ControlEdge, alpha), Tokens.Radius.Control, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
+        dl.AddRect(
+            min,
+            max,
+            active ? Tokens.Col.GoldHi : Tokens.Col.ControlEdge,
+            Tokens.Radius.Control,
+            ImDrawFlags.RoundCornersAll,
+            Tokens.Line(1f));
 
-        float textX = MathF.Round(x + ((width - Ink.Measure(Ink.Role.Body, Strings.EditMode).X) * 0.5f));
+        string label = active ? Strings.EditModeOn : Strings.EditMode;
+        float textX = MathF.Round(x + ((width - Ink.Measure(Ink.Role.Body, label).X) * 0.5f));
         Ink.Draw(
             dl,
             Ink.Role.Body,
             new Vector2(textX, Chrome.CenterY(y, height, Ink.Role.Body)),
-            Tokens.Col.Faded(Tokens.Col.Ink, alpha),
-            Strings.EditMode);
+            active ? Tokens.Col.InkOnGold : Tokens.Col.Ink,
+            label);
 
-        Chrome.TooltipOnHover(Strings.EditModeDisabled);
+        Chrome.TooltipOnHover(Strings.EditModeHint);
     }
 
     private void DrawNewsCard(ImDrawListPtr dl, float x, float y, float width)
@@ -498,6 +599,7 @@ internal sealed class ConfigWindow : Window
         ImGui.SetCursorScreenPos(min);
         ImGui.InvisibleButton(IdNews, new Vector2(width, height));
         bool hovered = ImGui.IsItemHovered();
+        Chrome.ShowHand(hovered);
 
         dl.AddRectFilled(min, max, Tokens.Col.NavCard, Tokens.Radius.Control);
         dl.AddRect(
@@ -663,14 +765,23 @@ internal sealed class ConfigWindow : Window
             ImGui.SetCursorPos(new Vector2(padX, padY));
 
             float inner = width - (padX * 2f);
-            bool onBase = m_tabIndex[(int)m_screen] == 0;
+            int tab = m_tabIndex[(int)m_screen];
+
             if (m_screen == Screen.Global)
             {
                 m_global.Draw(inner);
             }
-            else if (m_screen == Screen.PartyFrames && onBase)
+            else if (m_screen == Screen.PartyFrames && tab == 0)
             {
                 m_partyFrames.Draw(inner);
+            }
+            else if (m_screen == Screen.PartyFrames && tab == 1)
+            {
+                m_partyFrames.DrawIcons(inner);
+            }
+            else if (m_screen == Screen.PartyFrames && tab == 2)
+            {
+                m_partyFrames.DrawLayout(inner);
             }
             else
             {

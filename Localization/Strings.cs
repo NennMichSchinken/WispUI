@@ -32,6 +32,7 @@ internal static class Strings
 
     // --- Tabs ---------------------------------------------------------------
     public const string TabBase = "Base";
+    public const string TabIcons = "Icons";
     public const string TabLayout = "Layout";
     public const string TabAuras = "Auras";
 
@@ -61,6 +62,7 @@ internal static class Strings
     public const string FieldText = "Text";
     public const string FieldBackground = "Background";
     public const string FieldOpacity = "Opacity";
+    public const string FieldIcon = "Icon";
 
     // --- Party Frames --------------------------------------------------------
     public const string GroupHealthBar = "Health bar";
@@ -71,14 +73,26 @@ internal static class Strings
     public const string BarColour = "Bar colour";
     public const string NamePosition = "Position";
     public const string NameInJobColour = "Name in job colour";
-    public const string ShortenNames = "Shorten long names";
-    public const string ShortenNamesTooltip = "Cuts the surname to an initial.";
+    public const string ShortenNames = "Name length";
 
+    // Written as what they do to a name rather than named in the abstract: "Fri Day" is one
+    // look, and "abbreviate surname" is a sentence you have to translate in your head.
+    public const string ShorteningFull = "Fri Day";
+    public const string ShorteningSurname = "Fri D.";
+    public const string ShorteningForename = "F. Day";
+
+    // The nine points a text can hang on, in reading order. One list for every text on every
+    // element, so nobody has to learn the same word twice.
     public const string PositionTopLeft = "Top left";
     public const string PositionTop = "Top";
+    public const string PositionTopRight = "Top right";
+    public const string PositionLeft = "Left";
     public const string PositionCentre = "Centre";
-    public const string PositionBottom = "Bottom";
+    public const string PositionRight = "Right";
     public const string PositionBottomLeft = "Bottom left";
+    public const string PositionBottom = "Bottom";
+    public const string PositionBottomRight = "Bottom right";
+
     public const string BarOpacity = "Health bar opacity";
     public const string SmoothBars = "Smooth bars";
     public const string SmoothBarsTooltip = "Health slides to its new value instead of jumping.";
@@ -86,6 +100,62 @@ internal static class Strings
     public const string ColourByRole = "By role";
     public const string ColourByJob = "By job";
     public const string ColourFixed = "Fixed colour";
+
+    // --- Party frames: health text -------------------------------------------
+    public const string GroupHealthText = "Health text";
+    public const string GroupHealthTextHint = "The figure on the bar.";
+    public const string HealthTextMode = "Shows";
+    public const string HealthTextCurrent = "Health";
+    public const string HealthTextPercent = "Percent";
+    public const string HealthTextDeficit = "Missing";
+
+    public const string TextSize = "Size";
+    public const string TextPosition = "Position";
+    public const string OffsetX = "Offset X";
+    public const string OffsetY = "Offset Y";
+
+    // --- Party frames: mana ---------------------------------------------------
+    public const string GroupMana = "Mana";
+    public const string GroupManaHint = "A second reading, for who needs one.";
+    public const string ManaStyle = "Style";
+    public const string ManaStyleStrip = "Strip";
+    public const string ManaStyleBar = "Bar";
+    public const string ManaHeight = "Height";
+    public const string ManaHeightHint = "pixels, whatever the frame height";
+    public const string ManaForTanks = "On tanks";
+    public const string ManaForHealers = "On healers";
+    public const string ManaForDps = "On damage";
+
+    // --- Party frames: job icon -----------------------------------------------
+    public const string GroupJobIcon = "Job icon";
+    public const string GroupJobIconHint = "Who is what, before you read a name.";
+    public const string IconStyle = "Style";
+    public const string IconStyleFramed = "Framed";
+    public const string IconStylePlain = "Plain";
+    public const string IconSize = "Size";
+    public const string IconHideDps = "Hide on damage";
+    public const string IconHideDpsTooltip = "Leaves the two tanks and two healers easy to find.";
+
+    // --- Party frames: party number -------------------------------------------
+    public const string GroupPartyNumber = "Party number";
+    public const string GroupPartyNumberHint = "The 1 to 8 people are called out by.";
+    // --- Party frames: the mouse ----------------------------------------------
+    public const string GroupMouse = "Mouse";
+    public const string GroupMouseHint = "What clicking and pointing do.";
+    public const string HighlightHovered = "Ring the frame under the cursor";
+    public const string HighlightHoveredTooltip = "The game's own party list marks it too.";
+    public const string ClickToTarget = "Click to select";
+    public const string ClickToTargetTooltip = "Left-click a frame to target that member.";
+    public const string MouseoverTarget = "Mouseover target";
+
+    // Says exactly what it does and no more. A hotbar key still goes to the selected target —
+    // the game has no setting that changes that, whatever we assumed (Florian, 2026-09-12).
+    public const string MouseoverTargetTooltip = "Makes <mo> macros act on whoever you point at.";
+    public const string MouseoverCasting = "Cast on mouseover";
+    public const string MouseoverCastingTooltip = "Sends an action to the frame under the cursor, without selecting them first.";
+
+    public const string GroupLeader = "Leader";
+    public const string GroupLeaderHint = "Who is in charge of the party.";
 
     // --- Global screen ------------------------------------------------------
     public const string SectionInterface = "Interface";
@@ -119,4 +189,31 @@ internal static class Strings
     public const string ApplyDisabled = "Nothing ticked that this one has.";
     public const string SelectorAtStart = "Start of the list.";
     public const string SelectorAtEnd = "End of the list.";
+
+    // --- Party frames: layout ------------------------------------------------
+    public const string GroupArrangement = "Arrangement";
+    public const string GroupArrangementHint = "How the frames are laid out.";
+    public const string GroupSize = "Size";
+    public const string GroupSizeHint = "How big each frame is, and how far apart.";
+
+    public const string Direction = "Direction";
+    public const string DirectionVertical = "Vertical";
+    public const string DirectionHorizontal = "Horizontal";
+    public const string Lines = "Lines";
+
+    public const string FrameWidth = "Frame width";
+    public const string FrameHeight = "Frame height";
+    public const string Spacing = "Spacing";
+    public const string SpacingHint = "between frames";
+
+    // The arrangement written out, so nobody has to picture it. Filled with the numbers.
+    public const string ArrangementColumns = "{0} columns of {1}";
+    public const string ArrangementRows = "{0} rows of {1}";
+    public const string ArrangementOneColumn = "one column of 8";
+    public const string ArrangementOneRow = "one row of 8";
+
+    // --- Edit mode -----------------------------------------------------------
+    public const string EditModeOn = "Edit Mode is on";
+    public const string EditModeHint = "Shows eight placeholder frames so the layout can be set without a party.";
+    public const string PreviewName = "Placeholder";
 }

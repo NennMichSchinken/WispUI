@@ -34,6 +34,7 @@ internal sealed class AppearanceBar
         new(AppearanceFields.Text, Strings.FieldText, "##wisp-app-f3"),
         new(AppearanceFields.Background, Strings.FieldBackground, "##wisp-app-f4"),
         new(AppearanceFields.Opacity, Strings.FieldOpacity, "##wisp-app-f5"),
+        new(AppearanceFields.Icon, Strings.FieldIcon, "##wisp-app-f6"),
     };
 
     private readonly AppearanceClipboard m_clipboard;

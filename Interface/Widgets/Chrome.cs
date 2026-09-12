@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using WispUI.Localization;
@@ -30,6 +31,30 @@ internal static class Chrome
     private static bool s_closePopups;
     private static bool s_rowSplit;
 
+    /// <summary>Fixed ids for the two halves of a slider's number cell, pushed under the row's own id.</summary>
+    private const string IdValueCell = "##value";
+    private const string IdValueField = "##valuefield";
+
+    /// <summary>Long enough for any number a slider in this suite can hold, and no longer.</summary>
+    private const int ValueTextLimit = 8;
+
+    // Which slider's number is being typed into, and what is in the field. Only one can be at
+    // a time, so one set serves them all. This is not settings state — it lives for as long as
+    // the cursor is in the field and no longer.
+    private static string s_editSlider = string.Empty;
+    private static string s_editText = string.Empty;
+    private static bool s_editFocus;
+    private static bool s_editSeen;
+
+    /// <summary>
+    /// True while a slider's number is being typed into. The window reads it to keep escape
+    /// away from itself: the key has to be able to abandon the entry, not close the suite.
+    /// </summary>
+    public static bool IsEditingValue => s_editSlider.Length > 0;
+
+    /// <summary>Abandons an entry in progress. The window calls it when it closes.</summary>
+    public static void CancelValueEdit() => s_editSlider = string.Empty;
+
     /// <summary>
     /// Set for one frame when escape was pressed with a list or panel open. Whoever is drawing
     /// a popup this frame reads it and closes itself: only the popup's own body may call
@@ -41,7 +66,38 @@ internal static class Chrome
     public static void RequestClosePopups() => s_closePopups = true;
 
     /// <summary>Called once at the end of the window's frame, after every popup has had its turn.</summary>
-    public static void EndFrame() => s_closePopups = false;
+    public static void EndFrame()
+    {
+        s_closePopups = false;
+
+        // A field whose row was not drawn this frame is a field on a screen nobody is looking
+        // at any more. It is dropped rather than left waiting, the way the undo button had to
+        // be: state that outlives what it belongs to comes back as a ghost later.
+        if (!s_editSeen)
+        {
+            s_editSlider = string.Empty;
+        }
+
+        s_editSeen = false;
+    }
+
+    /// <summary>
+    /// Puts the pointing hand under the mouse while it is over something that can be used.
+    /// <para>
+    /// Every control calls this, and that is the point: ImGui hands the cursor to the backend
+    /// once a frame, and a window that never asks for one leaves whatever was last set
+    /// standing — which is how the game's own hand, put there by a door behind the window,
+    /// was still showing over our controls (Florian, 2026-09-12). Saying what the pointer is
+    /// over is both the affordance and the cure.
+    /// </para>
+    /// </summary>
+    public static void ShowHand(bool hovered)
+    {
+        if (hovered)
+        {
+            ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+        }
+    }
 
     /// <summary>Vertically centres one line of the given role in a box of that height.</summary>
     public static float CenterY(float top, float height, Ink.Role role) =>
@@ -218,6 +274,7 @@ internal static class Chrome
         ImGui.SetCursorScreenPos(min);
         ImGui.InvisibleButton(id, new Vector2(width, height));
         bool hovered = ImGui.IsItemHovered() && !soon;
+        ShowHand(hovered);
         bool clicked = ImGui.IsItemClicked() && !soon;
 
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
@@ -280,6 +337,7 @@ internal static class Chrome
         ImGui.SetCursorScreenPos(min);
         ImGui.InvisibleButton(id, new Vector2(width, height));
         bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
         bool clicked = ImGui.IsItemClicked();
 
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
@@ -333,6 +391,7 @@ internal static class Chrome
         ImGui.SetCursorScreenPos(min);
         ImGui.InvisibleButton(id, new Vector2(width, height));
         bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered && enabled);
         bool clicked = enabled && ImGui.IsItemClicked();
 
         float alpha = enabled ? 1f : Tokens.Col.DisabledAlpha;
@@ -474,6 +533,9 @@ internal static class Chrome
     /// line simply never appears where a run begins.
     /// </para>
     /// </param>
+    /// <summary>The hit box of one choice in a segment strip. Told apart by an id scope.</summary>
+    private const string IdSegment = "##wisp-seg";
+
     public static bool OptionRow(
         string id,
         string label,
@@ -493,6 +555,7 @@ internal static class Chrome
         ImGui.SetCursorScreenPos(new Vector2(x, y));
         ImGui.InvisibleButton(id, new Vector2(width, height));
         bool hovered = ImGui.IsItemHovered() && enabled;
+        ShowHand(hovered);
         bool clicked = ImGui.IsItemClicked() && enabled;
 
         float alpha = enabled ? 1f : Tokens.Col.DisabledAlpha;
@@ -538,6 +601,112 @@ internal static class Chrome
         }
 
         return clicked;
+    }
+
+    /// <summary>
+    /// A row whose control is a strip of two or three choices, all of them visible at once.
+    /// <para>
+    /// The selector answers "which one of many"; this answers "this one or that one", where
+    /// the whole point is that both words are readable without touching anything. A pair of
+    /// arrows around a two-item list makes the reader click to find out what the alternative
+    /// even is (Florian, 2026-09-12).
+    /// </para>
+    /// <para>
+    /// Above three choices it stops working — the labels go narrow before they go short — and
+    /// that is where the arrow selector starts. Nothing enforces it; the widths simply say so.
+    /// </para>
+    /// </summary>
+    /// <returns>True on the frame a different choice was clicked.</returns>
+    public static bool SegmentRow(
+        string id,
+        string label,
+        float x,
+        float y,
+        float width,
+        string[] options,
+        ref int value,
+        bool divider = false,
+        string? hint = null)
+    {
+        float controlX = Row(label, x, y, width, divider, hint);
+        float height = RowHeight();
+        float controlWidth = ControlWidth();
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        Vector2 min = new(MathF.Round(controlX), MathF.Round(y));
+        Vector2 max = new(min.X + controlWidth, min.Y + height);
+
+        dl.AddRectFilled(min, max, Tokens.Col.Input, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll);
+
+        // One id scope per strip, and the segments inside it are told apart by number rather
+        // than by a built-up string: an id per frame per segment would be an allocation in a
+        // path that runs every frame.
+        ImGui.PushID(id);
+
+        int clicked = -1;
+        float accent = Tokens.Metric.NavAccent;
+
+        for (int i = 0; i < options.Length; i++)
+        {
+            // Measured from the left edge each time rather than accumulated, so the last
+            // segment ends exactly on the right edge whatever the division leaves over.
+            float left = MathF.Round(min.X + (controlWidth * i / options.Length));
+            float right = MathF.Round(min.X + (controlWidth * (i + 1) / options.Length));
+            bool selected = i == value;
+
+            ImGui.PushID(i);
+            ImGui.SetCursorScreenPos(new Vector2(left, min.Y));
+            ImGui.InvisibleButton(IdSegment, new Vector2(right - left, height));
+            bool hovered = ImGui.IsItemHovered();
+            ShowHand(hovered);
+
+            if (ImGui.IsItemClicked() && !selected)
+            {
+                clicked = i;
+            }
+
+            ImGui.PopID();
+
+            if (selected || hovered)
+            {
+                // The selected face is drawn inside the strip's own outline, so the rounding
+                // of the two ends belongs to the strip and not to whichever choice is on.
+                dl.PushClipRect(min, max, true);
+                dl.AddRectFilled(
+                    new Vector2(left, min.Y),
+                    new Vector2(right, max.Y),
+                    selected ? Tokens.Col.Control : Tokens.Col.Control2,
+                    Tokens.Radius.Control,
+                    ImDrawFlags.RoundCornersAll);
+
+                if (selected)
+                {
+                    dl.AddRectFilled(new Vector2(left, max.Y - accent), new Vector2(right, max.Y), Tokens.Col.Gold);
+                }
+
+                dl.PopClipRect();
+            }
+
+            Vector2 text = Ink.Measure(Ink.Role.Body, options[i]);
+            Ink.Draw(
+                dl,
+                Ink.Role.Body,
+                new Vector2(MathF.Round(left + ((right - left - text.X) * 0.5f)), CenterY(y, height, Ink.Role.Body)),
+                selected ? Tokens.Col.Ink : Tokens.Col.InkDim,
+                options[i]);
+        }
+
+        ImGui.PopID();
+
+        dl.AddRect(min, max, Tokens.Col.ControlEdge, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
+
+        if (clicked < 0)
+        {
+            return false;
+        }
+
+        value = clicked;
+        return true;
     }
 
     /// <summary>
@@ -953,6 +1122,7 @@ internal static class Chrome
         ImGui.SetCursorScreenPos(new Vector2(x, y));
         ImGui.InvisibleButton(id, new Vector2(size, line));
         bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
         bool clicked = ImGui.IsItemClicked();
 
         uint ink = hovered ? Tokens.Col.GoldHi : Tokens.Col.InkDim;
@@ -1024,6 +1194,7 @@ internal static class Chrome
         ImGui.SetCursorScreenPos(new Vector2(x, y));
         ImGui.InvisibleButton(id, new Vector2(width, height));
         bool hovered = ImGui.IsItemHovered() && enabled;
+        ShowHand(hovered);
         bool clicked = ImGui.IsItemClicked() && enabled;
 
         Vector2 min = new(x, MathF.Round(y + ((height - box) * 0.5f)));
@@ -1094,7 +1265,9 @@ internal static class Chrome
         float max,
         string? hint = null,
         string? tooltip = null,
-        bool divider = false)
+        bool divider = false,
+        float step = 0f,
+        float editScale = 0f)
     {
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
 
@@ -1105,8 +1278,12 @@ internal static class Chrome
         float rowWidth = width;
         Row(label, rowX, y, rowWidth, divider, hint);
 
-        float valueX = MathF.Round(rowX + rowWidth - Ink.Measure(Ink.Role.Body, valueText).X);
-        Ink.Draw(dl, Ink.Role.Body, new Vector2(valueX, CenterY(y, RowHeight(), Ink.Role.Body)), Tokens.Col.GoldHi, valueText);
+        bool editing = editScale > 0f && s_editSlider == id;
+        if (!editing)
+        {
+            float valueX = MathF.Round(rowX + rowWidth - Ink.Measure(Ink.Role.Body, valueText).X);
+            Ink.Draw(dl, Ink.Role.Body, new Vector2(valueX, CenterY(y, RowHeight(), Ink.Role.Body)), Tokens.Col.GoldHi, valueText);
+        }
 
         // The track sits in the control column, less the room the value took.
         x = ControlX(rowX, rowWidth);
@@ -1126,6 +1303,10 @@ internal static class Chrome
         bool hovered = ImGui.IsItemHovered();
         bool released = ImGui.IsItemDeactivated();
 
+        // Held as well as hovered: while the knob is being dragged the mouse is often off the
+        // row altogether, and the hand is what says the control still has it.
+        ShowHand(hovered || active);
+
         if (tooltip is not null && !active)
         {
             TooltipOnHover(tooltip);
@@ -1137,8 +1318,7 @@ internal static class Chrome
         bool changed = false;
         if (active && travel > 0f)
         {
-            float t = Math.Clamp((ImGui.GetIO().MousePos.X - x - radius) / travel, 0f, 1f);
-            result = min + (t * (max - min));
+            result = Drag(x, radius, travel, min, max, step);
             changed = result != value;
         }
 
@@ -1168,7 +1348,172 @@ internal static class Chrome
         Vector2 grabCenter = new(grabCenterX, MathF.Round(trackTop + (trackHeight * 0.5f)));
         MilledKnob(dl, grabCenter, radius, active || hovered ? 0.16f : 0f);
 
+        // Always drawn, even mid-drag: a field that simply vanished when the track was grabbed
+        // would leave the row believing it is still being typed into. A drag in progress still
+        // wins, it just does not get to skip closing the field.
+        if (editScale > 0f)
+        {
+            float typed = ValueCell(
+                dl,
+                id,
+                rowX + rowWidth - valueWidth,
+                boxTop,
+                valueWidth,
+                Ink.Measure(Ink.Role.Body, valueText).X,
+                value,
+                min,
+                max,
+                editScale,
+                editing);
+
+            if (!active && !float.IsNaN(typed) && typed != result)
+            {
+                result = typed;
+                changed = true;
+                released = true;
+            }
+        }
+
         return new SliderResult(result, changed, released, RowHeight());
+    }
+
+    /// <summary>
+    /// The number at the end of a slider row, as something you can click into and type.
+    /// <para>
+    /// A track is only so many pixels long, and a range with more values than that has some
+    /// no mouse position can reach — the step is what makes the reachable ones land on round
+    /// numbers, and this is what reaches the rest. It also answers the plainer case: when you
+    /// already know the number, pointing at it is the long way round.
+    /// </para>
+    /// </summary>
+    /// <param name="scale">
+    /// What the number is in the reader's units: 1 where the value is a pixel count, 100
+    /// where the value is a fraction and the row says a percentage.
+    /// </param>
+    /// <returns>The value that was typed, or <see cref="float.NaN"/> while nothing was.</returns>
+    private static float ValueCell(
+        ImDrawListPtr dl,
+        string id,
+        float x,
+        float y,
+        float width,
+        float textWidth,
+        float value,
+        float min,
+        float max,
+        float scale,
+        bool editing)
+    {
+        float height = RowHeight();
+        float typed = float.NaN;
+        s_editSeen |= editing;
+
+        // Pushed so the cell and its field can use fixed ids: a derived id would have to be
+        // built per frame, and this runs in a draw path like everything else.
+        ImGui.PushID(id);
+
+        if (editing)
+        {
+            if (s_editFocus)
+            {
+                ImGui.SetKeyboardFocusHere();
+                s_editFocus = false;
+            }
+
+            float fieldHeight = Tokens.Metric.ValueEditHeight;
+            float pad = MathF.Round((fieldHeight - Ink.LineHeight(Ink.Role.Body)) * 0.5f);
+
+            ImGui.SetCursorScreenPos(new Vector2(x, MathF.Round(y + ((height - fieldHeight) * 0.5f))));
+            ImGui.SetNextItemWidth(width);
+            ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, Tokens.Radius.Small);
+            ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, Tokens.Line(1f));
+            ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(Tokens.Space.Sm, pad));
+            ImGui.PushStyleColor(ImGuiCol.FrameBg, Tokens.Col.Input);
+            ImGui.PushStyleColor(ImGuiCol.Border, Tokens.Col.ControlEdge);
+            ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.GoldHi);
+            Ink.Push(Ink.Role.Body);
+
+            bool submitted = ImGui.InputText(
+                IdValueField,
+                ref s_editText,
+                ValueTextLimit,
+                ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.CharsDecimal | ImGuiInputTextFlags.AutoSelectAll);
+
+            bool finished = submitted || ImGui.IsItemDeactivated();
+
+            Ink.Pop(Ink.Role.Body);
+            ImGui.PopStyleColor(3);
+            ImGui.PopStyleVar(3);
+
+            // Escape leaves the field with the text it was given, so cancelling simply parses
+            // back to the value that was already there and changes nothing.
+            if (finished)
+            {
+                if (float.TryParse(s_editText, NumberStyles.Float, CultureInfo.InvariantCulture, out float parsed))
+                {
+                    typed = Math.Clamp(parsed / scale, min, max);
+                }
+
+                s_editSlider = string.Empty;
+            }
+        }
+        else
+        {
+            ImGui.SetCursorScreenPos(new Vector2(x, y));
+            ImGui.InvisibleButton(IdValueCell, new Vector2(width, height));
+
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetMouseCursor(ImGuiMouseCursor.TextInput);
+
+                // A hairline under the number, which is the whole invitation it needs: a box
+                // drawn round it would read as a field standing empty beside every slider.
+                float line = MathF.Round(y + ((height + Ink.LineHeight(Ink.Role.Body)) * 0.5f) + Tokens.Space.Xs);
+                Hairline(dl, MathF.Round(x + width - textWidth), x + width, line, Tokens.Col.GoldDim);
+            }
+
+            if (ImGui.IsItemClicked())
+            {
+                s_editSlider = id;
+                s_editText = ((int)MathF.Round(value * scale)).ToString(CultureInfo.InvariantCulture);
+                s_editFocus = true;
+
+                // Counts as seen for this frame as well, or the sweep at the end of it would
+                // drop the entry before it ever drew.
+                s_editSeen = true;
+            }
+        }
+
+        ImGui.PopID();
+        return typed;
+    }
+
+    /// <summary>
+    /// What the slider is worth at this mouse position.
+    /// <para>
+    /// The knob stays under the cursor. That is not a nicety — a knob that lags behind the
+    /// hand reads as a broken control, whatever it is doing underneath (Florian, 2026-09-12).
+    /// </para>
+    /// <para>
+    /// What makes a value hittable is the step, not the drag: the slider lands only on whole
+    /// steps, so a size settles on a pixel rather than between two. The rule the callers
+    /// follow is that a slider's range, divided by its step, must leave fewer stops than the
+    /// track has pixels — otherwise there are values no mouse position can reach, which is
+    /// why a frame width steps by five where everything else steps by one.
+    /// </para>
+    /// </summary>
+    /// <param name="step">The smallest move the value may make, or zero for a smooth one.</param>
+    private static float Drag(float x, float radius, float travel, float min, float max, float step)
+    {
+        float t = Math.Clamp((ImGui.GetIO().MousePos.X - x - radius) / travel, 0f, 1f);
+        float result = min + (t * (max - min));
+
+        if (step > 0f)
+        {
+            result = min + (MathF.Round((result - min) / step) * step);
+        }
+
+        return Math.Clamp(result, min, max);
     }
 
     /// <summary>
@@ -1230,6 +1575,7 @@ internal static class Chrome
         ImGui.SetCursorScreenPos(min);
         ImGui.InvisibleButton(id, new Vector2(size, size));
         bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
         bool clicked = ImGui.IsItemClicked();
 
         ImDrawListPtr dl = ImGui.GetWindowDrawList();

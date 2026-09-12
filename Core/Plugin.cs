@@ -1,6 +1,7 @@
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
+using WispUI.Hud.PartyFrames;
 using WispUI.Interface;
 using WispUI.Localization;
 using WispUI.Style;
@@ -18,6 +19,10 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ConfigWindow m_configWindow;
     private readonly CommandHandler m_commands;
     private readonly InfoBarEntry m_infoBar;
+    private readonly HudManager m_hud = new();
+
+    /// <summary>The one feature that hooks the game. Owned here so it is always disposed.</summary>
+    private readonly MouseoverCasting m_mouseover;
 
     public Plugin(IDalamudPluginInterface pluginInterface)
     {
@@ -35,7 +40,19 @@ public sealed class Plugin : IDalamudPlugin
         m_infoBar.Apply(m_config.ShowInfoBarEntry);
         m_configWindow.InfoBarPreferenceChanged += this.OnInfoBarPreferenceChanged;
 
-        Services.PluginInterface.UiBuilder.Draw += m_windows.Draw;
+        m_hud.Add(new PartyFramesElement(m_config));
+
+        // Made now, put in place only if the player has asked for it. The hook it owns is the
+        // suite's one reach into what a key press does, so it is never installed on spec.
+        m_mouseover = new MouseoverCasting();
+        m_mouseover.Sync(m_config.PartyFrames.MouseoverCasting);
+
+        // The pointer switch is shared by everything running in the game, so its state is put
+        // back to the game's at load rather than assumed. From here on it has one writer and
+        // is settled once per frame.
+        NativeUi.ReleaseCursor();
+
+        Services.PluginInterface.UiBuilder.Draw += this.OnDraw;
         Services.PluginInterface.UiBuilder.OpenMainUi += m_configWindow.Toggle;
         Services.PluginInterface.UiBuilder.OpenConfigUi += m_configWindow.Toggle;
         Services.Framework.Update += this.OnUpdate;
@@ -47,8 +64,10 @@ public sealed class Plugin : IDalamudPlugin
         m_configWindow.InfoBarPreferenceChanged -= this.OnInfoBarPreferenceChanged;
         Services.PluginInterface.UiBuilder.OpenConfigUi -= m_configWindow.Toggle;
         Services.PluginInterface.UiBuilder.OpenMainUi -= m_configWindow.Toggle;
-        Services.PluginInterface.UiBuilder.Draw -= m_windows.Draw;
+        Services.PluginInterface.UiBuilder.Draw -= this.OnDraw;
 
+        m_mouseover.Dispose();
+        m_configWindow.ReleaseCursor();
         m_infoBar.Dispose();
         m_commands.Dispose();
         m_windows.RemoveAllWindows();
@@ -59,12 +78,36 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     /// <summary>
+    /// One frame of everything WispUI draws. The font locks are taken here rather than inside
+    /// a window, because the HUD writes text too and they must be taken exactly once — twice
+    /// would allocate twice, which is the trap from session 2.
+    /// <para>
+    /// The HUD goes first. It paints into the background draw list, so a settings window is
+    /// never hidden behind the element it configures.
+    /// </para>
+    /// </summary>
+    private void OnDraw()
+    {
+        Ink.BeginFrame();
+        m_hud.Draw();
+        m_windows.Draw();
+
+        // After everything has said whether the mouse is on it. One writer, one decision, and
+        // the switch goes back to the game's the moment nothing of ours is under the pointer.
+        NativeUi.SettleCursor();
+    }
+
+    /// <summary>
     /// Kept deliberately thin: the debounced configuration write is all that belongs on the
     /// tick. Heavy work goes neither here nor into the draw path.
     /// </summary>
     private void OnUpdate(IFramework framework)
     {
         m_config.Tick();
+
+        // Two booleans compared. The hook goes in and comes out with the setting rather than
+        // sitting installed and inert, so a player who never turns it on never carries it.
+        m_mouseover.Sync(m_config.PartyFrames.MouseoverCasting);
     }
 
     private void OnInfoBarPreferenceChanged()

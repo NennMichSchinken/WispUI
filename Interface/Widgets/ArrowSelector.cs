@@ -235,6 +235,7 @@ internal sealed class ArrowSelector<T>
         ImGui.SetCursorScreenPos(min);
         ImGui.InvisibleButton(id, new Vector2(width, height));
         bool hovered = ImGui.IsItemHovered();
+        Chrome.ShowHand(hovered && enabled);
         bool clicked = enabled && ImGui.IsItemClicked();
 
         ImDrawFlags corners = pointsLeft ? ImDrawFlags.RoundCornersLeft : ImDrawFlags.RoundCornersRight;
@@ -294,6 +295,7 @@ internal sealed class ArrowSelector<T>
         ImGui.SetCursorScreenPos(min);
         ImGui.InvisibleButton(m_idFace, new Vector2(width, height));
         bool hovered = ImGui.IsItemHovered();
+        Chrome.ShowHand(hovered && m_options.EnablePopupList);
         bool clicked = ImGui.IsItemClicked();
         focused = ImGui.IsItemFocused();
 
@@ -470,6 +472,7 @@ internal sealed class ArrowSelector<T>
         ImGui.PushID(i);
         ImGui.InvisibleButton(m_idRow, new Vector2(width, rowHeight));
         bool hovered = ImGui.IsItemHovered();
+        Chrome.ShowHand(hovered);
         bool clicked = ImGui.IsItemClicked();
         ImGui.PopID();
 

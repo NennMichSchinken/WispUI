@@ -2,6 +2,16 @@ using WispUI.Style;
 
 namespace WispUI.Data;
 
+/// <summary>
+/// Which of the game's two job icon sets a frame wears. The same pictures either way — one
+/// set carries the square frame around them, the other does not.
+/// </summary>
+internal enum JobIconStyle
+{
+    Framed = 0,
+    Plain = 1,
+}
+
 /// <summary>What a job does in a party. Everything that is not one of the three is a job we
 /// do not colour by role — a crafter, a gatherer, or a class before it takes its job.</summary>
 internal enum JobRole
@@ -40,8 +50,17 @@ internal static class Jobs
     /// <summary>One past the highest ClassJob row id we know (PCT is 42).</summary>
     private const int Count = 43;
 
-    /// <summary>The framed job icon of a job is its row id offset by this.</summary>
-    private const int IconBase = 62100;
+    /// <summary>
+    /// Job icons run in sets of a hundred from 62000, and a job's icon is its row id added to
+    /// the set. Verified against two independent plugins that resolve them the same way.
+    /// <para>
+    /// Which of the two sets is the plain one is written down but has not been looked at in
+    /// the game — the first person to switch the option settles it.
+    /// </para>
+    /// </summary>
+    private const int IconSetPlain = 62000;
+
+    private const int IconSetFramed = 62100;
 
     private static readonly uint[] Colours = new uint[Count];
     private static readonly JobRole[] Roles = new JobRole[Count];
@@ -108,8 +127,9 @@ internal static class Jobs
         _ => Tokens.Col.InkDim,
     };
 
-    /// <summary>The framed job icon for a job, or zero if we have no job.</summary>
-    public static uint IconId(uint jobId) => jobId == 0 ? 0u : (uint)IconBase + jobId;
+    /// <summary>The job icon in the chosen set, or zero if we have no job.</summary>
+    public static uint IconId(uint jobId, bool framed) =>
+        jobId == 0 ? 0u : (uint)(framed ? IconSetFramed : IconSetPlain) + jobId;
 
     private static void Set(int jobId, JobRole role, uint hex)
     {

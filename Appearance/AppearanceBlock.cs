@@ -24,12 +24,90 @@ internal sealed record AppearanceBlock
 
     public float BarOpacity { get; init; } = 1f;
 
-    /// <summary>Index into the name positions.</summary>
+    /// <summary>Index into the nine anchor points a text hangs on.</summary>
     public int NamePosition { get; init; }
+
+    /// <summary>In pixels.</summary>
+    public float NameSize { get; init; }
+
+    public float NameX { get; init; }
+
+    public float NameY { get; init; }
 
     public bool NameInJobColour { get; init; }
 
-    public bool ShortenNames { get; init; }
+    /// <summary>Index into <see cref="Hud.NameShortening"/>.</summary>
+    public int NameShortening { get; init; }
+
+    // The health text, described the same way every text on an element is: what it says, how
+    // big it is, which point it hangs on, and how far it is nudged from there. All of it is
+    // appearance and travels together — where the figure sits on a frame is a look, not a
+    // size, and an element that copies the look and leaves the figure behind copied nothing.
+
+    /// <summary>Whether the figure shows at all.</summary>
+    public bool ShowHealthText { get; init; }
+
+    /// <summary>Index into the health text modes — see <see cref="Hud.HealthTextMode"/>.</summary>
+    public int HpTextMode { get; init; }
+
+    /// <summary>In pixels.</summary>
+    public float HpTextSize { get; init; }
+
+    /// <summary>Index into the nine anchor points.</summary>
+    public int HpTextPosition { get; init; }
+
+    public float HpTextX { get; init; }
+
+    public float HpTextY { get; init; }
+
+    // The job icon, described the same way: whether it shows, how big it is, which point it
+    // hangs on, and how far it is nudged from there. Size is in here rather than out with the
+    // layout because an icon's size is what it looks like, the way a text size is — the frame
+    // it sits in is the thing whose size belongs to the element alone.
+
+    public bool ShowJobIcon { get; init; }
+
+    /// <summary>Index into <see cref="Data.JobIconStyle"/>.</summary>
+    public int JobIconStyle { get; init; }
+
+    /// <summary>In pixels, and square.</summary>
+    public float JobIconSize { get; init; }
+
+    /// <summary>Index into the nine anchor points.</summary>
+    public int JobIconPosition { get; init; }
+
+    public float JobIconX { get; init; }
+
+    public float JobIconY { get; init; }
+
+    public bool JobIconHideDps { get; init; }
+
+    // The party number. It travels with the icon rather than with the text: it is a badge on
+    // a frame, not something the frame says about the person on it.
+
+    public bool ShowPartyNumber { get; init; }
+
+    /// <summary>In pixels.</summary>
+    public float PartyNumberSize { get; init; }
+
+    /// <summary>Index into the nine anchor points.</summary>
+    public int PartyNumberPosition { get; init; }
+
+    public float PartyNumberX { get; init; }
+
+    public float PartyNumberY { get; init; }
+
+    public bool ShowLeaderIcon { get; init; }
+
+    /// <summary>In pixels, and square.</summary>
+    public float LeaderIconSize { get; init; }
+
+    /// <summary>Index into the nine anchor points.</summary>
+    public int LeaderIconPosition { get; init; }
+
+    public float LeaderIconX { get; init; }
+
+    public float LeaderIconY { get; init; }
 }
 
 /// <summary>

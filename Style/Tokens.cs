@@ -153,6 +153,59 @@ internal static class Tokens
         public static readonly uint GoldSwitchTrack = Rgb(0x4B421F);
 
         /// <summary>
+        /// A frame in the world. Darker and more opaque than anything in the window: it lies
+        /// over the game, not over a panel of ours, and has to hold its own against whatever
+        /// is behind it.
+        /// </summary>
+        public static readonly uint FrameBg = 0xC8141314u;
+
+        public static readonly uint FrameEdge = 0xC80A0A0Au;
+
+        /// <summary>
+        /// The ring around the frame under the mouse. White, because it has to read against a
+        /// bar in any of the role or job colours and against the world behind an empty one —
+        /// there is no tint that stays legible over all of them. The game's own party list
+        /// answers the same question by brightening; a ring keeps the bar's colour honest,
+        /// which matters more here because ours is a colour the player chose.
+        /// </summary>
+        public static readonly uint FrameHover = 0xD2FFFFFFu;
+
+        /// <summary>
+        /// The empty part of a bar that carries one of its own — the mana bar in its full
+        /// shape. Darker than the frame behind it, so an empty bar still reads as a bar.
+        /// </summary>
+        public static readonly uint BarTrack = 0xC80D0C0Du;
+
+        /// <summary>
+        /// Mana. ⚠️ NOT MEASURED — picked by hand as a calm blue that stays out of the way of
+        /// the three role colours. The game's own mana gauge is there to be pipetted, and this
+        /// value is to be replaced by that reading rather than tuned by eye.
+        /// </summary>
+        public static readonly uint Mana = Rgb(0x4C6FD0);
+
+        /// <summary>
+        /// The party number's plate, the shape the game's own list gives a position: a white
+        /// rounded square with a black edge and the figure dark in the middle of it.
+        /// <para>
+        /// White and fully opaque, and deliberately NOT the body ink at nine tenths: over the
+        /// game, a grey at less than full cover picks up whatever is behind it and reads as
+        /// dirty rather than as light (Florian, 2026-09-12). This is the one place in the
+        /// suite where a pure white belongs, because it is a plate and not a surface.
+        /// </para>
+        /// </summary>
+        public static readonly uint NumberPlate = 0xFFFFFFFFu;
+
+        public static readonly uint NumberEdge = 0xFF000000u;
+
+        public static readonly uint NumberInk = Rgb(0x1B1A1B);
+
+        /// <summary>
+        /// Under every piece of text a HUD element writes. The frames lie over the world, and
+        /// a bright name on a bright bar is unreadable without something behind it.
+        /// </summary>
+        public static readonly uint HudTextShadow = 0xC0000000u;
+
+        /// <summary>
         /// The three roles, MEASURED off the game's own role markers (Florian, 2026-09-11).
         /// Not to be "improved" by eye: a player reads these three before they read a name,
         /// and any drift from the game's own blue, green and red costs exactly that.
@@ -197,8 +250,9 @@ internal static class Tokens
 
         // --- slider ---
         // FFXIV fills its own sliders green rather than in the gold it uses for ticks and
-        // arrows, and WispUI follows that. These greens are read by eye from the game and
-        // are the first values to correct if they sit wrong next to it.
+        // arrows, and WispUI follows that. Set by eye rather than with a dropper, then held
+        // against the game's own slider in-game and accepted (Florian, 2026-09-11): SETTLED,
+        // not provisional. Treat these like a measured value — do not re-tune them by feel.
         /// <summary>The unfilled part of a slider — darker than a text field, so the fill reads clearly.</summary>
         public static readonly uint SliderTrackBg = Rgb(0x131213);
 
@@ -526,8 +580,37 @@ internal static class Tokens
         /// <summary>Room kept at the right edge of a slider row for its number.</summary>
         public static float ValueWidth => Px(46f);
 
+        /// <summary>
+        /// The field a slider's number turns into when it is clicked. Shorter than a row, so
+        /// it reads as something that opened inside the row rather than as a control that was
+        /// always standing there.
+        /// </summary>
+        public static float ValueEditHeight => Px(22f);
+
         /// <summary>Air under the last row, so a scrolled screen does not end flush with the edge.</summary>
         public static float ContentPaddingBottom => Px(24f);
+
+        /// <summary>
+        /// Inside a party frame, between its edge and what it holds. NOT an option: what a
+        /// player actually wants to move is where the name and the numbers sit, and that is
+        /// coming as its own setting — a padding slider would be a second way to say it
+        /// (Florian, 2026-09-11).
+        /// </summary>
+        public static float FramePadding => Px(5f);
+
+        /// <summary>The line a party frame is outlined with, and the gap a second bar sits behind.</summary>
+        public static float FrameBorder => Line(1f);
+
+        /// <summary>
+        /// The ring on the frame under the mouse. Three pixels rather than the frame's own
+        /// one: at two it was there but had to be looked for, and a highlight you look for is
+        /// not doing its job (Florian, 2026-09-12). Thicker than the frame edge on purpose —
+        /// it has to read as something arriving, not as the edge having changed colour.
+        /// </summary>
+        public static float FrameHoverRing => Line(3f);
+
+        /// <summary>How far a HUD text's shadow is offset. One pixel, at whatever the scale is.</summary>
+        public static float HudTextShadow => Line(1f);
 
         public static float BadgeHeight => Px(18f);
         public static float BadgePaddingX => Px(6f);
