@@ -69,6 +69,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdBindingKey = "##wisp-pf-bindkey";
     private const string IdBindingJob = "##wisp-pf-bindjob";
     private const string IdBindingAction = "##wisp-pf-bindaction";
+    private const string IdBindingAdd = "##wisp-pf-bindadd";
+    private const string IdBindingRemoveRow = "##wisp-pf-bindremoverow";
     private const string IdIconPosition = "##wisp-pf-iconposition";
     private const string IdIconX = "##wisp-pf-iconx";
     private const string IdIconY = "##wisp-pf-icony";
@@ -225,7 +227,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     /// <summary>The actions the picker offers, refilled when the job changes.</summary>
     private readonly System.Collections.Generic.List<ActionEntry> m_actionChoices = new();
     private uint m_choicesFor = uint.MaxValue;
-    private int m_pickedAction;
     private readonly ArrowSelector<Anchor> m_healthPosition;
     private readonly ArrowSelector<string> m_manaStyle;
     private readonly ArrowSelector<Anchor> m_iconPosition;
@@ -342,6 +343,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 EnablePopupList = true,
                 EnableSearch = true,
                 ShowCounter = false,
+
+                // No arrows on this one. Stepping through a job's whole action list one at a
+                // time is not a way anybody would use it, and arrows that suggest it are
+                // furniture (Florian, 2026-09-12).
+                HideArrows = true,
             });
 
         m_iconPosition = new ArrowSelector<Anchor>(
@@ -1204,11 +1210,16 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     public void DrawBindings(float width)
     {
         Vector2 origin = ImGui.GetCursorScreenPos();
-        float column = Chrome.ColumnWidth(width);
         float y = origin.Y;
 
+        // 🔴 The one group in the suite that takes the full width, and the one row that
+        // carries two controls. The grammar everywhere else — one setting, one control, half
+        // the width — is what keeps a settings screen readable, and a binding is not a
+        // setting: it is a pair, and the pair is the thing. Splitting "this action" from
+        // "this button" across two rows would be two halves of one sentence (Florian,
+        // 2026-09-12, pointing at LumenUI's own bindings screen).
         Chrome.BeginGroupRow();
-        Chrome.GroupScope group = this.DrawBindingList(Chrome.ColumnX(origin.X, width, 0), y, column, out float height);
+        Chrome.GroupScope group = this.DrawBindingList(origin.X, y, width, out float height);
         y += Chrome.GroupFrame(group, height) + Tokens.Metric.ColumnGutter;
 
         ImGui.SetCursorScreenPos(origin);
@@ -1265,8 +1276,13 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     }
 
     /// <summary>
-    /// One row per binding, plus the button that adds another. A row is the binding's own
-    /// grammar: what it does on the left, the button that does it on the right.
+    /// One row per binding, plus the button that adds another.
+    /// <para>
+    /// A row is the pair: the action on the left, the button that triggers it on the right,
+    /// and a remove button at the end. That is the one place in the suite where a row carries
+    /// more than one control, and it is not an exception to the grammar so much as a different
+    /// kind of row — a binding is a pair, and half of one says nothing.
+    /// </para>
     /// </summary>
     private float DrawBindingRows(
         Chrome.GroupScope group,
@@ -1276,45 +1292,68 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float pitch)
     {
         ActionEntry[] actions = ActionList.For(job.Id);
+        float fieldWidth = Chrome.BindingFieldWidth(group.ContentWidth);
+        float keyX = group.ContentX + fieldWidth + Tokens.Space.Md;
+        float removeX = keyX + Chrome.KeybindWidth() + Tokens.Space.Md;
         int remove = -1;
 
         for (int i = 0; i < bindings.Count; i++)
         {
             MouseBinding binding = bindings[i];
-            string label = this.BindingLabel(binding, actions);
-
             bool listening = m_listening == i;
             int button = binding.Button;
             int mods = (int)binding.Modifiers;
 
             ImGui.PushID(i);
 
-            bool captured = Chrome.KeybindRow(
-                IdBindingKey,
-                label,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                ref listening,
-                ref button,
-                ref mods,
-                out bool removeClicked,
-                binding.Kind == BindingKind.Action,
-                i > 0);
+            if (i > 0)
+            {
+                Chrome.RowDivider(group.ContentX, group.ContentX + group.ContentWidth, rowY);
+            }
 
-            ImGui.PopID();
+            // What it does. The two built-in kinds are stated rather than chosen: there is no
+            // list to pick "select target" out of, it simply is what that row does.
+            if (binding.Kind == BindingKind.Action)
+            {
+                int pick = this.ActionIndex(binding.ActionId);
 
-            if (captured)
+                if (m_actionPicker.Draw(ref pick, group.ContentX, rowY, fieldWidth)
+                    && pick >= 0 && pick < m_actionChoices.Count)
+                {
+                    binding.ActionId = m_actionChoices[pick].Id;
+                    m_config.MarkDirty();
+                }
+            }
+            else
+            {
+                Chrome.StaticField(
+                    group.ContentX,
+                    rowY,
+                    fieldWidth,
+                    binding.Kind == BindingKind.Target ? Strings.BindingTarget : Strings.BindingContextMenu);
+            }
+
+            if (Chrome.KeybindField(IdBindingKey, keyX, rowY, ref listening, ref button, ref mods))
             {
                 binding.Button = button;
                 binding.Modifiers = (BindingModifiers)mods;
                 m_config.MarkDirty();
             }
 
-            if (removeClicked)
+            // Only a row that was added can be taken away. The two the frames come with are
+            // rebindable but not removable: a frame with no way to select anybody is not a
+            // configuration somebody arrives at on purpose.
+            if (binding.Kind == BindingKind.Action)
             {
-                remove = i;
+                float removeY = MathF.Round(rowY + ((Chrome.RowHeight() - Tokens.Metric.TitleButton) * 0.5f));
+
+                if (Chrome.CloseButton(IdBindingRemoveRow, removeX, removeY))
+                {
+                    remove = i;
+                }
             }
+
+            ImGui.PopID();
 
             m_listening = listening ? i : (m_listening == i ? -1 : m_listening);
             rowY += pitch;
@@ -1329,18 +1368,13 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        rowY = this.DrawAddBinding(group, bindings, actions, rowY);
-        return rowY;
+        return this.DrawAddBinding(group, bindings, actions, rowY);
     }
 
     /// <summary>
-    /// The row that adds a binding: pick an action and it appears below, waiting for the
-    /// button that should trigger it.
-    /// <para>
-    /// Picking is the whole interaction — there is no separate "add" to press afterwards.
-    /// Choosing an action out of this list has no other meaning, so asking twice would only
-    /// be a step to forget.
-    /// </para>
+    /// The button that adds a binding. It appends a row rather than opening anything: the row
+    /// it makes is where the choosing happens, which is the same place every later change to
+    /// that binding is made.
     /// </summary>
     private float DrawAddBinding(
         Chrome.GroupScope group,
@@ -1350,8 +1384,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     {
         if (actions.Length == 0)
         {
-            // A tank has nothing to aim at a party member. Saying so is better than an empty
-            // list somebody has to open to find out it is empty.
+            // A tank has nothing to aim at a party member. Saying so is better than a button
+            // that adds a row with an empty list in it.
             Ink.Draw(
                 ImGui.GetWindowDrawList(),
                 Ink.Role.Small,
@@ -1362,37 +1396,37 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             return rowY + Chrome.RowPitch();
         }
 
-        // The same list object throughout, refilled when the job changes: the selector holds
-        // the reference it was built with and cannot be handed a new one.
-        int pick = m_pickedAction;
-
-        if (m_actionPicker.Draw(
-                ref pick,
-                Chrome.Row(Strings.BindingAdd, group.ContentX, rowY, group.ContentWidth, true),
-                rowY,
-                Chrome.ControlWidth())
-            && pick >= 0 && pick < m_actionChoices.Count)
+        if (Chrome.WideButton(IdBindingAdd, Strings.BindingAdd, group.ContentX, rowY, group.ContentWidth))
         {
-            m_pickedAction = pick;
-
             bindings.Add(new MouseBinding
             {
                 Kind = BindingKind.Action,
-                ActionId = m_actionChoices[pick].Id,
+                ActionId = actions[0].Id,
 
                 // Middle by default, because left and right are already spoken for and a new
-                // binding that silently shadowed one of them would be the worst first
-                // impression this tab could make. It is meant to be changed straight away.
+                // row that silently shadowed one of them would be the worst first impression
+                // this tab could make. It is meant to be changed straight away.
                 Button = 2,
             });
 
-            // Straight into waiting for a button, so the obvious next step is the one that
-            // happens without being asked for.
-            m_listening = bindings.Count - 1;
             m_config.MarkDirty();
         }
 
         return rowY + Chrome.RowPitch();
+    }
+
+    /// <summary>Where an action sits in the picker's list, or the first entry when it is gone.</summary>
+    private int ActionIndex(uint actionId)
+    {
+        for (int i = 0; i < m_actionChoices.Count; i++)
+        {
+            if (m_actionChoices[i].Id == actionId)
+            {
+                return i;
+            }
+        }
+
+        return 0;
     }
 
     /// <summary>
@@ -1411,7 +1445,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         }
 
         m_choicesFor = jobId;
-        m_pickedAction = 0;
         m_actionChoices.Clear();
         m_actionChoices.AddRange(ActionList.For(jobId));
     }

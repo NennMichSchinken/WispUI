@@ -1602,6 +1602,166 @@ internal static class Chrome
     private const string IdBindingRemove = "##wisp-bindremove";
 
     /// <summary>
+    /// How wide the keybind field is on a binding row. The action field takes what is left,
+    /// so the two together fill the row and the pair reads as one thing.
+    /// </summary>
+    public static float KeybindWidth() => Tokens.Px(150f);
+
+    /// <summary>
+    /// Where the action field starts and how wide it is on a binding row: everything left of
+    /// the keybind field and the remove button.
+    /// </summary>
+    public static float BindingFieldWidth(float width) =>
+        width - KeybindWidth() - Tokens.Metric.TitleButton - (Tokens.Space.Md * 2f);
+
+    /// <summary>
+    /// The keybind field on its own, without a label: the right-hand half of a binding row.
+    /// </summary>
+    /// <returns>True when a new binding was captured this frame.</returns>
+    public static bool KeybindField(
+        string id,
+        float x,
+        float y,
+        ref bool listening,
+        ref int button,
+        ref int modifiers)
+    {
+        float height = RowHeight();
+        float fieldWidth = KeybindWidth();
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        Vector2 min = new(MathF.Round(x), MathF.Round(y));
+        Vector2 max = new(min.X + fieldWidth, min.Y + height);
+
+        ImGui.PushID(id);
+        ImGui.SetCursorScreenPos(min);
+        ImGui.InvisibleButton(IdKeybindField, max - min);
+        bool hovered = ImGui.IsItemHovered();
+        bool pressed = ImGui.IsItemClicked();
+        ImGui.PopID();
+
+        ShowHand(hovered);
+
+        dl.AddRectFilled(min, max, Tokens.Col.Input, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll);
+        dl.AddRect(
+            min,
+            max,
+            listening ? Tokens.Col.Gold : Tokens.Col.ControlEdge,
+            Tokens.Radius.Control,
+            ImDrawFlags.RoundCornersAll,
+            Tokens.Line(1f));
+
+        bool captured = false;
+
+        if (listening)
+        {
+            // The click that started listening is still being released this frame, so what is
+            // asked about is a press and not a release — otherwise the field would capture the
+            // very click that opened it.
+            int caught = PressedButton();
+
+            if (caught >= 0)
+            {
+                button = caught;
+                modifiers = (int)HeldMods();
+                listening = false;
+                captured = true;
+            }
+            else if (ImGui.IsKeyPressed(ImGuiKey.Escape))
+            {
+                listening = false;
+            }
+        }
+        else if (pressed)
+        {
+            listening = true;
+        }
+
+        string text = listening ? Strings.KeybindListening : KeybindText(button, modifiers);
+        Vector2 size = Ink.Measure(Ink.Role.Body, text);
+        Ink.Draw(
+            dl,
+            Ink.Role.Body,
+            new Vector2(
+                MathF.Round(min.X + ((fieldWidth - size.X) * 0.5f)),
+                CenterY(y, height, Ink.Role.Body)),
+            listening ? Tokens.Col.Gold : Tokens.Col.Ink,
+            text);
+
+        return captured;
+    }
+
+    /// <summary>
+    /// A field that only states something, shaped like the controls beside it so a row of
+    /// mixed kinds still reads as one row. Used where a binding does something built in and
+    /// there is nothing to choose.
+    /// </summary>
+    public static void StaticField(float x, float y, float width, string text)
+    {
+        float height = RowHeight();
+        Vector2 min = new(MathF.Round(x), MathF.Round(y));
+        Vector2 max = new(min.X + width, min.Y + height);
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        dl.AddRectFilled(min, max, Tokens.Col.Control2, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll);
+        dl.AddRect(min, max, Tokens.Col.EdgeDim, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
+
+        Ink.Draw(
+            dl,
+            Ink.Role.Body,
+            new Vector2(MathF.Round(min.X + Tokens.Space.Md), CenterY(y, height, Ink.Role.Body)),
+            Tokens.Col.InkDim,
+            text);
+    }
+
+    /// <summary>The divider a row draws above itself, at the full width of its group.</summary>
+    public static void RowDivider(float left, float right, float y) =>
+        Hairline(
+            ImGui.GetWindowDrawList(),
+            left,
+            right,
+            MathF.Round(y - (Tokens.Metric.RowGap * 0.5f)),
+            Tokens.Col.RowDivider);
+
+    /// <summary>
+    /// A button that spans the row, for the one action a list offers rather than a setting.
+    /// </summary>
+    public static bool WideButton(string id, string label, float x, float y, float width)
+    {
+        float height = RowHeight();
+        Vector2 min = new(MathF.Round(x), MathF.Round(y));
+        Vector2 max = new(min.X + width, min.Y + height);
+
+        ImGui.SetCursorScreenPos(min);
+        ImGui.InvisibleButton(id, max - min);
+        bool hovered = ImGui.IsItemHovered();
+        bool clicked = ImGui.IsItemClicked();
+        ShowHand(hovered);
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        dl.AddRectFilled(min, max, hovered ? Tokens.Col.Control : Tokens.Col.Control2, Tokens.Radius.Control);
+        dl.AddRect(
+            min,
+            max,
+            hovered ? Tokens.Col.Gold : Tokens.Col.ControlEdge,
+            Tokens.Radius.Control,
+            ImDrawFlags.RoundCornersAll,
+            Tokens.Line(1f));
+
+        Vector2 size = Ink.Measure(Ink.Role.Body, label);
+        Ink.Draw(
+            dl,
+            Ink.Role.Body,
+            new Vector2(
+                MathF.Round(min.X + ((width - size.X) * 0.5f)),
+                CenterY(y, height, Ink.Role.Body)),
+            hovered ? Tokens.Col.GoldHi : Tokens.Col.Ink,
+            label);
+
+        return clicked;
+    }
+
+    /// <summary>
     /// A row whose control is a mouse binding: it shows what is bound, and clicking it waits
     /// for the next button press and takes that instead.
     /// <para>

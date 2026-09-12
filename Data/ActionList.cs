@@ -133,26 +133,32 @@ internal static class ActionList
             return false;
         }
 
-        // The job's own actions, plus the role actions its role shares.
-        uint owner = row.ClassJob.RowId;
-
-        if (owner == jobId)
-        {
-            return true;
-        }
-
-        // A role action belongs to a category rather than to one job. The category is checked
-        // by asking it about this job, which is the sheet's own answer and beats any mapping
-        // we could write down.
-        return row.IsRoleAction && InCategory(row, jobId);
+        // 🔴 The category, never the ClassJob column.
+        //
+        // An action's ClassJob is the one that owns the row, and for everything learned before
+        // the job stone that is the base class — Cure belongs to Conjurer, not to White Mage.
+        // Filtering on it dropped most of a healer's kit, including the first two heals they
+        // ever learn (Florian, 2026-09-12).
+        //
+        // The category is the column the game keeps for exactly this question: which jobs may
+        // use this action. It covers the job's own actions, the ones inherited from its class,
+        // and the role actions it shares — one answer instead of three rules of ours.
+        return InCategory(row, jobId);
     }
 
     private static bool InCategory(Lumina.Excel.Sheets.Action row, uint jobId)
     {
         try
         {
-            ClassJobCategory category = row.ClassJobCategory.Value;
-            return jobId < 43 && HasJob(category, jobId);
+            // Row zero is "no job at all", which is what a row carries when it is not a player
+            // action. Asking it about a job would answer no for every job anyway; skipping it
+            // saves resolving the reference.
+            if (row.ClassJobCategory.RowId == 0)
+            {
+                return false;
+            }
+
+            return HasJob(row.ClassJobCategory.Value, jobId);
         }
         catch
         {

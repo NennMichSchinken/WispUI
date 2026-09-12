@@ -45,6 +45,17 @@ internal sealed class ArrowSelectorOptions<T>
     /// which is worth more than saving a few clicks on the way round.
     /// </summary>
     public bool WrapAround { get; init; }
+
+    /// <summary>
+    /// Drops the two arrows and leaves the face on its own, as a plain dropdown.
+    /// <para>
+    /// For a list nobody walks one step at a time. Arrows are what makes this control worth
+    /// having when the choices are few and each one is worth seeing on the way past — nine
+    /// bar styles, three colour modes. Against a job's whole action list they are furniture
+    /// that suggests a way of using it nobody would (Florian, 2026-09-12).
+    /// </para>
+    /// </summary>
+    public bool HideArrows { get; init; }
 }
 
 /// <summary>
@@ -128,20 +139,27 @@ internal sealed class ArrowSelector<T>
         bool atStart = !wrap && index == 0;
         bool atEnd = !wrap && index == count - 1;
 
+        bool bare = m_options.HideArrows;
         bool changed = false;
-        if (this.Arrow(dl, m_idPrev, x, y, arrow, height, true, !atStart, Strings.SelectorAtStart))
+
+        if (!bare)
         {
-            index = Step(index, -1, count, wrap);
-            changed = true;
+            if (this.Arrow(dl, m_idPrev, x, y, arrow, height, true, !atStart, Strings.SelectorAtStart))
+            {
+                index = Step(index, -1, count, wrap);
+                changed = true;
+            }
+
+            if (this.Arrow(dl, m_idNext, x + width - arrow, y, arrow, height, false, !atEnd, Strings.SelectorAtEnd))
+            {
+                index = Step(index, 1, count, wrap);
+                changed = true;
+            }
         }
 
-        if (this.Arrow(dl, m_idNext, x + width - arrow, y, arrow, height, false, !atEnd, Strings.SelectorAtEnd))
-        {
-            index = Step(index, 1, count, wrap);
-            changed = true;
-        }
-
-        bool faceClicked = this.DrawFace(dl, index, count, x + arrow, y, width - (arrow * 2f), height, out bool focused);
+        float faceX = bare ? x : x + arrow;
+        float faceWidth = bare ? width : width - (arrow * 2f);
+        bool faceClicked = this.DrawFace(dl, index, count, faceX, y, faceWidth, height, out bool focused);
 
         // The whole group is outlined as one object, with a hairline where the arrows meet
         // the face. Three separate boxes with gaps between them would be three targets to
@@ -150,8 +168,12 @@ internal sealed class ArrowSelector<T>
         Vector2 groupMax = new(x + width, y + height);
         float line = Tokens.Line(1f);
         dl.AddRect(groupMin, groupMax, Tokens.Col.ControlEdge, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll, line);
-        dl.AddRectFilled(new Vector2(x + arrow - line, y), new Vector2(x + arrow, y + height), Tokens.Col.ControlEdge);
-        dl.AddRectFilled(new Vector2(x + width - arrow, y), new Vector2(x + width - arrow + line, y + height), Tokens.Col.ControlEdge);
+
+        if (!bare)
+        {
+            dl.AddRectFilled(new Vector2(x + arrow - line, y), new Vector2(x + arrow, y + height), Tokens.Col.ControlEdge);
+            dl.AddRectFilled(new Vector2(x + width - arrow, y), new Vector2(x + width - arrow + line, y + height), Tokens.Col.ControlEdge);
+        }
 
         // The arrow keys do what the arrow buttons do, as long as the control has the focus.
         if (focused)
