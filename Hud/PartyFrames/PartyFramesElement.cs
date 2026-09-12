@@ -358,7 +358,7 @@ internal sealed class PartyFramesElement : HudElement
     {
         // Nothing to take while the layout is being set against stand-ins: there is nobody to
         // select, and edit mode wants the same button for dragging.
-        if (count == 0 || EditMode.IsActive || (!cfg.ClickToTarget && !cfg.MouseoverTarget))
+        if (count == 0 || EditMode.IsActive || (!cfg.ClickToTarget && !cfg.MouseoverTarget && !cfg.ContextMenu))
         {
             this.ReleaseMouseOver();
             return;
@@ -416,7 +416,17 @@ internal sealed class PartyFramesElement : HudElement
                 // press. That is what the game's party list does — you can put the button down
                 // on the wrong person and slide off without selecting them — and it is why
                 // this is the return value rather than IsItemClicked (Florian, 2026-09-12).
-                bool clicked = ImGui.InvisibleButton(IdSlot, m_frameMax[i] - m_frameMin[i]);
+                //
+                // The right button is asked for only when it has somewhere to go. It is taken
+                // from the player either way — ImGui captures every button over the block, all
+                // or none (spec §15) — but a button that is claimed and then handed nothing is
+                // worse than one that was never claimed, and this way the flags say which it is.
+                bool clicked = ImGui.InvisibleButton(
+                    IdSlot,
+                    m_frameMax[i] - m_frameMin[i],
+                    cfg.ContextMenu
+                        ? ImGuiButtonFlags.MouseButtonLeft | ImGuiButtonFlags.MouseButtonRight
+                        : ImGuiButtonFlags.MouseButtonLeft);
                 bool hovered = ImGui.IsItemHovered();
 
                 // Held down and dragged off the block is still our press. Without this the
@@ -469,9 +479,21 @@ internal sealed class PartyFramesElement : HudElement
                     continue;
                 }
 
-                if (clicked && cfg.ClickToTarget)
+                if (clicked)
                 {
-                    Services.Targets.Target = target;
+                    // Which button it was, asked of the frame the button answered on. A button
+                    // set to answer on release reports in the very frame the release happens,
+                    // so the release that is still fresh this frame is the one that did it.
+                    // Right is asked first: it is only ever claimed when it has a menu to open,
+                    // so anything else that got through is the left one.
+                    if (cfg.ContextMenu && ImGui.IsMouseReleased(ImGuiMouseButton.Right))
+                    {
+                        NativeUi.OpenContextMenuFor(target.Address);
+                    }
+                    else if (cfg.ClickToTarget)
+                    {
+                        Services.Targets.Target = target;
+                    }
                 }
 
                 if (!hovered)

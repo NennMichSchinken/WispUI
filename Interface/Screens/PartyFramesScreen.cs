@@ -49,6 +49,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdMouseover = "##wisp-pf-mouseover";
     private const string IdMouseoverCasting = "##wisp-pf-mocast";
     private const string IdHighlight = "##wisp-pf-highlight";
+    private const string IdContextMenu = "##wisp-pf-contextmenu";
     private const string IdLeaderGroup = "##wisp-pf-leader";
     private const string IdLeaderSize = "##wisp-pf-leadersize";
     private const string IdLeaderPosition = "##wisp-pf-leaderposition";
@@ -991,6 +992,24 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 true))
         {
             m_config.PartyFrames.ClickToTarget = !m_config.PartyFrames.ClickToTarget;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+
+        if (Chrome.OptionRow(
+                IdContextMenu,
+                Strings.ContextMenu,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.ContextMenu,
+                Chrome.OptionControl.Switch,
+                Strings.ContextMenuTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.ContextMenu = !m_config.PartyFrames.ContextMenu;
             m_config.MarkDirty();
         }
 

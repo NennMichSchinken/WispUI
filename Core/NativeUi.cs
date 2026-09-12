@@ -1,4 +1,6 @@
 using Dalamud.Bindings.ImGui;
+using FFXIVClientStructs.FFXIV.Client.Game.Object;
+using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace WispUI.Core;
@@ -99,6 +101,37 @@ internal static class NativeUi
         }
 
         stage->AtkCursor.SetCursorType(Shape(cursor), true);
+    }
+
+    /// <summary>
+    /// Opens the game's own right-click menu on a party member — the one with Examine, Trade,
+    /// Send Tell and the rest.
+    /// <para>
+    /// Not a menu of ours that looks like the game's: it is the game's, opened by the same call
+    /// its own party list makes, so it carries exactly the entries that member deserves right
+    /// now and whatever other plugins have added to it. Nothing to keep current.
+    /// </para>
+    /// <para>
+    /// It has to exist because the frames take every mouse button (spec §15), and without this
+    /// the right button over a frame would do nothing at all — while over the game's own party
+    /// list it opens this. The frames are meant to replace that list, so they owe it the menu.
+    /// </para>
+    /// </summary>
+    /// <param name="gameObject">The member, as the game's own object. Nothing happens for zero.</param>
+    public static unsafe void OpenContextMenuFor(nint gameObject)
+    {
+        if (gameObject == 0)
+        {
+            return;
+        }
+
+        AgentHUD* hud = AgentHUD.Instance();
+        if (hud is null)
+        {
+            return;
+        }
+
+        hud->OpenContextMenuFromTarget((GameObject*)gameObject);
     }
 
     // Objects in the world still light up behind the window — a postbox under the pointer is

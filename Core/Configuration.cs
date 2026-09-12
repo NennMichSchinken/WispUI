@@ -215,6 +215,16 @@ public sealed class Configuration : IPluginConfiguration
         public bool ClickToTarget { get; set; } = true;
 
         /// <summary>
+        /// Right-click a frame for the game's own menu — Examine, Trade, Send Tell and the rest.
+        /// <para>
+        /// On, and it is the one mouse setting that gives something back rather than adding
+        /// something. The frames take every mouse button, so without this the right button over
+        /// a frame does nothing, where over the game's own party list it opens this menu.
+        /// </para>
+        /// </summary>
+        public bool ContextMenu { get; set; } = true;
+
+        /// <summary>
         /// While the mouse is over a frame, tell the game that member is what it is pointing
         /// at. That is all it takes for the player's own mouseover macros and, with the game's
         /// own mouseover setting on, their hotbar to act on that member.
