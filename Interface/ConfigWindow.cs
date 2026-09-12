@@ -70,6 +70,7 @@ internal sealed class ConfigWindow : Window
         Strings.TabBase,
         Strings.TabIcons,
         Strings.TabLayout,
+        Strings.TabBindings,
         Strings.TabAuras,
     };
 
@@ -128,6 +129,7 @@ internal sealed class ConfigWindow : Window
         m_config = config;
         m_global = new GlobalScreen(config);
         m_global.InfoBarPreferenceChanged += () => this.InfoBarPreferenceChanged?.Invoke();
+
         m_partyFrames = new PartyFramesScreen(config);
         m_appearance = new AppearanceBar(m_clipboard);
 
@@ -558,6 +560,16 @@ internal sealed class ConfigWindow : Window
         if (ImGui.IsItemClicked())
         {
             EditMode.Toggle();
+
+            // 🔴 Turning it on closes this window. Arranging means dragging the very things
+            // the window is covering, and a settings panel in the middle of the screen is the
+            // largest obstacle there is to placing something on that screen (Florian,
+            // 2026-09-12, following LumenUI). Turning it off does not reopen it: that is a
+            // second window appearing without being asked for.
+            if (EditMode.IsActive)
+            {
+                this.IsOpen = false;
+            }
         }
 
         // While it is on the button carries the accent, the way a switch that is doing
@@ -782,6 +794,10 @@ internal sealed class ConfigWindow : Window
             else if (m_screen == Screen.PartyFrames && tab == 2)
             {
                 m_partyFrames.DrawLayout(inner);
+            }
+            else if (m_screen == Screen.PartyFrames && tab == 3)
+            {
+                m_partyFrames.DrawBindings(inner);
             }
             else
             {

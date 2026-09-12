@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Collections.Generic;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Game.ClientState.Conditions;
@@ -30,7 +31,27 @@ internal sealed class HudManager
         ConditionFlag.OccupiedInCutSceneEvent,
     };
 
+    /// <summary>The window edit mode takes the mouse with, and one element's handle inside it.</summary>
+    private const string IdArrange = "##wisp-arrange";
+    private const string IdHandle = "##wisp-arrange-handle";
+
+    /// <summary>
+    /// Everything off, like the frames' own input window: it paints nothing and exists only so
+    /// that ImGui asks for the mouse over the screen while arranging.
+    /// </summary>
+    private const ImGuiWindowFlags ArrangeWindowFlags =
+        ImGuiWindowFlags.NoDecoration
+        | ImGuiWindowFlags.NoMove
+        | ImGuiWindowFlags.NoBackground
+        | ImGuiWindowFlags.NoSavedSettings
+        | ImGuiWindowFlags.NoFocusOnAppearing
+        | ImGuiWindowFlags.NoBringToFrontOnFocus
+        | ImGuiWindowFlags.NoNavFocus;
+
     private readonly List<HudElement> m_elements = new();
+
+    /// <summary>Which element was last picked up, so its outline stays marked.</summary>
+    private int m_selected = -1;
 
     /// <summary>Adds an element. Draw order is the order they are added in (spec §5).</summary>
     public void Add(HudElement element) => m_elements.Add(element);
@@ -48,6 +69,10 @@ internal sealed class HudManager
 
         ImDrawListPtr dl = ImGui.GetBackgroundDrawList();
 
+        // Before anything else, so every element is arranged on top of the wash rather than
+        // under it.
+        EditOverlay.Draw(dl);
+
         for (int i = 0; i < m_elements.Count; i++)
         {
             HudElement element = m_elements[i];
@@ -59,7 +84,117 @@ internal sealed class HudManager
             element.Collect();
             element.Draw(dl);
         }
+
+        if (EditMode.IsActive)
+        {
+            this.Arrange(dl);
+            EditOverlay.DrawBar();
+        }
     }
+
+    /// <summary>
+    /// Lets the elements be dragged, once they have drawn and their bounds are known.
+    /// <para>
+    /// Here rather than in each element, because the physics are the same for all of them and
+    /// only the shape differs — which is what <see cref="HudElement.Bounds"/> is for. It also
+    /// means a new element becomes movable by saying so, with no drag code of its own.
+    /// </para>
+    /// </summary>
+    private void Arrange(ImDrawListPtr dl)
+    {
+        ImGuiIOPtr io = ImGui.GetIO();
+        Vector2 screen = io.DisplaySize;
+
+        // One invisible window over the whole screen. Without a window ImGui never asks for
+        // the mouse and the click goes to the world behind — the same lesson as the frames
+        // themselves (spec §14).
+        ImGui.SetNextWindowPos(Vector2.Zero);
+        ImGui.SetNextWindowSize(screen);
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
+
+        if (ImGui.Begin(IdArrange, ArrangeWindowFlags))
+        {
+            for (int i = 0; i < m_elements.Count; i++)
+            {
+                HudElement element = m_elements[i];
+
+                if (!element.Enabled || !element.Movable)
+                {
+                    continue;
+                }
+
+                element.Bounds(out Vector2 min, out Vector2 max);
+
+                if (max.X <= min.X || max.Y <= min.Y)
+                {
+                    continue;
+                }
+
+                this.ArrangeOne(dl, element, i, min, max, screen, io);
+            }
+
+            NativeUi.KeepGameCursor();
+        }
+
+        ImGui.End();
+        ImGui.PopStyleVar();
+    }
+
+    private void ArrangeOne(
+        ImDrawListPtr dl,
+        HudElement element,
+        int index,
+        Vector2 min,
+        Vector2 max,
+        Vector2 screen,
+        ImGuiIOPtr io)
+    {
+        ImGui.SetCursorScreenPos(min);
+        ImGui.PushID(index);
+        ImGui.InvisibleButton(IdHandle, max - min);
+
+        bool hovered = ImGui.IsItemHovered();
+        bool active = ImGui.IsItemActive();
+
+        if (ImGui.IsItemActivated())
+        {
+            EditMode.BeginDrag(io.MousePos, min);
+            m_selected = index;
+        }
+
+        ImGui.PopID();
+
+        if (active)
+        {
+            Vector2 placed = EditMode.DragTo(io.MousePos, max - min, screen, io.KeyCtrl);
+            element.MoveTo(placed);
+        }
+        else if (EditMode.IsDragging && m_selected == index)
+        {
+            EditMode.EndDrag();
+        }
+
+        if (hovered)
+        {
+            ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeAll);
+        }
+
+        bool marked = hovered || active || m_selected == index;
+        EditOverlay.DrawHandle(dl, min, max, element.Name, marked);
+
+        // The four arrows, in place of the arrow keys the game never lets go of. Only on the
+        // element being worked on, or four sets of them would surround a full HUD.
+        if (marked && !active)
+        {
+            Vector2 step = EditOverlay.DrawNudges(min, max, EditMode.Nudge(io.KeyShift));
+
+            if (step != Vector2.Zero)
+            {
+                element.MoveTo(min + step);
+            }
+        }
+    }
+
 
     private static bool ShouldDraw()
     {

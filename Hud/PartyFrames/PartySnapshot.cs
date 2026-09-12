@@ -1,10 +1,35 @@
 using Dalamud.Game.ClientState.Objects.SubKinds;
+using Dalamud.Game.ClientState.Party;
 using Dalamud.Plugin.Services;
 using WispUI.Core;
 using WispUI.Data;
 using WispUI.Localization;
 
 namespace WispUI.Hud.PartyFrames;
+
+/// <summary>
+/// Where a party member is, as far as the frames need to care.
+/// <para>
+/// 🔴 Told apart by the zone the party list reports for them, not by reading the game's own
+/// party list for the word "Offline" — that is a localised string and would have to be kept
+/// for every client language (Florian, 2026-09-12, asking how other plugins do it; they do it
+/// that way, and we are not going to).
+/// </para>
+/// </summary>
+internal enum PartyPresence
+{
+    /// <summary>Loaded and reporting: everything on the frame is real.</summary>
+    Here = 0,
+
+    /// <summary>In this zone but too far away for the game to load them. They will be back.</summary>
+    OutOfRange = 1,
+
+    /// <summary>In a different zone or instance. Not coming back this pull.</summary>
+    Away = 2,
+
+    /// <summary>No zone at all, which is what a member who has logged out looks like.</summary>
+    Offline = 3,
+}
 
 /// <summary>One party member as the renderer needs them, and nothing more.</summary>
 internal struct PartyMemberSnapshot
@@ -28,6 +53,21 @@ internal struct PartyMemberSnapshot
 
     /// <summary>Whether this member leads the party. Alone, nobody does.</summary>
     public bool IsLeader;
+
+    /// <summary>
+    /// Whether the game is telling us anything real about this member right now.
+    /// <para>
+    /// 🔴 It stops when they are too far away, in another zone, or offline: the party list
+    /// keeps the slot but reports zero for health, which drew a black frame with no fill at
+    /// all until somebody walked back into range (Florian, 2026-09-12, in a real party). A
+    /// frame that says "this person has no health" about somebody who is merely elsewhere is
+    /// worse than saying nothing.
+    /// </para>
+    /// </summary>
+    public bool HasData;
+
+    /// <summary>Why there are no numbers, when there are none.</summary>
+    public PartyPresence Presence;
 
     /// <summary>
     /// Taken from the game's own string once, when this slot starts holding someone else.
@@ -89,6 +129,7 @@ internal sealed class PartySnapshot
     {
         IPartyList party = Services.Party;
         uint leader = party.PartyLeaderIndex;
+        uint here = Services.ClientState.TerritoryType;
         int count = 0;
 
         for (int i = 0; i < party.Length && count < Capacity; i++)
@@ -121,6 +162,11 @@ internal sealed class PartySnapshot
             slot.IsLocalPlayer = entityId == Services.Objects.LocalPlayer?.EntityId;
             slot.IsLeader = i == leader;
 
+            // Zero maximum health is the party list saying it has nothing for this slot.
+            // Current health can legitimately be zero, so it is the maximum that is asked.
+            slot.HasData = member.MaxHP > 0;
+            slot.Presence = slot.HasData ? PartyPresence.Here : Presence(member, here);
+
             count++;
         }
 
@@ -152,6 +198,7 @@ internal sealed class PartySnapshot
             slot.Name = Strings.PreviewName;
             slot.MaxHp = 128000u;
             slot.Hp = slot.MaxHp / 100u * PlaceholderHealth[i];
+            slot.HasData = true;
             slot.MaxMp = 10000u;
             slot.Mp = slot.MaxMp / 100u * PlaceholderMana[i];
             slot.IsLocalPlayer = i == 0;
@@ -160,6 +207,26 @@ internal sealed class PartySnapshot
 
         this.IsSolo = false;
         this.Count = Capacity;
+    }
+
+    /// <summary>
+    /// Why a member has no numbers: the zone the party list still reports for them.
+    /// <para>
+    /// The zone survives the member themselves not being loaded, which is what makes this
+    /// work — somebody across the map still has one, somebody in a different duty has a
+    /// different one, and somebody who has logged out has none at all.
+    /// </para>
+    /// </summary>
+    private static PartyPresence Presence(IPartyMember member, uint here)
+    {
+        uint territory = member.Territory.RowId;
+
+        if (territory == 0)
+        {
+            return PartyPresence.Offline;
+        }
+
+        return territory == here ? PartyPresence.OutOfRange : PartyPresence.Away;
     }
 
     private int CollectLocalPlayer()
@@ -183,6 +250,7 @@ internal sealed class PartySnapshot
         slot.Role = Jobs.Role(slot.JobId);
         slot.Hp = player.CurrentHp;
         slot.MaxHp = player.MaxHp;
+        slot.HasData = true;
         slot.Mp = player.CurrentMp;
         slot.MaxMp = player.MaxMp;
         slot.IsLocalPlayer = true;

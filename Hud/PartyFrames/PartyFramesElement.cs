@@ -129,6 +129,17 @@ internal sealed class PartyFramesElement : HudElement
     private bool m_pointedAt;
 
     /// <summary>
+    /// How strongly the frame being drawn right now is faded. One for a member who is there,
+    /// less for one the game has stopped reporting.
+    /// <para>
+    /// Frame-local drawing state rather than a setting, which is why it lives here and not in
+    /// the configuration: it is set at the top of each member and read by everything that
+    /// paints part of that member.
+    /// </para>
+    /// </summary>
+    private float m_dim = 1f;
+
+    /// <summary>
     /// The job icon per slot, resolved while collecting and only painted while drawing.
     /// Looking a texture up is asking Dalamud a question, and the draw path asks nothing.
     /// </summary>
@@ -149,6 +160,54 @@ internal sealed class PartyFramesElement : HudElement
     public override string Name => Strings.NavPartyFrames;
 
     public override bool Enabled => m_config.PartyFramesEnabled;
+
+    public override bool Movable => true;
+
+    /// <summary>
+    /// The block all the frames together occupy, worked out from what was actually drawn.
+    /// <para>
+    /// From the drawn rectangles rather than recalculated from the settings: the two would
+    /// have to be kept in step by hand, and the one that matters is the one on screen.
+    /// </para>
+    /// </summary>
+    public override void Bounds(out Vector2 min, out Vector2 max)
+    {
+        min = default;
+        max = default;
+        bool any = false;
+
+        for (int i = 0; i < m_snapshot.Count; i++)
+        {
+            if (!m_hasInside[i])
+            {
+                continue;
+            }
+
+            if (!any)
+            {
+                min = m_frameMin[i];
+                max = m_frameMax[i];
+                any = true;
+                continue;
+            }
+
+            min = Vector2.Min(min, m_frameMin[i]);
+            max = Vector2.Max(max, m_frameMax[i]);
+        }
+    }
+
+    /// <summary>
+    /// Takes a screen position and stores it the way the layout does — unscaled, so the
+    /// arrangement is the same shape at any interface scale.
+    /// </summary>
+    public override void MoveTo(Vector2 topLeft)
+    {
+        float scale = Tokens.Scale <= 0f ? 1f : Tokens.Scale;
+
+        m_config.PartyFrames.PositionX = MathF.Round(topLeft.X / scale);
+        m_config.PartyFrames.PositionY = MathF.Round(topLeft.Y / scale);
+        m_config.MarkDirty();
+    }
 
     public override void Collect()
     {
@@ -297,7 +356,18 @@ internal sealed class PartyFramesElement : HudElement
             m_frameMin[i] = min;
             m_frameMax[i] = max;
 
-            dl.AddRectFilled(min, max, Tokens.Col.FrameBg);
+            // 🔴 One factor for the whole frame, set here and read by everything that draws
+            // part of it. Dimming only the bar left a frame whose name, icons and number were
+            // as loud as everybody else's, so it did not read as stepped back at all
+            // (Florian, 2026-09-12).
+            m_dim = member.Presence switch
+            {
+                PartyPresence.Here => 1f,
+                PartyPresence.Offline => Tokens.Metric.OfflineDim,
+                _ => Tokens.Metric.OutOfRangeDim,
+            };
+
+            dl.AddRectFilled(min, max, this.Dim(Tokens.Col.FrameBg));
 
             float healthBottom = innerMax.Y;
             bool mana = ShowsMana(cfg, ref member);
@@ -317,7 +387,9 @@ internal sealed class PartyFramesElement : HudElement
                 }
             }
 
-            uint colour = Tokens.Col.Faded(BarColour(colourMode, ref member), cfg.BarOpacity);
+            // Dimmed rather than recoloured, so the frame is still recognisably that
+            // person's job at a glance.
+            uint colour = this.Dim(Tokens.Col.Faded(BarColour(colourMode, ref member), cfg.BarOpacity));
             float fraction = this.HealthFraction(i, ref member, cfg.SmoothBars, delta);
             Vector2 barMin = innerMin;
             Vector2 barMax = new(innerMax.X, healthBottom);
@@ -344,7 +416,7 @@ internal sealed class PartyFramesElement : HudElement
                 // adds a second line. A bar wide enough to read as a bar gets one.
                 if (manaStyle == ManaStyle.Bar)
                 {
-                    dl.AddRectFilled(manaMin, innerMax, Tokens.Col.BarTrack);
+                    dl.AddRectFilled(manaMin, innerMax, this.Dim(Tokens.Col.BarTrack));
                 }
 
                 if (manaFraction > 0f)
@@ -353,11 +425,11 @@ internal sealed class PartyFramesElement : HudElement
                     dl.AddRectFilled(
                         manaMin,
                         new Vector2(manaRight, innerMax.Y),
-                        Tokens.Col.Faded(Tokens.Col.Mana, cfg.BarOpacity));
+                        this.Dim(Tokens.Col.Faded(Tokens.Col.Mana, cfg.BarOpacity)));
                 }
             }
 
-            dl.AddRect(min, max, Tokens.Col.FrameEdge, 0f, ImDrawFlags.None, border);
+            dl.AddRect(min, max, this.Dim(Tokens.Col.FrameEdge), 0f, ImDrawFlags.None, border);
 
         }
 
@@ -395,6 +467,7 @@ internal sealed class PartyFramesElement : HudElement
             this.DrawJobIcon(dl, cfg, i, ref member, innerMin, innerMax);
             this.DrawLeaderIcon(dl, cfg, ref member, innerMin, innerMax);
             this.DrawTexts(dl, cfg, textMode, i, ref member, innerMin, innerMax);
+            DrawPresenceNote(dl, cfg, ref member, innerMin, innerMax);
             dl.PopClipRect();
         }
     }
@@ -418,7 +491,7 @@ internal sealed class PartyFramesElement : HudElement
         // select, and edit mode wants the same button for dragging.
         if (count == 0
             || EditMode.IsActive
-            || (!cfg.ClickToTarget && !cfg.MouseoverTarget && !cfg.ContextMenu))
+            || (cfg.Bindings.For(LocalJobId()).Count == 0 && !cfg.MouseoverTarget && !cfg.HighlightHovered))
         {
             this.ReleaseMouseOver();
             return;
@@ -493,12 +566,15 @@ internal sealed class PartyFramesElement : HudElement
                 // from the player either way — ImGui captures every button over the block, all
                 // or none (spec §15) — but a button that is claimed and then handed nothing is
                 // worse than one that was never claimed, and this way the flags say which it is.
+                // Every button the bindings could want, which is all of them: ImGui takes them
+                // over this window whatever is asked for here (spec §15), so claiming fewer
+                // would only mean a button that is taken from the player and handed nothing.
                 bool clicked = ImGui.InvisibleButton(
                     IdSlot,
                     m_frameMax[i] - m_frameMin[i],
-                    cfg.ContextMenu
-                        ? ImGuiButtonFlags.MouseButtonLeft | ImGuiButtonFlags.MouseButtonRight
-                        : ImGuiButtonFlags.MouseButtonLeft);
+                    ImGuiButtonFlags.MouseButtonLeft
+                    | ImGuiButtonFlags.MouseButtonRight
+                    | ImGuiButtonFlags.MouseButtonMiddle);
                 bool hovered = ImGui.IsItemHovered();
 
                 // Held down and dragged off the block is still our press. Without this the
@@ -551,26 +627,12 @@ internal sealed class PartyFramesElement : HudElement
                     continue;
                 }
 
-                if (clicked)
-                {
-                    // Which button it was, asked of the frame the button answered on. A button
-                    // set to answer on release reports in the very frame the release happens,
-                    // so the release that is still fresh this frame is the one that did it.
-                    // Right is asked first: it is only ever claimed when it has a menu to open,
-                    // so anything else that got through is the left one.
-                    if (cfg.ContextMenu && ImGui.IsMouseReleased(ImGuiMouseButton.Right))
-                    {
-                        // By place in the game's own party list, not by object — see
-                        // NativeUi.OpenPartyContextMenu. The number on the frame is that
-                        // place, counting from one.
-                        //
-                        NativeUi.OpenPartyContextMenu(members[i].PartyNumber - 1);
-                    }
-                    else if (cfg.ClickToTarget)
-                    {
-                        Services.Targets.Target = target;
-                    }
-                }
+                // The bindings, asked of the frame a release happened on. A button set to
+                // answer on release reports in the very frame of that release, so whichever
+                // button is fresh right now is the one that did it. The two side buttons never
+                // reach the invisible button at all — ImGui has no flag for them — so they are
+                // asked about directly, gated on the frame being hovered.
+                this.Fire(cfg, clicked, hovered, ref members[i], target);
 
                 if (!hovered)
                 {
@@ -605,6 +667,193 @@ internal sealed class PartyFramesElement : HudElement
     }
 
     /// <summary>
+
+    /// <summary>
+    /// Runs whatever the player has bound to the button they just released on this frame.
+    /// <para>
+    /// The set is the one for the job they are on, so the same button is a heal on a White
+    /// Mage and nothing on a Warrior — which is the point of keeping them per job.
+    /// </para>
+    /// </summary>
+    private void Fire(
+        Configuration.PartyFramesConfig cfg,
+        bool clicked,
+        bool hovered,
+        ref PartyMemberSnapshot member,
+        IGameObject target)
+    {
+        int button = ReleasedButton(clicked, hovered);
+
+        if (button < 0)
+        {
+            return;
+        }
+
+        BindingModifiers held = HeldModifiers();
+        System.Collections.Generic.List<MouseBinding> bindings = cfg.Bindings.For(LocalJobId());
+
+        for (int i = 0; i < bindings.Count; i++)
+        {
+            MouseBinding binding = bindings[i];
+
+            if (!binding.Matches(button, held))
+            {
+                continue;
+            }
+
+            switch (binding.Kind)
+            {
+                case BindingKind.Target:
+                    Services.Targets.Target = target;
+                    break;
+
+                case BindingKind.ContextMenu:
+                    // By place in the game's own party list, not by object — see
+                    // NativeUi.OpenPartyContextMenu. The number on the frame is that place,
+                    // counting from one.
+                    NativeUi.OpenPartyContextMenu(member.PartyNumber - 1);
+                    break;
+
+                case BindingKind.Action:
+                    ActionUse.On(binding.ActionId, target.GameObjectId, target.Address);
+                    break;
+            }
+
+            // One binding per press. Two that match the same button and modifiers is a
+            // configuration nobody meant, and running both would be the worse reading of it.
+            return;
+        }
+    }
+
+    /// <summary>
+    /// Which button was just released on this frame, or -1 for none.
+    /// <para>
+    /// The first three come from the invisible button, which answers on release and only
+    /// inside its own area — that is what lets a press slide off a frame without counting,
+    /// the way the game's own party list behaves. The two side buttons have no ImGui flag, so
+    /// they are asked about directly and only while the frame is hovered.
+    /// </para>
+    /// </summary>
+    private static int ReleasedButton(bool clicked, bool hovered)
+    {
+        if (clicked)
+        {
+            if (ImGui.IsMouseReleased(ImGuiMouseButton.Right))
+            {
+                return 1;
+            }
+
+            if (ImGui.IsMouseReleased(ImGuiMouseButton.Middle))
+            {
+                return 2;
+            }
+
+            return 0;
+        }
+
+        if (!hovered)
+        {
+            return -1;
+        }
+
+        if (ImGui.IsMouseReleased((ImGuiMouseButton)3))
+        {
+            return 3;
+        }
+
+        return ImGui.IsMouseReleased((ImGuiMouseButton)4) ? 4 : -1;
+    }
+
+    /// <summary>What is being held right now, as the bindings describe it.</summary>
+    private static BindingModifiers HeldModifiers()
+    {
+        ImGuiIOPtr io = ImGui.GetIO();
+        BindingModifiers held = BindingModifiers.None;
+
+        if (io.KeyCtrl)
+        {
+            held |= BindingModifiers.Ctrl;
+        }
+
+        if (io.KeyShift)
+        {
+            held |= BindingModifiers.Shift;
+        }
+
+        if (io.KeyAlt)
+        {
+            held |= BindingModifiers.Alt;
+        }
+
+        return held;
+    }
+
+    /// <summary>The job the player is on, or zero when there is nobody to ask.</summary>
+    private static uint LocalJobId() => Services.Objects.LocalPlayer?.ClassJob.RowId ?? 0u;
+
+    /// <summary>
+    /// Says what is wrong with a member the game has no numbers for, across the middle of
+    /// their frame.
+    /// <para>
+    /// 🔴 In the middle, not where the health figure goes. The figure is a setting somebody
+    /// can switch off, and this is not — a frame that has stopped reporting has to say so
+    /// whatever else is turned on (Florian, 2026-09-12, who runs without one).
+    /// </para>
+    /// <para>
+    /// Out of range says nothing at all. It is the common case, it lasts a few seconds, and a
+    /// word written across four frames every time the group spreads out is noise. The dimming
+    /// already carries it; the other two are the ones worth a word.
+    /// </para>
+    /// </summary>
+    private static void DrawPresenceNote(
+        ImDrawListPtr dl,
+        Configuration.PartyFramesConfig cfg,
+        ref PartyMemberSnapshot member,
+        Vector2 innerMin,
+        Vector2 innerMax)
+    {
+        if (member.HasData)
+        {
+            return;
+        }
+
+        string note = member.Presence switch
+        {
+            PartyPresence.Offline => Strings.PresenceOffline,
+            PartyPresence.Away => Strings.PresenceAway,
+            _ => string.Empty,
+        };
+
+        if (note.Length == 0)
+        {
+            return;
+        }
+
+        float size = Tokens.Px(cfg.HpTextSize);
+        float width = Ink.MeasureNote(size, note);
+
+        Vector2 at = new(
+            MathF.Round(innerMin.X + (((innerMax.X - innerMin.X) - width) * 0.5f)),
+            MathF.Round(innerMin.Y + (((innerMax.Y - innerMin.Y) - size) * 0.5f)));
+
+        // 🔴 Not styled like the frame's own text, on any of the three counts.
+        //
+        // Grey, not white: the note explains why a frame is quiet, and white is what this
+        // palette keeps for what must be read. Never outlined, whatever the lettering is set
+        // to: an outline makes text cut itself out of the background and shout, which is right
+        // for a name over the world and wrong for this. And always in the interface face,
+        // never the chosen one — a name belongs to the frame and follows the player's taste, a
+        // status the plugin reports does not, and in a serif face it would read as part of the
+        // design rather than as a message (Florian, 2026-09-12).
+        TextEdge edge = cfg.Edge == TextEdge.None ? TextEdge.None : TextEdge.Shadow;
+        Ink.DrawNote(dl, size, at, Tokens.Col.HudInkQuiet, note, edge);
+    }
+
+    /// <summary>
+    /// This colour, faded by however much the frame being drawn is stepped back. A no-op on a
+    /// member who is there, which is nearly always.
+    /// </summary>
+    private uint Dim(uint colour) => m_dim >= 1f ? colour : Tokens.Col.Faded(colour, m_dim);
 
     /// <summary>
     /// A rectangle drawn as four filled bars rather than as a stroke. ImGui centres a stroke
@@ -665,7 +914,7 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        DrawIcon(dl, m_icon[slot], cfg.JobIconSize, cfg.JobIconPosition, cfg.JobIconX, cfg.JobIconY, innerMin, innerMax);
+        this.DrawIcon(dl, m_icon[slot], cfg.JobIconSize, cfg.JobIconPosition, cfg.JobIconX, cfg.JobIconY, innerMin, innerMax);
     }
 
     /// <summary>The leader's mark, on whoever leads. Same anatomy, same placement.</summary>
@@ -681,7 +930,7 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        DrawIcon(dl, m_leaderIcon, cfg.LeaderIconSize, cfg.LeaderIconPosition, cfg.LeaderIconX, cfg.LeaderIconY, innerMin, innerMax);
+        this.DrawIcon(dl, m_leaderIcon, cfg.LeaderIconSize, cfg.LeaderIconPosition, cfg.LeaderIconX, cfg.LeaderIconY, innerMin, innerMax);
     }
 
     /// <summary>
@@ -689,7 +938,7 @@ internal sealed class PartyFramesElement : HudElement
     /// every icon a frame will ever carry — job, leader, raid marker — is placed the same way,
     /// and a second copy of this is a second place to fix a rounding.
     /// </summary>
-    private static void DrawIcon(
+    private void DrawIcon(
         ImDrawListPtr dl,
         ImTextureID icon,
         float size,
@@ -717,7 +966,9 @@ internal sealed class PartyFramesElement : HudElement
         at.X += Tokens.Px(offsetX);
         at.Y += Tokens.Px(offsetY);
 
-        dl.AddImage(icon, at, new Vector2(at.X + side, at.Y + side));
+        // Tinted white at the frame's own fade, so an icon steps back with the rest of it
+        // rather than staying the one bright thing on a frame that has gone quiet.
+        dl.AddImage(icon, at, new Vector2(at.X + side, at.Y + side), Vector2.Zero, Vector2.One, this.Dim(0xFFFFFFFFu));
     }
 
     private void DrawTexts(
@@ -744,7 +995,12 @@ internal sealed class PartyFramesElement : HudElement
             // Your own name is drawn like everyone else's. It used to come out gold, which
             // looked like a state rather than a whose-name-is-this, and the one frame you
             // never have to search for is your own (Florian, 2026-09-12).
-            uint colour = cfg.NameInJobColour ? Jobs.Colour(member.JobId) : Tokens.Col.HudInk;
+            // 🔴 A dimmed frame gets darker text, not just fainter text. White at two thirds
+            // opacity is still white, and on a frame that has stepped back the name was the
+            // one thing still shouting (Florian, 2026-09-12).
+            uint colour = this.Dim(cfg.NameInJobColour
+                ? Jobs.Colour(member.JobId)
+                : (member.HasData ? Tokens.Col.HudInk : Tokens.Col.HudInkQuiet));
 
             Ink.DrawScaledEdged(dl, size, at, colour, name, cfg.Edge);
         }
@@ -817,7 +1073,7 @@ internal sealed class PartyFramesElement : HudElement
         healthAt.X += Tokens.Px(cfg.HpTextX);
         healthAt.Y += Tokens.Px(cfg.HpTextY);
 
-        Ink.DrawScaledEdged(dl, healthSize, healthAt, Tokens.Col.HudInk, health, cfg.Edge);
+        Ink.DrawScaledEdged(dl, healthSize, healthAt, this.Dim(Tokens.Col.HudInk), health, cfg.Edge);
     }
 
     /// <summary>Whether this member is one of the ones mana was switched on for.</summary>
@@ -860,9 +1116,22 @@ internal sealed class PartyFramesElement : HudElement
     /// </summary>
     private float HealthFraction(int slot, ref PartyMemberSnapshot member, bool smooth, float delta)
     {
-        float target = member.MaxHp > 0
-            ? Math.Clamp(member.Hp / (float)member.MaxHp, 0f, 1f)
-            : 0f;
+        // 🔴 A member who is merely unreachable is drawn full, not empty: an empty bar is a
+        // statement about their health, and that is the thing we do not know. Full and dimmed
+        // says "no reading" instead.
+        //
+        // Offline is the exception and is drawn empty, because there it is not a missing
+        // reading — the person is gone, and a full bar would say they are fine (Florian,
+        // 2026-09-12).
+        if (!member.HasData)
+        {
+            float away = member.Presence == PartyPresence.Offline ? 0f : 1f;
+            m_shownHealthFor[slot] = member.EntityId;
+            m_shownHealth[slot] = away;
+            return away;
+        }
+
+        float target = member.MaxHp > 0 ? Math.Clamp(member.Hp / (float)member.MaxHp, 0f, 1f) : 0f;
 
         // A slot that changed hands holds a different person, not a health change: their bar
         // starts where they are rather than sliding out of the last member's value.
@@ -885,6 +1154,15 @@ internal sealed class PartyFramesElement : HudElement
 
     private string HealthFigure(int slot, ref PartyMemberSnapshot member, HealthTextMode mode)
     {
+        // Nothing rather than a number. "0" or "100%" about somebody the game has no reading
+        // for is an invention. What is wrong with them is said in the middle of the frame
+        // instead — see PresenceNote, which has to be somewhere the player has not switched
+        // off (Florian, 2026-09-12, who runs without a health figure).
+        if (!member.HasData)
+        {
+            return string.Empty;
+        }
+
         if (m_healthText[slot] is null
             || m_healthTextMode[slot] != (int)mode
             || m_healthTextHp[slot] != member.Hp

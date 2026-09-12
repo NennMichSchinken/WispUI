@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 5;
+    public const int CurrentVersion = 6;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -130,6 +130,12 @@ public sealed class Configuration : IPluginConfiguration
         /// (Florian, 2026-09-12).
         /// </summary>
         public int TextWeight { get; set; } = 1;
+
+        /// <summary>
+        /// What each mouse button does on a frame, per job. See <see cref="BindingSet"/> for
+        /// why it is per job and what a job answers to before anybody has set it up.
+        /// </summary>
+        public BindingSet Bindings { get; set; } = new();
 
         /// <summary>
         /// The old position in a fixed list of six faces. Nothing writes it any more; it is
@@ -258,19 +264,18 @@ public sealed class Configuration : IPluginConfiguration
         public bool JobIconHideDps { get; set; }
 
         // --- the mouse ----------------------------------------------------------
-        // Both on by default. A unit frame that cannot be clicked is a picture of a unit
-        // frame, and anybody who wanted a picture would not have turned the module on.
 
-        /// <summary>Left-click a frame to select that member.</summary>
+        /// <summary>
+        /// The old switch for selecting on left-click. Nothing reads it any more — it is a
+        /// binding now, and the default binding set does exactly what it did. Kept so the
+        /// migration to version 6 can see whether somebody had turned it off; droppable once
+        /// no stored configuration is older than that.
+        /// </summary>
         public bool ClickToTarget { get; set; } = true;
 
         /// <summary>
-        /// Right-click a frame for the game's own menu — Examine, Trade, Send Tell and the rest.
-        /// <para>
-        /// On, and it is the one mouse setting that gives something back rather than adding
-        /// something. The frames take every mouse button, so without this the right button over
-        /// a frame does nothing, where over the game's own party list it opens this menu.
-        /// </para>
+        /// The old switch for the right-click menu, in the same position as
+        /// <see cref="ClickToTarget"/> and kept for the same reason.
         /// </summary>
         public bool ContextMenu { get; set; } = true;
 
@@ -495,5 +500,48 @@ public sealed class Configuration : IPluginConfiguration
                 _ => Style.FontLibrary.DefaultName,
             };
         }
+
+        if (config.Version < 6)
+        {
+            // Selecting and the right-click menu were two switches and are now bindings. A
+            // job with no entry answers to the defaults, which do exactly what the two
+            // switches did when both were on — so only somebody who had turned one off needs
+            // anything written down, and for them it is written down for every job at once.
+            if (config.PartyFrames.ClickToTarget && config.PartyFrames.ContextMenu)
+            {
+                return;
+            }
+
+            System.Collections.Generic.List<MouseBinding> kept = new();
+
+            if (config.PartyFrames.ClickToTarget)
+            {
+                kept.Add(new MouseBinding { Button = 0, Kind = BindingKind.Target });
+            }
+
+            if (config.PartyFrames.ContextMenu)
+            {
+                kept.Add(new MouseBinding { Button = 1, Kind = BindingKind.ContextMenu });
+            }
+
+            foreach ((uint id, _) in Data.JobList.Order)
+            {
+                config.PartyFrames.Bindings.ByJob[id] = Clone(kept);
+            }
+        }
+    }
+
+    /// <summary>A fresh copy per job, so editing one job's bindings never moves another's.</summary>
+    private static System.Collections.Generic.List<MouseBinding> Clone(
+        System.Collections.Generic.List<MouseBinding> source)
+    {
+        System.Collections.Generic.List<MouseBinding> copy = new(source.Count);
+
+        for (int i = 0; i < source.Count; i++)
+        {
+            copy.Add(source[i].Clone());
+        }
+
+        return copy;
     }
 }

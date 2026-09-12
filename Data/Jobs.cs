@@ -48,7 +48,7 @@ internal enum JobRole
 internal static class Jobs
 {
     /// <summary>One past the highest ClassJob row id we know (PCT is 42).</summary>
-    private const int Count = 43;
+    private const int Count = 44;
 
     /// <summary>
     /// Job icons run in sets of a hundred from 62000, and a job's icon is its row id added to
@@ -98,6 +98,11 @@ internal static class Jobs
         Set(35, JobRole.Dps, 0xE87B7B); // Red Mage
         Set(42, JobRole.Dps, 0xFC92E1); // Pictomancer — measured off an FF Logs chart
         Set(36, JobRole.Dps, 0x4B48FF); // Blue Mage — chosen by hand, never ranked, so nothing to take
+
+        // ⚠️ NOT MEASURED. Beastmaster is a limited job and is never ranked, so there is no FF
+        // Logs value to take; this is the orange of its own job icon, picked by eye. Worth
+        // replacing with a pipetted one (Florian, 2026-09-12, reported it drawing white).
+        Set(43, JobRole.Dps, 0xA8732B); // Beastmaster
 
         // The classes a job grows out of. They keep the job's colour and role, so a party
         // member below level 30 is not suddenly uncoloured.

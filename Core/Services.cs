@@ -56,6 +56,12 @@ internal sealed class Services
     [PluginService] internal static ITextureProvider Textures { get; private set; } = null!;
 
     /// <summary>
+    /// The game's own data sheets. Read at load and cached — never from a draw path, where a
+    /// sheet lookup is one of the things the performance rules forbid outright (§7.3).
+    /// </summary>
+    [PluginService] internal static IDataManager Data { get; private set; } = null!;
+
+    /// <summary>
     /// Who the player has selected, and what the game thinks the mouse is over. Both are
     /// settable, which is what lets a frame of ours behave like the game's own party list —
     /// and it means no writing into game memory for either (verified 2026-09-12).

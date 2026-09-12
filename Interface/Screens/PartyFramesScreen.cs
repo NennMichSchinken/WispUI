@@ -45,11 +45,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdManaHealers = "##wisp-pf-manahealers";
     private const string IdManaDps = "##wisp-pf-manadps";
     private const string IdMouseGroup = "##wisp-pf-mouse";
-    private const string IdClickToTarget = "##wisp-pf-clicktarget";
     private const string IdMouseover = "##wisp-pf-mouseover";
     private const string IdMouseoverCasting = "##wisp-pf-mocast";
     private const string IdHighlight = "##wisp-pf-highlight";
-    private const string IdContextMenu = "##wisp-pf-contextmenu";
     private const string IdLeaderGroup = "##wisp-pf-leader";
     private const string IdLeaderSize = "##wisp-pf-leadersize";
     private const string IdLeaderPosition = "##wisp-pf-leaderposition";
@@ -67,6 +65,14 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdTextEdge = "##wisp-pf-textedge";
     private const string IdTextWeight = "##wisp-pf-textweight";
     private const string IdTextStyleGroup = "##wisp-pf-textstyle";
+    private const string IdBindingsGroup = "##wisp-pf-bindings";
+    private const string IdBindingKey = "##wisp-pf-bindkey";
+    private const string IdBindingJob = "##wisp-pf-bindjob";
+    private const string IdBindingAction = "##wisp-pf-bindaction";
+    private const string IdBindingAdd = "##wisp-pf-bindadd";
+    private const string IdBindingRemoveRow = "##wisp-pf-bindremoverow";
+    private const string IdBindingName = "##wisp-pf-bindname";
+    private const string IdBindingOn = "##wisp-pf-bindon";
     private const string IdIconPosition = "##wisp-pf-iconposition";
     private const string IdIconX = "##wisp-pf-iconx";
     private const string IdIconY = "##wisp-pf-icony";
@@ -213,6 +219,16 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private readonly ArrowSelector<Anchor> m_namePosition;
     private readonly ArrowSelector<HealthTextMode> m_healthMode;
     private readonly ArrowSelector<FontChoice> m_font;
+    private readonly ArrowSelector<JobEntry> m_jobSelector;
+    private readonly ArrowSelector<ActionEntry> m_actionPicker;
+
+    /// <summary>Which job the bindings tab is showing, and which row is waiting for a press.</summary>
+    private int m_bindingJob = -1;
+    private int m_listening = -1;
+
+    /// <summary>The actions the picker offers, refilled when the job changes.</summary>
+    private readonly System.Collections.Generic.List<ActionEntry> m_actionChoices = new();
+    private uint m_choicesFor = uint.MaxValue;
     private readonly ArrowSelector<Anchor> m_healthPosition;
     private readonly ArrowSelector<string> m_manaStyle;
     private readonly ArrowSelector<Anchor> m_iconPosition;
@@ -303,6 +319,56 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 EnablePopupList = true,
                 EnableSearch = true,
                 ShowCounter = false,
+            });
+
+        // Twenty-one jobs is well past what two arrows are for, so this one carries the popup
+        // and its search — the same reasoning as the font list.
+        m_jobSelector = new ArrowSelector<JobEntry>(
+            IdBindingJob,
+            JobList.All,
+            new ArrowSelectorOptions<JobEntry>
+            {
+                Label = static job => job.Name,
+                EnablePopupList = true,
+                EnableSearch = true,
+                ShowCounter = false,
+            });
+
+        // The one list that changes while the window is open: it holds whatever the chosen
+        // job can aim at a party member, and is refilled in place when that job changes.
+        m_actionPicker = new ArrowSelector<ActionEntry>(
+            IdBindingAction,
+            m_actionChoices,
+            new ArrowSelectorOptions<ActionEntry>
+            {
+                Label = static action => action.Name,
+                EnablePopupList = true,
+                EnableSearch = true,
+                ShowCounter = false,
+
+                // No arrows and no box. Stepping through a job's whole action list one at a
+                // time is not a way anybody would use it, and a field drawn round the name
+                // would make the row read as two settings rather than one binding (Florian,
+                // 2026-09-12).
+                HideArrows = true,
+                Flat = true,
+
+                // The action's own icon, which is how a spell is recognised before its name is
+                // read. Icons.Handle caches the lookup and hands back a null handle for
+                // anything not loaded, which the selector simply does not draw.
+                // Square, because an action icon is. The default preview strip is wide and
+                // short for bar fills, and an icon stretched into it comes out smeared.
+                PreviewSize = Tokens.Px(22f, 22f),
+
+                DrawPreview = static (dl, action, min, max) =>
+                {
+                    ImTextureID icon = Icons.Handle(action.Icon);
+
+                    if (!icon.IsNull)
+                    {
+                        dl.AddImage(icon, min, max);
+                    }
+                },
             });
 
         m_iconPosition = new ArrowSelector<Anchor>(
@@ -1014,41 +1080,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         }
 
         rowY += pitch;
-
-        if (Chrome.OptionRow(
-                IdClickToTarget,
-                Strings.ClickToTarget,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.ClickToTarget,
-                Chrome.OptionControl.Switch,
-                Strings.ClickToTargetTooltip,
-                true,
-                true))
-        {
-            m_config.PartyFrames.ClickToTarget = !m_config.PartyFrames.ClickToTarget;
-            m_config.MarkDirty();
-        }
-
-        rowY += pitch;
-
-        if (Chrome.OptionRow(
-                IdContextMenu,
-                Strings.ContextMenu,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.ContextMenu,
-                Chrome.OptionControl.Switch,
-                Strings.ContextMenuTooltip,
-                true,
-                true))
-        {
-            m_config.PartyFrames.ContextMenu = !m_config.PartyFrames.ContextMenu;
-            m_config.MarkDirty();
-        }
-
         rowY += pitch;
 
         if (Chrome.OptionRow(
@@ -1188,6 +1219,306 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         Chrome.EndGroupContent(group, used);
         contentHeight = used;
         return group;
+    }
+
+    /// <summary>
+    /// The Bindings tab: what each mouse button does on a frame, for one job at a time.
+    /// <para>
+    /// A job at the top and a list under it, because the bindings are per job and there is no
+    /// reading of the list that makes sense without knowing which job it belongs to.
+    /// </para>
+    /// </summary>
+    public void DrawBindings(float width)
+    {
+        Vector2 origin = ImGui.GetCursorScreenPos();
+        float y = origin.Y;
+
+        // 🔴 The one group in the suite that takes the full width, and the one row that
+        // carries two controls. The grammar everywhere else — one setting, one control, half
+        // the width — is what keeps a settings screen readable, and a binding is not a
+        // setting: it is a pair, and the pair is the thing. Splitting "this action" from
+        // "this button" across two rows would be two halves of one sentence (Florian,
+        // 2026-09-12, pointing at LumenUI's own bindings screen).
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope group = this.DrawBindingList(origin.X, y, width, out float height);
+        y += Chrome.GroupFrame(group, height) + Tokens.Metric.ColumnGutter;
+
+        ImGui.SetCursorScreenPos(origin);
+        ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
+    }
+
+    private Chrome.GroupScope DrawBindingList(float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdBindingsGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupBindings,
+                Description = Strings.GroupBindingsHint,
+            },
+            x,
+            y,
+            width);
+
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
+
+        // Which job is being set up. Defaults to the one being played, so opening the tab
+        // mid-session lands on the list that is actually in force.
+        if (m_bindingJob < 0)
+        {
+            m_bindingJob = Math.Max(0, JobList.IndexOf(Services.Objects.LocalPlayer?.ClassJob.RowId ?? 0u));
+        }
+
+        int job = m_bindingJob;
+        if (m_jobSelector.Draw(
+                ref job,
+                Chrome.Row(Strings.BindingJob, group.ContentX, rowY, group.ContentWidth, true, Strings.BindingJobTooltip),
+                rowY,
+                Chrome.ControlWidth()))
+        {
+            m_bindingJob = job;
+            m_listening = -1;
+        }
+
+        rowY += pitch;
+
+        JobEntry entry = JobList.At(m_bindingJob);
+        this.SyncActionChoices(entry.Id);
+
+        System.Collections.Generic.List<MouseBinding> bindings = m_config.PartyFrames.Bindings.Edit(entry.Id);
+
+        rowY = this.DrawBindingRows(group, bindings, entry, rowY, pitch);
+
+        float used = rowY - group.ContentY + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
+
+    /// <summary>
+    /// One row per binding, plus the button that adds another.
+    /// <para>
+    /// A row reads as one thing with a key beside it: what it does on the left — an icon and a
+    /// name, clickable when there is a list behind it — then the button that triggers it, a
+    /// switch, and, for the ones that were added, a way to take them away.
+    /// </para>
+    /// <para>
+    /// 🔴 The one group in the suite that takes the full width, and the one row that carries
+    /// more than one control. Everywhere else that grammar is what keeps a settings screen
+    /// readable; a binding is not a setting but a pair, and half of a pair says nothing.
+    /// </para>
+    /// </summary>
+    private float DrawBindingRows(
+        Chrome.GroupScope group,
+        System.Collections.Generic.List<MouseBinding> bindings,
+        JobEntry job,
+        float rowY,
+        float pitch)
+    {
+        ActionEntry[] actions = ActionList.For(job.Id);
+
+        float toggleWidth = Tokens.Px(30f);
+        float trash = Tokens.Metric.TitleButton;
+        float gap = Tokens.Space.Md;
+
+        float trashX = group.ContentX + group.ContentWidth - trash;
+        float toggleX = trashX - gap - toggleWidth;
+        float keyX = toggleX - gap - Chrome.KeybindWidth();
+        float nameWidth = keyX - gap - group.ContentX;
+
+        int remove = -1;
+
+        for (int i = 0; i < bindings.Count; i++)
+        {
+            MouseBinding binding = bindings[i];
+            bool listening = m_listening == i;
+            int button = binding.Button;
+            int mods = (int)binding.Modifiers;
+
+            ImGui.PushID(i);
+
+            if (i > 0)
+            {
+                Chrome.RowDivider(group.ContentX, group.ContentX + group.ContentWidth, rowY);
+            }
+
+            if (binding.Kind == BindingKind.Action)
+            {
+                int pick = this.ActionIndex(binding.ActionId);
+
+                if (m_actionPicker.Draw(ref pick, group.ContentX, rowY, nameWidth)
+                    && pick >= 0 && pick < m_actionChoices.Count)
+                {
+                    binding.ActionId = m_actionChoices[pick].Id;
+                    m_config.MarkDirty();
+                }
+            }
+            else
+            {
+                // Nothing to choose: this row does one built-in thing and says so. Drawn the
+                // same shape as the picker beside it so the column still lines up.
+                Chrome.BindingName(
+                    IdBindingName,
+                    group.ContentX,
+                    rowY,
+                    nameWidth,
+                    default,
+                    binding.Kind == BindingKind.Target ? Strings.BindingTarget : Strings.BindingContextMenu,
+                    false,
+                    true);
+            }
+
+            if (Chrome.KeybindField(IdBindingKey, keyX, rowY, ref listening, ref button, ref mods))
+            {
+                binding.Button = button;
+                binding.Modifiers = (BindingModifiers)mods;
+                m_config.MarkDirty();
+            }
+
+            if (Chrome.BindingToggle(IdBindingOn, toggleX, rowY, binding.Enabled))
+            {
+                binding.Enabled = !binding.Enabled;
+                m_config.MarkDirty();
+            }
+
+            // 🔴 Only a row that was added can be taken away. Selecting and the game's menu
+            // stay: a frame with no way to select anybody is not a state somebody arrives at
+            // on purpose, and the switch beside it already covers turning one off (Florian,
+            // 2026-09-12).
+            if (binding.Removable)
+            {
+                float trashY = MathF.Round(rowY + ((Chrome.RowHeight() - trash) * 0.5f));
+
+                if (Chrome.CloseButton(IdBindingRemoveRow, trashX, trashY))
+                {
+                    remove = i;
+                }
+            }
+
+            ImGui.PopID();
+
+            m_listening = listening ? i : (m_listening == i ? -1 : m_listening);
+            rowY += pitch;
+        }
+
+        // After the loop, never inside it: taking a row out while walking the list is how a
+        // row gets skipped and an index ends up pointing at the wrong binding.
+        if (remove >= 0)
+        {
+            bindings.RemoveAt(remove);
+            m_listening = -1;
+            m_config.MarkDirty();
+        }
+
+        return this.DrawAddBinding(group, bindings, actions, rowY);
+    }
+
+    /// <summary>
+    /// The button that adds a binding. A pill under the list rather than a bar across it: it
+    /// is one more thing you can do with the list, not a row of the list.
+    /// </summary>
+    private float DrawAddBinding(
+        Chrome.GroupScope group,
+        System.Collections.Generic.List<MouseBinding> bindings,
+        ActionEntry[] actions,
+        float rowY)
+    {
+        if (actions.Length == 0)
+        {
+            // A tank has nothing to aim at a party member. Saying so is better than a button
+            // that adds a row with an empty list in it.
+            Ink.Draw(
+                ImGui.GetWindowDrawList(),
+                Ink.Role.Small,
+                new Vector2(group.ContentX, rowY + Tokens.Space.Sm),
+                Tokens.Col.InkFaint,
+                Strings.BindingNoActions);
+
+            return rowY + Chrome.RowPitch();
+        }
+
+        Chrome.RowDivider(group.ContentX, group.ContentX + group.ContentWidth, rowY);
+
+        if (Chrome.PillButton(IdBindingAdd, Strings.BindingAdd, group.ContentX, rowY))
+        {
+            bindings.Add(new MouseBinding
+            {
+                Kind = BindingKind.Action,
+                ActionId = actions[0].Id,
+
+                // Middle by default, because left and right are already spoken for and a new
+                // row that silently shadowed one of them would be the worst first impression
+                // this tab could make. It is meant to be changed straight away.
+                Button = 2,
+            });
+
+            m_config.MarkDirty();
+        }
+
+        return rowY + Chrome.RowPitch();
+    }
+
+    /// <summary>Where an action sits in the picker's list, or the first entry when it is gone.</summary>
+    private int ActionIndex(uint actionId)
+    {
+        for (int i = 0; i < m_actionChoices.Count; i++)
+        {
+            if (m_actionChoices[i].Id == actionId)
+            {
+                return i;
+            }
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Refills the action list the picker holds, when the job it is showing has changed.
+    /// <para>
+    /// The same list object is kept and its contents replaced, because a selector holds the
+    /// reference it was built with. Refilled only on a change, so this costs a comparison on
+    /// every frame but the one where the job was switched.
+    /// </para>
+    /// </summary>
+    private void SyncActionChoices(uint jobId)
+    {
+        if (m_choicesFor == jobId)
+        {
+            return;
+        }
+
+        m_choicesFor = jobId;
+        m_actionChoices.Clear();
+        m_actionChoices.AddRange(ActionList.For(jobId));
+    }
+
+    /// <summary>
+    /// What a binding is called in its row: the action's own name, or what the two built-in
+    /// kinds do. An action the job no longer has falls back to its number rather than to an
+    /// empty row, so it can still be seen and removed.
+    /// </summary>
+    private string BindingLabel(MouseBinding binding, ActionEntry[] actions)
+    {
+        switch (binding.Kind)
+        {
+            case BindingKind.Target:
+                return Strings.BindingTarget;
+
+            case BindingKind.ContextMenu:
+                return Strings.BindingContextMenu;
+
+            default:
+                for (int i = 0; i < actions.Length; i++)
+                {
+                    if (actions[i].Id == binding.ActionId)
+                    {
+                        return actions[i].Name;
+                    }
+                }
+
+                return Strings.BindingAction;
+        }
     }
 
     /// <summary>The leader's mark. The same four rows every badge on a frame gets.</summary>

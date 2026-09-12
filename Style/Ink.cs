@@ -226,6 +226,60 @@ internal static class Ink
         DrawScaled(dl, pixels, pos, colour, text);
     }
 
+    /// <summary>
+    /// Writes a string at a chosen pixel size in the <em>interface</em> face — Axis — whatever
+    /// the HUD has been set to.
+    /// <para>
+    /// 🔴 For what the plugin says, as opposed to what the frame shows. A name, a health
+    /// figure and a party number belong to the frame and follow the player's chosen face; a
+    /// status the plugin reports does not, and in a serif face it would read as part of the
+    /// design rather than as a message (Florian, 2026-09-12). Axis is also what the game
+    /// itself states conditions in.
+    /// </para>
+    /// </summary>
+    public static void DrawNote(ImDrawListPtr dl, float pixels, Vector2 pos, uint colour, string text, TextEdge edge)
+    {
+        float offset = EdgeWidth(pixels);
+
+        if (edge == TextEdge.Shadow)
+        {
+            DrawInterface(dl, pixels, Snap(pos, offset, offset), Style.Tokens.Col.HudTextShadow, text);
+        }
+
+        DrawInterface(dl, pixels, pos, colour, text);
+    }
+
+    /// <summary>How wide a string is at this size in the interface face.</summary>
+    public static float MeasureNote(float pixels, string text)
+    {
+        int role = (int)RoleFor(pixels);
+        float native = Sizes[role];
+
+        if (native <= 0f || Fonts[role].IsNull)
+        {
+            return 0f;
+        }
+
+        ImGui.PushFont(Fonts[role]);
+        float width = ImGui.CalcTextSize(text).X;
+        ImGui.PopFont();
+
+        return width * (pixels / native);
+    }
+
+    private static void DrawInterface(ImDrawListPtr dl, float pixels, Vector2 pos, uint colour, string text)
+    {
+        int role = (int)RoleFor(pixels);
+
+        if (Fonts[role].IsNull)
+        {
+            dl.AddText(pos, colour, text);
+            return;
+        }
+
+        dl.AddText(Fonts[role], pixels, pos, colour, text);
+    }
+
     /// <summary>Writes a string at a chosen pixel size, in the face the HUD was set to.</summary>
     public static void DrawScaled(ImDrawListPtr dl, float pixels, Vector2 pos, uint colour, string text)
     {

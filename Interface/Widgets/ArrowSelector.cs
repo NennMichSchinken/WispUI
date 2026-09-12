@@ -45,6 +45,40 @@ internal sealed class ArrowSelectorOptions<T>
     /// which is worth more than saving a few clicks on the way round.
     /// </summary>
     public bool WrapAround { get; init; }
+
+    /// <summary>
+    /// Drops the two arrows and leaves the face on its own, as a plain dropdown.
+    /// <para>
+    /// For a list nobody walks one step at a time. Arrows are what makes this control worth
+    /// having when the choices are few and each one is worth seeing on the way past — nine
+    /// bar styles, three colour modes. Against a job's whole action list they are furniture
+    /// that suggests a way of using it nobody would (Florian, 2026-09-12).
+    /// </para>
+    /// </summary>
+    public bool HideArrows { get; init; }
+
+    /// <summary>
+    /// Drops the box as well: no edge, no filled face, just what the item looks like and what
+    /// it is called, with the whole strip clickable.
+    /// <para>
+    /// For a list that reads as a list rather than as a form. On a bindings row the left-hand
+    /// side is a statement of what the binding does, and a field drawn round it would make the
+    /// row look like two settings side by side instead of one thing with a key beside it
+    /// (Florian, 2026-09-12).
+    /// </para>
+    /// </summary>
+    public bool Flat { get; init; }
+
+    /// <summary>
+    /// How large the preview is drawn, or null for the default strip.
+    /// <para>
+    /// The default is wide and short, which is the right shape for what previews were built
+    /// for — a bar fill, a texture, a gradient. An icon is square, and stretched into that
+    /// strip it comes out smeared (Florian, 2026-09-12). The shape belongs to what is being
+    /// previewed, so the caller says.
+    /// </para>
+    /// </summary>
+    public Vector2? PreviewSize { get; init; }
 }
 
 /// <summary>
@@ -128,20 +162,27 @@ internal sealed class ArrowSelector<T>
         bool atStart = !wrap && index == 0;
         bool atEnd = !wrap && index == count - 1;
 
+        bool bare = m_options.HideArrows;
         bool changed = false;
-        if (this.Arrow(dl, m_idPrev, x, y, arrow, height, true, !atStart, Strings.SelectorAtStart))
+
+        if (!bare)
         {
-            index = Step(index, -1, count, wrap);
-            changed = true;
+            if (this.Arrow(dl, m_idPrev, x, y, arrow, height, true, !atStart, Strings.SelectorAtStart))
+            {
+                index = Step(index, -1, count, wrap);
+                changed = true;
+            }
+
+            if (this.Arrow(dl, m_idNext, x + width - arrow, y, arrow, height, false, !atEnd, Strings.SelectorAtEnd))
+            {
+                index = Step(index, 1, count, wrap);
+                changed = true;
+            }
         }
 
-        if (this.Arrow(dl, m_idNext, x + width - arrow, y, arrow, height, false, !atEnd, Strings.SelectorAtEnd))
-        {
-            index = Step(index, 1, count, wrap);
-            changed = true;
-        }
-
-        bool faceClicked = this.DrawFace(dl, index, count, x + arrow, y, width - (arrow * 2f), height, out bool focused);
+        float faceX = bare ? x : x + arrow;
+        float faceWidth = bare ? width : width - (arrow * 2f);
+        bool faceClicked = this.DrawFace(dl, index, count, faceX, y, faceWidth, height, out bool focused);
 
         // The whole group is outlined as one object, with a hairline where the arrows meet
         // the face. Three separate boxes with gaps between them would be three targets to
@@ -149,9 +190,17 @@ internal sealed class ArrowSelector<T>
         Vector2 groupMin = new(x, y);
         Vector2 groupMax = new(x + width, y + height);
         float line = Tokens.Line(1f);
-        dl.AddRect(groupMin, groupMax, Tokens.Col.ControlEdge, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll, line);
-        dl.AddRectFilled(new Vector2(x + arrow - line, y), new Vector2(x + arrow, y + height), Tokens.Col.ControlEdge);
-        dl.AddRectFilled(new Vector2(x + width - arrow, y), new Vector2(x + width - arrow + line, y + height), Tokens.Col.ControlEdge);
+
+        if (!m_options.Flat)
+        {
+            dl.AddRect(groupMin, groupMax, Tokens.Col.ControlEdge, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll, line);
+        }
+
+        if (!bare)
+        {
+            dl.AddRectFilled(new Vector2(x + arrow - line, y), new Vector2(x + arrow, y + height), Tokens.Col.ControlEdge);
+            dl.AddRectFilled(new Vector2(x + width - arrow, y), new Vector2(x + width - arrow + line, y + height), Tokens.Col.ControlEdge);
+        }
 
         // The arrow keys do what the arrow buttons do, as long as the control has the focus.
         if (focused)
@@ -300,7 +349,11 @@ internal sealed class ArrowSelector<T>
         focused = ImGui.IsItemFocused();
 
         bool openable = m_options.EnablePopupList;
-        dl.AddRectFilled(min, max, hovered && openable ? Tokens.Col.Panel : Tokens.Col.Input);
+
+        if (!m_options.Flat)
+        {
+            dl.AddRectFilled(min, max, hovered && openable ? Tokens.Col.Panel : Tokens.Col.Input);
+        }
 
         T item = m_items[index];
         float pad = Tokens.Metric.SelectorPaddingX;
@@ -309,7 +362,7 @@ internal sealed class ArrowSelector<T>
 
         if (m_options.DrawPreview is not null)
         {
-            Vector2 swatch = Tokens.Metric.SelectorSwatch;
+            Vector2 swatch = m_options.PreviewSize ?? Tokens.Metric.SelectorSwatch;
             float swatchTop = MathF.Round(y + ((height - swatch.Y) * 0.5f));
             Vector2 swatchMin = new(left, swatchTop);
             Vector2 swatchMax = new(left + swatch.X, swatchTop + swatch.Y);
@@ -370,8 +423,14 @@ internal sealed class ArrowSelector<T>
         float pad = Tokens.Metric.PopupPadding;
         float rowHeight = Tokens.Metric.PopupRowHeight;
 
+        // 🔴 Never wider than the list needs, whatever the control under it is. On a bindings
+        // row the name takes most of the row, and a popup that matched it was a column of
+        // short names in a very wide box (Florian, 2026-09-12). It still may not be narrower
+        // than the control, or it would look like it belongs to something else.
+        float popupWidth = MathF.Min(width, Tokens.Metric.PopupMaxWidth);
+
         ImGui.SetNextWindowPos(new Vector2(x, y));
-        ImGui.SetNextWindowSize(new Vector2(width, 0f));
+        ImGui.SetNextWindowSize(new Vector2(popupWidth, 0f));
 
         // A popup takes its rounding and its border from the popup style vars, not from the
         // window ones — setting WindowBorderSize here leaves it with no border at all.
@@ -490,7 +549,7 @@ internal sealed class ArrowSelector<T>
         float left = min.X + Tokens.Space.Md;
         if (m_options.DrawPreview is not null)
         {
-            Vector2 swatch = Tokens.Metric.PopupSwatch;
+            Vector2 swatch = m_options.PreviewSize ?? Tokens.Metric.PopupSwatch;
             float top = MathF.Round(min.Y + ((rowHeight - swatch.Y) * 0.5f));
             m_options.DrawPreview(dl, item, new Vector2(left, top), new Vector2(left + swatch.X, top + swatch.Y));
             left += swatch.X + Tokens.Space.Md;

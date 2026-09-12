@@ -20,6 +20,8 @@ internal static class Strings
     // --- Window chrome ------------------------------------------------------
     public const string Defaults = "Defaults";
     public const string EditMode = "Edit Mode";
+    public const string EditModeKeys = "Drag or use the arrows  ·  Shift for 10  ·  Ctrl ignores the guides";
+    public const string EditModeDone = "Done";
     public const string NewBadge = "New";
     public const string Soon = "Soon";
 
@@ -146,6 +148,38 @@ internal static class Strings
     public const string HighlightHoveredTooltip = "The game's own party list marks it too.";
     public const string ClickToTarget = "Click to select";
     public const string ClickToTargetTooltip = "Left-click a frame to target that member.";
+    // --- party frames: presence ----------------------------------------------
+    // What a frame says instead of a health figure when the game has no numbers for that
+    // member. Short, because it sits where a number sits.
+    public const string PresenceOutOfRange = "Out of range";
+    public const string PresenceAway = "Elsewhere";
+    public const string PresenceOffline = "Offline";
+
+    // --- bindings -----------------------------------------------------------
+    public const string TabBindings = "Bindings";
+    public const string GroupBindings = "Mouse bindings";
+    public const string GroupBindingsHint = "What each button does on a frame. Kept per job.";
+    public const string BindingJob = "Job";
+    public const string BindingJobTooltip = "Bindings are kept per job, because what a button should do depends on what you play.";
+    public const string BindingAdd = "Add binding";
+    public const string BindingRemove = "Remove";
+    public const string BindingAction = "Action";
+    public const string BindingTarget = "Select target";
+    public const string BindingContextMenu = "Game menu";
+    public const string BindingsEmpty = "Nothing bound. This job's frames will not answer the mouse.";
+    public const string BindingsReset = "Reset to defaults";
+    public const string BindingNoActions = "This job has nothing that can be aimed at a party member.";
+
+    public const string KeybindListening = "Press a button…";
+    public const string ModCtrl = "Ctrl";
+    public const string ModShift = "Shift";
+    public const string ModAlt = "Alt";
+    public const string MouseLeft = "Left";
+    public const string MouseRight = "Right";
+    public const string MouseMiddle = "Middle";
+    public const string MouseFour = "Mouse 4";
+    public const string MouseFive = "Mouse 5";
+
     // --- lettering ----------------------------------------------------------
     public const string GroupLettering = "Lettering";
     public const string GroupLetteringHint = "The face every text on a frame is set in, and what carries it over the world.";

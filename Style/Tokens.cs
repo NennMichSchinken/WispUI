@@ -238,6 +238,36 @@ internal static class Tokens
         public static readonly uint HudInk = 0xFFFFFFFFu;
 
         /// <summary>
+        /// Text on a HUD element that is not the thing to read: a name on a frame that has
+        /// stepped back, and the note that says why it has.
+        /// <para>
+        /// A darker grey rather than white at lower opacity. White stays white however faint
+        /// it is drawn — on a dimmed frame the name was still the loudest thing on it, and
+        /// "Offline" in white read as an alarm rather than as an explanation (Florian,
+        /// 2026-09-12). Opacity says how present something is; colour says how important.
+        /// </para>
+        /// </summary>
+        public static readonly uint HudInkQuiet = Rgb(0x9A9A9A);
+
+        // --- edit mode ---------------------------------------------------------
+
+        /// <summary>
+        /// The wash over the world while the HUD is being arranged. Dark and gentle: it has to
+        /// quiet the world enough that an edge can be judged, without hiding what the frames
+        /// will actually sit against.
+        /// </summary>
+        public static readonly uint EditWash = 0x8C0A0A0Au;
+
+        /// <summary>The two centre lines, and the outline of an element at rest.</summary>
+        public static readonly uint EditAxis = 0x70FFFFFFu;
+
+        /// <summary>A line that is holding a drag, and the outline of the element under the hand.</summary>
+        public static readonly uint EditGuide = 0xFFD8B567u;
+
+        /// <summary>Behind an element's name while it is being arranged.</summary>
+        public static readonly uint EditLabelBg = 0xD2141314u;
+
+        /// <summary>
         /// The three roles, MEASURED off the game's own role markers (Florian, 2026-09-11).
         /// Not to be "improved" by eye: a player reads these three before they read a name,
         /// and any drift from the game's own blue, green and red costs exactly that.
@@ -536,6 +566,13 @@ internal static class Tokens
         /// <summary>How many rows the list shows before it starts to scroll.</summary>
         public const int PopupRows = 7;
 
+        /// <summary>
+        /// How wide a popup list may get. A list of names needs the width of the longest name,
+        /// not the width of whatever opened it — a full-width row would otherwise put six short
+        /// entries in a very large box (Florian, 2026-09-12).
+        /// </summary>
+        public static float PopupMaxWidth => Px(300f);
+
         /// <summary>The swatch in a popup row, smaller than the one in the face.</summary>
         public static Vector2 PopupSwatch => Px(44f, 11f);
 
@@ -643,6 +680,29 @@ internal static class Tokens
 
         /// <summary>How far a HUD text's shadow is offset. One pixel, at whatever the scale is.</summary>
         public static float HudTextShadow => Line(1f);
+
+        /// <summary>
+        /// What a frame's opacity is multiplied by when the game has no numbers for that
+        /// member — out of range, another instance, or offline.
+        /// <para>
+        /// Deliberately gentle. It has to say "no reading right now" without saying
+        /// "unimportant": these are the people you are about to run back to, and a frame faded
+        /// to a ghost is one you stop checking. Applied to the WHOLE frame — bar, background,
+        /// name, icons — because dimming only the bar left everything else as loud as a member
+        /// who is actually there (Florian, 2026-09-12).
+        /// </para>
+        /// </summary>
+        public const float OutOfRangeDim = 0.85f;
+
+        /// <summary>
+        /// The same, for a member who has logged out.
+        /// <para>
+        /// Deeper than out of range, because the two are not the same news. Out of range is a
+        /// pause — they are running back, and the frame has to stay easy to check. Offline is
+        /// over for this fight, and that frame may recede properly (Florian, 2026-09-12).
+        /// </para>
+        /// </summary>
+        public const float OfflineDim = 0.65f;
 
         public static float BadgeHeight => Px(18f);
         public static float BadgePaddingX => Px(6f);
