@@ -18,4 +18,12 @@
     <ItemGroup>
         <Content Include="WispUI.json" CopyToOutputDirectory="Always" />
     </ItemGroup>
+
+    <!-- The two vector faces and their licences. Both are SIL Open Font License, which
+         permits shipping them inside another work as long as the licence travels with
+         them - so the .txt files are not documentation, they are a condition of use.
+         The game's own faces need nothing here: they are read out of the game files. -->
+    <ItemGroup>
+        <Content Include="Fonts\**" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
 </Project>

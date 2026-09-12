@@ -62,6 +62,16 @@ internal enum HudFontFace
 
     /// <summary>Serif. The game sets its job names in this.</summary>
     Jupiter = 3,
+
+    /// <summary>
+    /// Figtree SemiBold, shipped with the plugin. A vector face, which is the whole point:
+    /// the game's faces are bitmaps and exist only in the sizes it ships them in, so any
+    /// other size is a stretch and comes out soft (Florian, 2026-09-12).
+    /// </summary>
+    Figtree = 4,
+
+    /// <summary>DM Sans Bold, shipped with the plugin. The rounder of the two.</summary>
+    DmSans = 5,
 }
 
 /// <summary>
@@ -78,13 +88,18 @@ internal static class HudText
         TextEdge.Outline,
     };
 
-    /// <summary>The faces, in the order the arrows walk them. Axis first: it is the default.</summary>
+    /// <summary>
+    /// The faces, in the order the arrows walk them: the game's four, then the two that come
+    /// with the plugin.
+    /// </summary>
     public static readonly HudFontFace[] Faces =
     {
         HudFontFace.Axis,
         HudFontFace.MiedingerMid,
         HudFontFace.TrumpGothic,
         HudFontFace.Jupiter,
+        HudFontFace.Figtree,
+        HudFontFace.DmSans,
     };
 
     public static TextEdge EdgeAt(int index) =>
@@ -127,4 +142,22 @@ internal static class HudText
         HudFontFace.Jupiter => GameFontFamily.Jupiter,
         _ => GameFontFamily.Axis,
     };
+
+    /// <summary>
+    /// The file a shipped face lives in, or null for one that comes out of the game. The two
+    /// kinds are loaded by different calls, and this is what tells them apart.
+    /// </summary>
+    public static string? FileName(HudFontFace face) => face switch
+    {
+        HudFontFace.Figtree => "Figtree-SemiBold.ttf",
+        HudFontFace.DmSans => "DMSans-Bold.ttf",
+        _ => null,
+    };
+
+    /// <summary>
+    /// Whether this face can be rendered crisply at any size. True only for the shipped vector
+    /// faces: a bitmap face is sharp at the sizes the game ships it in and soft everywhere
+    /// else, however it is asked for.
+    /// </summary>
+    public static bool IsVector(HudFontFace face) => FileName(face) is not null;
 }

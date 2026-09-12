@@ -374,6 +374,13 @@ public sealed class Configuration : IPluginConfiguration
     /// Marks the configuration as changed. The write itself is debounced, so dragging a
     /// slider or clicking through an arrow selector never touches the disk per frame.
     /// </summary>
+    /// <summary>
+    /// Whether a change is still waiting to be written. Read by anything that should not act
+    /// while the player is still moving a slider — the font handles above all, since building
+    /// those is far more expensive than saving a file.
+    /// </summary>
+    internal bool HasPendingChanges => m_dirtySince != DateTime.MaxValue;
+
     internal void MarkDirty()
     {
         if (m_dirtySince == DateTime.MaxValue)

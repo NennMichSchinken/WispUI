@@ -1,3 +1,4 @@
+using System;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
@@ -109,11 +110,36 @@ public sealed class Plugin : IDalamudPlugin
         // sitting installed and inert, so a player who never turns it on never carries it.
         m_mouseover.Sync(m_config.PartyFrames.MouseoverCasting);
 
-        // Here rather than in the draw, because changing it disposes font handles and builds
-        // new ones. Doing that between the frame's font locks and the text they are holding
-        // for would pull a face out from under something already drawing with it. Two enums
-        // compared on the frames where it has not changed, which is all of them but one.
-        Style.Fonts.SetHudFace(Style.HudText.FaceAt(m_config.PartyFrames.Font));
+        this.SyncHudFonts();
+    }
+
+    /// <summary>
+    /// Keeps the HUD's font handles in step with the face and the text sizes in use.
+    /// <para>
+    /// On the tick rather than in the draw, because building these throws the font atlas away
+    /// and makes a new one. Doing that between the frame's font locks and the text they were
+    /// taken for would pull a face out from under something already drawing with it.
+    /// </para>
+    /// <para>
+    /// And only once the settings have gone quiet. A size comes from a slider, and rebuilding
+    /// on every pixel of a drag would make the drag unusable — so this waits for the same
+    /// pause the configuration is written on. The cost is that a size change shows up about a
+    /// second after the drag ends, which is the honest price of a face that is sharp at any
+    /// size (Florian, 2026-09-12).
+    /// </para>
+    /// </summary>
+    private void SyncHudFonts()
+    {
+        Configuration.PartyFramesConfig cfg = m_config.PartyFrames;
+
+        // On the stack, so the tick allocates nothing. These are the three texts a frame can
+        // carry; two of them are usually the same size, and SyncHud drops the duplicate.
+        Span<float> sizes = stackalloc float[3];
+        sizes[0] = Tokens.Px(cfg.NameSize);
+        sizes[1] = Tokens.Px(cfg.HpTextSize);
+        sizes[2] = Tokens.Px(cfg.PartyNumberSize);
+
+        Fonts.SyncHud(!m_config.HasPendingChanges, HudText.FaceAt(cfg.Font), sizes);
     }
 
     private void OnInfoBarPreferenceChanged()

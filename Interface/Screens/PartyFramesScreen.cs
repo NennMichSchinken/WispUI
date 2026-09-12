@@ -292,6 +292,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                     HudFontFace.MiedingerMid => Strings.FontMiedingerMid,
                     HudFontFace.TrumpGothic => Strings.FontTrumpGothic,
                     HudFontFace.Jupiter => Strings.FontJupiter,
+                    HudFontFace.Figtree => Strings.FontFigtree,
+                    HudFontFace.DmSans => Strings.FontDmSans,
                     _ => Strings.FontAxis,
                 },
                 ShowCounter = false,

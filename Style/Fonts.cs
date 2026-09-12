@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Dalamud.Interface.GameFonts;
 using Dalamud.Interface.ManagedFontAtlas;
 using WispUI.Core;
@@ -6,29 +7,41 @@ using WispUI.Core;
 namespace WispUI.Style;
 
 /// <summary>
-/// WispUI draws in Axis, the game's own UI face, loaded straight from the game files.
-/// No bundled foreign font: a config window that is meant to blend in must not give
+/// Every font handle the suite holds, in two sets that answer different questions.
+/// <para>
+/// The window writes in Axis, the game's own UI face, read straight from the game files. No
+/// foreign face there on purpose: a settings window meant to blend into FFXIV must not give
 /// itself away by its lettering.
-/// <para>Handles are built once for the current scale and rebuilt when the scale changes.</para>
+/// </para>
+/// <para>
+/// The HUD is the other case. Its text sits over the world at whatever size the player set,
+/// so it gets handles built for exactly those sizes rather than four fixed steps with
+/// everything in between stretched. That distinction is the whole reason two of the faces it
+/// can be set to are vector faces shipped with the plugin — see <see cref="HudFontFace"/>.
+/// </para>
 /// </summary>
 internal static class Fonts
 {
+    /// <summary>
+    /// How many different text sizes one HUD can ask for at once. Three are in use — the
+    /// name, the figure on the bar and the party number — and the fourth is slack so that
+    /// adding a text does not immediately mean touching this.
+    /// <para>
+    /// It is a small number deliberately. Every size held here is a font lock taken once per
+    /// frame, and a lock allocates (API notes §3.6), so this is a budget and not a cache.
+    /// </para>
+    /// </summary>
+    private const int MaxHudSizes = 4;
+
     private static IFontHandle? s_screenTitle;
     private static IFontHandle? s_title;
     private static IFontHandle? s_body;
     private static IFontHandle? s_small;
 
-    /// <summary>
-    /// The same four steps again in the face the HUD was set to, or all null while that face
-    /// is Axis — which is the default, so the common case carries no second set at all.
-    /// <para>
-    /// 🔴 That emptiness is the point, not an optimisation left half done. Every handle here
-    /// is a font lock taken once per frame in <see cref="Ink.BeginFrame"/>, and a lock
-    /// allocates (API notes §3.6). Four handles for a face nobody chose would double the
-    /// frame's font allocations to serve a setting at its default.
-    /// </para>
-    /// </summary>
-    private static readonly IFontHandle?[] Hud = new IFontHandle?[4];
+    /// <summary>The HUD's handles and the exact pixel size each one was built for.</summary>
+    private static readonly IFontHandle?[] HudHandle = new IFontHandle?[MaxHudSizes];
+    private static readonly float[] HudSizePx = new float[MaxHudSizes];
+    private static int s_hudCount;
 
     private static HudFontFace s_hudFace = HudFontFace.Axis;
 
@@ -49,29 +62,166 @@ internal static class Fonts
     /// <summary>True once the handles have been built at least once.</summary>
     public static bool Ready => s_body is not null;
 
-    /// <summary>
-    /// The HUD's face at one of the four steps, or null when the HUD writes in Axis and the
-    /// window's own handle for that step is the answer.
-    /// </summary>
-    public static IFontHandle? HudStep(int step) =>
-        step >= 0 && step < Hud.Length ? Hud[step] : null;
+    /// <summary>How many HUD sizes are currently held.</summary>
+    public static int HudCount => s_hudCount;
+
+    /// <summary>The handle for one held HUD size.</summary>
+    public static IFontHandle? HudHandleAt(int index) =>
+        index >= 0 && index < s_hudCount ? HudHandle[index] : null;
+
+    /// <summary>The exact pixel size one held HUD handle was built for.</summary>
+    public static float HudSizeAt(int index) =>
+        index >= 0 && index < s_hudCount ? HudSizePx[index] : 0f;
 
     /// <summary>
-    /// Sets the face HUD elements write in, rebuilding only when it actually changes. Called
-    /// from the draw path, so the common case is a comparison of two enums.
+    /// Brings the HUD's handles in line with the face and the sizes that are actually in use.
+    /// <para>
+    /// <paramref name="settled"/> is what keeps this off the slider. Building a handle throws
+    /// the font atlas away and makes a new one, which is the brief stutter you see when the
+    /// face changes; doing that on every pixel of a drag would make the drag unusable. So the
+    /// caller passes false while a change is still pending and true once it has gone quiet,
+    /// which is the same pause the configuration is written on.
+    /// </para>
     /// </summary>
-    public static void SetHudFace(HudFontFace face)
+    /// <param name="settled">Whether the configuration has stopped changing.</param>
+    /// <param name="face">The face the HUD is set to.</param>
+    /// <param name="sizes">The pixel sizes in use. Duplicates and sizes past the budget are dropped.</param>
+    public static void SyncHud(bool settled, HudFontFace face, ReadOnlySpan<float> sizes)
     {
-        if (face == s_hudFace)
+        if (!settled || !Ready)
+        {
+            return;
+        }
+
+        Span<float> wanted = stackalloc float[MaxHudSizes];
+        int count = Gather(sizes, wanted);
+
+        if (Matches(face, wanted[..count]))
         {
             return;
         }
 
         s_hudFace = face;
-        Rebuild();
+        RebuildHud(wanted[..count]);
     }
 
-    /// <summary>Builds the handles for the scale currently set in <see cref="Tokens"/>.</summary>
+    /// <summary>
+    /// Collects the distinct sizes actually worth a handle, rounded to whole pixels. Rounded
+    /// because a glyph rasterised for 16.4 pixels and drawn at 16 is the soft case all over
+    /// again, and because it is what makes two texts at the same size share one handle.
+    /// </summary>
+    private static int Gather(ReadOnlySpan<float> sizes, Span<float> into)
+    {
+        int count = 0;
+
+        for (int i = 0; i < sizes.Length && count < MaxHudSizes; i++)
+        {
+            float size = MathF.Round(sizes[i]);
+
+            if (size < 1f)
+            {
+                continue;
+            }
+
+            bool seen = false;
+            for (int j = 0; j < count; j++)
+            {
+                if (into[j] == size)
+                {
+                    seen = true;
+                    break;
+                }
+            }
+
+            if (!seen)
+            {
+                into[count++] = size;
+            }
+        }
+
+        return count;
+    }
+
+    private static bool Matches(HudFontFace face, ReadOnlySpan<float> sizes)
+    {
+        if (face != s_hudFace || sizes.Length != s_hudCount)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < sizes.Length; i++)
+        {
+            if (HudSizePx[i] != sizes[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Builds one handle per size in the HUD's current face.</summary>
+    private static void RebuildHud(ReadOnlySpan<float> sizes)
+    {
+        DisposeHud();
+
+        IFontAtlas atlas = Services.PluginInterface.UiBuilder.FontAtlas;
+        string? file = HudText.FileName(s_hudFace);
+        string? path = file is null ? null : ShippedFontPath(file);
+
+        for (int i = 0; i < sizes.Length; i++)
+        {
+            float size = sizes[i];
+            HudSizePx[i] = size;
+
+            if (path is null)
+            {
+                // A face out of the game files. Dalamud picks the nearest size the game ships
+                // and resamples; there is no way around that, which is the point of offering
+                // the two vector faces beside these.
+                HudHandle[i] = atlas.NewGameFontHandle(new GameFontStyle(HudText.Family(s_hudFace), size));
+                continue;
+            }
+
+            HudHandle[i] = BuildShipped(atlas, path, size);
+        }
+
+        s_hudCount = sizes.Length;
+    }
+
+    /// <summary>
+    /// A shipped vector face, rasterised for exactly this size. Returns null if the file is
+    /// not there, which leaves the caller drawing in the window's own face rather than not
+    /// drawing at all — a missing font is a reason for plain text, never for no text.
+    /// </summary>
+    private static IFontHandle? BuildShipped(IFontAtlas atlas, string path, float sizePx)
+    {
+        if (!File.Exists(path))
+        {
+            Services.Log.Error($"Font file missing, falling back to the interface face: {path}");
+            return null;
+        }
+
+        try
+        {
+            return atlas.NewDelegateFontHandle(
+                e => e.OnPreBuild(tk => tk.AddFontFromFile(path, new SafeFontConfig { SizePx = sizePx })));
+        }
+        catch (Exception ex)
+        {
+            Services.Log.Error(ex, "A shipped font could not be loaded.");
+            return null;
+        }
+    }
+
+    /// <summary>Where a shipped face sits: beside the assembly, put there by the build.</summary>
+    private static string ShippedFontPath(string fileName)
+    {
+        string? dir = Services.PluginInterface.AssemblyLocation.DirectoryName;
+        return dir is null ? fileName : Path.Combine(dir, "Fonts", fileName);
+    }
+
+    /// <summary>Builds the window handles for the scale currently set in <see cref="Tokens"/>.</summary>
     public static void Rebuild()
     {
         Dispose();
@@ -81,31 +231,7 @@ internal static class Fonts
         s_title = atlas.NewGameFontHandle(Style(Tokens.FontRole.Title, Tokens.FontRole.TitlePx));
         s_body = atlas.NewGameFontHandle(Style(Tokens.FontRole.Body, Tokens.FontRole.BodyPx));
         s_small = atlas.NewGameFontHandle(Style(Tokens.FontRole.Small, Tokens.FontRole.SmallPx));
-
-        if (s_hudFace == HudFontFace.Axis)
-        {
-            return;
-        }
-
-        // The same four sizes, so a size in pixels lands on the same step whichever face is
-        // set and nothing that measures text has to know which one it got.
-        GameFontFamily family = HudText.Family(s_hudFace);
-        Hud[0] = atlas.NewGameFontHandle(HudStyle(family, Sized(Tokens.FontRole.ScreenTitle, Tokens.FontRole.ScreenTitlePx)));
-        Hud[1] = atlas.NewGameFontHandle(HudStyle(family, Sized(Tokens.FontRole.Title, Tokens.FontRole.TitlePx)));
-        Hud[2] = atlas.NewGameFontHandle(HudStyle(family, Sized(Tokens.FontRole.Body, Tokens.FontRole.BodyPx)));
-        Hud[3] = atlas.NewGameFontHandle(HudStyle(family, Sized(Tokens.FontRole.Small, Tokens.FontRole.SmallPx)));
     }
-
-    /// <summary>
-    /// A face at an exact pixel size. Dalamud picks the nearest size the game ships of that
-    /// family and resamples to what was asked for, which is why every face can answer to the
-    /// same four steps even though none of them ships in those sizes.
-    /// </summary>
-    private static GameFontStyle HudStyle(GameFontFamily family, float sizePx) => new(family, sizePx);
-
-    /// <summary>The pixel size a window role ends up at, so the HUD can ask for the same one.</summary>
-    private static float Sized(GameFontFamilyAndSize familyAndSize, float targetPx) =>
-        Style(familyAndSize, targetPx).SizePx;
 
     /// <summary>
     /// Builds the style for one role. At scale 1.0 the size is left exactly as the game
@@ -141,10 +267,18 @@ internal static class Fonts
         s_body = null;
         s_small = null;
 
-        for (int i = 0; i < Hud.Length; i++)
+        DisposeHud();
+    }
+
+    private static void DisposeHud()
+    {
+        for (int i = 0; i < HudHandle.Length; i++)
         {
-            Hud[i]?.Dispose();
-            Hud[i] = null;
+            HudHandle[i]?.Dispose();
+            HudHandle[i] = null;
+            HudSizePx[i] = 0f;
         }
+
+        s_hudCount = 0;
     }
 }

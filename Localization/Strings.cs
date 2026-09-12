@@ -155,6 +155,8 @@ internal static class Strings
     public const string FontMiedingerMid = "Miedinger";
     public const string FontTrumpGothic = "Trump Gothic";
     public const string FontJupiter = "Jupiter";
+    public const string FontFigtree = "Figtree";
+    public const string FontDmSans = "DM Sans";
     public const string TextEdge = "Edge";
     public const string TextEdgeTooltip = "What sits behind the letters so they read over a bright background.";
     public const string TextEdgeNone = "None";
