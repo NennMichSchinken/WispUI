@@ -1139,6 +1139,25 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         }
 
         float used = rowY - group.ContentY + Chrome.RowHeight();
+
+        // Only when the face that is set is not the face being drawn. A shipped font that
+        // fails to load falls back to the interface face, and without this line that is
+        // indistinguishable from a font that loaded and simply looks thin — which is exactly
+        // how a whole test round was spent (Florian, 2026-09-12).
+        string? problem = Fonts.FaceProblem;
+        if (problem is not null)
+        {
+            float noteY = rowY + Chrome.RowHeight() + Tokens.Space.Sm;
+            Ink.Draw(
+                ImGui.GetWindowDrawList(),
+                Ink.Role.Small,
+                new Vector2(group.ContentX, noteY),
+                Tokens.Col.Gold,
+                problem);
+
+            used += Tokens.Space.Sm + Ink.LineHeight(Ink.Role.Small);
+        }
+
         Chrome.EndGroupContent(group, used);
         contentHeight = used;
         return group;

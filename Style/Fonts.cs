@@ -45,6 +45,21 @@ internal static class Fonts
 
     private static HudFontFace s_hudFace = HudFontFace.Axis;
 
+    /// <summary>The shipped face currently in memory, and its bytes.</summary>
+    private static string? s_loadedFontFile;
+    private static byte[]? s_loadedFontBytes;
+
+    /// <summary>
+    /// Why the chosen face is not the one being drawn, or null when all is well. Shown in the
+    /// setting itself rather than only logged: a face that quietly falls back to another one
+    /// looks like a face that loaded and is simply disappointing, which cost a whole test
+    /// round to tell apart (Florian, 2026-09-12).
+    /// </summary>
+    private static string? s_faceProblem;
+
+    /// <summary>Why the chosen face could not be used, or null when it could.</summary>
+    public static string? FaceProblem => s_faceProblem;
+
     /// <summary>The name of the screen you are on.</summary>
     public static IFontHandle ScreenTitle => s_screenTitle ?? Fallback;
 
@@ -164,17 +179,17 @@ internal static class Fonts
     private static void RebuildHud(ReadOnlySpan<float> sizes)
     {
         DisposeHud();
+        s_faceProblem = null;
 
         IFontAtlas atlas = Services.PluginInterface.UiBuilder.FontAtlas;
         string? file = HudText.FileName(s_hudFace);
-        string? path = file is null ? null : ShippedFontPath(file);
 
         for (int i = 0; i < sizes.Length; i++)
         {
             float size = sizes[i];
             HudSizePx[i] = size;
 
-            if (path is null)
+            if (file is null)
             {
                 // A face out of the game files. Dalamud picks the nearest size the game ships
                 // and resamples; there is no way around that, which is the point of offering
@@ -183,33 +198,80 @@ internal static class Fonts
                 continue;
             }
 
-            HudHandle[i] = BuildShipped(atlas, path, size);
+            HudHandle[i] = BuildShipped(atlas, file, size);
         }
 
         s_hudCount = sizes.Length;
     }
 
     /// <summary>
-    /// A shipped vector face, rasterised for exactly this size. Returns null if the file is
-    /// not there, which leaves the caller drawing in the window's own face rather than not
+    /// A shipped vector face, rasterised for exactly this size. Returns null if it could not
+    /// be loaded, which leaves the caller drawing in the window's own face rather than not
     /// drawing at all — a missing font is a reason for plain text, never for no text.
+    /// <para>
+    /// 🔴 From bytes we read ourselves, not from a path handed to the toolkit. The first build
+    /// passed the path and the result was indistinguishable from Axis in game, with no way to
+    /// tell a face that failed to load from one that loaded and looked wrong (Florian,
+    /// 2026-09-12). Reading the file here means the failure has a name and a line in the log,
+    /// and the setting can say so out loud instead of silently showing the wrong face.
+    /// </para>
     /// </summary>
-    private static IFontHandle? BuildShipped(IFontAtlas atlas, string path, float sizePx)
+    private static IFontHandle? BuildShipped(IFontAtlas atlas, string fileName, float sizePx)
     {
-        if (!File.Exists(path))
+        byte[]? bytes = ShippedFontBytes(fileName);
+
+        if (bytes is null)
         {
-            Services.Log.Error($"Font file missing, falling back to the interface face: {path}");
             return null;
         }
 
         try
         {
             return atlas.NewDelegateFontHandle(
-                e => e.OnPreBuild(tk => tk.AddFontFromFile(path, new SafeFontConfig { SizePx = sizePx })));
+                e => e.OnPreBuild(
+                    tk => tk.AddFontFromMemory(bytes, new SafeFontConfig { SizePx = sizePx }, fileName)));
         }
         catch (Exception ex)
         {
-            Services.Log.Error(ex, "A shipped font could not be loaded.");
+            s_faceProblem = $"{fileName} could not be rasterised.";
+            Services.Log.Error(ex, "A shipped font could not be rasterised: {File}", fileName);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The bytes of a shipped face, read once and kept. Read once because a rebuild happens
+    /// per size, and reading the same 60 KB three times to build three sizes of one face is
+    /// three times the file work for one file's worth of data.
+    /// </summary>
+    private static byte[]? ShippedFontBytes(string fileName)
+    {
+        if (s_loadedFontFile == fileName && s_loadedFontBytes is not null)
+        {
+            return s_loadedFontBytes;
+        }
+
+        string path = ShippedFontPath(fileName);
+
+        if (!File.Exists(path))
+        {
+            s_faceProblem = $"{fileName} is not next to the plugin.";
+            Services.Log.Error("Font file missing, falling back to the interface face: {Path}", path);
+            return null;
+        }
+
+        try
+        {
+            s_loadedFontBytes = File.ReadAllBytes(path);
+            s_loadedFontFile = fileName;
+            Services.Log.Information(
+                "Loaded font {File} ({Bytes} bytes) from {Path}.", fileName, s_loadedFontBytes.Length, path);
+            return s_loadedFontBytes;
+        }
+        catch (Exception ex)
+        {
+            s_faceProblem = $"{fileName} could not be read.";
+            Services.Log.Error(ex, "A shipped font could not be read: {Path}", path);
             return null;
         }
     }

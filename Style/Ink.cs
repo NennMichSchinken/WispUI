@@ -56,7 +56,11 @@ internal static class Ink
         {
             Dalamud.Interface.ManagedFontAtlas.IFontHandle? handle = Style.Fonts.HudHandleAt(i);
 
-            if (handle is null)
+            // 🔴 Available, not just non-null. A handle is returned the moment it is asked for
+            // and is only backed by a real face once the atlas has been rebuilt, which is a
+            // frame or more later. Pushing it before then hands back the default face instead
+            // — silently, so the HUD draws in a font nobody chose and nothing says why.
+            if (handle is null || !handle.Available)
             {
                 continue;
             }
@@ -257,7 +261,13 @@ internal static class Ink
     private static float EdgeWidth(float pixels)
     {
         float scaled = Style.Tokens.Metric.HudTextShadow;
-        return MathF.Max(scaled, MathF.Round(pixels / 16f) * scaled);
+
+        // 🔴 The step is late on purpose. It used to thicken at sixteen pixels, which put it
+        // inside the range people actually set a name to — so nudging a size across that line
+        // visibly jumped the outline, and the thicker line read as clumsy at sizes that did
+        // not need it (Florian, 2026-09-12). At twenty-eight and up the text is large enough
+        // that a single pixel genuinely disappears, and nobody is fine-tuning there.
+        return pixels < 28f ? scaled : scaled * 2f;
     }
 
     /// <summary>
