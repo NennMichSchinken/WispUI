@@ -30,6 +30,11 @@ public sealed class Plugin : IDalamudPlugin
         Services.Initialize(pluginInterface);
 
         m_config = Configuration.Load();
+
+        // Before anything asks for a face by name. Reading the folder touches the disk, so it
+        // happens once here and again only when the player asks for it.
+        FontLibrary.Refresh();
+
         Scaling.Commit(m_config.Scale);
         Scaling.LogGameScaleReadings();
 
@@ -139,7 +144,7 @@ public sealed class Plugin : IDalamudPlugin
         sizes[1] = Tokens.Px(cfg.HpTextSize);
         sizes[2] = Tokens.Px(cfg.PartyNumberSize);
 
-        Fonts.SyncHud(!m_config.HasPendingChanges, HudText.FaceAt(cfg.Font), sizes);
+        Fonts.SyncHud(!m_config.HasPendingChanges, cfg.FontName, sizes);
     }
 
     private void OnInfoBarPreferenceChanged()

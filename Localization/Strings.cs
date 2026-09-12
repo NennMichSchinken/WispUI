@@ -150,13 +150,7 @@ internal static class Strings
     public const string GroupLettering = "Lettering";
     public const string GroupLetteringHint = "The face every text on a frame is set in, and what carries it over the world.";
     public const string TextFont = "Font";
-    public const string TextFontTooltip = "All from the game's own files. Axis is the interface face; the others are heavier.";
-    public const string FontAxis = "Axis";
-    public const string FontMiedingerMid = "Miedinger";
-    public const string FontTrumpGothic = "Trump Gothic";
-    public const string FontJupiter = "Jupiter";
-    public const string FontFigtree = "Figtree";
-    public const string FontDmSans = "DM Sans";
+    public const string TextFontTooltip = "The game's own faces, two that ship with WispUI, and any .ttf you put in the plugin's Fonts folder.";
     public const string TextEdge = "Edge";
     public const string TextEdgeTooltip = "What sits behind the letters so they read over a bright background.";
     public const string TextEdgeNone = "None";

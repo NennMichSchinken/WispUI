@@ -203,7 +203,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private readonly ArrowSelector<BarColourMode> m_colour;
     private readonly ArrowSelector<Anchor> m_namePosition;
     private readonly ArrowSelector<HealthTextMode> m_healthMode;
-    private readonly ArrowSelector<HudFontFace> m_font;
+    private readonly ArrowSelector<FontChoice> m_font;
     private readonly ArrowSelector<Anchor> m_healthPosition;
     private readonly ArrowSelector<string> m_manaStyle;
     private readonly ArrowSelector<Anchor> m_iconPosition;
@@ -282,20 +282,17 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 ShowCounter = false,
             });
 
-        m_font = new ArrowSelector<HudFontFace>(
+        // The one selector in the suite with a searchable list, because it is the one whose
+        // list the player controls: six faces shipped, and however many they drop in their
+        // font folder. Walking that with two arrows is not a list, it is a queue.
+        m_font = new ArrowSelector<FontChoice>(
             IdFont,
-            HudText.Faces,
-            new ArrowSelectorOptions<HudFontFace>
+            FontLibrary.All,
+            new ArrowSelectorOptions<FontChoice>
             {
-                Label = static face => face switch
-                {
-                    HudFontFace.MiedingerMid => Strings.FontMiedingerMid,
-                    HudFontFace.TrumpGothic => Strings.FontTrumpGothic,
-                    HudFontFace.Jupiter => Strings.FontJupiter,
-                    HudFontFace.Figtree => Strings.FontFigtree,
-                    HudFontFace.DmSans => Strings.FontDmSans,
-                    _ => Strings.FontAxis,
-                },
+                Label = static face => face.Name,
+                EnablePopupList = true,
+                EnableSearch = true,
                 ShowCounter = false,
             });
 
@@ -1109,14 +1106,17 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
 
-        int face = m_config.PartyFrames.Font;
+        // The list is addressed by name, not by position: it grows and shrinks with the
+        // player's font folder, and a stored position would mean a different face the moment
+        // they added a file.
+        int face = FontLibrary.IndexOf(m_config.PartyFrames.FontName);
         if (m_font.Draw(
                 ref face,
                 Chrome.Row(Strings.TextFont, group.ContentX, rowY, group.ContentWidth, true, Strings.TextFontTooltip),
                 rowY,
                 Chrome.ControlWidth()))
         {
-            m_config.PartyFrames.Font = face;
+            m_config.PartyFrames.FontName = FontLibrary.NameAt(face);
             m_config.MarkDirty();
         }
 

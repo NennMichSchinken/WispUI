@@ -1,5 +1,3 @@
-using Dalamud.Interface.GameFonts;
-
 namespace WispUI.Style;
 
 /// <summary>
@@ -19,87 +17,31 @@ internal enum TextEdge
     None = 0,
 
     /// <summary>
-    /// One copy of the text, offset and dark, under the letters. Keeps their shapes exactly —
-    /// a thin face stays thin — and costs one extra draw.
+    /// Two dark copies of the text under the letters, a near one and a fainter far one.
+    /// Keeps their shapes exactly — a thin face stays thin.
     /// </summary>
     Shadow = 1,
 
     /// <summary>
-    /// A dark line all the way around. Reads on any background, including a bright one that a
-    /// shadow to the lower right does not cover, which is why the game's own floating combat
-    /// text uses one. Costs four extra draws and thickens a thin face slightly.
+    /// A dark line all the way around. Reads on any background, including a bright one above
+    /// and left that a shadow does not cover, which is why the game's own floating combat
+    /// text uses one.
     /// </summary>
     Outline = 2,
 }
 
 /// <summary>
-/// Which of the game's own faces a HUD element writes in.
-/// <para>
-/// 🔴 All from the game files, none bundled. A suite that is meant to sit inside FFXIV
-/// without announcing itself must not letter itself differently from the game — and it keeps
-/// the plugin free of a font licence to carry (CLAUDE.md §4).
-/// </para>
-/// <para>
-/// The game ships two more faces that are not here, Meidinger and JupiterNumeric. Both hold
-/// digits and nothing else, so a name in either would come out empty and a percentage would
-/// lose its sign. They are left out rather than offered with a warning.
-/// </para>
-/// </summary>
-internal enum HudFontFace
-{
-    /// <summary>
-    /// The game's own interface face, and what every window in the suite is set in. Light,
-    /// which is exactly the complaint that led to the others being offered (Florian,
-    /// 2026-09-12).
-    /// </summary>
-    Axis = 0,
-
-    /// <summary>Wide and heavier. The game sets its gauge names in this.</summary>
-    MiedingerMid = 1,
-
-    /// <summary>Narrow and heavier. The game sets its window titles in this.</summary>
-    TrumpGothic = 2,
-
-    /// <summary>Serif. The game sets its job names in this.</summary>
-    Jupiter = 3,
-
-    /// <summary>
-    /// Figtree SemiBold, shipped with the plugin. A vector face, which is the whole point:
-    /// the game's faces are bitmaps and exist only in the sizes it ships them in, so any
-    /// other size is a stretch and comes out soft (Florian, 2026-09-12).
-    /// </summary>
-    Figtree = 4,
-
-    /// <summary>DM Sans Bold, shipped with the plugin. The rounder of the two.</summary>
-    DmSans = 5,
-}
-
-/// <summary>
-/// The two lists behind the arrows, and the one place that turns a face into something
-/// Dalamud will load.
+/// The edge list behind the segments. Which face the HUD writes in lives in
+/// <see cref="FontLibrary"/>, because that list is not fixed.
 /// </summary>
 internal static class HudText
 {
-    /// <summary>The edges, in the order the arrows walk them.</summary>
+    /// <summary>The edges, in the order the segments sit.</summary>
     public static readonly TextEdge[] Edges =
     {
         TextEdge.None,
         TextEdge.Shadow,
         TextEdge.Outline,
-    };
-
-    /// <summary>
-    /// The faces, in the order the arrows walk them: the game's four, then the two that come
-    /// with the plugin.
-    /// </summary>
-    public static readonly HudFontFace[] Faces =
-    {
-        HudFontFace.Axis,
-        HudFontFace.MiedingerMid,
-        HudFontFace.TrumpGothic,
-        HudFontFace.Jupiter,
-        HudFontFace.Figtree,
-        HudFontFace.DmSans,
     };
 
     public static TextEdge EdgeAt(int index) =>
@@ -117,47 +59,4 @@ internal static class HudText
 
         return 1;
     }
-
-    public static HudFontFace FaceAt(int index) =>
-        index >= 0 && index < Faces.Length ? Faces[index] : HudFontFace.Axis;
-
-    public static int IndexOf(HudFontFace face)
-    {
-        for (int i = 0; i < Faces.Length; i++)
-        {
-            if (Faces[i] == face)
-            {
-                return i;
-            }
-        }
-
-        return 0;
-    }
-
-    /// <summary>What Dalamud calls the face. The one place the two vocabularies meet.</summary>
-    public static GameFontFamily Family(HudFontFace face) => face switch
-    {
-        HudFontFace.MiedingerMid => GameFontFamily.MiedingerMid,
-        HudFontFace.TrumpGothic => GameFontFamily.TrumpGothic,
-        HudFontFace.Jupiter => GameFontFamily.Jupiter,
-        _ => GameFontFamily.Axis,
-    };
-
-    /// <summary>
-    /// The file a shipped face lives in, or null for one that comes out of the game. The two
-    /// kinds are loaded by different calls, and this is what tells them apart.
-    /// </summary>
-    public static string? FileName(HudFontFace face) => face switch
-    {
-        HudFontFace.Figtree => "Figtree-SemiBold.ttf",
-        HudFontFace.DmSans => "DMSans-Bold.ttf",
-        _ => null,
-    };
-
-    /// <summary>
-    /// Whether this face can be rendered crisply at any size. True only for the shipped vector
-    /// faces: a bitmap face is sharp at the sizes the game ships it in and soft everywhere
-    /// else, however it is asked for.
-    /// </summary>
-    public static bool IsVector(HudFontFace face) => FileName(face) is not null;
 }

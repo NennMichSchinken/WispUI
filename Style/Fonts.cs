@@ -43,7 +43,7 @@ internal static class Fonts
     private static readonly float[] HudSizePx = new float[MaxHudSizes];
     private static int s_hudCount;
 
-    private static HudFontFace s_hudFace = HudFontFace.Axis;
+    private static string s_hudFaceName = FontLibrary.DefaultName;
 
     /// <summary>The shipped face currently in memory, and its bytes.</summary>
     private static string? s_loadedFontFile;
@@ -101,7 +101,7 @@ internal static class Fonts
     /// <param name="settled">Whether the configuration has stopped changing.</param>
     /// <param name="face">The face the HUD is set to.</param>
     /// <param name="sizes">The pixel sizes in use. Duplicates and sizes past the budget are dropped.</param>
-    public static void SyncHud(bool settled, HudFontFace face, ReadOnlySpan<float> sizes)
+    public static void SyncHud(bool settled, string faceName, ReadOnlySpan<float> sizes)
     {
         if (!settled || !Ready)
         {
@@ -111,12 +111,12 @@ internal static class Fonts
         Span<float> wanted = stackalloc float[MaxHudSizes];
         int count = Gather(sizes, wanted);
 
-        if (Matches(face, wanted[..count]))
+        if (Matches(faceName, wanted[..count]))
         {
             return;
         }
 
-        s_hudFace = face;
+        s_hudFaceName = faceName;
         RebuildHud(wanted[..count]);
     }
 
@@ -157,9 +157,9 @@ internal static class Fonts
         return count;
     }
 
-    private static bool Matches(HudFontFace face, ReadOnlySpan<float> sizes)
+    private static bool Matches(string faceName, ReadOnlySpan<float> sizes)
     {
-        if (face != s_hudFace || sizes.Length != s_hudCount)
+        if (!string.Equals(faceName, s_hudFaceName, StringComparison.Ordinal) || sizes.Length != s_hudCount)
         {
             return false;
         }
@@ -182,23 +182,23 @@ internal static class Fonts
         s_faceProblem = null;
 
         IFontAtlas atlas = Services.PluginInterface.UiBuilder.FontAtlas;
-        string? file = HudText.FileName(s_hudFace);
+        FontChoice face = FontLibrary.Find(s_hudFaceName);
 
         for (int i = 0; i < sizes.Length; i++)
         {
             float size = sizes[i];
             HudSizePx[i] = size;
 
-            if (file is null)
+            if (face.FilePath is null)
             {
                 // A face out of the game files. Dalamud picks the nearest size the game ships
                 // and resamples; there is no way around that, which is the point of offering
-                // the two vector faces beside these.
-                HudHandle[i] = atlas.NewGameFontHandle(new GameFontStyle(HudText.Family(s_hudFace), size));
+                // the vector faces beside these.
+                HudHandle[i] = atlas.NewGameFontHandle(new GameFontStyle(face.GameFamily, size));
                 continue;
             }
 
-            HudHandle[i] = BuildShipped(atlas, file, size);
+            HudHandle[i] = BuildFromFile(atlas, face.FilePath, size);
         }
 
         s_hudCount = sizes.Length;
@@ -216,25 +216,27 @@ internal static class Fonts
     /// and the setting can say so out loud instead of silently showing the wrong face.
     /// </para>
     /// </summary>
-    private static IFontHandle? BuildShipped(IFontAtlas atlas, string fileName, float sizePx)
+    private static IFontHandle? BuildFromFile(IFontAtlas atlas, string path, float sizePx)
     {
-        byte[]? bytes = ShippedFontBytes(fileName);
+        byte[]? bytes = FontBytes(path);
 
         if (bytes is null)
         {
             return null;
         }
 
+        string name = Path.GetFileName(path);
+
         try
         {
             return atlas.NewDelegateFontHandle(
                 e => e.OnPreBuild(
-                    tk => tk.AddFontFromMemory(bytes, new SafeFontConfig { SizePx = sizePx }, fileName)));
+                    tk => tk.AddFontFromMemory(bytes, new SafeFontConfig { SizePx = sizePx }, name)));
         }
         catch (Exception ex)
         {
-            s_faceProblem = $"{fileName} could not be rasterised.";
-            Services.Log.Error(ex, "A shipped font could not be rasterised: {File}", fileName);
+            s_faceProblem = $"{name} could not be rasterised. It may not be a usable font file.";
+            Services.Log.Error(ex, "A font could not be rasterised: {Path}", path);
             return null;
         }
     }
@@ -244,18 +246,17 @@ internal static class Fonts
     /// per size, and reading the same 60 KB three times to build three sizes of one face is
     /// three times the file work for one file's worth of data.
     /// </summary>
-    private static byte[]? ShippedFontBytes(string fileName)
+    private static byte[]? FontBytes(string path)
     {
-        if (s_loadedFontFile == fileName && s_loadedFontBytes is not null)
+        if (string.Equals(s_loadedFontFile, path, StringComparison.OrdinalIgnoreCase)
+            && s_loadedFontBytes is not null)
         {
             return s_loadedFontBytes;
         }
 
-        string path = ShippedFontPath(fileName);
-
         if (!File.Exists(path))
         {
-            s_faceProblem = $"{fileName} is not next to the plugin.";
+            s_faceProblem = $"{Path.GetFileName(path)} is no longer there.";
             Services.Log.Error("Font file missing, falling back to the interface face: {Path}", path);
             return null;
         }
@@ -263,24 +264,17 @@ internal static class Fonts
         try
         {
             s_loadedFontBytes = File.ReadAllBytes(path);
-            s_loadedFontFile = fileName;
+            s_loadedFontFile = path;
             Services.Log.Information(
-                "Loaded font {File} ({Bytes} bytes) from {Path}.", fileName, s_loadedFontBytes.Length, path);
+                "Loaded font {File} ({Bytes} bytes).", Path.GetFileName(path), s_loadedFontBytes.Length);
             return s_loadedFontBytes;
         }
         catch (Exception ex)
         {
-            s_faceProblem = $"{fileName} could not be read.";
-            Services.Log.Error(ex, "A shipped font could not be read: {Path}", path);
+            s_faceProblem = $"{Path.GetFileName(path)} could not be read.";
+            Services.Log.Error(ex, "A font could not be read: {Path}", path);
             return null;
         }
-    }
-
-    /// <summary>Where a shipped face sits: beside the assembly, put there by the build.</summary>
-    private static string ShippedFontPath(string fileName)
-    {
-        string? dir = Services.PluginInterface.AssemblyLocation.DirectoryName;
-        return dir is null ? fileName : Path.Combine(dir, "Fonts", fileName);
     }
 
     /// <summary>Builds the window handles for the scale currently set in <see cref="Tokens"/>.</summary>

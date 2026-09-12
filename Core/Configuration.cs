@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 4;
+    public const int CurrentVersion = 5;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -120,6 +120,13 @@ public sealed class Configuration : IPluginConfiguration
         /// work every frame. It lives here because the frames are the only HUD element there
         /// is; a second one means moving this to Global rather than copying it.
         /// </para>
+        /// </summary>
+        public string FontName { get; set; } = Style.FontLibrary.DefaultName;
+
+        /// <summary>
+        /// The old position in a fixed list of six faces. Nothing writes it any more; it is
+        /// here so the migration to version 5 can read what the user had. Droppable once no
+        /// stored configuration is older than that.
         /// </summary>
         public int Font { get; set; }
 
@@ -463,6 +470,22 @@ public sealed class Configuration : IPluginConfiguration
             config.PartyFrames.NameShortening = config.PartyFrames.ShortenNames
                 ? (int)Hud.NameShortening.Surname
                 : (int)Hud.NameShortening.Full;
+        }
+
+        if (config.Version < 5)
+        {
+            // The face was a position in a fixed list of six. The list is no longer fixed —
+            // it grows with whatever the player puts in their font folder — so the face is
+            // stored by name, and a position now maps to the name it used to mean.
+            config.PartyFrames.FontName = config.PartyFrames.Font switch
+            {
+                1 => "Miedinger",
+                2 => "Trump Gothic",
+                3 => "Jupiter",
+                4 => "Figtree",
+                5 => "DM Sans",
+                _ => Style.FontLibrary.DefaultName,
+            };
         }
     }
 }
