@@ -312,7 +312,12 @@ internal sealed class PartyFramesElement : HudElement
             // part of it. Dimming only the bar left a frame whose name, icons and number were
             // as loud as everybody else's, so it did not read as stepped back at all
             // (Florian, 2026-09-12).
-            m_dim = member.HasData ? 1f : Tokens.Metric.OutOfRangeDim;
+            m_dim = member.Presence switch
+            {
+                PartyPresence.Here => 1f,
+                PartyPresence.Offline => Tokens.Metric.OfflineDim,
+                _ => Tokens.Metric.OutOfRangeDim,
+            };
 
             dl.AddRectFilled(min, max, this.Dim(Tokens.Col.FrameBg));
 
@@ -783,7 +788,9 @@ internal sealed class PartyFramesElement : HudElement
             MathF.Round(innerMin.X + (((innerMax.X - innerMin.X) - width) * 0.5f)),
             MathF.Round(innerMin.Y + (((innerMax.Y - innerMin.Y) - size) * 0.5f)));
 
-        Ink.DrawScaledEdged(dl, size, at, Tokens.Col.HudInk, note, cfg.Edge);
+        // Grey, not white. The note explains why a frame is quiet; it is not the thing on the
+        // frame to read, and white is what this palette keeps for what must be read.
+        Ink.DrawScaledEdged(dl, size, at, Tokens.Col.HudInkQuiet, note, cfg.Edge);
     }
 
     /// <summary>
@@ -932,7 +939,12 @@ internal sealed class PartyFramesElement : HudElement
             // Your own name is drawn like everyone else's. It used to come out gold, which
             // looked like a state rather than a whose-name-is-this, and the one frame you
             // never have to search for is your own (Florian, 2026-09-12).
-            uint colour = this.Dim(cfg.NameInJobColour ? Jobs.Colour(member.JobId) : Tokens.Col.HudInk);
+            // 🔴 A dimmed frame gets darker text, not just fainter text. White at two thirds
+            // opacity is still white, and on a frame that has stepped back the name was the
+            // one thing still shouting (Florian, 2026-09-12).
+            uint colour = this.Dim(cfg.NameInJobColour
+                ? Jobs.Colour(member.JobId)
+                : (member.HasData ? Tokens.Col.HudInk : Tokens.Col.HudInkQuiet));
 
             Ink.DrawScaledEdged(dl, size, at, colour, name, cfg.Edge);
         }

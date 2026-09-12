@@ -238,6 +238,18 @@ internal static class Tokens
         public static readonly uint HudInk = 0xFFFFFFFFu;
 
         /// <summary>
+        /// Text on a HUD element that is not the thing to read: a name on a frame that has
+        /// stepped back, and the note that says why it has.
+        /// <para>
+        /// A darker grey rather than white at lower opacity. White stays white however faint
+        /// it is drawn — on a dimmed frame the name was still the loudest thing on it, and
+        /// "Offline" in white read as an alarm rather than as an explanation (Florian,
+        /// 2026-09-12). Opacity says how present something is; colour says how important.
+        /// </para>
+        /// </summary>
+        public static readonly uint HudInkQuiet = Rgb(0x9A9A9A);
+
+        /// <summary>
         /// The three roles, MEASURED off the game's own role markers (Florian, 2026-09-11).
         /// Not to be "improved" by eye: a player reads these three before they read a name,
         /// and any drift from the game's own blue, green and red costs exactly that.
@@ -662,7 +674,17 @@ internal static class Tokens
         /// who is actually there (Florian, 2026-09-12).
         /// </para>
         /// </summary>
-        public const float OutOfRangeDim = 0.65f;
+        public const float OutOfRangeDim = 0.85f;
+
+        /// <summary>
+        /// The same, for a member who has logged out.
+        /// <para>
+        /// Deeper than out of range, because the two are not the same news. Out of range is a
+        /// pause — they are running back, and the frame has to stay easy to check. Offline is
+        /// over for this fight, and that frame may recede properly (Florian, 2026-09-12).
+        /// </para>
+        /// </summary>
+        public const float OfflineDim = 0.65f;
 
         public static float BadgeHeight => Px(18f);
         public static float BadgePaddingX => Px(6f);
