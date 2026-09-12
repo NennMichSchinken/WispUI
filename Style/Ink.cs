@@ -1,11 +1,12 @@
+using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 
 namespace WispUI.Style;
 
 /// <summary>
-/// Text output by font role. Nothing asks for a font by name or a size in pixels —
-/// it asks for <see cref="Role.Title"/>, <see cref="Role.Body"/> or <see cref="Role.Small"/>.
+/// Text output. The window asks by role — <see cref="Role.Title"/>, <see cref="Role.Body"/>,
+/// <see cref="Role.Small"/> — and the HUD asks by pixel size.
 /// <para>
 /// This exists for one performance reason as much as for tidiness. Dalamud's
 /// <c>IFontHandle.Push()</c> takes a font lock and hands it to a deferred-dispose queue,
@@ -21,6 +22,15 @@ internal static class Ink
     private static readonly ImFontPtr[] Fonts = new ImFontPtr[4];
     private static readonly float[] Sizes = new float[4];
 
+    /// <summary>
+    /// The HUD's own faces, one per size in use, mirroring what <see cref="Style.Fonts"/>
+    /// holds. Separate from the four above because the HUD's sizes are whatever the player
+    /// set, not four fixed steps.
+    /// </summary>
+    private static readonly ImFontPtr[] HudFonts = new ImFontPtr[4];
+    private static readonly float[] HudPx = new float[4];
+    private static int s_hudCount;
+
     internal enum Role
     {
         ScreenTitle = 0,
@@ -35,10 +45,34 @@ internal static class Ink
     /// </summary>
     public static void BeginFrame()
     {
-        Capture(Role.ScreenTitle, Style.Fonts.ScreenTitle);
-        Capture(Role.Title, Style.Fonts.Title);
-        Capture(Role.Body, Style.Fonts.Body);
-        Capture(Role.Small, Style.Fonts.Small);
+        Capture(0, Style.Fonts.ScreenTitle);
+        Capture(1, Style.Fonts.Title);
+        Capture(2, Style.Fonts.Body);
+        Capture(3, Style.Fonts.Small);
+
+        s_hudCount = 0;
+
+        for (int i = 0; i < Style.Fonts.HudCount && i < HudFonts.Length; i++)
+        {
+            Dalamud.Interface.ManagedFontAtlas.IFontHandle? handle = Style.Fonts.HudHandleAt(i);
+
+            // 🔴 Available, not just non-null. A handle is returned the moment it is asked for
+            // and is only backed by a real face once the atlas has been rebuilt, which is a
+            // frame or more later. Pushing it before then hands back the default face instead
+            // — silently, so the HUD draws in a font nobody chose and nothing says why.
+            if (handle is null || !handle.Available)
+            {
+                continue;
+            }
+
+            using (handle.Push())
+            {
+                HudFonts[s_hudCount] = ImGui.GetFont();
+                HudPx[s_hudCount] = Style.Fonts.HudSizeAt(i);
+            }
+
+            s_hudCount++;
+        }
     }
 
     /// <summary>The height of one line in this role.</summary>
@@ -66,36 +100,23 @@ internal static class Ink
         dl.AddText(Fonts[i], Sizes[i], pos, colour, text);
     }
 
-    /// <summary>
-    /// Writes a string with a shadow under it, for text that lies over the game rather than
-    /// over a panel of ours. A drop shadow rather than an outline: one extra draw instead of
-    /// four or eight, and it keeps the letter shapes, which an outline at this size does not.
-    /// </summary>
-    public static void DrawShadowed(ImDrawListPtr dl, Role role, Vector2 pos, uint colour, string text)
-    {
-        float offset = Style.Tokens.Metric.HudTextShadow;
-        Draw(dl, role, new Vector2(pos.X + offset, pos.Y + offset), Style.Tokens.Col.HudTextShadow, text);
-        Draw(dl, role, pos, colour, text);
-    }
-
-    // --- Text at a size the user chose ---------------------------------------
-    // The window's own text picks a role and gets that role's native size, which is the only
-    // way a bitmap face is ever perfectly sharp. A HUD element is the one place where that is
-    // not enough: how large a name on a party frame should be depends on how tall the frame
-    // is, and only the person looking at it knows.
+    // --- Text at a size the player chose --------------------------------------
+    // The window's own text picks a role and gets that role's native size. A HUD element
+    // cannot work that way: how large a name on a party frame should be depends on how tall
+    // the frame is, and only the person looking at it knows.
     //
-    // So a HUD text asks for a size in pixels, and the nearest role is scaled to it. At the
-    // native sizes it is exactly as sharp as the window; in between it softens a little, and
-    // that is the honest trade for letting the size be chosen at all.
+    // So the HUD's handles are built for exactly the sizes in use (Style.Fonts.SyncHud), and
+    // a draw finds the one that matches. With a vector face that is a glyph rasterised for
+    // this size and nothing else — sharp at any size. With one of the game's bitmap faces it
+    // is still the nearest size the game ships, resampled, because that is all a bitmap can
+    // ever be (Florian, 2026-09-12).
 
-    /// <summary>The roles a free size can be scaled from, smallest first.</summary>
+    /// <summary>The roles a free size can fall back to when the HUD holds no handle at all.</summary>
     private static readonly Role[] Scalable = { Role.Small, Role.Body, Role.Title, Role.ScreenTitle };
 
     /// <summary>
-    /// Which role to scale from for a given pixel size: the smallest one that is at least as
-    /// large as what was asked for. Scaling a bitmap face down keeps its edges, scaling it up
-    /// softens them, so the source is never the smaller of the two unless there is nothing
-    /// bigger to take.
+    /// Which window role to scale from, for the case where the HUD has no handles yet — the
+    /// first frames after a load, and any frame where a font file was missing.
     /// </summary>
     public static Role RoleFor(float pixels)
     {
@@ -111,36 +132,151 @@ internal static class Ink
     }
 
     /// <summary>
-    /// How wide a string is at a chosen pixel size. ImGui scales a font linearly, so this is
-    /// the measured width times the ratio rather than a second measurement.
+    /// Which held HUD face to write this size in: the one built closest to it, which is
+    /// normally the one built for exactly it. Returns -1 when the HUD holds none.
     /// </summary>
-    public static float MeasureWidth(float pixels, string text)
+    private static int HudIndex(float pixels)
     {
-        Role role = RoleFor(pixels);
-        float native = Sizes[(int)role];
-        return native > 0f ? Measure(role, text).X * (pixels / native) : 0f;
+        int best = -1;
+        float bestDistance = float.MaxValue;
+
+        for (int i = 0; i < s_hudCount; i++)
+        {
+            if (HudFonts[i].IsNull)
+            {
+                continue;
+            }
+
+            float distance = MathF.Abs(HudPx[i] - pixels);
+
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = i;
+            }
+        }
+
+        return best;
     }
 
-    /// <summary>Writes a string at a chosen pixel size, with its shadow.</summary>
-    public static void DrawScaledShadowed(ImDrawListPtr dl, float pixels, Vector2 pos, uint colour, string text)
+    /// <summary>How wide a string is at a chosen pixel size, in the face the HUD writes in.</summary>
+    public static float MeasureWidth(float pixels, string text)
     {
-        float offset = Style.Tokens.Metric.HudTextShadow;
-        DrawScaled(dl, pixels, new Vector2(pos.X + offset, pos.Y + offset), Style.Tokens.Col.HudTextShadow, text);
+        int i = HudIndex(pixels);
+        ImFontPtr font = i >= 0 ? HudFonts[i] : Fonts[(int)RoleFor(pixels)];
+        float native = i >= 0 ? HudPx[i] : Sizes[(int)RoleFor(pixels)];
+
+        if (native <= 0f || font.IsNull)
+        {
+            return 0f;
+        }
+
+        // Measured in the face the text will actually be drawn in. A wide face takes a
+        // different width from a narrow one at the same size, so measuring anything else here
+        // would put every name slightly out of place.
+        ImGui.PushFont(font);
+        float width = ImGui.CalcTextSize(text).X;
+        ImGui.PopFont();
+
+        return width * (pixels / native);
+    }
+
+    /// <summary>Writes a string at a chosen pixel size, with whatever was chosen to carry it.</summary>
+    public static void DrawScaledEdged(
+        ImDrawListPtr dl,
+        float pixels,
+        Vector2 pos,
+        uint colour,
+        string text,
+        TextEdge edge)
+    {
+        float offset = EdgeWidth(pixels);
+
+        switch (edge)
+        {
+            case TextEdge.Shadow:
+                DrawScaled(dl, pixels, Snap(pos, offset * 2f, offset * 2f), Style.Tokens.Col.HudTextShadowFar, text);
+                DrawScaled(dl, pixels, Snap(pos, offset, offset), Style.Tokens.Col.HudTextShadow, text);
+                break;
+
+            case TextEdge.Outline:
+                uint dark = Style.Tokens.Col.HudTextOutline;
+
+                // The four sides, then the four corners. At one pixel the corners land where
+                // the sides already are and cost nothing but four draws — but the width grows
+                // with the text now, and at two pixels and up a ring of four leaves the
+                // diagonals open, which is exactly the fraying that was reported (Florian,
+                // 2026-09-12).
+                DrawScaled(dl, pixels, Snap(pos, -offset, 0f), dark, text);
+                DrawScaled(dl, pixels, Snap(pos, offset, 0f), dark, text);
+                DrawScaled(dl, pixels, Snap(pos, 0f, -offset), dark, text);
+                DrawScaled(dl, pixels, Snap(pos, 0f, offset), dark, text);
+
+                if (offset > 1f)
+                {
+                    DrawScaled(dl, pixels, Snap(pos, -offset, -offset), dark, text);
+                    DrawScaled(dl, pixels, Snap(pos, offset, -offset), dark, text);
+                    DrawScaled(dl, pixels, Snap(pos, -offset, offset), dark, text);
+                    DrawScaled(dl, pixels, Snap(pos, offset, offset), dark, text);
+                }
+
+                break;
+        }
+
         DrawScaled(dl, pixels, pos, colour, text);
     }
 
-    /// <summary>Writes a string at a chosen pixel size.</summary>
+    /// <summary>Writes a string at a chosen pixel size, in the face the HUD was set to.</summary>
     public static void DrawScaled(ImDrawListPtr dl, float pixels, Vector2 pos, uint colour, string text)
     {
-        int i = (int)RoleFor(pixels);
-        if (Fonts[i].IsNull)
+        int i = HudIndex(pixels);
+
+        if (i >= 0)
+        {
+            dl.AddText(HudFonts[i], pixels, pos, colour, text);
+            return;
+        }
+
+        int role = (int)RoleFor(pixels);
+
+        if (Fonts[role].IsNull)
         {
             dl.AddText(pos, colour, text);
             return;
         }
 
-        dl.AddText(Fonts[i], pixels, pos, colour, text);
+        dl.AddText(Fonts[role], pixels, pos, colour, text);
     }
+
+    /// <summary>
+    /// How thick the edge under a text of this size is, in whole pixels.
+    /// <para>
+    /// 🔴 It follows the text rather than being one pixel for everything. One pixel is right
+    /// at sixteen and invisible at forty, which is what a fixed width always ends up being at
+    /// one end of a range the user can set (Florian, 2026-09-12). Whole pixels because half a
+    /// one is what made the outline look soft: a glyph drawn at a fractional offset is
+    /// resampled across two pixel columns and comes back grey.
+    /// </para>
+    /// </summary>
+    private static float EdgeWidth(float pixels)
+    {
+        float scaled = Style.Tokens.Metric.HudTextShadow;
+
+        // 🔴 The step is late on purpose. It used to thicken at sixteen pixels, which put it
+        // inside the range people actually set a name to — so nudging a size across that line
+        // visibly jumped the outline, and the thicker line read as clumsy at sizes that did
+        // not need it (Florian, 2026-09-12). At twenty-eight and up the text is large enough
+        // that a single pixel genuinely disappears, and nobody is fine-tuning there.
+        return pixels < 28f ? scaled : scaled * 2f;
+    }
+
+    /// <summary>
+    /// A position nudged by whole pixels. The nudge is rounded, not the result: the text's own
+    /// position is where the layout put it, and moving it to a pixel boundary here would move
+    /// the letters rather than the edge under them.
+    /// </summary>
+    private static Vector2 Snap(Vector2 pos, float dx, float dy) =>
+        new(pos.X + MathF.Round(dx), pos.Y + MathF.Round(dy));
 
     /// <summary>
     /// Pushes a role onto the ImGui font stack for code that uses the normal widget flow
@@ -165,13 +301,12 @@ internal static class Ink
         }
     }
 
-    private static void Capture(Role role, Dalamud.Interface.ManagedFontAtlas.IFontHandle handle)
+    private static void Capture(int slot, Dalamud.Interface.ManagedFontAtlas.IFontHandle handle)
     {
-        int i = (int)role;
         using (handle.Push())
         {
-            Fonts[i] = ImGui.GetFont();
-            Sizes[i] = ImGui.GetFontSize();
+            Fonts[slot] = ImGui.GetFont();
+            Sizes[slot] = ImGui.GetFontSize();
         }
     }
 }

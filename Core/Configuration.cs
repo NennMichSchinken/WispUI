@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 4;
+    public const int CurrentVersion = 5;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -87,6 +87,56 @@ public sealed class Configuration : IPluginConfiguration
 
         /// <summary>Draw the player name on the frame at all — the switch in the group head.</summary>
         public bool ShowName { get; set; } = true;
+
+        // --- how every text on a frame is carried ---------------------------------
+        // Two settings for all of them rather than two per text. Which face and what is
+        // behind it are questions about reading a frame, not about the name or the numbers
+        // separately, and answering them once is what keeps the tab to four groups (§3.1).
+
+        /// <summary>
+        /// What is drawn behind every text on a frame so it reads over the world.
+        /// <para>
+        /// Shadow by default, which is what the frames shipped with. Outline is the game's own
+        /// floating-text look, and what a bright background needs; None is for anyone who
+        /// finds both noisy (Florian, 2026-09-12).
+        /// </para>
+        /// </summary>
+        public int TextEdge { get; set; } = 1;
+
+        /// <summary>
+        /// The chosen edge, as the value the drawing code wants. Internal, which is also what
+        /// keeps it out of the saved file: the stored shape is the index above, and a second
+        /// spelling of the same setting in the JSON would be one to keep in step for nothing.
+        /// </summary>
+        internal Style.TextEdge Edge => Style.HudText.EdgeAt(this.TextEdge);
+
+        /// <summary>
+        /// Which of the game's own faces the frames are lettered in. Axis is the game's
+        /// interface face and the suite's own; it is also light, which is what prompted the
+        /// choice (Florian, 2026-09-12).
+        /// <para>
+        /// ⚠️ One face for the whole HUD, not one per element: a face is a font atlas entry
+        /// and a lock per frame, so a second element asking for a second face would cost real
+        /// work every frame. It lives here because the frames are the only HUD element there
+        /// is; a second one means moving this to Global rather than copying it.
+        /// </para>
+        /// </summary>
+        public string FontName { get; set; } = Style.FontLibrary.DefaultName;
+
+        /// <summary>
+        /// How heavily the face is laid down. Medium by default, not Normal: against a black
+        /// edge every face reads thinner than it is, and the first build shipped at Normal was
+        /// called thin for every face including the one brought in to compare against
+        /// (Florian, 2026-09-12).
+        /// </summary>
+        public int TextWeight { get; set; } = 1;
+
+        /// <summary>
+        /// The old position in a fixed list of six faces. Nothing writes it any more; it is
+        /// here so the migration to version 5 can read what the user had. Droppable once no
+        /// stored configuration is older than that.
+        /// </summary>
+        public int Font { get; set; }
 
         // --- name text ----------------------------------------------------------
         // Every text on a frame is described the same way: whether it shows, how big it is,
@@ -215,6 +265,16 @@ public sealed class Configuration : IPluginConfiguration
         public bool ClickToTarget { get; set; } = true;
 
         /// <summary>
+        /// Right-click a frame for the game's own menu — Examine, Trade, Send Tell and the rest.
+        /// <para>
+        /// On, and it is the one mouse setting that gives something back rather than adding
+        /// something. The frames take every mouse button, so without this the right button over
+        /// a frame does nothing, where over the game's own party list it opens this menu.
+        /// </para>
+        /// </summary>
+        public bool ContextMenu { get; set; } = true;
+
+        /// <summary>
         /// While the mouse is over a frame, tell the game that member is what it is pointing
         /// at. That is all it takes for the player's own mouseover macros and, with the game's
         /// own mouseover setting on, their hotbar to act on that member.
@@ -329,6 +389,13 @@ public sealed class Configuration : IPluginConfiguration
     /// Marks the configuration as changed. The write itself is debounced, so dragging a
     /// slider or clicking through an arrow selector never touches the disk per frame.
     /// </summary>
+    /// <summary>
+    /// Whether a change is still waiting to be written. Read by anything that should not act
+    /// while the player is still moving a slider — the font handles above all, since building
+    /// those is far more expensive than saving a file.
+    /// </summary>
+    internal bool HasPendingChanges => m_dirtySince != DateTime.MaxValue;
+
     internal void MarkDirty()
     {
         if (m_dirtySince == DateTime.MaxValue)
@@ -411,6 +478,22 @@ public sealed class Configuration : IPluginConfiguration
             config.PartyFrames.NameShortening = config.PartyFrames.ShortenNames
                 ? (int)Hud.NameShortening.Surname
                 : (int)Hud.NameShortening.Full;
+        }
+
+        if (config.Version < 5)
+        {
+            // The face was a position in a fixed list of six. The list is no longer fixed —
+            // it grows with whatever the player puts in their font folder — so the face is
+            // stored by name, and a position now maps to the name it used to mean.
+            config.PartyFrames.FontName = config.PartyFrames.Font switch
+            {
+                1 => "Miedinger",
+                2 => "Trump Gothic",
+                3 => "Jupiter",
+                4 => "Figtree",
+                5 => "DM Sans",
+                _ => Style.FontLibrary.DefaultName,
+            };
         }
     }
 }

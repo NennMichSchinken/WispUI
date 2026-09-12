@@ -146,6 +146,24 @@ internal static class Strings
     public const string HighlightHoveredTooltip = "The game's own party list marks it too.";
     public const string ClickToTarget = "Click to select";
     public const string ClickToTargetTooltip = "Left-click a frame to target that member.";
+    // --- lettering ----------------------------------------------------------
+    public const string GroupLettering = "Lettering";
+    public const string GroupLetteringHint = "The face every text on a frame is set in, and what carries it over the world.";
+    public const string TextFont = "Font";
+    public const string TextFontTooltip = "The game's own faces, two that ship with WispUI, and any .ttf you put in the plugin's Fonts folder.";
+    public const string TextWeight = "Weight";
+    public const string TextWeightTooltip = "Lays the face down more heavily. Not a second font 2014 the letterforms do not change.";
+    public const string TextWeightNormal = "Normal";
+    public const string TextWeightMedium = "Medium";
+    public const string TextWeightBold = "Bold";
+    public const string TextEdge = "Edge";
+    public const string TextEdgeTooltip = "What sits behind the letters so they read over a bright background.";
+    public const string TextEdgeNone = "None";
+    public const string TextEdgeShadow = "Shadow";
+    public const string TextEdgeOutline = "Outline";
+
+    public const string ContextMenu = "Right-click menu";
+    public const string ContextMenuTooltip = "Right-click a frame for the game's own menu, the same one its party list opens.";
     public const string MouseoverTarget = "Mouseover target";
 
     // Says exactly what it does and no more. A hotbar key still goes to the selected target —

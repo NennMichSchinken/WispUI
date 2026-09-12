@@ -202,8 +202,40 @@ internal static class Tokens
         /// <summary>
         /// Under every piece of text a HUD element writes. The frames lie over the world, and
         /// a bright name on a bright bar is unreadable without something behind it.
+        /// <para>
+        /// Two layers, not one. A single hard copy at three quarters black read as a second,
+        /// dirty letter offset from the first rather than as a shadow (Florian, 2026-09-12);
+        /// a near one and a fainter far one fall off instead of stopping, which is what makes
+        /// it read as shade.
+        /// </para>
         /// </summary>
-        public static readonly uint HudTextShadow = 0xC0000000u;
+        public static readonly uint HudTextShadow = 0x8C000000u;
+
+        /// <summary>The second, wider and fainter layer of the same shadow.</summary>
+        public static readonly uint HudTextShadowFar = 0x46000000u;
+
+        /// <summary>
+        /// The outline, which is a different job from the shadow and therefore a different
+        /// colour. A shadow suggests depth and may be soft; an outline cuts the letter out of
+        /// whatever is behind it and has to be hard and fully black to do that at all
+        /// (Florian, 2026-09-12).
+        /// </summary>
+        public static readonly uint HudTextOutline = 0xFF000000u;
+
+        /// <summary>
+        /// Text on a HUD element. Plain white, and the reason it is its own token is that the
+        /// window's <see cref="Ink"/> was used here first and read as grubby over the world
+        /// (Florian, 2026-09-12).
+        /// <para>
+        /// 🔴 The rule behind it, which is the second time it has cost a fix: a window colour
+        /// is not a HUD colour. #C3C3C3 is measured off the game's own panel and is right on a
+        /// panel, where it sits against one known dark surface. Over the world there is no
+        /// known surface — the text crosses grass, stone, sky and a health bar in one line —
+        /// and anything short of white reads as dirty white rather than as grey. The party
+        /// number's plate was the same lesson in Sitzung 7.
+        /// </para>
+        /// </summary>
+        public static readonly uint HudInk = 0xFFFFFFFFu;
 
         /// <summary>
         /// The three roles, MEASURED off the game's own role markers (Florian, 2026-09-11).
