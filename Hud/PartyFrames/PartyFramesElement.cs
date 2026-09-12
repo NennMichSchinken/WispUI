@@ -1004,11 +1004,18 @@ internal sealed class PartyFramesElement : HudElement
 
     private string HealthFigure(int slot, ref PartyMemberSnapshot member, HealthTextMode mode)
     {
-        // Nothing rather than a number. "0" or "100%" about somebody the game has no reading
-        // for is an invention, and the dimmed bar already says there is no reading.
+        // 🔴 Why there is no number, in place of the number. "0" or "100%" about somebody the
+        // game has no reading for is an invention — but a blank frame only says something is
+        // wrong, not what, and two of these three mean very different things to a healer: out
+        // of range comes back, another zone does not (Florian, 2026-09-12).
         if (!member.HasData)
         {
-            return string.Empty;
+            return member.Presence switch
+            {
+                PartyPresence.Offline => Strings.PresenceOffline,
+                PartyPresence.Away => Strings.PresenceAway,
+                _ => Strings.PresenceOutOfRange,
+            };
         }
 
         if (m_healthText[slot] is null

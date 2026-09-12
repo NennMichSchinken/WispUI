@@ -146,6 +146,13 @@ internal static class Strings
     public const string HighlightHoveredTooltip = "The game's own party list marks it too.";
     public const string ClickToTarget = "Click to select";
     public const string ClickToTargetTooltip = "Left-click a frame to target that member.";
+    // --- party frames: presence ----------------------------------------------
+    // What a frame says instead of a health figure when the game has no numbers for that
+    // member. Short, because it sits where a number sits.
+    public const string PresenceOutOfRange = "Out of range";
+    public const string PresenceAway = "Elsewhere";
+    public const string PresenceOffline = "Offline";
+
     // --- bindings -----------------------------------------------------------
     public const string TabBindings = "Bindings";
     public const string GroupBindings = "Mouse bindings";
