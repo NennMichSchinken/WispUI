@@ -1795,9 +1795,9 @@ internal static class Chrome
     /// A rounded button sized to its own label, for something you can do with a list rather
     /// than a setting in it. Sits under the list, aligned with its left edge.
     /// </summary>
-    public static bool PillButton(string id, string label, float x, float y)
+    public static bool PillButton(string id, string label, float x, float y, float heightOverride = 0f)
     {
-        float height = RowHeight();
+        float height = heightOverride > 0f ? heightOverride : RowHeight();
         float width = MathF.Round(Ink.Measure(Ink.Role.Body, label).X + (Tokens.Space.Lg * 2f));
 
         Vector2 min = new(MathF.Round(x), MathF.Round(y));

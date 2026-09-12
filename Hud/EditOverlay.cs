@@ -114,6 +114,133 @@ internal static class EditOverlay
     }
 
     /// <summary>
+    /// The four nudge arrows around an element, one per side.
+    /// <para>
+    /// 🔴 These exist because the arrow keys cannot. Dalamud only passes a plugin a key while
+    /// something is being typed into, so the keyboard belongs to the game the whole time edit
+    /// mode is up — the keys turned the camera instead (Florian, 2026-09-12, who asked for
+    /// these instead).
+    /// </para>
+    /// <para>
+    /// One pixel a click, ten with Shift held. Modifiers do arrive, unlike keys: they come in
+    /// with the mouse state, which is why Ctrl works for ignoring the guides.
+    /// </para>
+    /// </summary>
+    /// <returns>How far the element should move this frame, or zero.</returns>
+    public static Vector2 DrawNudges(Vector2 min, Vector2 max, float step)
+    {
+        float size = Tokens.Px(18f);
+        float gap = Tokens.Px(6f);
+
+        Vector2 centre = new(
+            MathF.Round((min.X + max.X) * 0.5f),
+            MathF.Round((min.Y + max.Y) * 0.5f));
+
+        Vector2 move = Vector2.Zero;
+
+        if (Arrow(IdNudgeUp, new Vector2(centre.X - (size * 0.5f), min.Y - gap - size), size, Direction.Up))
+        {
+            move.Y -= step;
+        }
+
+        if (Arrow(IdNudgeDown, new Vector2(centre.X - (size * 0.5f), max.Y + gap), size, Direction.Down))
+        {
+            move.Y += step;
+        }
+
+        if (Arrow(IdNudgeLeft, new Vector2(min.X - gap - size, centre.Y - (size * 0.5f)), size, Direction.Left))
+        {
+            move.X -= step;
+        }
+
+        if (Arrow(IdNudgeRight, new Vector2(max.X + gap, centre.Y - (size * 0.5f)), size, Direction.Right))
+        {
+            move.X += step;
+        }
+
+        return move;
+    }
+
+    private enum Direction
+    {
+        Up,
+        Down,
+        Left,
+        Right,
+    }
+
+    /// <summary>
+    /// One nudge arrow. Repeats while held, so moving twenty pixels is one press rather than
+    /// twenty — the same behaviour the arrow keys would have had.
+    /// </summary>
+    private static bool Arrow(string id, Vector2 at, float size, Direction direction)
+    {
+        Vector2 min = new(MathF.Round(at.X), MathF.Round(at.Y));
+        Vector2 max = new(min.X + size, min.Y + size);
+
+        ImGui.SetCursorScreenPos(min);
+        ImGui.PushButtonRepeat(true);
+        ImGui.InvisibleButton(id, new Vector2(size, size));
+        bool clicked = ImGui.IsItemClicked();
+        ImGui.PopButtonRepeat();
+
+        bool hovered = ImGui.IsItemHovered();
+        Chrome.ShowHand(hovered);
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        dl.AddRectFilled(min, max, hovered ? Tokens.Col.Control : Tokens.Col.EditLabelBg, Tokens.Radius.Control);
+        dl.AddRect(
+            min,
+            max,
+            hovered ? Tokens.Col.EditGuide : Tokens.Col.EditAxis,
+            Tokens.Radius.Control,
+            ImDrawFlags.RoundCornersAll,
+            Tokens.Line(1f));
+
+        // A filled triangle rather than a glyph: the face a HUD is lettered in is the
+        // player's choice, and an arrow drawn from it would change shape with that choice.
+        float inset = MathF.Round(size * 0.3f);
+        uint ink = hovered ? Tokens.Col.GoldHi : Tokens.Col.HudInkQuiet;
+
+        Vector2 a, b, c;
+
+        switch (direction)
+        {
+            case Direction.Up:
+                a = new Vector2(min.X + (size * 0.5f), min.Y + inset);
+                b = new Vector2(max.X - inset, max.Y - inset);
+                c = new Vector2(min.X + inset, max.Y - inset);
+                break;
+
+            case Direction.Down:
+                a = new Vector2(min.X + (size * 0.5f), max.Y - inset);
+                b = new Vector2(min.X + inset, min.Y + inset);
+                c = new Vector2(max.X - inset, min.Y + inset);
+                break;
+
+            case Direction.Left:
+                a = new Vector2(min.X + inset, min.Y + (size * 0.5f));
+                b = new Vector2(max.X - inset, min.Y + inset);
+                c = new Vector2(max.X - inset, max.Y - inset);
+                break;
+
+            default:
+                a = new Vector2(max.X - inset, min.Y + (size * 0.5f));
+                b = new Vector2(min.X + inset, max.Y - inset);
+                c = new Vector2(min.X + inset, min.Y + inset);
+                break;
+        }
+
+        dl.AddTriangleFilled(a, b, c, ink);
+        return clicked;
+    }
+
+    private const string IdNudgeUp = "##wisp-nudge-up";
+    private const string IdNudgeDown = "##wisp-nudge-down";
+    private const string IdNudgeLeft = "##wisp-nudge-left";
+    private const string IdNudgeRight = "##wisp-nudge-right";
+
+    /// <summary>
     /// The bar that says arranging is happening and ends it.
     /// <para>
     /// 🔴 A button rather than a key, because a key was not available. Dalamud only hands a
@@ -135,8 +262,11 @@ internal static class EditOverlay
         }
 
         Vector2 screen = ImGui.GetIO().DisplaySize;
-        float pad = Tokens.Space.Lg;
-        float rowHeight = Chrome.RowHeight();
+
+        // Tight. It is a strip that says what is happening and offers the way out, not a
+        // panel — and it is sitting on top of the thing being arranged (Florian, 2026-09-12).
+        float pad = Tokens.Space.Md;
+        float rowHeight = Tokens.Px(26f);
 
         // Placed at the top the first time it appears, and left wherever it is pushed after
         // that — the thing being arranged may well be at the top of the screen.
@@ -157,13 +287,13 @@ internal static class EditOverlay
 
             Ink.Draw(
                 dl,
-                Ink.Role.Title,
-                new Vector2(at.X, Chrome.CenterY(at.Y, rowHeight, Ink.Role.Title)),
+                Ink.Role.Body,
+                new Vector2(at.X, Chrome.CenterY(at.Y, rowHeight, Ink.Role.Body)),
                 Tokens.Col.Heading,
                 Strings.EditMode);
 
-            float titleWidth = Ink.Measure(Ink.Role.Title, Strings.EditMode).X;
-            float hintX = at.X + titleWidth + Tokens.Space.Lg;
+            float titleWidth = Ink.Measure(Ink.Role.Body, Strings.EditMode).X;
+            float hintX = at.X + titleWidth + Tokens.Space.Md;
 
             Ink.Draw(
                 dl,
@@ -173,9 +303,9 @@ internal static class EditOverlay
                 Strings.EditModeKeys);
 
             float hintWidth = Ink.Measure(Ink.Role.Small, Strings.EditModeKeys).X;
-            float buttonX = hintX + hintWidth + Tokens.Space.Xl;
+            float buttonX = hintX + hintWidth + Tokens.Space.Lg;
 
-            if (Chrome.PillButton(IdBarDone, Strings.EditModeDone, buttonX, at.Y))
+            if (Chrome.PillButton(IdBarDone, Strings.EditModeDone, buttonX, at.Y, rowHeight))
             {
                 EditMode.Stop();
             }

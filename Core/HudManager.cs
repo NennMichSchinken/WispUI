@@ -174,20 +174,25 @@ internal sealed class HudManager
             EditMode.EndDrag();
         }
 
-        // 🔴 No arrow keys, and none possible from here. Dalamud only passes a plugin the
-        // keyboard while io.WantTextInput is set — while something is genuinely being typed
-        // into — so every key goes to the game instead: the arrows turned the camera and
-        // Escape opened the game's menu (Florian, 2026-09-12).
-        //
-        // Fine-tuning to the pixel therefore lives where it always did, on the two position
-        // sliders in the Layout tab, which can also be typed into. Dragging is for placing;
-        // the numbers are for placing exactly.
         if (hovered)
         {
             ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeAll);
         }
 
-        EditOverlay.DrawHandle(dl, min, max, element.Name, hovered || active || m_selected == index);
+        bool marked = hovered || active || m_selected == index;
+        EditOverlay.DrawHandle(dl, min, max, element.Name, marked);
+
+        // The four arrows, in place of the arrow keys the game never lets go of. Only on the
+        // element being worked on, or four sets of them would surround a full HUD.
+        if (marked && !active)
+        {
+            Vector2 step = EditOverlay.DrawNudges(min, max, EditMode.Nudge(io.KeyShift));
+
+            if (step != Vector2.Zero)
+            {
+                element.MoveTo(min + step);
+            }
+        }
     }
 
 
