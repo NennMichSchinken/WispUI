@@ -559,6 +559,16 @@ internal sealed class ConfigWindow : Window
         if (ImGui.IsItemClicked())
         {
             EditMode.Toggle();
+
+            // 🔴 Turning it on closes this window. Arranging means dragging the very things
+            // the window is covering, and a settings panel in the middle of the screen is the
+            // largest obstacle there is to placing something on that screen (Florian,
+            // 2026-09-12, following LumenUI). Turning it off does not reopen it: that is a
+            // second window appearing without being asked for.
+            if (EditMode.IsActive)
+            {
+                this.IsOpen = false;
+            }
         }
 
         // While it is on the button carries the accent, the way a switch that is doing

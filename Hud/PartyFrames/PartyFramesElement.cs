@@ -161,6 +161,54 @@ internal sealed class PartyFramesElement : HudElement
 
     public override bool Enabled => m_config.PartyFramesEnabled;
 
+    public override bool Movable => true;
+
+    /// <summary>
+    /// The block all the frames together occupy, worked out from what was actually drawn.
+    /// <para>
+    /// From the drawn rectangles rather than recalculated from the settings: the two would
+    /// have to be kept in step by hand, and the one that matters is the one on screen.
+    /// </para>
+    /// </summary>
+    public override void Bounds(out Vector2 min, out Vector2 max)
+    {
+        min = default;
+        max = default;
+        bool any = false;
+
+        for (int i = 0; i < m_snapshot.Count; i++)
+        {
+            if (!m_hasInside[i])
+            {
+                continue;
+            }
+
+            if (!any)
+            {
+                min = m_frameMin[i];
+                max = m_frameMax[i];
+                any = true;
+                continue;
+            }
+
+            min = Vector2.Min(min, m_frameMin[i]);
+            max = Vector2.Max(max, m_frameMax[i]);
+        }
+    }
+
+    /// <summary>
+    /// Takes a screen position and stores it the way the layout does — unscaled, so the
+    /// arrangement is the same shape at any interface scale.
+    /// </summary>
+    public override void MoveTo(Vector2 topLeft)
+    {
+        float scale = Tokens.Scale <= 0f ? 1f : Tokens.Scale;
+
+        m_config.PartyFrames.PositionX = MathF.Round(topLeft.X / scale);
+        m_config.PartyFrames.PositionY = MathF.Round(topLeft.Y / scale);
+        m_config.MarkDirty();
+    }
+
     public override void Collect()
     {
         if (EditMode.IsActive)
@@ -790,7 +838,13 @@ internal sealed class PartyFramesElement : HudElement
 
         // Grey, not white. The note explains why a frame is quiet; it is not the thing on the
         // frame to read, and white is what this palette keeps for what must be read.
-        Ink.DrawScaledEdged(dl, size, at, Tokens.Col.HudInkQuiet, note, cfg.Edge);
+        //
+        // 🔴 And never outlined, whatever the lettering is set to. An outline is what makes a
+        // text cut itself out of a bright background and shout — exactly right for a name over
+        // the world, exactly wrong for a note whose whole job is to be quiet (Florian,
+        // 2026-09-12). It keeps a shadow if one was asked for, and nothing if it was not.
+        TextEdge edge = cfg.Edge == TextEdge.None ? TextEdge.None : TextEdge.Shadow;
+        Ink.DrawScaledEdged(dl, size, at, Tokens.Col.HudInkQuiet, note, edge);
     }
 
     /// <summary>

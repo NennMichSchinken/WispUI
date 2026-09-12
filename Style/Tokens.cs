@@ -249,6 +249,24 @@ internal static class Tokens
         /// </summary>
         public static readonly uint HudInkQuiet = Rgb(0x9A9A9A);
 
+        // --- edit mode ---------------------------------------------------------
+
+        /// <summary>
+        /// The wash over the world while the HUD is being arranged. Dark and gentle: it has to
+        /// quiet the world enough that an edge can be judged, without hiding what the frames
+        /// will actually sit against.
+        /// </summary>
+        public static readonly uint EditWash = 0x8C0A0A0Au;
+
+        /// <summary>The two centre lines, and the outline of an element at rest.</summary>
+        public static readonly uint EditAxis = 0x70FFFFFFu;
+
+        /// <summary>A line that is holding a drag, and the outline of the element under the hand.</summary>
+        public static readonly uint EditGuide = 0xFFD8B567u;
+
+        /// <summary>Behind an element's name while it is being arranged.</summary>
+        public static readonly uint EditLabelBg = 0xD2141314u;
+
         /// <summary>
         /// The three roles, MEASURED off the game's own role markers (Florian, 2026-09-11).
         /// Not to be "improved" by eye: a player reads these three before they read a name,

@@ -20,6 +20,7 @@ internal static class Strings
     // --- Window chrome ------------------------------------------------------
     public const string Defaults = "Defaults";
     public const string EditMode = "Edit Mode";
+    public const string EditModeKeys = "Drag to move  ·  Arrow keys nudge, Shift for 10  ·  Ctrl to ignore guides  ·  Esc to finish";
     public const string NewBadge = "New";
     public const string Soon = "Soon";
 
