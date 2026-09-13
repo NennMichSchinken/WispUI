@@ -353,6 +353,8 @@ internal static class StatusData
             return;
         }
 
+        DumpParty(player);
+
         var buffer = new NativeUi.StatusEntry[NativeUi.StatusCapacity];
         int ours = NativeUi.ReadCharacterStatuses(player.Address, buffer);
 
@@ -445,6 +447,61 @@ internal static class StatusData
                     row.ParamModifier,
                     buffer[i].Param);
             }
+        }
+    }
+
+    /// <summary>
+    /// What the party list says about where everybody is.
+    /// <para>
+    /// 🔴 Written because "out of range" was guessed at three times running. The frames tell
+    /// somebody too far to help from somebody standing beside you by measuring the distance —
+    /// and a party of eight none of whom could be targeted came back undimmed anyway. Whether
+    /// that is because the positions are empty, or because they are real and near, or because
+    /// the zone check catches it first, is not answerable by reading the code again.
+    /// </para>
+    /// </summary>
+    private static void DumpParty(Dalamud.Game.ClientState.Objects.SubKinds.IPlayerCharacter player)
+    {
+        var party = Services.Party;
+        System.Numerics.Vector3 from = player.Position;
+
+        Services.Log.Information(
+            "--- party: {Count} slot(s), you at {X:0.0}/{Y:0.0}/{Z:0.0} in territory {Here} ---",
+            party.Length,
+            from.X,
+            from.Y,
+            from.Z,
+            Services.ClientState.TerritoryType);
+
+        for (int i = 0; i < party.Length; i++)
+        {
+            var member = party[i];
+
+            if (member is null)
+            {
+                Services.Log.Information("  [{Slot}] empty", i);
+                continue;
+            }
+
+            System.Numerics.Vector3 at = member.Position;
+            float dx = at.X - from.X;
+            float dy = at.Y - from.Y;
+            float dz = at.Z - from.Z;
+            double distance = System.Math.Sqrt((dx * dx) + (dy * dy) + (dz * dz));
+
+            Services.Log.Information(
+                "  [{Slot}] {Name} | job {Job} | territory {Territory} | hp {Hp}/{MaxHp} | pos {X:0.0}/{Y:0.0}/{Z:0.0} | distance {Distance:0.0} | object {Object}",
+                i,
+                member.Name.TextValue,
+                member.ClassJob.RowId,
+                member.Territory.RowId,
+                member.CurrentHP,
+                member.MaxHP,
+                at.X,
+                at.Y,
+                at.Z,
+                distance,
+                member.GameObject is null ? "none" : "loaded");
         }
     }
 
