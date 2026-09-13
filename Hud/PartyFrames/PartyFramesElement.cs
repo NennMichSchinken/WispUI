@@ -899,7 +899,33 @@ internal sealed class PartyFramesElement : HudElement
     /// This colour, faded by however much the frame being drawn is stepped back. A no-op on a
     /// member who is there, which is nearly always.
     /// </summary>
-    private uint Dim(uint colour) => m_dim >= 1f ? colour : Tokens.Col.Faded(colour, m_dim);
+    /// <summary>
+    /// Steps a frame back without making it see-through.
+    /// <para>
+    /// 🔴 By DARKENING the colour, not by taking its alpha away. These frames lie over the
+    /// game world, so a bar at half alpha shows grass and stone through itself — and whatever
+    /// is behind it drags every colour towards the same muddy grey. At 0.85 nothing was
+    /// visible, at 0.45 the class colour was gone, and both were the same mistake
+    /// (Florian, 2026-09-13, twice).
+    /// </para>
+    /// <para>
+    /// Exactly the rule already written down after session 8: opacity says how present
+    /// something is, colour says how important. Something that should recede needs a darker
+    /// colour, not a thinner one. The frame stays solid, and a dark green is still green.
+    /// </para>
+    /// </summary>
+    private uint Dim(uint colour) => m_dim >= 1f ? colour : Tokens.Col.Darker(colour, m_dim);
+
+    /// <summary>
+    /// The same, for writing, and half as far.
+    /// <para>
+    /// A bar can go properly dark and still be a bar — its job is to be a colour and a length.
+    /// A name has to be read, and text taken as far down as the fill it sits on stops being
+    /// text. So the frame steps back and its writing steps back with it, but only half as far.
+    /// </para>
+    /// </summary>
+    private uint DimInk(uint colour) =>
+        m_dim >= 1f ? colour : Tokens.Col.Darker(colour, 0.5f + (m_dim * 0.5f));
 
     /// <summary>
     /// A rectangle drawn as four filled bars rather than as a stroke. ImGui centres a stroke
@@ -1301,7 +1327,7 @@ internal sealed class PartyFramesElement : HudElement
 
         // Always outlined, whatever the frame's own text edge is set to. This one sits on a
         // picture rather than on a bar, and a picture can be any colour underneath.
-        Ink.DrawScaledEdged(dl, size, at, this.Dim(Tokens.Col.HudInk), text, TextEdge.Outline);
+        Ink.DrawScaledEdged(dl, size, at, this.DimInk(Tokens.Col.HudInk), text, TextEdge.Outline);
     }
 
     /// <summary>Stack counts, built once. Past the end the number is simply not drawn.</summary>
@@ -1442,7 +1468,7 @@ internal sealed class PartyFramesElement : HudElement
             // 🔴 A dimmed frame gets darker text, not just fainter text. White at two thirds
             // opacity is still white, and on a frame that has stepped back the name was the
             // one thing still shouting (Florian, 2026-09-12).
-            uint colour = this.Dim(cfg.NameInJobColour
+            uint colour = this.DimInk(cfg.NameInJobColour
                 ? Jobs.Colour(member.JobId)
                 : (member.HasData ? Tokens.Col.HudInk : Tokens.Col.HudInkQuiet));
 
@@ -1517,7 +1543,7 @@ internal sealed class PartyFramesElement : HudElement
         healthAt.X += Tokens.Px(cfg.HpTextX);
         healthAt.Y += Tokens.Px(cfg.HpTextY);
 
-        Ink.DrawScaledEdged(dl, healthSize, healthAt, this.Dim(Tokens.Col.HudInk), health, cfg.Edge);
+        Ink.DrawScaledEdged(dl, healthSize, healthAt, this.DimInk(Tokens.Col.HudInk), health, cfg.Edge);
     }
 
     /// <summary>Whether this member is one of the ones mana was switched on for.</summary>

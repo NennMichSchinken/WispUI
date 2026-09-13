@@ -377,6 +377,32 @@ internal static class Tokens
             (colour & 0x00FFFFFFu) | ((uint)MathF.Round(Math.Clamp(alpha, 0f, 1f) * 255f) << 24);
 
         /// <summary>
+        /// The same colour, darker, at the alpha it already had.
+        /// <para>
+        /// 🔴 The way anything drawn over the game world steps back. Taking a colour's alpha
+        /// away lets the world through it, and grass, stone and sky drag every colour towards
+        /// the same grey — so a frame faded that way loses the one thing it was saying. Made
+        /// darker instead, it stays solid and a dark green is still recognisably green
+        /// (Florian, 2026-09-13; the rule was written down after session 8 and this is the
+        /// first place it is enforced in code).
+        /// </para>
+        /// <para>
+        /// Not a blend towards black: the channels keep their ratios, so the hue is exactly
+        /// the hue it was and only the brightness moves.
+        /// </para>
+        /// </summary>
+        public static uint Darker(uint colour, float amount)
+        {
+            amount = Math.Clamp(amount, 0f, 1f);
+
+            uint r = (uint)MathF.Round(((colour >> 0) & 0xFFu) * amount);
+            uint g = (uint)MathF.Round(((colour >> 8) & 0xFFu) * amount);
+            uint b = (uint)MathF.Round(((colour >> 16) & 0xFFu) * amount);
+
+            return (colour & 0xFF000000u) | (b << 16) | (g << 8) | r;
+        }
+
+        /// <summary>
         /// Blends two packed colours channel by channel. Used where one run of the window edge
         /// hands over to the next: at a hard swap the corner shows a seam, and the eye finds a
         /// seam on a curve faster than anywhere else.
