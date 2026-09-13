@@ -37,11 +37,24 @@ internal struct PartyMemberSnapshot
     public uint EntityId;
 
     /// <summary>
-    /// The member's place in the party, counted from one — the number the game's own party
-    /// list shows and the number people are called out by. It is the party's, not ours: once
-    /// the frames can be sorted, member three has to stay the three they answer to.
+    /// The member's row in the game's own party list, counted from one — the number people
+    /// are called out by. It is the game's number, not a count of our frames: the frames are
+    /// laid out in this order, so the two agree, and when the game has nothing to say the
+    /// party list's own order stands in.
     /// </summary>
     public int PartyNumber;
+
+    /// <summary>
+    /// Where this member sits in the HUD agent's own array — the one number the game's
+    /// right-click menu can be opened with.
+    /// <para>
+    /// 🔴 Kept apart from <see cref="PartyNumber"/> on purpose. The agent's array always
+    /// begins with the local player, whatever the list looks like on screen, so the two are
+    /// the same number only in a party nobody has sorted. Passing the wrong one opens the
+    /// menu on the wrong person, and it looks right until somebody turns on role sorting.
+    /// </para>
+    /// </summary>
+    public int HudIndex;
 
     public uint JobId;
     public JobRole Role;
@@ -109,6 +122,13 @@ internal sealed class PartySnapshot
 
     private readonly PartyMemberSnapshot[] m_members = new PartyMemberSnapshot[Capacity];
 
+    /// <summary>
+    /// The game's own party list order, read once a frame into a reused array. Ten, because
+    /// that is what the agent keeps room for; a party of four simply leaves the tail unused.
+    /// </summary>
+    private readonly NativeUi.HudPartyMemberInfo[] m_order =
+        new NativeUi.HudPartyMemberInfo[NativeUi.HudPartyCapacity];
+
     /// <summary>How many entries of <see cref="Members"/> hold someone this frame.</summary>
     public int Count { get; private set; }
 
@@ -132,6 +152,11 @@ internal sealed class PartySnapshot
         uint here = Services.ClientState.TerritoryType;
         int count = 0;
 
+        // The game's own order, read once. Everything below asks this rather than deciding
+        // anything about order itself — see NativeUi.ReadPartyOrder for why there is no
+        // sorting option in the settings at all.
+        int ordered = NativeUi.ReadPartyOrder(m_order);
+
         for (int i = 0; i < party.Length && count < Capacity; i++)
         {
             var member = party[i];
@@ -152,7 +177,16 @@ internal sealed class PartySnapshot
             }
 
             slot.EntityId = entityId;
-            slot.PartyNumber = i + 1;
+
+            // Where the game puts them, when the game is willing to say. Its own order is the
+            // only order the frames have: matched by entity id, and by content id for anyone
+            // too far away to be loaded, who has no entity id worth matching on.
+            if (!this.Locate(ordered, entityId, member.ContentId, out slot.PartyNumber, out slot.HudIndex))
+            {
+                slot.PartyNumber = i + 1;
+                slot.HudIndex = i;
+            }
+
             slot.JobId = member.ClassJob.RowId;
             slot.Role = Jobs.Role(slot.JobId);
             slot.Hp = member.CurrentHP;
@@ -169,6 +203,8 @@ internal sealed class PartySnapshot
 
             count++;
         }
+
+        Order(m_members, count);
 
         // Alone, the party list is empty and the player is not in it. They are still the one
         // person a party frame would be about, so they take the first slot.
@@ -193,6 +229,10 @@ internal sealed class PartySnapshot
             ref PartyMemberSnapshot slot = ref m_members[i];
             slot.EntityId = PlaceholderId + (uint)i;
             slot.PartyNumber = i + 1;
+
+            // Nobody to open a menu on. Minus one is what the call refuses, so a stand-in
+            // cannot reach a real person's menu even if something did ask.
+            slot.HudIndex = -1;
             slot.JobId = PlaceholderJobs[i];
             slot.Role = Jobs.Role(slot.JobId);
             slot.Name = Strings.PreviewName;
@@ -207,6 +247,70 @@ internal sealed class PartySnapshot
 
         this.IsSolo = false;
         this.Count = Capacity;
+    }
+
+    /// <summary>
+    /// Finds a member in the game's own party list order.
+    /// <para>
+    /// By entity id first, and by content id for anyone the game has not loaded: somebody
+    /// across the map or in another duty still holds their row in the list, but their entity
+    /// id is not worth matching on. Content id survives all of it.
+    /// </para>
+    /// <para>
+    /// A search inside a loop, which reads like the wrong shape — but both sides are a party,
+    /// so the worst case is sixty-four comparisons of a number, once a frame, against building
+    /// and clearing a lookup that would allocate. The rule is no allocations in the draw path,
+    /// not no arithmetic (CLAUDE.md §7.1).
+    /// </para>
+    /// </summary>
+    private bool Locate(int ordered, uint entityId, ulong contentId, out int row, out int hudIndex)
+    {
+        for (int i = 0; i < ordered; i++)
+        {
+            ref NativeUi.HudPartyMemberInfo entry = ref m_order[i];
+
+            bool same = (entityId != 0 && entry.EntityId == entityId)
+                || (contentId != 0 && entry.ContentId == contentId);
+
+            if (!same)
+            {
+                continue;
+            }
+
+            row = entry.Row + 1;
+            hudIndex = entry.HudIndex;
+            return true;
+        }
+
+        row = 0;
+        hudIndex = -1;
+        return false;
+    }
+
+    /// <summary>
+    /// Puts the members in the order the game draws them.
+    /// <para>
+    /// An insertion sort, because a party is eight at most and an almost-sorted eight is the
+    /// case it is fastest at — which is every frame, since the order only ever changes when
+    /// somebody joins, leaves or swaps job. It moves whole entries, cached name and all, so
+    /// nothing is re-read for having been shifted along one place.
+    /// </para>
+    /// </summary>
+    private static void Order(PartyMemberSnapshot[] members, int count)
+    {
+        for (int i = 1; i < count; i++)
+        {
+            PartyMemberSnapshot moving = members[i];
+            int j = i - 1;
+
+            while (j >= 0 && members[j].PartyNumber > moving.PartyNumber)
+            {
+                members[j + 1] = members[j];
+                j--;
+            }
+
+            members[j + 1] = moving;
+        }
     }
 
     /// <summary>
@@ -246,6 +350,10 @@ internal sealed class PartySnapshot
 
         slot.EntityId = entityId;
         slot.PartyNumber = 1;
+
+        // The agent's array begins with the local player, so alone they are its only entry.
+        slot.HudIndex = 0;
+
         slot.JobId = player.ClassJob.RowId;
         slot.Role = Jobs.Role(slot.JobId);
         slot.Hp = player.CurrentHp;

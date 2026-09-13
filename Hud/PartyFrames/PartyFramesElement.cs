@@ -708,10 +708,14 @@ internal sealed class PartyFramesElement : HudElement
                     break;
 
                 case BindingKind.ContextMenu:
-                    // By place in the game's own party list, not by object — see
-                    // NativeUi.OpenPartyContextMenu. The number on the frame is that place,
-                    // counting from one.
-                    NativeUi.OpenPartyContextMenu(member.PartyNumber - 1);
+                    // By place in the HUD agent's array, not by object — see
+                    // NativeUi.OpenPartyContextMenu.
+                    //
+                    // 🔴 Not the number on the frame, which this used to pass. That number is
+                    // the row the game draws the member on; the agent's array always starts
+                    // with the local player instead. The two agree only in a party nobody has
+                    // sorted, which is why passing the wrong one looked right.
+                    NativeUi.OpenPartyContextMenu(member.HudIndex);
                     break;
 
                 case BindingKind.Action:

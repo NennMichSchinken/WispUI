@@ -108,6 +108,131 @@ internal static class NativeUi
     }
 
     /// <summary>
+    /// One member of the game's own party list, as far as the frames need to care.
+    /// <para>
+    /// Two numbers, and they are not the same number. <see cref="Row"/> is where the game
+    /// draws this member — the order the player set up in their own settings, sorted by role
+    /// or not. <see cref="HudIndex"/> is where they sit in the agent's own array, which always
+    /// begins with the local player whatever the list looks like on screen.
+    /// </para>
+    /// </summary>
+    internal struct HudPartyMemberInfo
+    {
+        public uint EntityId;
+
+        /// <summary>Survives the member not being loaded, which an entity id does not.</summary>
+        public ulong ContentId;
+
+        /// <summary>Place in the agent's array. The number the context menu call asks for.</summary>
+        public int HudIndex;
+
+        /// <summary>Which row of the game's own party list this member is drawn on, from zero.</summary>
+        public int Row;
+    }
+
+    /// <summary>As many members as the agent keeps room for. A full party plus trust slots.</summary>
+    public const int HudPartyCapacity = 10;
+
+    /// <summary>
+    /// Reads the game's own party list order — who it shows, and in which row.
+    /// <para>
+    /// 🔴 This is why WispUI has no sorting option of its own. FFXIV already lets the player
+    /// sort their party list by role and order the jobs inside each role
+    /// (<c>PartyListSortTypeTank</c> and friends, plus the role sort window). Reading the
+    /// finished order instead of the settings behind it means the frames follow every one of
+    /// those choices without a single switch of ours, and can never disagree with the list
+    /// they replace (Florian, 2026-09-13: "dann sparen wir uns die Option").
+    /// </para>
+    /// <para>
+    /// 🔴 The agent's array is not the display order. Its own remark says the local player is
+    /// always first in it and their real place is in <c>Index</c> — so the row is read from
+    /// there, and the array position is kept only because that is what the context menu call
+    /// wants.
+    /// </para>
+    /// </summary>
+    /// <returns>How many entries of <paramref name="into"/> were filled. Zero means the game
+    /// has nothing to say right now, and the caller should fall back to the party list's own
+    /// order rather than draw nothing.</returns>
+    public static unsafe int ReadPartyOrder(Span<HudPartyMemberInfo> into)
+    {
+        AgentHUD* hud = AgentHUD.Instance();
+        if (hud is null)
+        {
+            return 0;
+        }
+
+        int count = hud->PartyMemberCount;
+        Span<HudPartyMember> members = hud->PartyMembers;
+
+        if (count > members.Length)
+        {
+            count = members.Length;
+        }
+
+        if (count > into.Length)
+        {
+            count = into.Length;
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            ref HudPartyMember member = ref members[i];
+
+            into[i].EntityId = member.EntityId;
+            into[i].ContentId = member.ContentId;
+            into[i].HudIndex = i;
+            into[i].Row = member.Index;
+        }
+
+        return count < 0 ? 0 : count;
+    }
+
+    /// <summary>Whether the game's party list is hidden because we hid it.</summary>
+    private static bool s_partyListHidden;
+
+    /// <summary>
+    /// Hides or restores the game's own party list, once per frame.
+    /// <para>
+    /// 🔴 Asked every frame rather than on a change of ours, because the game puts its list
+    /// back up by itself — on a zone change, on joining a duty, whenever the interface is
+    /// rebuilt. Only a difference is written, so the common case costs one read.
+    /// </para>
+    /// <para>
+    /// While the player has never asked for this, the list is not touched at all. A plugin
+    /// that sets a piece of the game's interface visible "just to be sure" is a plugin that
+    /// undoes whatever the player did with it somewhere else.
+    /// </para>
+    /// </summary>
+    public static unsafe void SettleNativePartyList(bool hide)
+    {
+        if (!hide && !s_partyListHidden)
+        {
+            return;
+        }
+
+        var addon = (AtkUnitBase*)Services.GameGui.GetAddonByName("_PartyList", 1).Address;
+        if (addon is null)
+        {
+            // Not built yet, or gone with the interface. Nothing to hide and nothing to put
+            // back; the flag stays as it is so the next frame tries again.
+            return;
+        }
+
+        if (addon->IsVisible != !hide)
+        {
+            addon->IsVisible = !hide;
+        }
+
+        s_partyListHidden = hide;
+    }
+
+    /// <summary>
+    /// Puts the game's list back for good. Called when the plugin goes away: a piece of the
+    /// player's interface must never be left hidden by something that is no longer running.
+    /// </summary>
+    public static void RestoreNativePartyList() => SettleNativePartyList(false);
+
+    /// <summary>
     /// Opens the game's own right-click menu on a party member — the one with Examine, Trade,
     /// Send Tell and the rest.
     /// <para>
@@ -121,7 +246,13 @@ internal static class NativeUi
     /// list it opens this. The frames are meant to replace that list, so they owe it the menu.
     /// </para>
     /// </summary>
-    /// <param name="hudIndex">The member's place in the game's own party list, counting from zero.</param>
+    /// <param name="hudIndex">
+    /// The member's place in the HUD agent's own party array, counting from zero — the
+    /// <see cref="HudPartyMemberInfo.HudIndex"/> carried through the snapshot, not the row the
+    /// member is drawn on and not their place in the party list Dalamud hands us. Those three
+    /// agree only while nothing is sorted, which is exactly the case that hid this apart until
+    /// now.
+    /// </param>
     public static unsafe void OpenPartyContextMenu(int hudIndex)
     {
         if (hudIndex < 0)
