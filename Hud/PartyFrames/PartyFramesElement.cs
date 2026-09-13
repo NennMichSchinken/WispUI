@@ -762,14 +762,18 @@ internal sealed class PartyFramesElement : HudElement
                     break;
 
                 case BindingKind.ContextMenu:
-                    // By place in the HUD agent's array, not by object — see
-                    // NativeUi.OpenPartyContextMenu.
+                    // 🔴 SETTLED IN THE GAME (Florian, 2026-09-13). Three numbers could have
+                    // been meant and the call documents none of them; right-clicking the party
+                    // leader opened the local player's own profile, which is only possible if
+                    // the index goes into the HUD agent's array — that one always begins with
+                    // the local player, so the leader's place in the party list, zero, landed
+                    // on us.
                     //
-                    // 🔴 Not the number on the frame, which this used to pass. That number is
-                    // the row the game draws the member on; the agent's array always starts
-                    // with the local player instead. The two agree only in a party nobody has
-                    // sorted, which is why passing the wrong one looked right.
-                    NativeUi.OpenPartyContextMenu(member.PartyIndex);
+                    // Neither of the other two, then: not the row the frame is drawn on, and
+                    // not the place in the party list Dalamud hands us, which is what was
+                    // being passed on the strength of another plugin doing so for years.
+                    // Evidence beat inference.
+                    NativeUi.OpenPartyContextMenu(member.HudIndex);
                     break;
 
                 case BindingKind.Action:

@@ -83,23 +83,20 @@ internal struct PartyMemberSnapshot
 
     /// <summary>
     /// The member's place in the party list Dalamud hands us, counting from zero — untouched
-    /// by any sorting. This is what the game's right-click menu is opened with.
-    /// <para>
-    /// 🔴 Three numbers could be meant by "which member", and they agree only in a party
-    /// nobody has sorted — this one, <see cref="PartyNumber"/> (the row it is drawn on) and
-    /// <see cref="HudIndex"/>. The call that opens the menu documents none of them. This is
-    /// the one a long-published plugin has been passing for years, which is the closest thing
-    /// to evidence available without a group; the other two are kept so the answer is one
-    /// line away if the test says otherwise.
-    /// </para>
+    /// by any sorting. Nothing uses it any more; kept because it is one of the three numbers
+    /// that could be meant by "which member" and the distinction is worth being able to see.
     /// </summary>
     public int PartyIndex;
 
     /// <summary>
-    /// Where this member sits in the HUD agent's own array. Not used to open the menu, for
-    /// the reason above — kept because the agent's array is where the drawn order comes from
-    /// and because it is the other candidate if the menu turns out to open on the wrong
-    /// person.
+    /// Where this member sits in the HUD agent's own array, which always begins with the
+    /// local player. This is what the game's right-click menu is opened with.
+    /// <para>
+    /// 🔴 SETTLED IN THE GAME (Florian, 2026-09-13), against the reading that had been
+    /// inferred from another plugin. Right-clicking the party leader opened the local
+    /// player's own profile — only possible if the index goes into this array, because the
+    /// leader's place in the party list is zero and this array's zero is always us.
+    /// </para>
     /// </summary>
     public int HudIndex;
 
