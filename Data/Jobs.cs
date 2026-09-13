@@ -99,9 +99,11 @@ internal static class Jobs
         Set(42, JobRole.Dps, 0xFC92E1); // Pictomancer — measured off an FF Logs chart
         Set(36, JobRole.Dps, 0x4B48FF); // Blue Mage — chosen by hand, never ranked, so nothing to take
 
-        // ⚠️ NOT MEASURED. Beastmaster is a limited job and is never ranked, so there is no FF
-        // Logs value to take; this is the orange of its own job icon, picked by eye. Worth
-        // replacing with a pipetted one (Florian, 2026-09-12, reported it drawing white).
+        // Beastmaster is a limited job and is never ranked, so there is no FF Logs value to
+        // take; this is the orange of its own job icon, picked by eye. ACCEPTED as it stands,
+        // looked at on real frames on a full party of Beastmasters (Florian, 2026-09-13) —
+        // the one colour in this table that is a judgement rather than a measurement, and it
+        // has now had the only test that could settle it.
         Set(43, JobRole.Dps, 0xA8732B); // Beastmaster
 
         // The classes a job grows out of. They keep the job's colour and role, so a party

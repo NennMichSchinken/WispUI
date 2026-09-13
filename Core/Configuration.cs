@@ -348,6 +348,162 @@ public sealed class Configuration : IPluginConfiguration
 
         public float PartyNumberY { get; set; }
 
+        // --- what is on the person ----------------------------------------------
+        // The Auras tab. Not "debuff icons": everything lying on somebody, of which the
+        // icons are one display and the cleanse mark and the rescue icon are two more, all
+        // out of the same status pass (spec §13.2).
+
+        /// <summary>
+        /// The row of affliction icons. On, because it is the reason the tab exists.
+        /// </summary>
+        public bool ShowAuras { get; set; } = true;
+
+        /// <summary>In pixels, and square, like every other icon on a frame.</summary>
+        public float AuraSize { get; set; } = 20f;
+
+        /// <summary>Index into the nine anchor points.</summary>
+        public int AuraPosition { get; set; } = (int)Hud.Anchor.TopRight;
+
+        public float AuraX { get; set; }
+
+        public float AuraY { get; set; }
+
+        /// <summary>
+        /// How many fit before the game's own ranking starts dropping them. Four, because a
+        /// frame is not a debuff list — the ones that matter rank highest, and a row of
+        /// twelve tiny squares is unreadable at the moment it would be needed.
+        /// </summary>
+        public int AuraMaxCount { get; set; } = 4;
+
+        /// <summary>
+        /// The stack count on effects that carry one. On: a stacking debuff is a different
+        /// thing at one stack than at five, and the number is the only thing that says so.
+        /// </summary>
+        public bool AuraShowStacks { get; set; } = true;
+
+        /// <summary>
+        /// The dark wedge that sweeps off an icon as it runs out — the game's own way of
+        /// showing a duration, read without a number.
+        /// </summary>
+        public bool AuraSwipe { get; set; } = true;
+
+        // --- benefits: a second row, in the other corner ------------------------
+        // Its own row rather than a mix with the afflictions, because the two answer
+        // different questions: what is wrong with this person, and what have I already put on
+        // them. Mixed, a regen would push a debuff out of a full row.
+
+        /// <summary>
+        /// The row of benefits — a healer's own regens, mostly. On by default, and by default
+        /// only the player's own.
+        /// </summary>
+        public bool ShowBuffs { get; set; } = true;
+
+        /// <summary>
+        /// Only what this player put there.
+        /// <para>
+        /// On, and this is the setting that makes the row worth having at all: in a full party
+        /// somebody carries dozens of benefits, and the one a healer is looking for is the
+        /// regen they cast themselves. Off, the row is a wall of food and raid buffs.
+        /// </para>
+        /// </summary>
+        public bool OwnBuffsOnly { get; set; } = true;
+
+        /// <summary>In pixels, and square.</summary>
+        public float BuffSize { get; set; } = 18f;
+
+        /// <summary>Index into the nine anchor points. The opposite corner to the afflictions.</summary>
+        public int BuffPosition { get; set; } = (int)Hud.Anchor.BottomLeft;
+
+        public float BuffX { get; set; }
+
+        public float BuffY { get; set; }
+
+        /// <summary>Three: a healer rarely has more than that of their own on one person.</summary>
+        public int BuffMaxCount { get; set; } = 3;
+
+        public bool BuffShowStacks { get; set; } = true;
+
+        public bool BuffSwipe { get; set; } = true;
+
+        // --- everybody else's: the third row -------------------------------------
+        // What is already keeping this person up without you — mitigation, somebody else's
+        // regen, a shield. Its own row so it can never take a place from the row above it.
+        //
+        // ⚠️ It is "not yours", not "mitigation". Whether the game's own data can tell a
+        // mitigation from any other benefit is an open question (/wisp status writes what the
+        // sheet says). Calling this row mitigation before that is answered would be naming it
+        // after something it does not know.
+
+        /// <summary>
+        /// Off by default. It is the busiest of the three and the least often needed, and a
+        /// third block of icons on a frame is a real cost — it has to be asked for.
+        /// </summary>
+        public bool ShowOtherBuffs { get; set; }
+
+        /// <summary>In pixels, and square.</summary>
+        public float OtherSize { get; set; } = 18f;
+
+        /// <summary>Index into the nine anchor points.</summary>
+        public int OtherPosition { get; set; } = (int)Hud.Anchor.BottomRight;
+
+        public float OtherX { get; set; }
+
+        public float OtherY { get; set; }
+
+        public int OtherMaxCount { get; set; } = 3;
+
+        /// <summary>One of <see cref="Hud.CleanseMark"/>.</summary>
+        public int CleanseMark { get; set; } = (int)Hud.CleanseMark.Border;
+
+        /// <summary>
+        /// Show the cleanse mark only while on a job that can actually cleanse.
+        /// <para>
+        /// On. The mark is an instruction, and an instruction to somebody who cannot carry it
+        /// out is noise — a Dragoon does not need to know that the tank has something Esuna
+        /// would take off. The icons keep showing the effect either way; this is only about
+        /// the mark on the frame.
+        /// </para>
+        /// </summary>
+        public bool CleanseOnlyWhenAble { get; set; } = true;
+
+        /// <summary>
+        /// How thick the cleanse edge is, in pixels.
+        /// <para>
+        /// Three, not the frame's own hairline. A one pixel edge in a colour the frame does
+        /// not otherwise use was still missed at a glance, and the whole job of this mark is
+        /// to be caught without looking for it (Florian, 2026-09-13).
+        /// </para>
+        /// </summary>
+        public float CleanseThickness { get; set; } = 3f;
+
+        /// <summary>
+        /// The cleanse colour, packed the way ImGui packs one. Settable, because which colour
+        /// carries against a blue, a green and a red bar is a matter of eyes and of monitor,
+        /// and our own value was never pipetted.
+        /// </summary>
+        public uint CleanseColour { get; set; } = Style.Tokens.Col.Cleanse;
+
+        // --- rescue: a raise on its way, and somebody who cannot be killed -------
+        // Their own place on the frame rather than a slot in the icon row, because the row
+        // is ranked and can drop things, and these two are exactly what must never be
+        // dropped (Florian, 2026-09-13).
+
+        /// <summary>
+        /// The raise-is-coming and cannot-be-killed marks. On: both change what you would do
+        /// next, which is a higher bar than most things on a frame clear.
+        /// </summary>
+        public bool ShowRescueIcon { get; set; } = true;
+
+        /// <summary>In pixels, and square. Larger than the affliction icons on purpose.</summary>
+        public float RescueIconSize { get; set; } = 24f;
+
+        /// <summary>Index into the nine anchor points.</summary>
+        public int RescueIconPosition { get; set; } = (int)Hud.Anchor.Centre;
+
+        public float RescueIconX { get; set; }
+
+        public float RescueIconY { get; set; }
+
         // --- layout: never copied between elements, it belongs to this one (CLAUDE.md §5.3) ---
         // Stated at scale 1.0 and put through the interface scale when drawn, like every other
         // measurement in the suite. Ranges and defaults come from the spec, §4.
@@ -374,6 +530,21 @@ public sealed class Configuration : IPluginConfiguration
 
         /// <summary>How many lines the frames break into: 1, 2 or 4.</summary>
         public int Lines { get; set; } = 1;
+
+        /// <summary>
+        /// Hides the game's own party list while WispUI's frames are on.
+        /// <para>
+        /// Off by default, and deliberately. Hiding a piece of somebody's game interface the
+        /// first time a plugin loads is the kind of thing that gets found out rather than
+        /// chosen, and the frames are worth looking at beside the list they replace before the
+        /// list goes. It is one tick, both ways.
+        /// </para>
+        /// <para>
+        /// The frames keep their order and their right-click menu from the list even while it
+        /// is hidden — the game still keeps it, it simply is not drawn.
+        /// </para>
+        /// </summary>
+        public bool HideNativePartyList { get; set; }
     }
 
     internal static Configuration Load()

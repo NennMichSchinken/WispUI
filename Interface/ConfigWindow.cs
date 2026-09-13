@@ -156,6 +156,19 @@ internal sealed class ConfigWindow : Window
     {
         m_clipboard.ForgetUndo();
         Chrome.CancelValueEdit();
+
+        // The aura preview belongs to the act of setting something up. With the window gone
+        // there is none going on, and stand-in effects left on the frames would be a party
+        // permanently in trouble.
+        //
+        // Except while edit mode is on, which closed this window itself and is the other half
+        // of the same job — stopping here would take the icons away at the moment they are
+        // being arranged.
+        if (!EditMode.IsActive)
+        {
+            Hud.AuraPreview.Stop();
+        }
+
         this.ReleaseCursor();
     }
 
@@ -798,6 +811,10 @@ internal sealed class ConfigWindow : Window
             else if (m_screen == Screen.PartyFrames && tab == 3)
             {
                 m_partyFrames.DrawBindings(inner);
+            }
+            else if (m_screen == Screen.PartyFrames && tab == 4)
+            {
+                m_partyFrames.DrawAuras(inner);
             }
             else
             {

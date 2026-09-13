@@ -140,6 +140,13 @@ internal sealed class PartyFramesElement : HudElement
     private float m_dim = 1f;
 
     /// <summary>
+    /// How solid that same frame is. Kept apart from the brightness because the two answer
+    /// different questions: darker says "this person is gone", see-through says "you cannot
+    /// reach them right now".
+    /// </summary>
+    private float m_alpha = 1f;
+
+    /// <summary>
     /// The job icon per slot, resolved while collecting and only painted while drawing.
     /// Looking a texture up is asking Dalamud a question, and the draw path asks nothing.
     /// </summary>
@@ -211,14 +218,19 @@ internal sealed class PartyFramesElement : HudElement
 
     public override void Collect()
     {
-        if (EditMode.IsActive)
+        // 🔴 The preview brings a full party of its own, and does NOT go through edit mode to
+        // get one. Edit mode closes the settings window on purpose — you are dragging the
+        // things it covers — which is exactly wrong for a tab whose every control needs to be
+        // watched while it is moved (Florian, 2026-09-13: the icons were never visible,
+        // because turning on the thing that showed eight frames took the window away).
+        if (EditMode.IsActive || AuraPreview.Active)
         {
             m_snapshot.FillPlaceholders();
             this.CollectIcons();
             return;
         }
 
-        m_snapshot.Collect();
+        m_snapshot.Collect(m_config.PartyFrames.OwnBuffsOnly);
         this.CollectIcons();
         this.LogIfPartyChanged();
     }
@@ -320,6 +332,15 @@ internal sealed class PartyFramesElement : HudElement
         var colourMode = (BarColourMode)cfg.ColourMode;
         var manaStyle = (ManaStyle)cfg.ManaStyle;
         HealthTextMode textMode = HealthText.At(cfg.HpTextMode);
+        var mark = (CleanseMark)cfg.CleanseMark;
+
+        // The mark is an instruction. On a job that cannot carry it out it is noise, so it is
+        // off there by default — the icons still show the effect either way. The preview
+        // ignores this, or setting it up on the wrong job would show nothing.
+        if (!AuraPreview.Active && cfg.CleanseOnlyWhenAble && !CanCleanseNow())
+        {
+            mark = CleanseMark.None;
+        }
 
         PartyMemberSnapshot[] members = m_snapshot.Members;
         int count = m_snapshot.Count;
@@ -360,11 +381,19 @@ internal sealed class PartyFramesElement : HudElement
             // part of it. Dimming only the bar left a frame whose name, icons and number were
             // as loud as everybody else's, so it did not read as stepped back at all
             // (Florian, 2026-09-12).
-            m_dim = member.Presence switch
+            // Three states, and they step back in two different ways on purpose.
+            //
+            // 🔴 Out of range is only made SEE-THROUGH, never darker. They are standing right
+            // there and will be back in a moment — the frame has to stay as readable as
+            // anybody else's, and darkening it would say something about them rather than
+            // about the distance (Florian, 2026-09-13). The other two are genuinely gone, and
+            // those recede in colour as well.
+            (m_dim, m_alpha) = member.Presence switch
             {
-                PartyPresence.Here => 1f,
-                PartyPresence.Offline => Tokens.Metric.OfflineDim,
-                _ => Tokens.Metric.OutOfRangeDim,
+                PartyPresence.Here => (1f, 1f),
+                PartyPresence.Offline => (Tokens.Metric.OfflineDim, Tokens.Metric.AbsentAlpha),
+                PartyPresence.Away => (Tokens.Metric.AwayDim, Tokens.Metric.AbsentAlpha),
+                _ => (1f, Tokens.Metric.OutOfRangeAlpha),
             };
 
             dl.AddRectFilled(min, max, this.Dim(Tokens.Col.FrameBg));
@@ -389,7 +418,11 @@ internal sealed class PartyFramesElement : HudElement
 
             // Dimmed rather than recoloured, so the frame is still recognisably that
             // person's job at a glance.
-            uint colour = this.Dim(Tokens.Col.Faded(BarColour(colourMode, ref member), cfg.BarOpacity));
+            uint barColour = mark == CleanseMark.Bar && member.HasDispellable
+                ? cfg.CleanseColour
+                : BarColour(colourMode, ref member);
+
+            uint colour = this.Dim(Tokens.Col.Faded(barColour, cfg.BarOpacity));
             float fraction = this.HealthFraction(i, ref member, cfg.SmoothBars, delta);
             Vector2 barMin = innerMin;
             Vector2 barMax = new(innerMax.X, healthBottom);
@@ -430,7 +463,6 @@ internal sealed class PartyFramesElement : HudElement
             }
 
             dl.AddRect(min, max, this.Dim(Tokens.Col.FrameEdge), 0f, ImDrawFlags.None, border);
-
         }
 
         // Between the two passes on purpose. The mouse decides which frame gets the ring, and
@@ -458,15 +490,37 @@ internal sealed class PartyFramesElement : HudElement
 
             // Clipped to the frame grown by the whole reach of the offset sliders: everything
             // that can be placed is drawn in full, and a name too long for even that is cut
-            // rather than run across the screen. The icon goes down first — where the two are
-            // set to overlap, the name is the one that has to stay readable.
+            // rather than run across the screen.
             dl.PushClipRect(
                 new Vector2(innerMin.X - reach, innerMin.Y - reach),
                 new Vector2(innerMax.X + reach, innerMax.Y + reach),
                 true);
+
+            // 🔴 Three layers, and the order between them is the answer to "which of these two
+            // has to stay readable".
+            //
+            // The badges go under the writing: a job icon is recognised from its shape and
+            // colour, and half of one is still that job, while half a name is not a name.
             this.DrawJobIcon(dl, cfg, i, ref member, innerMin, innerMax);
             this.DrawLeaderIcon(dl, cfg, ref member, innerMin, innerMax);
+
             this.DrawTexts(dl, cfg, textMode, i, ref member, innerMin, innerMax);
+
+            // The status pictures go OVER the writing. They are the newest thing on the frame
+            // and the thing being looked for; a name is read once and then known, so a name
+            // crossing them is the one that gives way (Florian, 2026-09-13).
+            this.DrawAuras(dl, cfg, i, innerMin, innerMax);
+            this.DrawRescue(dl, cfg, ref member, innerMin, innerMax);
+
+            // Over everything, and outside the frame rather than on its edge. On the edge a
+            // thick mark eats into the bar it is meant to be framing, and under the second
+            // pass the next frame's ground painted across it (Florian, 2026-09-13: it must
+            // not sit behind the frame).
+            if (mark == CleanseMark.Border && member.HasDispellable)
+            {
+                this.DrawCleanseMark(dl, cfg, m_frameMin[i], m_frameMax[i]);
+            }
+
             DrawPresenceNote(dl, cfg, ref member, innerMin, innerMax);
             dl.PopClipRect();
         }
@@ -708,10 +762,18 @@ internal sealed class PartyFramesElement : HudElement
                     break;
 
                 case BindingKind.ContextMenu:
-                    // By place in the game's own party list, not by object — see
-                    // NativeUi.OpenPartyContextMenu. The number on the frame is that place,
-                    // counting from one.
-                    NativeUi.OpenPartyContextMenu(member.PartyNumber - 1);
+                    // 🔴 SETTLED IN THE GAME (Florian, 2026-09-13). Three numbers could have
+                    // been meant and the call documents none of them; right-clicking the party
+                    // leader opened the local player's own profile, which is only possible if
+                    // the index goes into the HUD agent's array — that one always begins with
+                    // the local player, so the leader's place in the party list, zero, landed
+                    // on us.
+                    //
+                    // Neither of the other two, then: not the row the frame is drawn on, and
+                    // not the place in the party list Dalamud hands us, which is what was
+                    // being passed on the strength of another plugin doing so for years.
+                    // Evidence beat inference.
+                    NativeUi.OpenPartyContextMenu(member.HudIndex);
                     break;
 
                 case BindingKind.Action:
@@ -853,7 +915,34 @@ internal sealed class PartyFramesElement : HudElement
     /// This colour, faded by however much the frame being drawn is stepped back. A no-op on a
     /// member who is there, which is nearly always.
     /// </summary>
-    private uint Dim(uint colour) => m_dim >= 1f ? colour : Tokens.Col.Faded(colour, m_dim);
+    /// <summary>
+    /// Steps a frame back without making it see-through.
+    /// <para>
+    /// 🔴 By DARKENING the colour, not by taking its alpha away. These frames lie over the
+    /// game world, so a bar at half alpha shows grass and stone through itself — and whatever
+    /// is behind it drags every colour towards the same muddy grey. At 0.85 nothing was
+    /// visible, at 0.45 the class colour was gone, and both were the same mistake
+    /// (Florian, 2026-09-13, twice).
+    /// </para>
+    /// <para>
+    /// Exactly the rule already written down after session 8: opacity says how present
+    /// something is, colour says how important. Something that should recede needs a darker
+    /// colour, not a thinner one. The frame stays solid, and a dark green is still green.
+    /// </para>
+    /// </summary>
+    private uint Dim(uint colour) =>
+        Tokens.Col.Softer(m_dim >= 1f ? colour : Tokens.Col.Darker(colour, m_dim), m_alpha);
+
+    /// <summary>
+    /// The same, for writing, and half as far.
+    /// <para>
+    /// A bar can go properly dark and still be a bar — its job is to be a colour and a length.
+    /// A name has to be read, and text taken as far down as the fill it sits on stops being
+    /// text. So the frame steps back and its writing steps back with it, but only half as far.
+    /// </para>
+    /// </summary>
+    private uint DimInk(uint colour) =>
+        m_dim >= 1f ? colour : Tokens.Col.Darker(colour, 0.5f + (m_dim * 0.5f));
 
     /// <summary>
     /// A rectangle drawn as four filled bars rather than as a stroke. ImGui centres a stroke
@@ -901,6 +990,23 @@ internal sealed class PartyFramesElement : HudElement
     /// square: a job icon is drawn square, and letting it be stretched would only offer a way
     /// to make it wrong.
     /// </summary>
+    /// <summary>
+    /// Whether the player could actually take an effect off somebody right now. Read once a
+    /// frame from the one player object, which costs nothing.
+    /// </summary>
+    private static bool CanCleanseNow()
+    {
+        var player = Services.Objects.LocalPlayer;
+
+        return player is not null && StatusData.CanCleanse(player.ClassJob.RowId, player.Level);
+    }
+
+    /// <summary>
+    /// Looks for raises in flight. On the tick because it costs a walk of the object table
+    /// and must keep running whether or not anything is being drawn.
+    /// </summary>
+    public override void Tick() => m_snapshot.Tick(Environment.TickCount64 / 1000d);
+
     private void DrawJobIcon(
         ImDrawListPtr dl,
         Configuration.PartyFramesConfig cfg,
@@ -931,6 +1037,387 @@ internal sealed class PartyFramesElement : HudElement
         }
 
         this.DrawIcon(dl, m_leaderIcon, cfg.LeaderIconSize, cfg.LeaderIconPosition, cfg.LeaderIconX, cfg.LeaderIconY, innerMin, innerMax);
+    }
+
+    /// <summary>
+    /// The mark that says something on this person can be taken off: a band of colour rising
+    /// out of the bottom of the frame, and a thick edge around the whole of it.
+    /// <para>
+    /// 🔴 Two marks and not one, because one was not enough. A coloured edge alone was missed
+    /// at a glance, which is the only thing this mark has to do — a healer is not reading
+    /// frames, they are catching one out of eight (Florian, 2026-09-13). The rise gives it an
+    /// area rather than a line, and area is what the eye catches.
+    /// </para>
+    /// <para>
+    /// Drawn outside the frame, over everything. Inside it, a thick edge eats the bar it is
+    /// framing; underneath, the next frame's ground paints across it.
+    /// </para>
+    /// </summary>
+    private void DrawCleanseMark(
+        ImDrawListPtr dl,
+        Configuration.PartyFramesConfig cfg,
+        Vector2 min,
+        Vector2 max)
+    {
+        uint colour = this.Dim(cfg.CleanseColour);
+        float thickness = MathF.Max(Tokens.Line(1f), Tokens.Px(cfg.CleanseThickness));
+
+        // The rise, from the bottom of the frame to somewhere below halfway: far enough up to
+        // be an area, not so far that it washes the whole bar and takes the role colour with
+        // it. Fades to nothing, so it has no edge of its own to be mistaken for one.
+        float height = MathF.Round((max.Y - min.Y) * CleanseRise);
+        uint clear = colour & 0x00FFFFFFu;
+        uint strong = Fade(colour, CleanseRiseOpacity);
+
+        dl.AddRectFilledMultiColor(
+            new Vector2(min.X, max.Y - height),
+            max,
+            clear,
+            clear,
+            strong,
+            strong);
+
+        // Outside, so the frame keeps all of its own room. AddRect puts half the thickness
+        // either side of the path, so the path is pushed out by half.
+        float out2 = thickness * 0.5f;
+        dl.AddRect(
+            new Vector2(min.X - out2, min.Y - out2),
+            new Vector2(max.X + out2, max.Y + out2),
+            colour,
+            0f,
+            ImDrawFlags.None,
+            thickness);
+    }
+
+    /// <summary>How far up the frame the cleanse band reaches, as a share of its height.</summary>
+    private const float CleanseRise = 0.45f;
+
+    /// <summary>How solid that band is where it meets the bottom edge.</summary>
+    private const float CleanseRiseOpacity = 0.55f;
+
+    /// <summary>The same colour at a share of its own alpha.</summary>
+    private static uint Fade(uint colour, float amount)
+    {
+        uint alpha = (colour >> 24) & 0xFFu;
+        uint faded = (uint)MathF.Round(alpha * Math.Clamp(amount, 0f, 1f));
+        return (colour & 0x00FFFFFFu) | (faded << 24);
+    }
+
+    /// <summary>
+    /// The row of afflictions, highest ranked first.
+    /// <para>
+    /// The row is hung on one of the nine points as a whole, so it stays put as effects come
+    /// and go: laying it out icon by icon would make the first one move every time a second
+    /// appeared, which is the opposite of somewhere to look.
+    /// </para>
+    /// <para>
+    /// Which way it grows follows the anchor, the way text does — a row hung on the right
+    /// grows left. Anything else would run it off the frame it belongs to.
+    /// </para>
+    /// </summary>
+    private void DrawAuras(
+        ImDrawListPtr dl,
+        Configuration.PartyFramesConfig cfg,
+        int slot,
+        Vector2 innerMin,
+        Vector2 innerMax)
+    {
+        if (cfg.ShowAuras)
+        {
+            this.DrawIconRow(
+                dl,
+                m_snapshot.Auras(slot),
+                cfg.AuraMaxCount,
+                cfg.AuraSize,
+                cfg.AuraPosition,
+                cfg.AuraX,
+                cfg.AuraY,
+                cfg.AuraShowStacks,
+                cfg.AuraSwipe,
+                innerMin,
+                innerMax);
+        }
+
+        if (cfg.ShowBuffs)
+        {
+            this.DrawIconRow(
+                dl,
+                m_snapshot.Buffs(slot),
+                cfg.BuffMaxCount,
+                cfg.BuffSize,
+                cfg.BuffPosition,
+                cfg.BuffX,
+                cfg.BuffY,
+                cfg.BuffShowStacks,
+                cfg.BuffSwipe,
+                innerMin,
+                innerMax);
+        }
+
+        if (cfg.ShowOtherBuffs)
+        {
+            this.DrawIconRow(
+                dl,
+                m_snapshot.Others(slot),
+                cfg.OtherMaxCount,
+                cfg.OtherSize,
+                cfg.OtherPosition,
+                cfg.OtherX,
+                cfg.OtherY,
+                cfg.BuffShowStacks,
+                cfg.BuffSwipe,
+                innerMin,
+                innerMax);
+        }
+    }
+
+    /// <summary>
+    /// One row of status icons, hung on one of the nine points as a whole.
+    /// <para>
+    /// Written once and used by both rows. They differ only in which list they read and where
+    /// they hang; the same row that draws the afflictions draws the benefits, so a change to
+    /// how an icon looks lands on both (CLAUDE.md §5.2).
+    /// </para>
+    /// <para>
+    /// The row is placed as a block so it stays put as effects come and go: laying it out icon
+    /// by icon would make the first one move every time a second appeared, which is the
+    /// opposite of somewhere to look. Which way it grows follows the anchor, the way text
+    /// does — a row hung on the right grows left.
+    /// </para>
+    /// </summary>
+    private void DrawIconRow(
+        ImDrawListPtr dl,
+        ReadOnlySpan<AuraSnapshot> auras,
+        int limit,
+        float iconSize,
+        int position,
+        float offsetX,
+        float offsetY,
+        bool showStacks,
+        bool swipe,
+        Vector2 innerMin,
+        Vector2 innerMax)
+    {
+        int count = Math.Min(auras.Length, limit);
+
+        if (count <= 0)
+        {
+            return;
+        }
+
+        float side = Tokens.Px(iconSize);
+        float gap = Tokens.Px(AuraGap);
+        float width = (side * count) + (gap * (count - 1));
+
+        Anchor anchor = Anchors.At(position);
+        Vector2 at = Anchors.Place(
+            anchor,
+            innerMin,
+            innerMax,
+            new Vector2(width, side),
+            Tokens.Metric.FramePadding);
+
+        at.X += Tokens.Px(offsetX);
+        at.Y += Tokens.Px(offsetY);
+
+        // Hung on the right, the first icon belongs at the right end and the row fills
+        // leftwards. The block is already placed, so this is only which end to start from.
+        bool rightToLeft = (int)anchor % 3 == 2;
+        float step = side + gap;
+
+        for (int i = 0; i < count; i++)
+        {
+            ref readonly AuraSnapshot aura = ref auras[i];
+
+            if (!Icons.StatusIcon(aura.Icon, out ImTextureID icon, out Vector2 uv0, out Vector2 uv1))
+            {
+                continue;
+            }
+
+            float x = rightToLeft ? at.X + width - side - (i * step) : at.X + (i * step);
+            Vector2 min = new(MathF.Round(x), at.Y);
+            Vector2 max = new(min.X + side, min.Y + side);
+
+            // Cropped to the art. See Icons.StatusIcon — the whole texture is mostly margin.
+            dl.AddImage(icon, min, max, uv0, uv1, this.Dim(0xFFFFFFFFu));
+
+            if (swipe)
+            {
+                this.DrawSwipe(dl, min, max, aura.Remaining, aura.Duration);
+            }
+
+            // A bright edge on what can be taken off, so the row answers "which one" once the
+            // frame's own edge has answered "is there one".
+            if (aura.CanDispel)
+            {
+                dl.AddRect(min, max, this.Dim(m_config.PartyFrames.CleanseColour), 0f, ImDrawFlags.None, Tokens.Px(1f));
+            }
+
+            if (showStacks && aura.Stacks > 1)
+            {
+                this.DrawStacks(dl, min, max, aura.Stacks);
+            }
+        }
+    }
+
+    /// <summary>Air between two affliction icons. Small on purpose: the row reads as a row.</summary>
+    private const float AuraGap = 2f;
+
+    /// <summary>
+    /// The dark wedge that sweeps off an icon as its effect runs out.
+    /// <para>
+    /// Drawn as a fan of triangles from the centre rather than one filled path, because a
+    /// wedge past a half turn is not convex and ImGui's filled-polygon call quietly draws
+    /// nonsense for one that is not. Each triangle is convex whatever the angle.
+    /// </para>
+    /// <para>
+    /// 🔴 It covers what is LEFT, not what is spent, and so it shrinks away as the effect runs
+    /// out. The other way round the wedge grows while the effect fades, which reads as
+    /// something filling up rather than running down (Florian, 2026-09-13).
+    /// </para>
+    /// </summary>
+    private void DrawSwipe(ImDrawListPtr dl, Vector2 min, Vector2 max, float remaining, float duration)
+    {
+        if (duration <= 0f || remaining <= 0f)
+        {
+            return;
+        }
+
+        float left = MathF.Min(remaining / duration, 1f);
+
+        Vector2 centre = (min + max) * 0.5f;
+        uint colour = this.Dim(Tokens.Col.AuraSwipe);
+
+        // Enough steps that the edge of the wedge reads as straight at any icon size we allow,
+        // and few enough that eight of these a frame cost nothing.
+        const int Steps = 24;
+        int taken = (int)MathF.Ceiling(Steps * left);
+
+        for (int i = 0; i < taken; i++)
+        {
+            float from = i / (float)Steps;
+            float to = MathF.Min((i + 1) / (float)Steps, left);
+
+            if (to <= from)
+            {
+                break;
+            }
+
+            dl.AddTriangleFilled(centre, OnSquare(centre, min, max, from), OnSquare(centre, min, max, to), colour);
+        }
+    }
+
+    /// <summary>
+    /// Where a fraction of a turn clockwise from the top meets the edge of the square.
+    /// <para>
+    /// Against the square rather than a circle inside it, so the wedge reaches the corners and
+    /// the icon is actually covered — a circular sweep leaves four lit triangles behind.
+    /// </para>
+    /// </summary>
+    private static Vector2 OnSquare(Vector2 centre, Vector2 min, Vector2 max, float turn)
+    {
+        float angle = turn * MathF.Tau;
+        float dx = MathF.Sin(angle);
+        float dy = -MathF.Cos(angle);
+
+        float halfX = (max.X - min.X) * 0.5f;
+        float halfY = (max.Y - min.Y) * 0.5f;
+
+        // The longer of the two reaches decides: whichever axis would leave the square first
+        // is the one scaled to its edge.
+        float scale = MathF.Max(MathF.Abs(dx) / halfX, MathF.Abs(dy) / halfY);
+
+        return scale <= 0f ? centre : new Vector2(centre.X + (dx / scale), centre.Y + (dy / scale));
+    }
+
+    /// <summary>How many of it there are, in the bottom right of its icon.</summary>
+    private void DrawStacks(ImDrawListPtr dl, Vector2 min, Vector2 max, ushort stacks)
+    {
+        string text = StackText[Math.Min((int)stacks, StackText.Length) - 1];
+
+        // Half the icon, so the number scales with whatever size the icons are set to rather
+        // than staying put and swallowing a small one.
+        float size = MathF.Max(Tokens.Px(AuraStackMinSize), MathF.Round((max.Y - min.Y) * 0.5f));
+        float width = Ink.MeasureWidth(size, text);
+
+        Vector2 at = new(MathF.Round(max.X - width - 1f), MathF.Round(max.Y - size));
+
+        // Always outlined, whatever the frame's own text edge is set to. This one sits on a
+        // picture rather than on a bar, and a picture can be any colour underneath.
+        Ink.DrawScaledEdged(dl, size, at, this.DimInk(Tokens.Col.HudInk), text, TextEdge.Outline);
+    }
+
+    /// <summary>Stack counts, built once. Past the end the number is simply not drawn.</summary>
+    private static readonly string[] StackText = BuildStackText();
+
+    private static string[] BuildStackText()
+    {
+        // Well past anything the game stacks, and it is thirty strings made once at load
+        // rather than one made per icon per frame.
+        var text = new string[30];
+
+        for (int i = 0; i < text.Length; i++)
+        {
+            text[i] = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        return text;
+    }
+
+    private const float AuraStackMinSize = 10f;
+
+    /// <summary>
+    /// A raise on its way, or somebody who cannot be killed.
+    /// <para>
+    /// Its own place rather than a slot in the icon row, because the row is ranked and drops
+    /// what does not fit — and these two are exactly what may not be dropped (Florian,
+    /// 2026-09-13). Invulnerability wins when both are somehow true: it is the one that
+    /// changes what you do in the next second.
+    /// </para>
+    /// </summary>
+    private void DrawRescue(
+        ImDrawListPtr dl,
+        Configuration.PartyFramesConfig cfg,
+        ref PartyMemberSnapshot member,
+        Vector2 innerMin,
+        Vector2 innerMax)
+    {
+        if (!cfg.ShowRescueIcon)
+        {
+            return;
+        }
+
+        // Whichever effect is actually on them, so the picture is the game's own for it and
+        // there is nothing of ours to keep in step with a patch.
+        uint status = member.InvulnerableStatus != 0 ? member.InvulnerableStatus
+            : member.RaiseRemaining > 0f ? StatusData.Raise
+            : 0u;
+
+        if (status == 0)
+        {
+            return;
+        }
+
+        // Through the status route, not the plain one: these are status pictures like the rows
+        // are, and drawn whole they carry the same margin and plate the afflictions used to
+        // (Florian, 2026-09-13: it was not coming out rectangular like the reference shot).
+        if (!Icons.StatusIcon(StatusData.Of(status).Icon, out ImTextureID icon, out Vector2 uv0, out Vector2 uv1))
+        {
+            return;
+        }
+
+        float side = Tokens.Px(cfg.RescueIconSize);
+        Vector2 at = Anchors.Place(
+            Anchors.At(cfg.RescueIconPosition),
+            innerMin,
+            innerMax,
+            new Vector2(side, side),
+            Tokens.Metric.FramePadding);
+
+        at.X += Tokens.Px(cfg.RescueIconX);
+        at.Y += Tokens.Px(cfg.RescueIconY);
+
+        dl.AddImage(icon, at, new Vector2(at.X + side, at.Y + side), uv0, uv1, this.Dim(0xFFFFFFFFu));
     }
 
     /// <summary>
@@ -998,7 +1485,7 @@ internal sealed class PartyFramesElement : HudElement
             // 🔴 A dimmed frame gets darker text, not just fainter text. White at two thirds
             // opacity is still white, and on a frame that has stepped back the name was the
             // one thing still shouting (Florian, 2026-09-12).
-            uint colour = this.Dim(cfg.NameInJobColour
+            uint colour = this.DimInk(cfg.NameInJobColour
                 ? Jobs.Colour(member.JobId)
                 : (member.HasData ? Tokens.Col.HudInk : Tokens.Col.HudInkQuiet));
 
@@ -1073,7 +1560,7 @@ internal sealed class PartyFramesElement : HudElement
         healthAt.X += Tokens.Px(cfg.HpTextX);
         healthAt.Y += Tokens.Px(cfg.HpTextY);
 
-        Ink.DrawScaledEdged(dl, healthSize, healthAt, this.Dim(Tokens.Col.HudInk), health, cfg.Edge);
+        Ink.DrawScaledEdged(dl, healthSize, healthAt, this.DimInk(Tokens.Col.HudInk), health, cfg.Edge);
     }
 
     /// <summary>Whether this member is one of the ones mana was switched on for.</summary>
@@ -1229,11 +1716,14 @@ internal sealed class PartyFramesElement : HudElement
             ref PartyMemberSnapshot member = ref members[i];
             m_logged[i] = member.EntityId;
             Services.Log.Information(
-                "  [{Slot}] {Name} job={Job} role={Role} hp={Hp}/{MaxHp} mp={Mp}/{MaxMp} self={Self}",
+                "  [{Slot}] {Name} no={Number} content={Content} job={Job} role={Role} presence={Presence} hp={Hp}/{MaxHp} mp={Mp}/{MaxMp} self={Self}",
                 i,
                 member.Name,
+                member.PartyNumber,
+                member.NameKey,
                 member.JobId,
                 member.Role,
+                member.Presence,
                 member.Hp,
                 member.MaxHp,
                 member.Mp,

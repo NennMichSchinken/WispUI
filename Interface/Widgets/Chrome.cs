@@ -1795,6 +1795,138 @@ internal static class Chrome
     /// A rounded button sized to its own label, for something you can do with a list rather
     /// than a setting in it. Sits under the list, aligned with its left edge.
     /// </summary>
+    /// <summary>
+    /// A colour, as a row: the label on the left and a swatch of the colour against the right
+    /// edge, which opens the game-independent picker when clicked.
+    /// <para>
+    /// The one row type the suite was missing. It was put off twice — once at the bar's fixed
+    /// colour and once at the cleanse mark — and both times the answer was "the picker comes
+    /// with the module that needs it". This is that module, and the row is written here rather
+    /// than there so the next colour anywhere in the suite inherits it (CLAUDE.md §5.2).
+    /// </para>
+    /// <para>
+    /// The picker itself is ImGui's, dressed in our own colours. Drawing a hue wheel by hand
+    /// would be a week of work to arrive at the same thing, and nobody is looking at a colour
+    /// picker in the middle of a fight.
+    /// </para>
+    /// </summary>
+    /// <param name="colour">The colour, as ImGui packs one: alpha, blue, green, red.</param>
+    /// <returns>True on the frames the colour changed.</returns>
+    public static bool ColourRow(
+        string id,
+        string label,
+        float x,
+        float y,
+        float width,
+        ref uint colour,
+        bool divider = false,
+        string? hint = null)
+    {
+        Row(label, x, y, width, divider, hint);
+
+        float height = RowHeight();
+        float swatch = MathF.Round(height * 0.72f);
+        float right = ControlX(x, width) + ControlWidth();
+
+        Vector2 min = new(MathF.Round(right - swatch), MathF.Round(y + ((height - swatch) * 0.5f)));
+        Vector2 max = new(min.X + swatch, min.Y + swatch);
+
+        ImGui.SetCursorScreenPos(min);
+        ImGui.InvisibleButton(id, new Vector2(swatch, swatch));
+
+        bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
+
+        if (ImGui.IsItemClicked())
+        {
+            ImGui.OpenPopup(id + "-pop");
+        }
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        // On a chequerboard, so a colour the user has made transparent reads as transparent
+        // rather than as a darker colour.
+        Chequer(dl, min, max);
+        dl.AddRectFilled(min, max, colour, Tokens.Radius.Small, ImDrawFlags.RoundCornersAll);
+        dl.AddRect(
+            min,
+            max,
+            hovered ? Tokens.Col.ControlEdgeHover : Tokens.Col.ControlEdge,
+            Tokens.Radius.Small,
+            ImDrawFlags.RoundCornersAll,
+            Tokens.Line(1f));
+
+        return Picker(id + "-pop", ref colour);
+    }
+
+    /// <summary>The grey chequerboard behind a swatch, so transparency is visible as such.</summary>
+    private static void Chequer(ImDrawListPtr dl, Vector2 min, Vector2 max)
+    {
+        float step = MathF.Max(3f, MathF.Round((max.Y - min.Y) * 0.25f));
+
+        dl.AddRectFilled(min, max, Tokens.Col.ChequerLight, Tokens.Radius.Small, ImDrawFlags.RoundCornersAll);
+        dl.PushClipRect(min, max, true);
+
+        int row = 0;
+        for (float cy = min.Y; cy < max.Y; cy += step)
+        {
+            for (float cx = min.X + ((row % 2) * step); cx < max.X; cx += step * 2f)
+            {
+                dl.AddRectFilled(
+                    new Vector2(cx, cy),
+                    new Vector2(MathF.Min(cx + step, max.X), MathF.Min(cy + step, max.Y)),
+                    Tokens.Col.ChequerDark);
+            }
+
+            row++;
+        }
+
+        dl.PopClipRect();
+    }
+
+    private static bool Picker(string id, ref uint colour)
+    {
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(Tokens.Space.Md, Tokens.Space.Md));
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupRounding, Tokens.Radius.Control);
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupBorderSize, Tokens.Line(1f));
+        ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, Tokens.Radius.Control);
+        ImGui.PushStyleColor(ImGuiCol.PopupBg, Tokens.Col.PopupBg);
+        ImGui.PushStyleColor(ImGuiCol.Border, Tokens.Col.PopupEdge);
+        ImGui.PushStyleColor(ImGuiCol.FrameBg, Tokens.Col.FieldOnDark);
+        ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.Ink);
+
+        bool changed = false;
+        Ink.Push(Ink.Role.Body);
+
+        if (ImGui.BeginPopup(id))
+        {
+            // Escape belongs to the window, which cannot close a popup from outside it.
+            if (ClosePopupRequested)
+            {
+                ImGui.CloseCurrentPopup();
+            }
+
+            Vector4 value = ImGui.ColorConvertU32ToFloat4(colour);
+
+            if (ImGui.ColorPicker4(
+                    id + "-p",
+                    ref value,
+                    ImGuiColorEditFlags.AlphaBar | ImGuiColorEditFlags.NoSidePreview | ImGuiColorEditFlags.NoSmallPreview))
+            {
+                colour = ImGui.ColorConvertFloat4ToU32(value);
+                changed = true;
+            }
+
+            ImGui.EndPopup();
+        }
+
+        Ink.Pop(Ink.Role.Body);
+        ImGui.PopStyleColor(4);
+        ImGui.PopStyleVar(4);
+
+        return changed;
+    }
+
     public static bool PillButton(string id, string label, float x, float y, float heightOverride = 0f)
     {
         float height = heightOverride > 0f ? heightOverride : RowHeight();

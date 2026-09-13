@@ -37,6 +37,19 @@ internal abstract class HudElement
     /// </summary>
     public virtual bool HasAnythingToDraw => true;
 
+    /// <summary>
+    /// Work that belongs on the game's tick rather than in a frame: something that has to keep
+    /// running while nothing is being drawn, or that is too expensive to do sixty times a
+    /// second. Most elements have none, and the default does nothing.
+    /// <para>
+    /// Whatever goes here stays short and throttles itself (CLAUDE.md §7.5). The tick is not
+    /// a second draw path with a longer budget.
+    /// </para>
+    /// </summary>
+    public virtual void Tick()
+    {
+    }
+
     // --- arranging -----------------------------------------------------------
     // Edit mode drags an element by its outside, and an element is the only thing that knows
     // where that is. It is stated here rather than worked out by the mode, because every

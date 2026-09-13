@@ -90,6 +90,18 @@ internal static class Tokens
         public static readonly uint Control = Rgb(0x3A383A);
         public static readonly uint Control2 = Rgb(0x2E2C2E);
         public static readonly uint ControlEdge = Rgb(0x6B676B);
+
+        /// <summary>The same edge, lit, for a control the mouse is on.</summary>
+        public static readonly uint ControlEdgeHover = Rgb(0x9A949A);
+
+        /// <summary>
+        /// The two greys of the chequerboard behind a colour swatch. Without it a colour the
+        /// user has made half transparent reads as a darker colour rather than as a see-through
+        /// one, and they set it twice.
+        /// </summary>
+        public static readonly uint ChequerLight = Rgb(0x4A474A);
+
+        public static readonly uint ChequerDark = Rgb(0x2E2C2E);
         public static readonly uint ButtonTop = Rgb(0x464346);
         public static readonly uint ButtonBottom = Rgb(0x353335);
         public static readonly uint Input = Rgb(0x1B1A1B);
@@ -278,6 +290,27 @@ internal static class Tokens
         public static readonly uint RoleDps = Rgb(0xFF6C6C);
 
         /// <summary>
+        /// ⚠️ NOT MEASURED. The mark for "this can be cleansed", picked to sit beside the
+        /// three role colours without being mistaken for one of them — a violet, which is the
+        /// one hue the roles do not occupy, and light enough to read on a filled bar.
+        /// <para>
+        /// A candidate for the pipette, and one of the harder ones: it has to hold against a
+        /// blue, a green and a red bar, not against a panel (session 8: a window colour is not
+        /// a HUD colour).
+        /// </para>
+        /// </summary>
+        public static readonly uint Cleanse = Rgb(0xC8A2E8);
+
+        /// <summary>
+        /// ⚠️ NOT MEASURED. Somebody who cannot be killed right now — the amber the game uses
+        /// on its own invulnerability effects, by eye.
+        /// </summary>
+        public static readonly uint Invulnerable = Rgb(0xF0C060);
+
+        /// <summary>The wedge that sweeps an affliction icon as it runs out.</summary>
+        public static readonly uint AuraSwipe = 0x96000000u;
+
+        /// <summary>
         /// The window edge, MEASURED pixel by pixel off the game's own frame: four rings,
         /// listed outermost first. The top edge carries the highlight (that near-white second
         /// pixel is what makes the frame read as lit from above); the sides are their own
@@ -342,6 +375,47 @@ internal static class Tokens
 
         public static uint Faded(uint colour, float alpha) =>
             (colour & 0x00FFFFFFu) | ((uint)MathF.Round(Math.Clamp(alpha, 0f, 1f) * 255f) << 24);
+
+        /// <summary>
+        /// The same colour, darker, at the alpha it already had.
+        /// <para>
+        /// 🔴 The way anything drawn over the game world steps back. Taking a colour's alpha
+        /// away lets the world through it, and grass, stone and sky drag every colour towards
+        /// the same grey — so a frame faded that way loses the one thing it was saying. Made
+        /// darker instead, it stays solid and a dark green is still recognisably green
+        /// (Florian, 2026-09-13; the rule was written down after session 8 and this is the
+        /// first place it is enforced in code).
+        /// </para>
+        /// <para>
+        /// Not a blend towards black: the channels keep their ratios, so the hue is exactly
+        /// the hue it was and only the brightness moves.
+        /// </para>
+        /// </summary>
+        public static uint Darker(uint colour, float amount)
+        {
+            amount = Math.Clamp(amount, 0f, 1f);
+
+            uint r = (uint)MathF.Round(((colour >> 0) & 0xFFu) * amount);
+            uint g = (uint)MathF.Round(((colour >> 8) & 0xFFu) * amount);
+            uint b = (uint)MathF.Round(((colour >> 16) & 0xFFu) * amount);
+
+            return (colour & 0xFF000000u) | (b << 16) | (g << 8) | r;
+        }
+
+        /// <summary>
+        /// The same colour at a share of the alpha it already had.
+        /// <para>
+        /// Multiplies rather than sets, so it can be laid over a colour that has already been
+        /// faded by a setting — the health bar's own opacity, say — without throwing that away.
+        /// </para>
+        /// </summary>
+        public static uint Softer(uint colour, float amount)
+        {
+            amount = Math.Clamp(amount, 0f, 1f);
+
+            uint alpha = (uint)MathF.Round(((colour >> 24) & 0xFFu) * amount);
+            return (colour & 0x00FFFFFFu) | (alpha << 24);
+        }
 
         /// <summary>
         /// Blends two packed colours channel by channel. Used where one run of the window edge
@@ -692,17 +766,59 @@ internal static class Tokens
         /// who is actually there (Florian, 2026-09-12).
         /// </para>
         /// </summary>
-        public const float OutOfRangeDim = 0.85f;
+        /// <para>
+        /// 🔴 Was 0.85, which read as no dimming at all once the class colour came back onto
+        /// these frames — "sie wirken noch als ob es 100% sind" (Florian, 2026-09-13). The
+        /// gentleness above is still right in kind; it was simply set too high to be seen.
+        /// </para>
+        public const float OutOfRangeDim = 0.7f;
+
+        /// <summary>
+        /// How solid an absent member's frame stays, on top of being darker.
+        /// <para>
+        /// A little transparency, asked for on top of the darkening (Florian, 2026-09-13) —
+        /// enough that the world shows faintly through and the frame reads as set aside
+        /// rather than merely dim.
+        /// </para>
+        /// <para>
+        /// 🔴 Only a little, and only alongside the darkening. Transparency alone is what
+        /// destroyed the class colour twice: at any real amount the world behind the frame
+        /// drags every colour to the same grey. Fifteen percent is below where that starts.
+        /// The writing on the frame keeps its own alpha and is not softened at all — a name
+        /// you can see through is a name you read twice.
+        /// </para>
+        /// </summary>
+        public const float AbsentAlpha = 0.85f;
+
+        /// <summary>
+        /// How solid the frame of somebody merely too far away stays.
+        /// <para>
+        /// Lower than the others and WITHOUT any darkening: they are standing right there and
+        /// will be back in a moment, so the frame has to stay as readable as everybody else's.
+        /// Making it darker would be saying something about the person rather than about the
+        /// distance (Florian, 2026-09-13).
+        /// </para>
+        /// </summary>
+        public const float OutOfRangeAlpha = 0.7f;
+
+        /// <summary>
+        /// A member in another zone entirely.
+        /// <para>
+        /// Its own step, between out of range and offline, because it is its own news. Out of
+        /// range is a pause: they are running back, and the frame stays easy to check. Another
+        /// zone is not this pull, and that frame may properly step back.
+        /// </para>
+        /// </summary>
+        public const float AwayDim = 0.45f;
 
         /// <summary>
         /// The same, for a member who has logged out.
         /// <para>
-        /// Deeper than out of range, because the two are not the same news. Out of range is a
-        /// pause — they are running back, and the frame has to stay easy to check. Offline is
-        /// over for this fight, and that frame may recede properly (Florian, 2026-09-12).
+        /// The deepest of the three. Out of range is a pause and another zone is a wait;
+        /// logged out is over, and that frame may recede furthest (Florian, 2026-09-12).
         /// </para>
         /// </summary>
-        public const float OfflineDim = 0.65f;
+        public const float OfflineDim = 0.35f;
 
         public static float BadgeHeight => Px(18f);
         public static float BadgePaddingX => Px(6f);

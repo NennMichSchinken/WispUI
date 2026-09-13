@@ -108,6 +108,76 @@ internal sealed record AppearanceBlock
     public float LeaderIconX { get; init; }
 
     public float LeaderIconY { get; init; }
+
+    // --- afflictions and the rescue mark, carried with the other badges -------
+
+    public bool ShowAuras { get; init; }
+
+    public float AuraSize { get; init; }
+
+    public int AuraPosition { get; init; }
+
+    public float AuraX { get; init; }
+
+    public float AuraY { get; init; }
+
+    public int AuraMaxCount { get; init; }
+
+    public bool AuraShowStacks { get; init; }
+
+    public bool AuraSwipe { get; init; }
+
+    public bool ShowBuffs { get; init; }
+
+    public bool OwnBuffsOnly { get; init; }
+
+    public float BuffSize { get; init; }
+
+    public int BuffPosition { get; init; }
+
+    public float BuffX { get; init; }
+
+    public float BuffY { get; init; }
+
+    public int BuffMaxCount { get; init; }
+
+    public bool BuffShowStacks { get; init; }
+
+    public bool BuffSwipe { get; init; }
+
+    public bool ShowOtherBuffs { get; init; }
+
+    public float OtherSize { get; init; }
+
+    public int OtherPosition { get; init; }
+
+    public float OtherX { get; init; }
+
+    public float OtherY { get; init; }
+
+    public int OtherMaxCount { get; init; }
+
+    public bool ShowRescueIcon { get; init; }
+
+    public float RescueIconSize { get; init; }
+
+    public int RescueIconPosition { get; init; }
+
+    public float RescueIconX { get; init; }
+
+    public float RescueIconY { get; init; }
+
+    /// <summary>
+    /// Carried with the colours rather than the icons: it is not a picture, it is what the
+    /// frame's own edge or bar does — see <see cref="Hud.CleanseMark"/>.
+    /// </summary>
+    public int CleanseMark { get; init; }
+
+    public bool CleanseOnlyWhenAble { get; init; }
+
+    public uint CleanseColour { get; init; }
+
+    public float CleanseThickness { get; init; }
 }
 
 /// <summary>

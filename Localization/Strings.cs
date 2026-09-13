@@ -248,6 +248,76 @@ internal static class Strings
     public const string GroupSize = "Size";
     public const string GroupSizeHint = "How big each frame is, and how far apart.";
 
+    // --- Auras: everything lying on a person ---------------------------------
+    public const string GroupAuras = "Afflictions";
+    public const string GroupAurasHint = "What is on them, worst first.";
+    public const string GroupCleanse = "Cleansable";
+    public const string GroupCleanseHint = "How a frame says Esuna would help.";
+    public const string GroupRescue = "Rescue";
+    public const string GroupRescueHint = "A raise on its way, and who cannot die.";
+
+    public const string ShowAuras = "Show icons";
+    public const string ShowAurasTooltip =
+        "The effects on this person, ranked the way the game's own party list ranks them.";
+    public const string AuraCount = "How many";
+    public const string AuraCountTooltip =
+        "Above this the lowest ranked are dropped. The game decides the ranking, not WispUI.";
+    public const string AuraStacks = "Stacks";
+    public const string AuraStacksTooltip = "The number on effects that stack. Nothing is drawn on those that do not.";
+    public const string AuraSwipe = "Sweep";
+    public const string AuraSwipeTooltip = "A dark wedge that sweeps off the icon as the effect runs out.";
+
+    public const string CleanseHow = "Mark";
+    public const string CleanseHowTooltip =
+        "Cleansable effects always get a bright edge on their own icon. This is the mark on the frame itself.";
+    public const string CleanseNone = "None";
+    public const string CleanseBorder = "Frame edge";
+    public const string CleanseBar = "Health bar";
+
+    public const string GroupBuffs = "Your effects";
+    public const string GroupBuffsHint = "What you have already put on them.";
+
+    public const string ShowBuffs = "Show icons";
+    public const string ShowBuffsTooltip =
+        "A second row, for the benefits on this person — regens and the like.";
+    public const string OwnBuffsOnly = "Only yours";
+    public const string OwnBuffsOnlyTooltip =
+        "On, only what you cast yourself. Off, every benefit on them — food, raid buffs and all, which buries the one you are looking for.";
+
+    public const string GroupOthers = "Their effects";
+    public const string GroupOthersHint = "What is on them from somebody else.";
+
+    public const string ShowOthers = "Show icons";
+    public const string ShowOthersTooltip =
+        "A third row, for benefits cast by anybody but you — mitigation, another healer's work. Needs \"Only yours\" on above.";
+
+    public const string CleanseColour = "Colour";
+    public const string CleanseThickness = "Edge thickness";
+    public const string CleanseThicknessTooltip = "The mark is drawn around the frame, so a thicker edge costs the frame nothing.";
+
+    public const string CleanseWhenAble = "Only on cleanse jobs";
+    public const string CleanseWhenAbleTooltip =
+        "The mark is an instruction. Off, it also appears on jobs that cannot act on it. The icons show the effect either way.";
+
+    public const string PreviewAuras = "Preview";
+    public const string PreviewAurasTooltip =
+        "Puts stand-in effects on the frames so they can be placed without waiting for a fight. Ends when this window closes.";
+
+    public const string ShowRescue = "Show icon";
+    public const string ShowRescueTooltip =
+        "A raise already cast on them, or a cooldown that is keeping them alive. Its own place, so a busy frame cannot push it out.";
+
+    public const string GroupGameList = "Game's party list";
+    public const string GroupGameListHint = "The list these frames stand in for.";
+
+    public const string HideNativeList = "Hide it";
+    public const string HideNativeListTooltip =
+        "Hides the list the game draws, leaving only these frames. The frames keep its order and its right-click menu either way.";
+
+    // Under the switch, because it is what the switch does not change. There is no sorting
+    // setting in WispUI on purpose: the frames read the finished order out of the game.
+    public const string NativeListSorting = "Order and numbers follow the game's own settings.";
+
     public const string Direction = "Direction";
     public const string DirectionVertical = "Vertical";
     public const string DirectionHorizontal = "Horizontal";

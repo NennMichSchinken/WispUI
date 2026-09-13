@@ -108,6 +108,272 @@ internal static class NativeUi
     }
 
     /// <summary>
+    /// One member of the game's own party list, as far as the frames need to care.
+    /// <para>
+    /// Two numbers, and they are not the same number. <see cref="Row"/> is where the game
+    /// draws this member — the order the player set up in their own settings, sorted by role
+    /// or not. <see cref="HudIndex"/> is where they sit in the agent's own array, which always
+    /// begins with the local player whatever the list looks like on screen.
+    /// </para>
+    /// </summary>
+    internal struct HudPartyMemberInfo
+    {
+        public uint EntityId;
+
+        /// <summary>Survives the member not being loaded, which an entity id does not.</summary>
+        public ulong ContentId;
+
+        /// <summary>Place in the agent's array. The number the context menu call asks for.</summary>
+        public int HudIndex;
+
+        /// <summary>Which row of the game's own party list this member is drawn on, from zero.</summary>
+        public int Row;
+    }
+
+    /// <summary>As many members as the agent keeps room for. A full party plus trust slots.</summary>
+    public const int HudPartyCapacity = 10;
+
+    /// <summary>
+    /// Reads the game's own party list order — who it shows, and in which row.
+    /// <para>
+    /// 🔴 This is why WispUI has no sorting option of its own. FFXIV already lets the player
+    /// sort their party list by role and order the jobs inside each role
+    /// (<c>PartyListSortTypeTank</c> and friends, plus the role sort window). Reading the
+    /// finished order instead of the settings behind it means the frames follow every one of
+    /// those choices without a single switch of ours, and can never disagree with the list
+    /// they replace (Florian, 2026-09-13: "dann sparen wir uns die Option").
+    /// </para>
+    /// <para>
+    /// 🔴 The agent's array is not the display order. Its own remark says the local player is
+    /// always first in it and their real place is in <c>Index</c> — so the row is read from
+    /// there, and the array position is kept only because that is what the context menu call
+    /// wants.
+    /// </para>
+    /// </summary>
+    /// <returns>How many entries of <paramref name="into"/> were filled. Zero means the game
+    /// has nothing to say right now, and the caller should fall back to the party list's own
+    /// order rather than draw nothing.</returns>
+    public static unsafe int ReadPartyOrder(Span<HudPartyMemberInfo> into)
+    {
+        AgentHUD* hud = AgentHUD.Instance();
+        if (hud is null)
+        {
+            return 0;
+        }
+
+        int count = hud->PartyMemberCount;
+        Span<HudPartyMember> members = hud->PartyMembers;
+
+        if (count > members.Length)
+        {
+            count = members.Length;
+        }
+
+        if (count > into.Length)
+        {
+            count = into.Length;
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            ref HudPartyMember member = ref members[i];
+
+            into[i].EntityId = member.EntityId;
+            into[i].ContentId = member.ContentId;
+            into[i].HudIndex = i;
+            into[i].Row = member.Index;
+        }
+
+        return count < 0 ? 0 : count;
+    }
+
+    /// <summary>One status effect on somebody, straight out of the game's own array.</summary>
+    internal struct StatusEntry
+    {
+        public uint StatusId;
+
+        /// <summary>Stacks for an effect that has them, strength for one that does not.</summary>
+        public ushort Param;
+
+        /// <summary>Seconds left, or zero for an effect that does not run out.</summary>
+        public float Remaining;
+
+        /// <summary>Who put it there. Zero when the game is not saying.</summary>
+        public ulong SourceId;
+    }
+
+    /// <summary>As many effects as the game keeps room for on one person.</summary>
+    public const int StatusCapacity = 60;
+
+    /// <summary>
+    /// Reads the effects on a party member, without allocating.
+    /// <para>
+    /// 🔴 This is why it is here rather than through Dalamud's own wrapper.
+    /// <c>IPartyMember.Statuses</c> builds a new list object on every access, and its indexer
+    /// hands back an interface, which boxes the struct behind it. Eight members with a dozen
+    /// effects each, sixty times a second, is a few hundred objects a frame for data the game
+    /// already has lying in a flat array — exactly the churn CLAUDE.md §7.1 exists to stop.
+    /// </para>
+    /// </summary>
+    /// <param name="member">A party member's address, as Dalamud reports it.</param>
+    public static unsafe int ReadMemberStatuses(nint member, Span<StatusEntry> into)
+    {
+        if (member == 0)
+        {
+            return 0;
+        }
+
+        var party = (FFXIVClientStructs.FFXIV.Client.Game.Group.PartyMember*)member;
+        return ReadStatuses(&party->StatusManager, into);
+    }
+
+    /// <summary>
+    /// The same, for a character in the world — which is where the effects on the player come
+    /// from while they are alone and there is no party list to read.
+    /// </summary>
+    public static unsafe int ReadCharacterStatuses(nint character, Span<StatusEntry> into)
+    {
+        if (character == 0)
+        {
+            return 0;
+        }
+
+        // 🔴 Through the game's own accessor, NOT the StatusManager field on the struct. The
+        // two do not point at the same thing: reading the field gave three effects where the
+        // game had thirty (Florian, 2026-09-13). Dalamud asks the same way, which is what made
+        // the disagreement visible at all.
+        var chara = (FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara*)character;
+        return ReadStatuses(chara->GetStatusManager(), into);
+    }
+
+    private static unsafe int ReadStatuses(
+        FFXIVClientStructs.FFXIV.Client.Game.StatusManager* manager,
+        Span<StatusEntry> into)
+    {
+        if (manager is null)
+        {
+            return 0;
+        }
+
+        Span<FFXIVClientStructs.FFXIV.Client.Game.Status> statuses = manager->Status;
+
+        // 🔴 The whole array, not the first NumValidStatuses of it. That count is not a dense
+        // bound — the array holds gaps, so stopping at the count drops whatever sits past the
+        // last gap. Sixty comparisons of a number is nothing; a silently short list is not.
+        int count = 0;
+
+        for (int i = 0; i < statuses.Length && count < into.Length; i++)
+        {
+            ref FFXIVClientStructs.FFXIV.Client.Game.Status status = ref statuses[i];
+
+            // The array holds empty slots among the full ones — a cleared effect leaves its
+            // place behind rather than shuffling the rest along.
+            if (status.StatusId == 0)
+            {
+                continue;
+            }
+
+            into[count].StatusId = status.StatusId;
+            into[count].Param = status.Param;
+
+            // Negative on an effect that does not run out. Zero reads better everywhere else.
+            into[count].Remaining = status.RemainingTime < 0f ? 0f : status.RemainingTime;
+            into[count].SourceId = status.SourceObject;
+
+            count++;
+        }
+
+        return count;
+    }
+
+    /// <summary>
+    /// What job the game's own party list is drawing on one of its rows, or zero.
+    /// <para>
+    /// 🔴 The place a party member's job survives them not being loaded. Dalamud's party list
+    /// reports job zero for anybody in another zone — but the game's own list still shows
+    /// their icon, so the fact is there, just not where the obvious field is. It is on the
+    /// addon, as the icon id it is about to draw (Florian, 2026-09-13: two members elsewhere
+    /// drew grey while the native list beside them showed a White Mage and a Dark Knight).
+    /// </para>
+    /// <para>
+    /// Job icons run in sets of a hundred from 62000, so the job is the icon's last two
+    /// digits whichever set the list happens to be using.
+    /// </para>
+    /// </summary>
+    /// <param name="row">The row the member is drawn on, counting from zero.</param>
+    public static unsafe uint PartyListJob(int row)
+    {
+        if (row < 0)
+        {
+            return 0;
+        }
+
+        var addon = (FFXIVClientStructs.FFXIV.Client.UI.AddonPartyList*)Services.GameGui.GetAddonByName("_PartyList", 1).Address;
+
+        if (addon is null)
+        {
+            return 0;
+        }
+
+        Span<uint> icons = addon->PartyClassJobIconId;
+
+        if (row >= icons.Length)
+        {
+            return 0;
+        }
+
+        uint icon = icons[row];
+
+        // Nothing drawn on that row, or an icon from somewhere else entirely.
+        return icon < 62000u ? 0u : icon % 100u;
+    }
+
+    /// <summary>Whether the game's party list is hidden because we hid it.</summary>
+    private static bool s_partyListHidden;
+
+    /// <summary>
+    /// Hides or restores the game's own party list, once per frame.
+    /// <para>
+    /// 🔴 Asked every frame rather than on a change of ours, because the game puts its list
+    /// back up by itself — on a zone change, on joining a duty, whenever the interface is
+    /// rebuilt. Only a difference is written, so the common case costs one read.
+    /// </para>
+    /// <para>
+    /// While the player has never asked for this, the list is not touched at all. A plugin
+    /// that sets a piece of the game's interface visible "just to be sure" is a plugin that
+    /// undoes whatever the player did with it somewhere else.
+    /// </para>
+    /// </summary>
+    public static unsafe void SettleNativePartyList(bool hide)
+    {
+        if (!hide && !s_partyListHidden)
+        {
+            return;
+        }
+
+        var addon = (AtkUnitBase*)Services.GameGui.GetAddonByName("_PartyList", 1).Address;
+        if (addon is null)
+        {
+            // Not built yet, or gone with the interface. Nothing to hide and nothing to put
+            // back; the flag stays as it is so the next frame tries again.
+            return;
+        }
+
+        if (addon->IsVisible != !hide)
+        {
+            addon->IsVisible = !hide;
+        }
+
+        s_partyListHidden = hide;
+    }
+
+    /// <summary>
+    /// Puts the game's list back for good. Called when the plugin goes away: a piece of the
+    /// player's interface must never be left hidden by something that is no longer running.
+    /// </summary>
+    public static void RestoreNativePartyList() => SettleNativePartyList(false);
+
+    /// <summary>
     /// Opens the game's own right-click menu on a party member — the one with Examine, Trade,
     /// Send Tell and the rest.
     /// <para>
@@ -121,7 +387,13 @@ internal static class NativeUi
     /// list it opens this. The frames are meant to replace that list, so they owe it the menu.
     /// </para>
     /// </summary>
-    /// <param name="hudIndex">The member's place in the game's own party list, counting from zero.</param>
+    /// <param name="hudIndex">
+    /// The member's place in the HUD agent's own party array, counting from zero — the
+    /// <see cref="HudPartyMemberInfo.HudIndex"/> carried through the snapshot, not the row the
+    /// member is drawn on and not their place in the party list Dalamud hands us. Those three
+    /// agree only while nothing is sorted, which is exactly the case that hid this apart until
+    /// now.
+    /// </param>
     public static unsafe void OpenPartyContextMenu(int hudIndex)
     {
         if (hudIndex < 0)
