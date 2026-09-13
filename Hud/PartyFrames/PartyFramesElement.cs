@@ -914,7 +914,8 @@ internal sealed class PartyFramesElement : HudElement
     /// colour, not a thinner one. The frame stays solid, and a dark green is still green.
     /// </para>
     /// </summary>
-    private uint Dim(uint colour) => m_dim >= 1f ? colour : Tokens.Col.Darker(colour, m_dim);
+    private uint Dim(uint colour) =>
+        m_dim >= 1f ? colour : Tokens.Col.Softer(Tokens.Col.Darker(colour, m_dim), Tokens.Metric.AbsentAlpha);
 
     /// <summary>
     /// The same, for writing, and half as far.

@@ -403,6 +403,21 @@ internal static class Tokens
         }
 
         /// <summary>
+        /// The same colour at a share of the alpha it already had.
+        /// <para>
+        /// Multiplies rather than sets, so it can be laid over a colour that has already been
+        /// faded by a setting — the health bar's own opacity, say — without throwing that away.
+        /// </para>
+        /// </summary>
+        public static uint Softer(uint colour, float amount)
+        {
+            amount = Math.Clamp(amount, 0f, 1f);
+
+            uint alpha = (uint)MathF.Round(((colour >> 24) & 0xFFu) * amount);
+            return (colour & 0x00FFFFFFu) | (alpha << 24);
+        }
+
+        /// <summary>
         /// Blends two packed colours channel by channel. Used where one run of the window edge
         /// hands over to the next: at a hard swap the corner shows a seam, and the eye finds a
         /// seam on a curve faster than anywhere else.
@@ -757,6 +772,23 @@ internal static class Tokens
         /// gentleness above is still right in kind; it was simply set too high to be seen.
         /// </para>
         public const float OutOfRangeDim = 0.7f;
+
+        /// <summary>
+        /// How solid an absent member's frame stays, on top of being darker.
+        /// <para>
+        /// A little transparency, asked for on top of the darkening (Florian, 2026-09-13) —
+        /// enough that the world shows faintly through and the frame reads as set aside
+        /// rather than merely dim.
+        /// </para>
+        /// <para>
+        /// 🔴 Only a little, and only alongside the darkening. Transparency alone is what
+        /// destroyed the class colour twice: at any real amount the world behind the frame
+        /// drags every colour to the same grey. Fifteen percent is below where that starts.
+        /// The writing on the frame keeps its own alpha and is not softened at all — a name
+        /// you can see through is a name you read twice.
+        /// </para>
+        /// </summary>
+        public const float AbsentAlpha = 0.85f;
 
         /// <summary>
         /// A member in another zone entirely.
