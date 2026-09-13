@@ -466,6 +466,23 @@ public sealed class Configuration : IPluginConfiguration
         /// </summary>
         public bool CleanseOnlyWhenAble { get; set; } = true;
 
+        /// <summary>
+        /// How thick the cleanse edge is, in pixels.
+        /// <para>
+        /// Three, not the frame's own hairline. A one pixel edge in a colour the frame does
+        /// not otherwise use was still missed at a glance, and the whole job of this mark is
+        /// to be caught without looking for it (Florian, 2026-09-13).
+        /// </para>
+        /// </summary>
+        public float CleanseThickness { get; set; } = 3f;
+
+        /// <summary>
+        /// The cleanse colour, packed the way ImGui packs one. Settable, because which colour
+        /// carries against a blue, a green and a red bar is a matter of eyes and of monitor,
+        /// and our own value was never pipetted.
+        /// </summary>
+        public uint CleanseColour { get; set; } = Style.Tokens.Col.Cleanse;
+
         // --- rescue: a raise on its way, and somebody who cannot be killed -------
         // Their own place on the frame rather than a slot in the icon row, because the row
         // is ranked and can drop things, and these two are exactly what must never be

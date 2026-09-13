@@ -291,6 +291,10 @@ internal static class Strings
     public const string ShowOthersTooltip =
         "A third row, for benefits cast by anybody but you — mitigation, another healer's work. Needs \"Only yours\" on above.";
 
+    public const string CleanseColour = "Colour";
+    public const string CleanseThickness = "Edge thickness";
+    public const string CleanseThicknessTooltip = "The mark is drawn around the frame, so a thicker edge costs the frame nothing.";
+
     public const string CleanseWhenAble = "Only on cleanse jobs";
     public const string CleanseWhenAbleTooltip =
         "The mark is an instruction. Off, it also appears on jobs that cannot act on it. The icons show the effect either way.";

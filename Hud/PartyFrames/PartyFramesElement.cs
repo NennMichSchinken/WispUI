@@ -404,7 +404,7 @@ internal sealed class PartyFramesElement : HudElement
             // Dimmed rather than recoloured, so the frame is still recognisably that
             // person's job at a glance.
             uint barColour = mark == CleanseMark.Bar && member.HasDispellable
-                ? Tokens.Col.Cleanse
+                ? cfg.CleanseColour
                 : BarColour(colourMode, ref member);
 
             uint colour = this.Dim(Tokens.Col.Faded(barColour, cfg.BarOpacity));
@@ -447,15 +447,7 @@ internal sealed class PartyFramesElement : HudElement
                 }
             }
 
-            // The edge says whether anything on this person can be taken off — the one thing a
-            // healer scans a party for, and the reason it is the edge rather than the bar:
-            // the bar is already saying role and job, which is read first (Florian,
-            // 2026-09-13).
-            uint edge = mark == CleanseMark.Border && member.HasDispellable
-                ? Tokens.Col.Cleanse
-                : Tokens.Col.FrameEdge;
-
-            dl.AddRect(min, max, this.Dim(edge), 0f, ImDrawFlags.None, border);
+            dl.AddRect(min, max, this.Dim(Tokens.Col.FrameEdge), 0f, ImDrawFlags.None, border);
         }
 
         // Between the two passes on purpose. The mouse decides which frame gets the ring, and
@@ -504,6 +496,15 @@ internal sealed class PartyFramesElement : HudElement
             // crossing them is the one that gives way (Florian, 2026-09-13).
             this.DrawAuras(dl, cfg, i, innerMin, innerMax);
             this.DrawRescue(dl, cfg, ref member, innerMin, innerMax);
+
+            // Over everything, and outside the frame rather than on its edge. On the edge a
+            // thick mark eats into the bar it is meant to be framing, and under the second
+            // pass the next frame's ground painted across it (Florian, 2026-09-13: it must
+            // not sit behind the frame).
+            if (mark == CleanseMark.Border && member.HasDispellable)
+            {
+                this.DrawCleanseMark(dl, cfg, m_frameMin[i], m_frameMax[i]);
+            }
 
             DrawPresenceNote(dl, cfg, ref member, innerMin, innerMax);
             dl.PopClipRect();
@@ -993,6 +994,70 @@ internal sealed class PartyFramesElement : HudElement
     }
 
     /// <summary>
+    /// The mark that says something on this person can be taken off: a band of colour rising
+    /// out of the bottom of the frame, and a thick edge around the whole of it.
+    /// <para>
+    /// 🔴 Two marks and not one, because one was not enough. A coloured edge alone was missed
+    /// at a glance, which is the only thing this mark has to do — a healer is not reading
+    /// frames, they are catching one out of eight (Florian, 2026-09-13). The rise gives it an
+    /// area rather than a line, and area is what the eye catches.
+    /// </para>
+    /// <para>
+    /// Drawn outside the frame, over everything. Inside it, a thick edge eats the bar it is
+    /// framing; underneath, the next frame's ground paints across it.
+    /// </para>
+    /// </summary>
+    private void DrawCleanseMark(
+        ImDrawListPtr dl,
+        Configuration.PartyFramesConfig cfg,
+        Vector2 min,
+        Vector2 max)
+    {
+        uint colour = this.Dim(cfg.CleanseColour);
+        float thickness = MathF.Max(Tokens.Line(1f), Tokens.Px(cfg.CleanseThickness));
+
+        // The rise, from the bottom of the frame to somewhere below halfway: far enough up to
+        // be an area, not so far that it washes the whole bar and takes the role colour with
+        // it. Fades to nothing, so it has no edge of its own to be mistaken for one.
+        float height = MathF.Round((max.Y - min.Y) * CleanseRise);
+        uint clear = colour & 0x00FFFFFFu;
+        uint strong = Fade(colour, CleanseRiseOpacity);
+
+        dl.AddRectFilledMultiColor(
+            new Vector2(min.X, max.Y - height),
+            max,
+            clear,
+            clear,
+            strong,
+            strong);
+
+        // Outside, so the frame keeps all of its own room. AddRect puts half the thickness
+        // either side of the path, so the path is pushed out by half.
+        float out2 = thickness * 0.5f;
+        dl.AddRect(
+            new Vector2(min.X - out2, min.Y - out2),
+            new Vector2(max.X + out2, max.Y + out2),
+            colour,
+            0f,
+            ImDrawFlags.None,
+            thickness);
+    }
+
+    /// <summary>How far up the frame the cleanse band reaches, as a share of its height.</summary>
+    private const float CleanseRise = 0.45f;
+
+    /// <summary>How solid that band is where it meets the bottom edge.</summary>
+    private const float CleanseRiseOpacity = 0.55f;
+
+    /// <summary>The same colour at a share of its own alpha.</summary>
+    private static uint Fade(uint colour, float amount)
+    {
+        uint alpha = (colour >> 24) & 0xFFu;
+        uint faded = (uint)MathF.Round(alpha * Math.Clamp(amount, 0f, 1f));
+        return (colour & 0x00FFFFFFu) | (faded << 24);
+    }
+
+    /// <summary>
     /// The row of afflictions, highest ranked first.
     /// <para>
     /// The row is hung on one of the nine points as a whole, so it stays put as effects come
@@ -1139,7 +1204,7 @@ internal sealed class PartyFramesElement : HudElement
             // frame's own edge has answered "is there one".
             if (aura.CanDispel)
             {
-                dl.AddRect(min, max, this.Dim(Tokens.Col.Cleanse), 0f, ImDrawFlags.None, Tokens.Px(1f));
+                dl.AddRect(min, max, this.Dim(m_config.PartyFrames.CleanseColour), 0f, ImDrawFlags.None, Tokens.Px(1f));
             }
 
             if (showStacks && aura.Stacks > 1)

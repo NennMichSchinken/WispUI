@@ -92,6 +92,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdAuraSwipe = "##wisp-pf-auraswipe";
     private const string IdPreviewAuras = "##wisp-pf-aurapreview";
     private const string IdCleanseWhenAble = "##wisp-pf-cleanseable";
+    private const string IdCleanseColour = "##wisp-pf-cleansecolour";
+    private const string IdCleanseThickness = "##wisp-pf-cleansethick";
+
+    private const float MinCleanseThickness = 1f;
+    private const float MaxCleanseThickness = 8f;
     private const string IdBuffGroup = "##wisp-pf-buffs";
     private const string IdShowBuffs = "##wisp-pf-showbuffs";
     private const string IdOwnBuffs = "##wisp-pf-ownbuffs";
@@ -215,7 +220,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const int SlotOtherX = 31;
     private const int SlotOtherY = 32;
     private const int SlotOtherMax = 33;
-    private const int SlotCount = 34;
+    private const int SlotCleanseThickness = 34;
+    private const int SlotCount = 35;
 
     /// <summary>The three weights, in the order the segments sit. Built once, not per frame.</summary>
     private static readonly string[] WeightNames =
@@ -466,22 +472,22 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         m_auraPosition = new ArrowSelector<Anchor>(
             IdAuraPosition,
             Anchors.All,
-            new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false });
+            new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false, HideArrows = true });
 
         m_buffPosition = new ArrowSelector<Anchor>(
             IdBuffPosition,
             Anchors.All,
-            new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false });
+            new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false, HideArrows = true });
 
         m_otherPosition = new ArrowSelector<Anchor>(
             IdOtherPosition,
             Anchors.All,
-            new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false });
+            new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false, HideArrows = true });
 
         m_rescuePosition = new ArrowSelector<Anchor>(
             IdRescuePosition,
             Anchors.All,
-            new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false });
+            new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false, HideArrows = true });
 
         m_cleanse = new ArrowSelector<CleanseMark>(
             IdCleanse,
@@ -495,6 +501,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                     _ => Strings.CleanseNone,
                 },
                 ShowCounter = false,
+                EnablePopupList = true,
+                HideArrows = true,
             });
 
 
@@ -603,6 +611,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         RescueIconY = m_config.PartyFrames.RescueIconY,
         CleanseMark = m_config.PartyFrames.CleanseMark,
         CleanseOnlyWhenAble = m_config.PartyFrames.CleanseOnlyWhenAble,
+        CleanseColour = m_config.PartyFrames.CleanseColour,
+        CleanseThickness = m_config.PartyFrames.CleanseThickness,
     };
 
     public void ApplyAppearance(AppearanceBlock source, AppearanceFields mask)
@@ -617,6 +627,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.PartyFrames.ColourMode = source.ColourMode;
             m_config.PartyFrames.CleanseMark = source.CleanseMark;
             m_config.PartyFrames.CleanseOnlyWhenAble = source.CleanseOnlyWhenAble;
+            m_config.PartyFrames.CleanseColour = source.CleanseColour;
+            m_config.PartyFrames.CleanseThickness = source.CleanseThickness;
         }
 
         if ((mask & AppearanceFields.Opacity) != 0)
@@ -2114,6 +2126,34 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         }
 
         rowY += Chrome.RowPitch();
+        uint colour = m_config.PartyFrames.CleanseColour;
+        if (Chrome.ColourRow(
+                IdCleanseColour,
+                Strings.CleanseColour,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                ref colour,
+                true,
+                null))
+        {
+            m_config.PartyFrames.CleanseColour = colour;
+            m_config.MarkDirty();
+        }
+
+        rowY += Chrome.RowPitch();
+        this.PixelSlider(
+            IdCleanseThickness,
+            Strings.CleanseThickness,
+            SlotCleanseThickness,
+            group,
+            rowY,
+            MinCleanseThickness,
+            MaxCleanseThickness,
+            true,
+            Strings.CleanseThicknessTooltip);
+
+        rowY += Chrome.RowPitch();
         if (Chrome.OptionRow(
                 IdCleanseWhenAble,
                 Strings.CleanseWhenAble,
@@ -2450,6 +2490,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         SlotOtherX => m_config.PartyFrames.OtherX,
         SlotOtherY => m_config.PartyFrames.OtherY,
         SlotOtherMax => m_config.PartyFrames.OtherMaxCount,
+        SlotCleanseThickness => m_config.PartyFrames.CleanseThickness,
         _ => m_config.PartyFrames.ManaHeight,
     };
 
@@ -2490,6 +2531,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             case SlotOtherX: m_config.PartyFrames.OtherX = value; break;
             case SlotOtherY: m_config.PartyFrames.OtherY = value; break;
             case SlotOtherMax: m_config.PartyFrames.OtherMaxCount = (int)value; break;
+            case SlotCleanseThickness: m_config.PartyFrames.CleanseThickness = value; break;
             default: m_config.PartyFrames.ManaHeight = value; break;
         }
     }

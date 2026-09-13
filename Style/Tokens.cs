@@ -90,6 +90,18 @@ internal static class Tokens
         public static readonly uint Control = Rgb(0x3A383A);
         public static readonly uint Control2 = Rgb(0x2E2C2E);
         public static readonly uint ControlEdge = Rgb(0x6B676B);
+
+        /// <summary>The same edge, lit, for a control the mouse is on.</summary>
+        public static readonly uint ControlEdgeHover = Rgb(0x9A949A);
+
+        /// <summary>
+        /// The two greys of the chequerboard behind a colour swatch. Without it a colour the
+        /// user has made half transparent reads as a darker colour rather than as a see-through
+        /// one, and they set it twice.
+        /// </summary>
+        public static readonly uint ChequerLight = Rgb(0x4A474A);
+
+        public static readonly uint ChequerDark = Rgb(0x2E2C2E);
         public static readonly uint ButtonTop = Rgb(0x464346);
         public static readonly uint ButtonBottom = Rgb(0x353335);
         public static readonly uint Input = Rgb(0x1B1A1B);

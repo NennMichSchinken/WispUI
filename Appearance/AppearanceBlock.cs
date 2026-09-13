@@ -174,6 +174,10 @@ internal sealed record AppearanceBlock
     public int CleanseMark { get; init; }
 
     public bool CleanseOnlyWhenAble { get; init; }
+
+    public uint CleanseColour { get; init; }
+
+    public float CleanseThickness { get; init; }
 }
 
 /// <summary>
