@@ -1262,7 +1262,7 @@ internal sealed class PartyFramesElement : HudElement
 
         // Through the status route, not the plain one: these are status pictures like the rows
         // are, and drawn whole they carry the same margin and plate the afflictions used to
-        // (Florian, 2026-09-13 — "kein Rechteck wie bei DelvUI").
+        // (Florian, 2026-09-13: it was not coming out rectangular like the reference shot).
         if (!Icons.StatusIcon(StatusData.Of(status).Icon, out ImTextureID icon, out Vector2 uv0, out Vector2 uv1))
         {
             return;
