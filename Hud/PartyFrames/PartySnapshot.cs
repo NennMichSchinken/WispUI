@@ -1,3 +1,4 @@
+using System;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.ClientState.Party;
 using Dalamud.Plugin.Services;
@@ -31,10 +32,40 @@ internal enum PartyPresence
     Offline = 3,
 }
 
+/// <summary>
+/// One status effect worth drawing on a frame. Flattened out of the game's array so the
+/// renderer never touches a status again.
+/// </summary>
+internal struct AuraSnapshot
+{
+    public uint StatusId;
+
+    /// <summary>The game's own icon for it. Zero means there is nothing to draw.</summary>
+    public uint Icon;
+
+    /// <summary>Seconds left, or zero for an effect that does not run out.</summary>
+    public float Remaining;
+
+    /// <summary>Stacks, where the effect has them.</summary>
+    public ushort Stacks;
+
+    /// <summary>Whether Esuna takes it off — the one thing a healer scans a party for.</summary>
+    public bool CanDispel;
+
+    /// <summary>The game's ranking, kept so the order can be seen to come from somewhere.</summary>
+    public byte Priority;
+}
+
 /// <summary>One party member as the renderer needs them, and nothing more.</summary>
 internal struct PartyMemberSnapshot
 {
     public uint EntityId;
+
+    /// <summary>
+    /// Where the game keeps this member. Held so the effects on them can be read after the
+    /// frames have been put in order, rather than read once and then shuffled about.
+    /// </summary>
+    public nint Address;
 
     /// <summary>
     /// The member's row in the game's own party list, counted from one — the number people
@@ -87,6 +118,24 @@ internal struct PartyMemberSnapshot
     /// A name is the one field here that cannot be a number, and reading it allocates.
     /// </summary>
     public string Name;
+
+    // --- what is on them, out of the one status pass -------------------------
+
+    /// <summary>How many of this member's afflictions are worth drawing.</summary>
+    public int AuraCount;
+
+    /// <summary>
+    /// Whether anything on them can be cleansed. Kept apart from the icon list because it is
+    /// read whether or not the icons are turned on — it is the answer to the question a
+    /// healer is actually asking, and it should not depend on a display setting.
+    /// </summary>
+    public bool HasDispellable;
+
+    /// <summary>Seconds left on a raise already cast on them, or zero for none.</summary>
+    public float RaiseRemaining;
+
+    /// <summary>Whether something is keeping them alive no matter what lands.</summary>
+    public bool IsInvulnerable;
 }
 
 /// <summary>
@@ -103,6 +152,13 @@ internal sealed class PartySnapshot
 {
     /// <summary>A full party. An alliance is a later module and brings its own snapshot.</summary>
     public const int Capacity = 8;
+
+    /// <summary>
+    /// The most afflictions a frame will ever hold. Above this the game's own ranking decides
+    /// what is dropped, which is the whole reason to read that ranking — a frame with room for
+    /// four icons and twelve effects on it has to choose, and the game has already chosen.
+    /// </summary>
+    public const int MaxAuras = 8;
 
     /// <summary>Far above any real entity id, so a stand-in can never be mistaken for a player.</summary>
     private const uint PlaceholderId = 0xF0000000u;
@@ -128,6 +184,22 @@ internal sealed class PartySnapshot
     /// </summary>
     private readonly NativeUi.HudPartyMemberInfo[] m_order =
         new NativeUi.HudPartyMemberInfo[NativeUi.HudPartyCapacity];
+
+    /// <summary>
+    /// Every member's afflictions, laid end to end: member <c>i</c> owns
+    /// <c>MaxAuras</c> entries starting at <c>i * MaxAuras</c>, of which
+    /// <see cref="PartyMemberSnapshot.AuraCount"/> hold anything.
+    /// <para>
+    /// Flat rather than an array per member, because a member is a struct and cannot carry one
+    /// without allocating. Filled after the order is settled, so a slice always belongs to the
+    /// frame drawn above it.
+    /// </para>
+    /// </summary>
+    private readonly AuraSnapshot[] m_auras = new AuraSnapshot[Capacity * MaxAuras];
+
+    /// <summary>One member's raw effects, reused. Never more than one member at a time.</summary>
+    private readonly NativeUi.StatusEntry[] m_statuses =
+        new NativeUi.StatusEntry[NativeUi.StatusCapacity];
 
     /// <summary>How many entries of <see cref="Members"/> hold someone this frame.</summary>
     public int Count { get; private set; }
@@ -200,6 +272,7 @@ internal sealed class PartySnapshot
             // Current health can legitimately be zero, so it is the maximum that is asked.
             slot.HasData = member.MaxHP > 0;
             slot.Presence = slot.HasData ? PartyPresence.Here : Presence(member, here);
+            slot.Address = member.Address;
 
             count++;
         }
@@ -215,6 +288,14 @@ internal sealed class PartySnapshot
         }
 
         this.Count = count;
+
+        // Last, and only once the order is settled: a member's effects are stored beside their
+        // place in the block, so reading them before the sort would file them under a frame
+        // that is about to move.
+        for (int i = 0; i < count; i++)
+        {
+            this.CollectAuras(i);
+        }
     }
 
     /// <summary>
@@ -243,11 +324,135 @@ internal sealed class PartySnapshot
             slot.Mp = slot.MaxMp / 100u * PlaceholderMana[i];
             slot.IsLocalPlayer = i == 0;
             slot.IsLeader = i == 0;
+
+            // Nobody real, so nothing is on them. Edit mode is about placing things, and a
+            // stand-in that carried invented afflictions would be placing a fiction.
+            slot.Address = 0;
+            slot.AuraCount = 0;
+            slot.HasDispellable = false;
+            slot.RaiseRemaining = 0f;
+            slot.IsInvulnerable = false;
         }
 
         this.IsSolo = false;
         this.Count = Capacity;
     }
+
+    /// <summary>
+    /// The afflictions on one member, in the order the game ranks them.
+    /// <para>
+    /// 🔴 One pass over the status array, and everything the frames say about what is on a
+    /// person comes out of it: the icons, whether anything can be cleansed, whether a raise
+    /// is already up, whether they cannot be killed. Four features, one walk — building them
+    /// one at a time would walk it four times (spec §13.2).
+    /// </para>
+    /// </summary>
+    private void CollectAuras(int index)
+    {
+        ref PartyMemberSnapshot slot = ref m_members[index];
+
+        slot.AuraCount = 0;
+        slot.HasDispellable = false;
+        slot.RaiseRemaining = 0f;
+        slot.IsInvulnerable = false;
+
+        // Nobody loaded, nobody to read. A member across the map has no effects we can see,
+        // which is what the game's own list shows too.
+        if (!slot.HasData || slot.Address == 0)
+        {
+            return;
+        }
+
+        int count = slot.IsLocalPlayer && this.IsSolo
+            ? NativeUi.ReadCharacterStatuses(slot.Address, m_statuses)
+            : NativeUi.ReadMemberStatuses(slot.Address, m_statuses);
+
+        int start = index * MaxAuras;
+
+        for (int i = 0; i < count; i++)
+        {
+            ref NativeUi.StatusEntry entry = ref m_statuses[i];
+            uint id = entry.StatusId;
+
+            if (id == StatusData.Raise)
+            {
+                slot.RaiseRemaining = entry.Remaining;
+                continue;
+            }
+
+            if (StatusData.IsInvulnerability(id))
+            {
+                slot.IsInvulnerable = true;
+                continue;
+            }
+
+            StatusFacts facts = StatusData.Of(id);
+
+            // Benefits are not drawn on a party frame. A healer reads this block for what is
+            // wrong, and forty buffs would bury the one debuff that matters.
+            if (facts.Category != 2)
+            {
+                continue;
+            }
+
+            if (facts.CanDispel)
+            {
+                slot.HasDispellable = true;
+            }
+
+            Insert(m_auras, start, ref slot.AuraCount, entry, facts);
+        }
+    }
+
+    /// <summary>
+    /// Puts one affliction in its place, highest ranked first, keeping at most
+    /// <see cref="MaxAuras"/>.
+    /// <para>
+    /// An insertion into a list of eight, which is cheaper than collecting everything and
+    /// sorting afterwards and never allocates. Something ranked below a full list is dropped
+    /// where it stands.
+    /// </para>
+    /// </summary>
+    private static void Insert(
+        AuraSnapshot[] auras,
+        int start,
+        ref int count,
+        in NativeUi.StatusEntry entry,
+        in StatusFacts facts)
+    {
+        int at = count;
+
+        while (at > 0 && auras[start + at - 1].Priority < facts.Priority)
+        {
+            if (at < MaxAuras)
+            {
+                auras[start + at] = auras[start + at - 1];
+            }
+
+            at--;
+        }
+
+        if (at >= MaxAuras)
+        {
+            return;
+        }
+
+        auras[start + at].StatusId = entry.StatusId;
+        auras[start + at].Icon = facts.Icon;
+        auras[start + at].Remaining = entry.Remaining;
+        auras[start + at].Stacks = entry.Param;
+        auras[start + at].CanDispel = facts.CanDispel;
+        auras[start + at].Priority = facts.Priority;
+
+        if (count < MaxAuras)
+        {
+            count++;
+        }
+    }
+
+    /// <summary>The afflictions on the member drawn at <paramref name="index"/>.</summary>
+    public ReadOnlySpan<AuraSnapshot> Auras(int index) =>
+        new(m_auras, index * MaxAuras, m_members[index].AuraCount);
 
     /// <summary>
     /// Finds a member in the game's own party list order.
@@ -363,6 +568,7 @@ internal sealed class PartySnapshot
         slot.MaxMp = player.MaxMp;
         slot.IsLocalPlayer = true;
         slot.IsLeader = false;
+        slot.Address = player.Address;
 
         return 1;
     }

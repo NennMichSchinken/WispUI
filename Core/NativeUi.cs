@@ -187,6 +187,104 @@ internal static class NativeUi
         return count < 0 ? 0 : count;
     }
 
+    /// <summary>One status effect on somebody, straight out of the game's own array.</summary>
+    internal struct StatusEntry
+    {
+        public uint StatusId;
+
+        /// <summary>Stacks for an effect that has them, strength for one that does not.</summary>
+        public ushort Param;
+
+        /// <summary>Seconds left, or zero for an effect that does not run out.</summary>
+        public float Remaining;
+
+        /// <summary>Who put it there. Zero when the game is not saying.</summary>
+        public ulong SourceId;
+    }
+
+    /// <summary>As many effects as the game keeps room for on one person.</summary>
+    public const int StatusCapacity = 60;
+
+    /// <summary>
+    /// Reads the effects on a party member, without allocating.
+    /// <para>
+    /// 🔴 This is why it is here rather than through Dalamud's own wrapper.
+    /// <c>IPartyMember.Statuses</c> builds a new list object on every access, and its indexer
+    /// hands back an interface, which boxes the struct behind it. Eight members with a dozen
+    /// effects each, sixty times a second, is a few hundred objects a frame for data the game
+    /// already has lying in a flat array — exactly the churn CLAUDE.md §7.1 exists to stop.
+    /// </para>
+    /// </summary>
+    /// <param name="member">A party member's address, as Dalamud reports it.</param>
+    public static unsafe int ReadMemberStatuses(nint member, Span<StatusEntry> into)
+    {
+        if (member == 0)
+        {
+            return 0;
+        }
+
+        var party = (FFXIVClientStructs.FFXIV.Client.Game.Group.PartyMember*)member;
+        return ReadStatuses(&party->StatusManager, into);
+    }
+
+    /// <summary>
+    /// The same, for a character in the world — which is where the effects on the player come
+    /// from while they are alone and there is no party list to read.
+    /// </summary>
+    public static unsafe int ReadCharacterStatuses(nint character, Span<StatusEntry> into)
+    {
+        if (character == 0)
+        {
+            return 0;
+        }
+
+        var chara = (FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara*)character;
+        return ReadStatuses(&chara->StatusManager, into);
+    }
+
+    private static unsafe int ReadStatuses(
+        FFXIVClientStructs.FFXIV.Client.Game.StatusManager* manager,
+        Span<StatusEntry> into)
+    {
+        if (manager is null)
+        {
+            return 0;
+        }
+
+        Span<FFXIVClientStructs.FFXIV.Client.Game.Status> statuses = manager->Status;
+        int valid = manager->NumValidStatuses;
+
+        if (valid > statuses.Length)
+        {
+            valid = statuses.Length;
+        }
+
+        int count = 0;
+
+        for (int i = 0; i < valid && count < into.Length; i++)
+        {
+            ref FFXIVClientStructs.FFXIV.Client.Game.Status status = ref statuses[i];
+
+            // The array holds empty slots among the full ones — a cleared effect leaves its
+            // place behind rather than shuffling the rest along.
+            if (status.StatusId == 0)
+            {
+                continue;
+            }
+
+            into[count].StatusId = status.StatusId;
+            into[count].Param = status.Param;
+
+            // Negative on an effect that does not run out. Zero reads better everywhere else.
+            into[count].Remaining = status.RemainingTime < 0f ? 0f : status.RemainingTime;
+            into[count].SourceId = status.SourceObject;
+
+            count++;
+        }
+
+        return count;
+    }
+
     /// <summary>Whether the game's party list is hidden because we hid it.</summary>
     private static bool s_partyListHidden;
 
