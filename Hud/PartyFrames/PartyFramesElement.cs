@@ -483,17 +483,28 @@ internal sealed class PartyFramesElement : HudElement
 
             // Clipped to the frame grown by the whole reach of the offset sliders: everything
             // that can be placed is drawn in full, and a name too long for even that is cut
-            // rather than run across the screen. The icon goes down first — where the two are
-            // set to overlap, the name is the one that has to stay readable.
+            // rather than run across the screen.
             dl.PushClipRect(
                 new Vector2(innerMin.X - reach, innerMin.Y - reach),
                 new Vector2(innerMax.X + reach, innerMax.Y + reach),
                 true);
+
+            // 🔴 Three layers, and the order between them is the answer to "which of these two
+            // has to stay readable".
+            //
+            // The badges go under the writing: a job icon is recognised from its shape and
+            // colour, and half of one is still that job, while half a name is not a name.
             this.DrawJobIcon(dl, cfg, i, ref member, innerMin, innerMax);
             this.DrawLeaderIcon(dl, cfg, ref member, innerMin, innerMax);
+
+            this.DrawTexts(dl, cfg, textMode, i, ref member, innerMin, innerMax);
+
+            // The status pictures go OVER the writing. They are the newest thing on the frame
+            // and the thing being looked for; a name is read once and then known, so a name
+            // crossing them is the one that gives way (Florian, 2026-09-13).
             this.DrawAuras(dl, cfg, i, innerMin, innerMax);
             this.DrawRescue(dl, cfg, ref member, innerMin, innerMax);
-            this.DrawTexts(dl, cfg, textMode, i, ref member, innerMin, innerMax);
+
             DrawPresenceNote(dl, cfg, ref member, innerMin, innerMax);
             dl.PopClipRect();
         }
