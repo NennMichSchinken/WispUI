@@ -249,52 +249,42 @@ internal static class StatusData
 
     private static void BuildPreview(Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.Status> sheet)
     {
+        // 🔴 The highest ranked, not the first found. The sheet's early rows are leftovers and
+        // oddities, and a preview built from them showed four effects nobody recognises — the
+        // point of a preview is that it looks like a frame in a real fight (Florian,
+        // 2026-09-13). PartyListPriority is the game saying which effects it would actually
+        // put on a party list, which is exactly the question.
         var picked = new uint[4];
         var benefits = new uint[4];
-        int dispellable = 0;
-        int plain = 0;
-        int good = 0;
+        var pickedRank = new byte[picked.Length];
+        var benefitRank = new byte[benefits.Length];
 
         foreach (Lumina.Excel.Sheets.Status row in sheet)
         {
-            if (dispellable >= 2 && plain >= 2 && good >= benefits.Length)
-            {
-                break;
-            }
-
             if (row.Icon == 0 || row.PartyListPriority == 0)
             {
                 continue;
             }
 
-            if (row.StatusCategory == 1)
+            switch (row.StatusCategory)
             {
-                if (good < benefits.Length)
-                {
-                    benefits[good] = row.RowId;
-                    good++;
-                }
+                case 1:
+                    Rank(benefits, benefitRank, 0, benefits.Length, row.RowId, row.PartyListPriority);
+                    break;
 
-                continue;
-            }
+                case 2:
+                    // Half the row cleansable and half not, so both looks are on screen: the
+                    // first two slots are kept for effects Esuna takes off.
+                    if (row.CanDispel)
+                    {
+                        Rank(picked, pickedRank, 0, 2, row.RowId, row.PartyListPriority);
+                    }
+                    else
+                    {
+                        Rank(picked, pickedRank, 2, 4, row.RowId, row.PartyListPriority);
+                    }
 
-            if (row.StatusCategory != 2)
-            {
-                continue;
-            }
-
-            if (row.CanDispel)
-            {
-                if (dispellable < 2)
-                {
-                    picked[dispellable] = row.RowId;
-                    dispellable++;
-                }
-            }
-            else if (plain < 2)
-            {
-                picked[2 + plain] = row.RowId;
-                plain++;
+                    break;
             }
         }
 
@@ -307,6 +297,32 @@ internal static class StatusData
             {
                 PreviewInvulnerability = Invulnerabilities[i];
             }
+        }
+    }
+
+    /// <summary>
+    /// Keeps the highest ranked few in a small run of slots, in order. Called once per sheet
+    /// row at load, over four slots — a full sort would be more code for the same answer.
+    /// </summary>
+    private static void Rank(uint[] into, byte[] ranks, int from, int to, uint id, byte priority)
+    {
+        for (int i = from; i < to; i++)
+        {
+            if (into[i] != 0 && ranks[i] >= priority)
+            {
+                continue;
+            }
+
+            // Push the rest along and drop whatever fell off the end.
+            for (int j = to - 1; j > i; j--)
+            {
+                into[j] = into[j - 1];
+                ranks[j] = ranks[j - 1];
+            }
+
+            into[i] = id;
+            ranks[i] = priority;
+            return;
         }
     }
 

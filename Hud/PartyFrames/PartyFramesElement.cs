@@ -1090,9 +1090,8 @@ internal sealed class PartyFramesElement : HudElement
         for (int i = 0; i < count; i++)
         {
             ref readonly AuraSnapshot aura = ref auras[i];
-            ImTextureID icon = Icons.Handle(aura.Icon);
 
-            if (icon.Handle == 0)
+            if (!Icons.StatusIcon(aura.Icon, out ImTextureID icon, out Vector2 uv0, out Vector2 uv1))
             {
                 continue;
             }
@@ -1101,8 +1100,8 @@ internal sealed class PartyFramesElement : HudElement
             Vector2 min = new(MathF.Round(x), at.Y);
             Vector2 max = new(min.X + side, min.Y + side);
 
-            // Cropped to the art. See Icons.StatusUv0 — the whole texture is mostly margin.
-            dl.AddImage(icon, min, max, Icons.StatusUv0, Icons.StatusUv1, this.Dim(0xFFFFFFFFu));
+            // Cropped to the art. See Icons.StatusIcon — the whole texture is mostly margin.
+            dl.AddImage(icon, min, max, uv0, uv1, this.Dim(0xFFFFFFFFu));
 
             if (swipe)
             {
@@ -1261,17 +1260,26 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        uint iconId = StatusData.Of(status).Icon;
+        // Through the status route, not the plain one: these are status pictures like the rows
+        // are, and drawn whole they carry the same margin and plate the afflictions used to
+        // (Florian, 2026-09-13 — "kein Rechteck wie bei DelvUI").
+        if (!Icons.StatusIcon(StatusData.Of(status).Icon, out ImTextureID icon, out Vector2 uv0, out Vector2 uv1))
+        {
+            return;
+        }
 
-        this.DrawIcon(
-            dl,
-            Icons.Handle(iconId),
-            cfg.RescueIconSize,
-            cfg.RescueIconPosition,
-            cfg.RescueIconX,
-            cfg.RescueIconY,
+        float side = Tokens.Px(cfg.RescueIconSize);
+        Vector2 at = Anchors.Place(
+            Anchors.At(cfg.RescueIconPosition),
             innerMin,
-            innerMax);
+            innerMax,
+            new Vector2(side, side),
+            Tokens.Metric.FramePadding);
+
+        at.X += Tokens.Px(cfg.RescueIconX);
+        at.Y += Tokens.Px(cfg.RescueIconY);
+
+        dl.AddImage(icon, at, new Vector2(at.X + side, at.Y + side), uv0, uv1, this.Dim(0xFFFFFFFFu));
     }
 
     /// <summary>
