@@ -35,6 +35,17 @@ internal struct StatusFacts
     public byte MaxStacks;
 
     /// <summary>
+    /// Something the player carries about with them rather than something that happened in
+    /// this fight: a free company buff, or a meal.
+    /// <para>
+    /// 🔴 Kept out of the benefit rows. Everybody has food on, it lasts half an hour, and it
+    /// is never the thing being looked for — it is the clutter that made those rows worth
+    /// filtering in the first place (Florian, 2026-09-13, noting it gets blacklisted).
+    /// </para>
+    /// </summary>
+    public bool IsUpkeep;
+
+    /// <summary>
     /// Whether Esuna and its like can take it off.
     /// <para>
     /// 🔴 Straight out of the sheet, not a list somebody keeps up to date. Every curated id
@@ -100,6 +111,13 @@ internal static class StatusData
     public const uint Raise = 148u;
 
     public const uint RaiseAlt = 1140u;
+
+    /// <summary>
+    /// The meal buff — one id for every dish in the game. ⚠️ NOT VERIFIED in the game; it is
+    /// logged by <c>/wisp status</c> along with everything else, so a wrong one shows up as
+    /// food still sitting in the benefit row rather than as nothing at all.
+    /// </summary>
+    public const uint WellFed = 48u;
 
     public const uint Weakness = 43u;
 
@@ -200,6 +218,11 @@ internal static class StatusData
             entry.Category = row.StatusCategory;
             entry.CanDispel = row.CanDispel;
             entry.MaxStacks = row.MaxStacks;
+
+            // A free company buff says so in the sheet. Food does not, so it is named: it is
+            // the one effect everybody wears all the time, and there is no field for "this is
+            // a meal". One id rather than a list, because one meal buff covers every dish.
+            entry.IsUpkeep = row.IsFcBuff || row.RowId == WellFed;
         }
 
         for (int i = 0; i < Invulnerabilities.Length; i++)
@@ -363,7 +386,7 @@ internal static class StatusData
             }
 
             Services.Log.Information(
-                "{Id} {Name} | cat {Category} | prio {Priority} | paramEffect {ParamEffect} | paramMod {ParamModifier} | param {Param} | maxStacks {MaxStacks} | dispel {Dispel} | left {Left:0.0}s",
+                "{Id} {Name} | cat {Category} | prio {Priority} | paramEffect {ParamEffect} | paramMod {ParamModifier} | param {Param} | fc {Fc} | permanent {Permanent} | canRemove {CanRemove} | dispel {Dispel} | left {Left:0.0}s",
                 id,
                 row.Name.ExtractText(),
                 row.StatusCategory,
@@ -371,7 +394,9 @@ internal static class StatusData
                 row.ParamEffect,
                 row.ParamModifier,
                 buffer[i].Param,
-                row.MaxStacks,
+                row.IsFcBuff,
+                row.IsPermanent,
+                row.CanStatusOff,
                 row.CanDispel,
                 buffer[i].Remaining);
         }

@@ -238,8 +238,12 @@ internal static class NativeUi
             return 0;
         }
 
+        // 🔴 Through the game's own accessor, NOT the StatusManager field on the struct. The
+        // two do not point at the same thing: reading the field gave three effects where the
+        // game had thirty (Florian, 2026-09-13). Dalamud asks the same way, which is what made
+        // the disagreement visible at all.
         var chara = (FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara*)character;
-        return ReadStatuses(&chara->StatusManager, into);
+        return ReadStatuses(chara->GetStatusManager(), into);
     }
 
     private static unsafe int ReadStatuses(
@@ -252,16 +256,13 @@ internal static class NativeUi
         }
 
         Span<FFXIVClientStructs.FFXIV.Client.Game.Status> statuses = manager->Status;
-        int valid = manager->NumValidStatuses;
 
-        if (valid > statuses.Length)
-        {
-            valid = statuses.Length;
-        }
-
+        // 🔴 The whole array, not the first NumValidStatuses of it. That count is not a dense
+        // bound — the array holds gaps, so stopping at the count drops whatever sits past the
+        // last gap. Sixty comparisons of a number is nothing; a silently short list is not.
         int count = 0;
 
-        for (int i = 0; i < valid && count < into.Length; i++)
+        for (int i = 0; i < statuses.Length && count < into.Length; i++)
         {
             ref FFXIVClientStructs.FFXIV.Client.Game.Status status = ref statuses[i];
 

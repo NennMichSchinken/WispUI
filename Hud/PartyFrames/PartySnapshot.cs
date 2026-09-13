@@ -504,6 +504,13 @@ internal sealed class PartySnapshot
 
             if (facts.Category == 1)
             {
+                // Food and company buffs are worn all day and are never what anybody is
+                // looking at a party frame for.
+                if (facts.IsUpkeep)
+                {
+                    continue;
+                }
+
                 // Two rows, split by who cast it. Yours is the one you are checking you have
                 // already done; everybody else's is what is keeping this person up without
                 // you. Mixed into one row they compete, and in a full party the dozens win.
