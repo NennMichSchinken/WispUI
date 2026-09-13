@@ -374,10 +374,13 @@ internal sealed class PartyFramesElement : HudElement
             // part of it. Dimming only the bar left a frame whose name, icons and number were
             // as loud as everybody else's, so it did not read as stepped back at all
             // (Florian, 2026-09-12).
+            // Three steps, because they are three different pieces of news: a pause, a wait,
+            // and over.
             m_dim = member.Presence switch
             {
                 PartyPresence.Here => 1f,
                 PartyPresence.Offline => Tokens.Metric.OfflineDim,
+                PartyPresence.Away => Tokens.Metric.AwayDim,
                 _ => Tokens.Metric.OutOfRangeDim,
             };
 

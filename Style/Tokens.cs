@@ -725,17 +725,31 @@ internal static class Tokens
         /// who is actually there (Florian, 2026-09-12).
         /// </para>
         /// </summary>
-        public const float OutOfRangeDim = 0.85f;
+        /// <para>
+        /// 🔴 Was 0.85, which read as no dimming at all once the class colour came back onto
+        /// these frames — "sie wirken noch als ob es 100% sind" (Florian, 2026-09-13). The
+        /// gentleness above is still right in kind; it was simply set too high to be seen.
+        /// </para>
+        public const float OutOfRangeDim = 0.7f;
+
+        /// <summary>
+        /// A member in another zone entirely.
+        /// <para>
+        /// Its own step, between out of range and offline, because it is its own news. Out of
+        /// range is a pause: they are running back, and the frame stays easy to check. Another
+        /// zone is not this pull, and that frame may properly step back.
+        /// </para>
+        /// </summary>
+        public const float AwayDim = 0.45f;
 
         /// <summary>
         /// The same, for a member who has logged out.
         /// <para>
-        /// Deeper than out of range, because the two are not the same news. Out of range is a
-        /// pause — they are running back, and the frame has to stay easy to check. Offline is
-        /// over for this fight, and that frame may recede properly (Florian, 2026-09-12).
+        /// The deepest of the three. Out of range is a pause and another zone is a wait;
+        /// logged out is over, and that frame may recede furthest (Florian, 2026-09-12).
         /// </para>
         /// </summary>
-        public const float OfflineDim = 0.65f;
+        public const float OfflineDim = 0.35f;
 
         public static float BadgeHeight => Px(18f);
         public static float BadgePaddingX => Px(6f);
