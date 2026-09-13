@@ -82,14 +82,24 @@ internal struct PartyMemberSnapshot
     public int PartyNumber;
 
     /// <summary>
-    /// Where this member sits in the HUD agent's own array — the one number the game's
-    /// right-click menu can be opened with.
+    /// The member's place in the party list Dalamud hands us, counting from zero — untouched
+    /// by any sorting. This is what the game's right-click menu is opened with.
     /// <para>
-    /// 🔴 Kept apart from <see cref="PartyNumber"/> on purpose. The agent's array always
-    /// begins with the local player, whatever the list looks like on screen, so the two are
-    /// the same number only in a party nobody has sorted. Passing the wrong one opens the
-    /// menu on the wrong person, and it looks right until somebody turns on role sorting.
+    /// 🔴 Three numbers could be meant by "which member", and they agree only in a party
+    /// nobody has sorted — this one, <see cref="PartyNumber"/> (the row it is drawn on) and
+    /// <see cref="HudIndex"/>. The call that opens the menu documents none of them. This is
+    /// the one a long-published plugin has been passing for years, which is the closest thing
+    /// to evidence available without a group; the other two are kept so the answer is one
+    /// line away if the test says otherwise.
     /// </para>
+    /// </summary>
+    public int PartyIndex;
+
+    /// <summary>
+    /// Where this member sits in the HUD agent's own array. Not used to open the menu, for
+    /// the reason above — kept because the agent's array is where the drawn order comes from
+    /// and because it is the other candidate if the menu turns out to open on the wrong
+    /// person.
     /// </summary>
     public int HudIndex;
 
@@ -137,8 +147,17 @@ internal struct PartyMemberSnapshot
     /// </summary>
     public bool HasDispellable;
 
-    /// <summary>Seconds left on a raise already cast on them, or zero for none.</summary>
+    /// <summary>
+    /// Seconds on the raise that concerns them: how long the effect has left once one has
+    /// landed, or how long until one lands while it is still being cast. Zero for neither.
+    /// </summary>
     public float RaiseRemaining;
+
+    /// <summary>
+    /// Which of the two it is. The frame draws the same icon either way, but the two mean
+    /// opposite things to a second healer — one says stop, the other says wait.
+    /// </summary>
+    public bool RaiseIsLanded;
 
     /// <summary>
     /// Which effect is keeping them alive no matter what lands, or zero for none. The id
@@ -214,6 +233,12 @@ internal sealed class PartySnapshot
     /// <summary>How long each effect runs, watched over time because the game never says.</summary>
     private readonly AuraDurations m_durations = new();
 
+    /// <summary>Raises in flight, which exist before their effect does.</summary>
+    private readonly RaiseWatch m_raises = new();
+
+    /// <summary>Looks for raises being cast. Called on the game's tick, not while drawing.</summary>
+    public void Tick(double now) => m_raises.Tick(now);
+
     /// <summary>How many entries of <see cref="Members"/> hold someone this frame.</summary>
     public int Count { get; private set; }
 
@@ -263,6 +288,10 @@ internal sealed class PartySnapshot
 
             slot.EntityId = entityId;
 
+            // Their place in this list, before anything is sorted. Kept as it is: it is what
+            // opens the right-click menu, and it must not follow the frames around.
+            slot.PartyIndex = i;
+
             // Where the game puts them, when the game is willing to say. Its own order is the
             // only order the frames have: matched by entity id, and by content id for anyone
             // too far away to be loaded, who has no entity id worth matching on.
@@ -309,7 +338,14 @@ internal sealed class PartySnapshot
 
         for (int i = 0; i < count; i++)
         {
-            this.CollectAuras(i);
+            if (AuraPreview.Active)
+            {
+                this.PreviewAuras(i);
+            }
+            else
+            {
+                this.CollectAuras(i);
+            }
         }
     }
 
@@ -324,7 +360,8 @@ internal sealed class PartySnapshot
         {
             ref PartyMemberSnapshot slot = ref m_members[i];
             slot.EntityId = PlaceholderId + (uint)i;
-            slot.PartyNumber = i + 1;
+            slot.HudIndex = -1;
+            slot.PartyIndex = -1;
 
             // Nobody to open a menu on. Minus one is what the call refuses, so a stand-in
             // cannot reach a real person's menu even if something did ask.
@@ -346,11 +383,23 @@ internal sealed class PartySnapshot
             slot.AuraCount = 0;
             slot.HasDispellable = false;
             slot.RaiseRemaining = 0f;
+            slot.RaiseIsLanded = false;
             slot.InvulnerableStatus = 0u;
         }
 
         this.IsSolo = false;
         this.Count = Capacity;
+
+        // Edit mode and the preview are the two halves of setting a frame up, and they are
+        // most often on together: eight stand-in people is where there is finally room to see
+        // what a row of icons does to a layout.
+        if (AuraPreview.Active)
+        {
+            for (int i = 0; i < Capacity; i++)
+            {
+                this.PreviewAuras(i);
+            }
+        }
     }
 
     /// <summary>
@@ -369,7 +418,15 @@ internal sealed class PartySnapshot
         slot.AuraCount = 0;
         slot.HasDispellable = false;
         slot.RaiseRemaining = 0f;
+        slot.RaiseIsLanded = false;
         slot.InvulnerableStatus = 0u;
+
+        // A raise still in the air, which has no effect to be found yet. Asked before the
+        // status list, so a raise that has since landed overwrites it with the real thing.
+        if (slot.Hp == 0 && slot.HasData)
+        {
+            slot.RaiseRemaining = m_raises.IncomingFor(slot.EntityId);
+        }
 
         // Nobody loaded, nobody to read. A member across the map has no effects we can see,
         // which is what the game's own list shows too.
@@ -389,9 +446,10 @@ internal sealed class PartySnapshot
             ref NativeUi.StatusEntry entry = ref m_statuses[i];
             uint id = entry.StatusId;
 
-            if (id == StatusData.Raise)
+            if (StatusData.IsRaise(id))
             {
                 slot.RaiseRemaining = entry.Remaining;
+                slot.RaiseIsLanded = true;
                 continue;
             }
 
@@ -418,6 +476,79 @@ internal sealed class PartySnapshot
             float duration = m_durations.Observe(slot.EntityId, id, entry.Remaining);
 
             Insert(m_auras, start, ref slot.AuraCount, entry, facts, duration);
+        }
+    }
+
+    /// <summary>
+    /// Stand-in effects, so the icons can be placed without waiting for a fight to make some.
+    /// <para>
+    /// The frames get a full row each, with the sweeps at different points so it is obvious
+    /// what the sweep does, and the marks spread across the party rather than on everyone:
+    /// a row where every frame says the same thing shows nothing about how one frame stands
+    /// out from the others.
+    /// </para>
+    /// </summary>
+    private void PreviewAuras(int index)
+    {
+        ref PartyMemberSnapshot slot = ref m_members[index];
+
+        slot.AuraCount = 0;
+        slot.HasDispellable = false;
+        slot.RaiseRemaining = 0f;
+        slot.RaiseIsLanded = false;
+        slot.InvulnerableStatus = 0u;
+
+        uint[] preview = StatusData.Preview;
+        int start = index * MaxAuras;
+
+        for (int i = 0; i < MaxAuras && i < preview.Length; i++)
+        {
+            uint id = preview[i];
+
+            if (id == 0)
+            {
+                continue;
+            }
+
+            StatusFacts facts = StatusData.Of(id);
+
+            ref AuraSnapshot aura = ref m_auras[start + slot.AuraCount];
+            aura.StatusId = id;
+            aura.Icon = facts.Icon;
+            aura.CanDispel = facts.CanDispel;
+            aura.Priority = facts.Priority;
+
+            // A different point of the sweep on each, so what the sweep is doing can be seen
+            // in one look rather than by watching one icon for half a minute.
+            aura.Duration = 30f;
+            aura.Remaining = 30f - (((index * 3) + (i * 7)) % 28);
+
+            // A few stacks, and not on all of them, so both cases are on screen.
+            aura.Stacks = (ushort)(((i + index) % 3 == 0) ? 0 : (i + 2));
+
+            if (facts.CanDispel)
+            {
+                slot.HasDispellable = true;
+            }
+
+            slot.AuraCount++;
+        }
+
+        // Two of the eight, so the marks can be judged against frames that do not carry them.
+        if (index == 1)
+        {
+            slot.RaiseRemaining = 6f;
+            slot.RaiseIsLanded = true;
+        }
+        else if (index == 3)
+        {
+            slot.InvulnerableStatus = StatusData.PreviewInvulnerability;
+        }
+
+        // The cleanse mark belongs to a party, not to everyone in it.
+        if (index > 4)
+        {
+            slot.HasDispellable = false;
         }
     }
 
@@ -577,6 +708,7 @@ internal sealed class PartySnapshot
 
         // The agent's array begins with the local player, so alone they are its only entry.
         slot.HudIndex = 0;
+        slot.PartyIndex = 0;
 
         slot.JobId = player.ClassJob.RowId;
         slot.Role = Jobs.Role(slot.JobId);

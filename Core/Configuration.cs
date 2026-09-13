@@ -390,6 +390,17 @@ public sealed class Configuration : IPluginConfiguration
         /// <summary>One of <see cref="Hud.CleanseMark"/>.</summary>
         public int CleanseMark { get; set; } = (int)Hud.CleanseMark.Border;
 
+        /// <summary>
+        /// Show the cleanse mark only while on a job that can actually cleanse.
+        /// <para>
+        /// On. The mark is an instruction, and an instruction to somebody who cannot carry it
+        /// out is noise — a Dragoon does not need to know that the tank has something Esuna
+        /// would take off. The icons keep showing the effect either way; this is only about
+        /// the mark on the frame.
+        /// </para>
+        /// </summary>
+        public bool CleanseOnlyWhenAble { get; set; } = true;
+
         // --- rescue: a raise on its way, and somebody who cannot be killed -------
         // Their own place on the frame rather than a slot in the icon row, because the row
         // is ranked and can drop things, and these two are exactly what must never be

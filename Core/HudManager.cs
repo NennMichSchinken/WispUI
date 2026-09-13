@@ -57,6 +57,21 @@ internal sealed class HudManager
     public void Add(HudElement element) => m_elements.Add(element);
 
     /// <summary>
+    /// Called on the game's tick. Only elements that have said they need it do anything, and
+    /// what they do there throttles itself.
+    /// </summary>
+    public void Tick()
+    {
+        for (int i = 0; i < m_elements.Count; i++)
+        {
+            if (m_elements[i].Enabled)
+            {
+                m_elements[i].Tick();
+            }
+        }
+    }
+
+    /// <summary>
     /// Called once per frame. Collects first and draws afterwards, so an element reads the
     /// game exactly once and then only paints (CLAUDE.md §7.2).
     /// </summary>

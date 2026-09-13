@@ -142,6 +142,8 @@ internal sealed record AppearanceBlock
     /// frame's own edge or bar does — see <see cref="Hud.CleanseMark"/>.
     /// </summary>
     public int CleanseMark { get; init; }
+
+    public bool CleanseOnlyWhenAble { get; init; }
 }
 
 /// <summary>

@@ -274,6 +274,14 @@ internal static class Strings
     public const string CleanseBorder = "Frame edge";
     public const string CleanseBar = "Health bar";
 
+    public const string CleanseWhenAble = "Only on cleanse jobs";
+    public const string CleanseWhenAbleTooltip =
+        "The mark is an instruction. Off, it also appears on jobs that cannot act on it. The icons show the effect either way.";
+
+    public const string PreviewAuras = "Preview";
+    public const string PreviewAurasTooltip =
+        "Puts stand-in effects on the frames so they can be placed without waiting for a fight. Ends when this window closes.";
+
     public const string ShowRescue = "Show icon";
     public const string ShowRescueTooltip =
         "A raise already cast on them, or a cooldown that is keeping them alive. Its own place, so a busy frame cannot push it out.";

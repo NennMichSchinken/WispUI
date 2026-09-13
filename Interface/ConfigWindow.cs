@@ -156,6 +156,12 @@ internal sealed class ConfigWindow : Window
     {
         m_clipboard.ForgetUndo();
         Chrome.CancelValueEdit();
+
+        // The aura preview belongs to the act of setting something up. With the window gone
+        // there is none going on, and stand-in effects left on the frames would be a party
+        // permanently in trouble.
+        Hud.AuraPreview.Stop();
+
         this.ReleaseCursor();
     }
 

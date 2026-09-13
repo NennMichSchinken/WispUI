@@ -142,6 +142,10 @@ public sealed class Plugin : IDalamudPlugin
             m_config.PartyFramesEnabled && m_config.PartyFrames.HideNativePartyList);
 
         this.SyncHudFonts();
+
+        // Work that has to keep running while nothing is drawn, or that costs too much to do
+        // per frame. Each element throttles its own.
+        m_hud.Tick();
     }
 
     /// <summary>

@@ -322,6 +322,14 @@ internal sealed class PartyFramesElement : HudElement
         HealthTextMode textMode = HealthText.At(cfg.HpTextMode);
         var mark = (CleanseMark)cfg.CleanseMark;
 
+        // The mark is an instruction. On a job that cannot carry it out it is noise, so it is
+        // off there by default — the icons still show the effect either way. The preview
+        // ignores this, or setting it up on the wrong job would show nothing.
+        if (!AuraPreview.Active && cfg.CleanseOnlyWhenAble && !CanCleanseNow())
+        {
+            mark = CleanseMark.None;
+        }
+
         PartyMemberSnapshot[] members = m_snapshot.Members;
         int count = m_snapshot.Count;
 
@@ -729,7 +737,7 @@ internal sealed class PartyFramesElement : HudElement
                     // the row the game draws the member on; the agent's array always starts
                     // with the local player instead. The two agree only in a party nobody has
                     // sorted, which is why passing the wrong one looked right.
-                    NativeUi.OpenPartyContextMenu(member.HudIndex);
+                    NativeUi.OpenPartyContextMenu(member.PartyIndex);
                     break;
 
                 case BindingKind.Action:
@@ -919,6 +927,23 @@ internal sealed class PartyFramesElement : HudElement
     /// square: a job icon is drawn square, and letting it be stretched would only offer a way
     /// to make it wrong.
     /// </summary>
+    /// <summary>
+    /// Whether the player could actually take an effect off somebody right now. Read once a
+    /// frame from the one player object, which costs nothing.
+    /// </summary>
+    private static bool CanCleanseNow()
+    {
+        var player = Services.Objects.LocalPlayer;
+
+        return player is not null && StatusData.CanCleanse(player.ClassJob.RowId, player.Level);
+    }
+
+    /// <summary>
+    /// Looks for raises in flight. On the tick because it costs a walk of the object table
+    /// and must keep running whether or not anything is being drawn.
+    /// </summary>
+    public override void Tick() => m_snapshot.Tick(Environment.TickCount64 / 1000d);
+
     private void DrawJobIcon(
         ImDrawListPtr dl,
         Configuration.PartyFramesConfig cfg,

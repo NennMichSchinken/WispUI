@@ -90,6 +90,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdAuraMax = "##wisp-pf-auramax";
     private const string IdAuraStacks = "##wisp-pf-aurastacks";
     private const string IdAuraSwipe = "##wisp-pf-auraswipe";
+    private const string IdPreviewAuras = "##wisp-pf-aurapreview";
+    private const string IdCleanseWhenAble = "##wisp-pf-cleanseable";
     private const string IdCleanse = "##wisp-pf-cleanse";
     private const string IdShowRescue = "##wisp-pf-showrescue";
     private const string IdRescuePosition = "##wisp-pf-rescueposition";
@@ -537,6 +539,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         RescueIconX = m_config.PartyFrames.RescueIconX,
         RescueIconY = m_config.PartyFrames.RescueIconY,
         CleanseMark = m_config.PartyFrames.CleanseMark,
+        CleanseOnlyWhenAble = m_config.PartyFrames.CleanseOnlyWhenAble,
     };
 
     public void ApplyAppearance(AppearanceBlock source, AppearanceFields mask)
@@ -550,6 +553,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         {
             m_config.PartyFrames.ColourMode = source.ColourMode;
             m_config.PartyFrames.CleanseMark = source.CleanseMark;
+            m_config.PartyFrames.CleanseOnlyWhenAble = source.CleanseOnlyWhenAble;
         }
 
         if ((mask & AppearanceFields.Opacity) != 0)
@@ -1770,6 +1774,25 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
+        // Right under the switch it belongs to, and not saved: everything below this row
+        // places something that is only on a frame some of the time, and placing it blind is
+        // placing it twice (Florian, 2026-09-13).
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdPreviewAuras,
+                Strings.PreviewAuras,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                AuraPreview.Active,
+                Chrome.OptionControl.Tick,
+                Strings.PreviewAurasTooltip,
+                true,
+                true))
+        {
+            AuraPreview.Toggle();
+        }
+
         rowY += pitch;
         this.PixelSlider(IdAuraMax, Strings.AuraCount, SlotAuraMax, group, rowY, 1f, PartySnapshot.MaxAuras, true, Strings.AuraCountTooltip);
 
@@ -1859,6 +1882,23 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 Chrome.ControlWidth()))
         {
             m_config.PartyFrames.CleanseMark = (int)CleanseMarks[mark];
+            m_config.MarkDirty();
+        }
+
+        rowY += Chrome.RowPitch();
+        if (Chrome.OptionRow(
+                IdCleanseWhenAble,
+                Strings.CleanseWhenAble,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.CleanseOnlyWhenAble,
+                Chrome.OptionControl.Tick,
+                Strings.CleanseWhenAbleTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.CleanseOnlyWhenAble = !m_config.PartyFrames.CleanseOnlyWhenAble;
             m_config.MarkDirty();
         }
 
