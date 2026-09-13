@@ -135,6 +135,12 @@ internal struct PartyMemberSnapshot
     /// </summary>
     public string Name;
 
+    /// <summary>
+    /// Who <see cref="Name"/> was read for. The content id where there is one, because that
+    /// is the only thing about a party member that is there while they are not.
+    /// </summary>
+    public ulong NameKey;
+
     // --- what is on them, out of the one status pass -------------------------
 
     /// <summary>How many of this member's afflictions are worth drawing.</summary>
@@ -306,11 +312,23 @@ internal sealed class PartySnapshot
             ref PartyMemberSnapshot slot = ref m_members[count];
             uint entityId = member.EntityId;
 
+            // 🔴 Who this slot is holding, for the name cache — by content id, and only by
+            // entity id when there is no content id to go on.
+            //
+            // An entity id belongs to a body in the world, so everybody the game has not
+            // loaded has the same one: zero. Keyed on that, the second member in another zone
+            // matched the first one's cache and wore their name — two frames, one name, and
+            // the real third member never appeared (Florian, 2026-09-13, in a party of three
+            // with two members elsewhere). A content id belongs to the person and is there
+            // whether or not they are.
+            ulong nameKey = member.ContentId != 0 ? member.ContentId : entityId;
+
             // The name is only read when this slot has changed hands. ToString() on the game's
             // string allocates, and doing it eight times a frame is exactly the kind of churn
             // that shows up as a stutter in a fight.
-            if (slot.EntityId != entityId || slot.Name is null)
+            if (slot.NameKey != nameKey || slot.Name is null)
             {
+                slot.NameKey = nameKey;
                 slot.Name = member.Name.ToString();
             }
 
@@ -397,6 +415,7 @@ internal sealed class PartySnapshot
             slot.JobId = PlaceholderJobs[i];
             slot.Role = Jobs.Role(slot.JobId);
             slot.Name = Strings.PreviewName;
+            slot.NameKey = PlaceholderId + (uint)i;
             slot.MaxHp = 128000u;
             slot.Hp = slot.MaxHp / 100u * PlaceholderHealth[i];
             slot.HasData = true;
@@ -811,8 +830,9 @@ internal sealed class PartySnapshot
 
         ref PartyMemberSnapshot slot = ref m_members[0];
         uint entityId = player.EntityId;
-        if (slot.EntityId != entityId || slot.Name is null)
+        if (slot.NameKey != entityId || slot.Name is null)
         {
+            slot.NameKey = entityId;
             slot.Name = player.Name.ToString();
         }
 
