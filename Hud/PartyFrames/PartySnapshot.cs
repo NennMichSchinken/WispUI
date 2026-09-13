@@ -140,6 +140,9 @@ internal struct PartyMemberSnapshot
     /// <summary>How many of this member's afflictions are worth drawing.</summary>
     public int AuraCount;
 
+    /// <summary>How many of the benefits on them are worth drawing.</summary>
+    public int BuffCount;
+
     /// <summary>
     /// Whether anything on them can be cleansed. Kept apart from the icon list because it is
     /// read whether or not the icons are turned on — it is the answer to the question a
@@ -226,6 +229,13 @@ internal sealed class PartySnapshot
     /// </summary>
     private readonly AuraSnapshot[] m_auras = new AuraSnapshot[Capacity * MaxAuras];
 
+    /// <summary>
+    /// The same again for benefits. A second list rather than one mixed one, because the two
+    /// answer different questions and are placed in different corners: what is wrong with
+    /// this person, and what have I already put on them.
+    /// </summary>
+    private readonly AuraSnapshot[] m_buffs = new AuraSnapshot[Capacity * MaxAuras];
+
     /// <summary>One member's raw effects, reused. Never more than one member at a time.</summary>
     private readonly NativeUi.StatusEntry[] m_statuses =
         new NativeUi.StatusEntry[NativeUi.StatusCapacity];
@@ -235,6 +245,10 @@ internal sealed class PartySnapshot
 
     /// <summary>Raises in flight, which exist before their effect does.</summary>
     private readonly RaiseWatch m_raises = new();
+
+    /// <summary>Whether only the player's own benefits are kept, and whose those are.</summary>
+    private bool m_ownBuffsOnly = true;
+    private uint m_localEntityId;
 
     /// <summary>Looks for raises being cast. Called on the game's tick, not while drawing.</summary>
     public void Tick(double now) => m_raises.Tick(now);
@@ -255,12 +269,15 @@ internal sealed class PartySnapshot
     /// slot, not an exception in a draw path (CLAUDE.md §7.6).
     /// </para>
     /// </summary>
-    public void Collect()
+    public void Collect(bool ownBuffsOnly)
     {
         IPartyList party = Services.Party;
         uint leader = party.PartyLeaderIndex;
         uint here = Services.ClientState.TerritoryType;
         int count = 0;
+
+        m_ownBuffsOnly = ownBuffsOnly;
+        m_localEntityId = Services.Objects.LocalPlayer?.EntityId ?? 0u;
 
         // The game's own order, read once. Everything below asks this rather than deciding
         // anything about order itself — see NativeUi.ReadPartyOrder for why there is no
@@ -381,6 +398,7 @@ internal sealed class PartySnapshot
             // stand-in that carried invented afflictions would be placing a fiction.
             slot.Address = 0;
             slot.AuraCount = 0;
+            slot.BuffCount = 0;
             slot.HasDispellable = false;
             slot.RaiseRemaining = 0f;
             slot.RaiseIsLanded = false;
@@ -416,6 +434,7 @@ internal sealed class PartySnapshot
         ref PartyMemberSnapshot slot = ref m_members[index];
 
         slot.AuraCount = 0;
+        slot.BuffCount = 0;
         slot.HasDispellable = false;
         slot.RaiseRemaining = 0f;
         slot.RaiseIsLanded = false;
@@ -461,10 +480,26 @@ internal sealed class PartySnapshot
 
             StatusFacts facts = StatusData.Of(id);
 
-            // Benefits are not drawn on a party frame. A healer reads this block for what is
-            // wrong, and forty buffs would bury the one debuff that matters.
-            if (facts.Category != 2)
+            // Neither a benefit nor an affliction: the game has a third kind, and it is
+            // neither of the two questions a frame is being asked.
+            if (facts.Category is not (1 or 2))
             {
+                continue;
+            }
+
+            float duration = m_durations.Observe(slot.EntityId, id, entry.Remaining);
+
+            if (facts.Category == 1)
+            {
+                // 🔴 Only what this player put there, by default. In a full party a member
+                // carries dozens of benefits, and the one a healer is looking for is the
+                // regen they cast themselves — everything else buries it.
+                if (m_ownBuffsOnly && (uint)entry.SourceId != m_localEntityId)
+                {
+                    continue;
+                }
+
+                Insert(m_buffs, start, ref slot.BuffCount, entry, facts, duration);
                 continue;
             }
 
@@ -472,8 +507,6 @@ internal sealed class PartySnapshot
             {
                 slot.HasDispellable = true;
             }
-
-            float duration = m_durations.Observe(slot.EntityId, id, entry.Remaining);
 
             Insert(m_auras, start, ref slot.AuraCount, entry, facts, duration);
         }
@@ -493,6 +526,7 @@ internal sealed class PartySnapshot
         ref PartyMemberSnapshot slot = ref m_members[index];
 
         slot.AuraCount = 0;
+        slot.BuffCount = 0;
         slot.HasDispellable = false;
         slot.RaiseRemaining = 0f;
         slot.RaiseIsLanded = false;
@@ -550,6 +584,31 @@ internal sealed class PartySnapshot
         {
             slot.HasDispellable = false;
         }
+
+        uint[] benefits = StatusData.PreviewBuffs;
+
+        for (int i = 0; i < MaxAuras && i < benefits.Length; i++)
+        {
+            uint id = benefits[i];
+
+            if (id == 0)
+            {
+                continue;
+            }
+
+            StatusFacts facts = StatusData.Of(id);
+
+            ref AuraSnapshot buff = ref m_buffs[start + slot.BuffCount];
+            buff.StatusId = id;
+            buff.Icon = facts.Icon;
+            buff.CanDispel = false;
+            buff.Priority = facts.Priority;
+            buff.Duration = 30f;
+            buff.Remaining = 30f - (((index * 5) + (i * 11)) % 28);
+            buff.Stacks = 0;
+
+            slot.BuffCount++;
+        }
     }
 
     /// <summary>
@@ -587,7 +646,14 @@ internal sealed class PartySnapshot
         }
 
         auras[start + at].StatusId = entry.StatusId;
-        auras[start + at].Icon = facts.Icon;
+
+        // A stacking effect has one picture per stack, in a run from its own id. The game
+        // says how many stacks there are and how many there can be, so the right picture is
+        // simply the one that far along — no number needed to read it.
+        auras[start + at].Icon = facts.MaxStacks > 1 && entry.Param > 0 && entry.Param <= facts.MaxStacks
+            ? facts.Icon + entry.Param - 1u
+            : facts.Icon;
+
         auras[start + at].Remaining = entry.Remaining;
         auras[start + at].Duration = duration;
         auras[start + at].Stacks = entry.Param;
@@ -603,6 +669,10 @@ internal sealed class PartySnapshot
     /// <summary>The afflictions on the member drawn at <paramref name="index"/>.</summary>
     public ReadOnlySpan<AuraSnapshot> Auras(int index) =>
         new(m_auras, index * MaxAuras, m_members[index].AuraCount);
+
+    /// <summary>The benefits on them — by default only the ones this player put there.</summary>
+    public ReadOnlySpan<AuraSnapshot> Buffs(int index) =>
+        new(m_buffs, index * MaxAuras, m_members[index].BuffCount);
 
     /// <summary>
     /// Finds a member in the game's own party list order.

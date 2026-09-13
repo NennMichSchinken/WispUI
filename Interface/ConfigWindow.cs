@@ -160,7 +160,14 @@ internal sealed class ConfigWindow : Window
         // The aura preview belongs to the act of setting something up. With the window gone
         // there is none going on, and stand-in effects left on the frames would be a party
         // permanently in trouble.
-        Hud.AuraPreview.Stop();
+        //
+        // Except while edit mode is on, which closed this window itself and is the other half
+        // of the same job — stopping here would take the icons away at the moment they are
+        // being arranged.
+        if (!EditMode.IsActive)
+        {
+            Hud.AuraPreview.Stop();
+        }
 
         this.ReleaseCursor();
     }

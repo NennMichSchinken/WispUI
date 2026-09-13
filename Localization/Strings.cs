@@ -274,6 +274,16 @@ internal static class Strings
     public const string CleanseBorder = "Frame edge";
     public const string CleanseBar = "Health bar";
 
+    public const string GroupBuffs = "Your effects";
+    public const string GroupBuffsHint = "What you have already put on them.";
+
+    public const string ShowBuffs = "Show icons";
+    public const string ShowBuffsTooltip =
+        "A second row, for the benefits on this person — regens and the like.";
+    public const string OwnBuffsOnly = "Only yours";
+    public const string OwnBuffsOnlyTooltip =
+        "On, only what you cast yourself. Off, every benefit on them — food, raid buffs and all, which buries the one you are looking for.";
+
     public const string CleanseWhenAble = "Only on cleanse jobs";
     public const string CleanseWhenAbleTooltip =
         "The mark is an instruction. Off, it also appears on jobs that cannot act on it. The icons show the effect either way.";

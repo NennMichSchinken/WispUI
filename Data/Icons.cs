@@ -33,6 +33,25 @@ internal static class Icons
     /// </summary>
     public const uint PartyLeader = 61521u;
 
+    /// <summary>
+    /// The part of a status effect's picture that is actually the picture.
+    /// <para>
+    /// 🔴 A status icon is not edge to edge. The texture carries a transparent margin and the
+    /// game's own rounded plate around the art, and drawing the whole thing gives a small
+    /// picture floating in a lot of nothing — which is why ours looked like game defaults
+    /// dropped on a frame rather than part of it (Florian, 2026-09-13).
+    /// </para>
+    /// <para>
+    /// Stated as fractions rather than pixels so it holds for the high resolution textures
+    /// too, which are the same layout at twice the size. Measured against the game's own
+    /// numbers: four pixels in from each side, fourteen from the top and twelve from the
+    /// bottom of a forty by fifty-six texture.
+    /// </para>
+    /// </summary>
+    public static readonly System.Numerics.Vector2 StatusUv0 = new(4f / 40f, 14f / 56f);
+
+    public static readonly System.Numerics.Vector2 StatusUv1 = new(1f - (4f / 40f), 1f - (12f / 56f));
+
     /// <summary>Resolved lookups by icon id. A null value is an id the game does not have.</summary>
     private static readonly Dictionary<uint, ISharedImmediateTexture?> Sheets = new();
 

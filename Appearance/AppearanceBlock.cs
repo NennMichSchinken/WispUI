@@ -127,6 +127,24 @@ internal sealed record AppearanceBlock
 
     public bool AuraSwipe { get; init; }
 
+    public bool ShowBuffs { get; init; }
+
+    public bool OwnBuffsOnly { get; init; }
+
+    public float BuffSize { get; init; }
+
+    public int BuffPosition { get; init; }
+
+    public float BuffX { get; init; }
+
+    public float BuffY { get; init; }
+
+    public int BuffMaxCount { get; init; }
+
+    public bool BuffShowStacks { get; init; }
+
+    public bool BuffSwipe { get; init; }
+
     public bool ShowRescueIcon { get; init; }
 
     public float RescueIconSize { get; init; }

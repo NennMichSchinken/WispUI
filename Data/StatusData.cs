@@ -25,6 +25,16 @@ internal struct StatusFacts
     public byte Category;
 
     /// <summary>
+    /// How many times it can stack, or zero for one that does not.
+    /// <para>
+    /// 🔴 Needed for the picture, not just for the number: a stacking effect has one icon per
+    /// stack count, laid out in a run from its own id. Three stacks is <c>Icon + 2</c>, and
+    /// drawing the base icon for all of them throws away what the game already says.
+    /// </para>
+    /// </summary>
+    public byte MaxStacks;
+
+    /// <summary>
     /// Whether Esuna and its like can take it off.
     /// <para>
     /// 🔴 Straight out of the sheet, not a list somebody keeps up to date. Every curated id
@@ -189,6 +199,7 @@ internal static class StatusData
             entry.Priority = row.PartyListPriority;
             entry.Category = row.StatusCategory;
             entry.CanDispel = row.CanDispel;
+            entry.MaxStacks = row.MaxStacks;
         }
 
         for (int i = 0; i < Invulnerabilities.Length; i++)
@@ -230,23 +241,44 @@ internal static class StatusData
     /// </summary>
     public static uint[] Preview { get; private set; } = System.Array.Empty<uint>();
 
+    /// <summary>The same for benefits, so the second row can be placed too.</summary>
+    public static uint[] PreviewBuffs { get; private set; } = System.Array.Empty<uint>();
+
     /// <summary>An invulnerability the preview can show, or zero if none resolved.</summary>
     public static uint PreviewInvulnerability { get; private set; }
 
     private static void BuildPreview(Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.Status> sheet)
     {
         var picked = new uint[4];
+        var benefits = new uint[4];
         int dispellable = 0;
         int plain = 0;
+        int good = 0;
 
         foreach (Lumina.Excel.Sheets.Status row in sheet)
         {
-            if (dispellable >= 2 && plain >= 2)
+            if (dispellable >= 2 && plain >= 2 && good >= benefits.Length)
             {
                 break;
             }
 
-            if (row.StatusCategory != 2 || row.Icon == 0 || row.PartyListPriority == 0)
+            if (row.Icon == 0 || row.PartyListPriority == 0)
+            {
+                continue;
+            }
+
+            if (row.StatusCategory == 1)
+            {
+                if (good < benefits.Length)
+                {
+                    benefits[good] = row.RowId;
+                    good++;
+                }
+
+                continue;
+            }
+
+            if (row.StatusCategory != 2)
             {
                 continue;
             }
@@ -267,6 +299,7 @@ internal static class StatusData
         }
 
         Preview = picked;
+        PreviewBuffs = benefits;
 
         for (int i = 0; i < Invulnerabilities.Length && PreviewInvulnerability == 0; i++)
         {

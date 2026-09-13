@@ -211,14 +211,19 @@ internal sealed class PartyFramesElement : HudElement
 
     public override void Collect()
     {
-        if (EditMode.IsActive)
+        // 🔴 The preview brings a full party of its own, and does NOT go through edit mode to
+        // get one. Edit mode closes the settings window on purpose — you are dragging the
+        // things it covers — which is exactly wrong for a tab whose every control needs to be
+        // watched while it is moved (Florian, 2026-09-13: the icons were never visible,
+        // because turning on the thing that showed eight frames took the window away).
+        if (EditMode.IsActive || AuraPreview.Active)
         {
             m_snapshot.FillPlaceholders();
             this.CollectIcons();
             return;
         }
 
-        m_snapshot.Collect();
+        m_snapshot.Collect(m_config.PartyFrames.OwnBuffsOnly);
         this.CollectIcons();
         this.LogIfPartyChanged();
     }
@@ -995,24 +1000,78 @@ internal sealed class PartyFramesElement : HudElement
         Vector2 innerMin,
         Vector2 innerMax)
     {
-        if (!cfg.ShowAuras)
+        if (cfg.ShowAuras)
         {
-            return;
+            this.DrawIconRow(
+                dl,
+                m_snapshot.Auras(slot),
+                cfg.AuraMaxCount,
+                cfg.AuraSize,
+                cfg.AuraPosition,
+                cfg.AuraX,
+                cfg.AuraY,
+                cfg.AuraShowStacks,
+                cfg.AuraSwipe,
+                innerMin,
+                innerMax);
         }
 
-        ReadOnlySpan<AuraSnapshot> auras = m_snapshot.Auras(slot);
-        int count = Math.Min(auras.Length, cfg.AuraMaxCount);
+        if (cfg.ShowBuffs)
+        {
+            this.DrawIconRow(
+                dl,
+                m_snapshot.Buffs(slot),
+                cfg.BuffMaxCount,
+                cfg.BuffSize,
+                cfg.BuffPosition,
+                cfg.BuffX,
+                cfg.BuffY,
+                cfg.BuffShowStacks,
+                cfg.BuffSwipe,
+                innerMin,
+                innerMax);
+        }
+    }
+
+    /// <summary>
+    /// One row of status icons, hung on one of the nine points as a whole.
+    /// <para>
+    /// Written once and used by both rows. They differ only in which list they read and where
+    /// they hang; the same row that draws the afflictions draws the benefits, so a change to
+    /// how an icon looks lands on both (CLAUDE.md §5.2).
+    /// </para>
+    /// <para>
+    /// The row is placed as a block so it stays put as effects come and go: laying it out icon
+    /// by icon would make the first one move every time a second appeared, which is the
+    /// opposite of somewhere to look. Which way it grows follows the anchor, the way text
+    /// does — a row hung on the right grows left.
+    /// </para>
+    /// </summary>
+    private void DrawIconRow(
+        ImDrawListPtr dl,
+        ReadOnlySpan<AuraSnapshot> auras,
+        int limit,
+        float iconSize,
+        int position,
+        float offsetX,
+        float offsetY,
+        bool showStacks,
+        bool swipe,
+        Vector2 innerMin,
+        Vector2 innerMax)
+    {
+        int count = Math.Min(auras.Length, limit);
 
         if (count <= 0)
         {
             return;
         }
 
-        float side = Tokens.Px(cfg.AuraSize);
+        float side = Tokens.Px(iconSize);
         float gap = Tokens.Px(AuraGap);
         float width = (side * count) + (gap * (count - 1));
 
-        Anchor anchor = Anchors.At(cfg.AuraPosition);
+        Anchor anchor = Anchors.At(position);
         Vector2 at = Anchors.Place(
             anchor,
             innerMin,
@@ -1020,8 +1079,8 @@ internal sealed class PartyFramesElement : HudElement
             new Vector2(width, side),
             Tokens.Metric.FramePadding);
 
-        at.X += Tokens.Px(cfg.AuraX);
-        at.Y += Tokens.Px(cfg.AuraY);
+        at.X += Tokens.Px(offsetX);
+        at.Y += Tokens.Px(offsetY);
 
         // Hung on the right, the first icon belongs at the right end and the row fills
         // leftwards. The block is already placed, so this is only which end to start from.
@@ -1042,9 +1101,10 @@ internal sealed class PartyFramesElement : HudElement
             Vector2 min = new(MathF.Round(x), at.Y);
             Vector2 max = new(min.X + side, min.Y + side);
 
-            dl.AddImage(icon, min, max, Vector2.Zero, Vector2.One, this.Dim(0xFFFFFFFFu));
+            // Cropped to the art. See Icons.StatusUv0 — the whole texture is mostly margin.
+            dl.AddImage(icon, min, max, Icons.StatusUv0, Icons.StatusUv1, this.Dim(0xFFFFFFFFu));
 
-            if (cfg.AuraSwipe)
+            if (swipe)
             {
                 this.DrawSwipe(dl, min, max, aura.Remaining, aura.Duration);
             }
@@ -1056,7 +1116,7 @@ internal sealed class PartyFramesElement : HudElement
                 dl.AddRect(min, max, this.Dim(Tokens.Col.Cleanse), 0f, ImDrawFlags.None, Tokens.Px(1f));
             }
 
-            if (cfg.AuraShowStacks && aura.Stacks > 1)
+            if (showStacks && aura.Stacks > 1)
             {
                 this.DrawStacks(dl, min, max, aura.Stacks);
             }
@@ -1074,23 +1134,19 @@ internal sealed class PartyFramesElement : HudElement
     /// nonsense for one that is not. Each triangle is convex whatever the angle.
     /// </para>
     /// <para>
-    /// Clockwise from the top, covering the part already spent — the game's own direction, so
-    /// it reads without being learned.
+    /// 🔴 It covers what is LEFT, not what is spent, and so it shrinks away as the effect runs
+    /// out. The other way round the wedge grows while the effect fades, which reads as
+    /// something filling up rather than running down (Florian, 2026-09-13).
     /// </para>
     /// </summary>
     private void DrawSwipe(ImDrawListPtr dl, Vector2 min, Vector2 max, float remaining, float duration)
     {
-        if (duration <= 0f || remaining <= 0f || remaining >= duration)
+        if (duration <= 0f || remaining <= 0f)
         {
             return;
         }
 
-        float spent = 1f - (remaining / duration);
-
-        if (spent <= 0f)
-        {
-            return;
-        }
+        float left = MathF.Min(remaining / duration, 1f);
 
         Vector2 centre = (min + max) * 0.5f;
         uint colour = this.Dim(Tokens.Col.AuraSwipe);
@@ -1098,12 +1154,12 @@ internal sealed class PartyFramesElement : HudElement
         // Enough steps that the edge of the wedge reads as straight at any icon size we allow,
         // and few enough that eight of these a frame cost nothing.
         const int Steps = 24;
-        int taken = (int)MathF.Ceiling(Steps * spent);
+        int taken = (int)MathF.Ceiling(Steps * left);
 
         for (int i = 0; i < taken; i++)
         {
             float from = i / (float)Steps;
-            float to = MathF.Min((i + 1) / (float)Steps, spent);
+            float to = MathF.Min((i + 1) / (float)Steps, left);
 
             if (to <= from)
             {

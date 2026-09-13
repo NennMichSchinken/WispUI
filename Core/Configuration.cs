@@ -362,7 +362,7 @@ public sealed class Configuration : IPluginConfiguration
         public float AuraSize { get; set; } = 20f;
 
         /// <summary>Index into the nine anchor points.</summary>
-        public int AuraPosition { get; set; } = (int)Hud.Anchor.BottomRight;
+        public int AuraPosition { get; set; } = (int)Hud.Anchor.TopRight;
 
         public float AuraX { get; set; }
 
@@ -386,6 +386,44 @@ public sealed class Configuration : IPluginConfiguration
         /// showing a duration, read without a number.
         /// </summary>
         public bool AuraSwipe { get; set; } = true;
+
+        // --- benefits: a second row, in the other corner ------------------------
+        // Its own row rather than a mix with the afflictions, because the two answer
+        // different questions: what is wrong with this person, and what have I already put on
+        // them. Mixed, a regen would push a debuff out of a full row.
+
+        /// <summary>
+        /// The row of benefits — a healer's own regens, mostly. On by default, and by default
+        /// only the player's own.
+        /// </summary>
+        public bool ShowBuffs { get; set; } = true;
+
+        /// <summary>
+        /// Only what this player put there.
+        /// <para>
+        /// On, and this is the setting that makes the row worth having at all: in a full party
+        /// somebody carries dozens of benefits, and the one a healer is looking for is the
+        /// regen they cast themselves. Off, the row is a wall of food and raid buffs.
+        /// </para>
+        /// </summary>
+        public bool OwnBuffsOnly { get; set; } = true;
+
+        /// <summary>In pixels, and square.</summary>
+        public float BuffSize { get; set; } = 18f;
+
+        /// <summary>Index into the nine anchor points. The opposite corner to the afflictions.</summary>
+        public int BuffPosition { get; set; } = (int)Hud.Anchor.BottomRight;
+
+        public float BuffX { get; set; }
+
+        public float BuffY { get; set; }
+
+        /// <summary>Three: a healer rarely has more than that of their own on one person.</summary>
+        public int BuffMaxCount { get; set; } = 3;
+
+        public bool BuffShowStacks { get; set; } = true;
+
+        public bool BuffSwipe { get; set; } = true;
 
         /// <summary>One of <see cref="Hud.CleanseMark"/>.</summary>
         public int CleanseMark { get; set; } = (int)Hud.CleanseMark.Border;
