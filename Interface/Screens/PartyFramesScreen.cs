@@ -283,7 +283,20 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     /// <summary>One readout per slider, rebuilt only when its number changes.</summary>
     private readonly string[] m_sizeText = new string[SlotCount];
-    private readonly int[] m_sizeTextFor = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+    /// <summary>
+    /// 🔴 Sized from <see cref="SlotCount"/> and filled, never written out by hand. It was a
+    /// list of nineteen minus-ones, and adding a twentieth slider walked off the end of it —
+    /// a crash that could only happen on the one tab that had just been built
+    /// (Florian, 2026-09-13). Anything counted by SlotCount is allocated from SlotCount.
+    /// </summary>
+    private readonly int[] m_sizeTextFor = NoSizeText();
+
+    private static int[] NoSizeText()
+    {
+        var slots = new int[SlotCount];
+        Array.Fill(slots, -1);
+        return slots;
+    }
 
     private string m_arrangementText = string.Empty;
     private int m_arrangementFor = -1;
