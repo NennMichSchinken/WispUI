@@ -412,7 +412,7 @@ public sealed class Configuration : IPluginConfiguration
         public float BuffSize { get; set; } = 18f;
 
         /// <summary>Index into the nine anchor points. The opposite corner to the afflictions.</summary>
-        public int BuffPosition { get; set; } = (int)Hud.Anchor.BottomRight;
+        public int BuffPosition { get; set; } = (int)Hud.Anchor.BottomLeft;
 
         public float BuffX { get; set; }
 
@@ -444,7 +444,7 @@ public sealed class Configuration : IPluginConfiguration
         public float OtherSize { get; set; } = 18f;
 
         /// <summary>Index into the nine anchor points.</summary>
-        public int OtherPosition { get; set; } = (int)Hud.Anchor.BottomLeft;
+        public int OtherPosition { get; set; } = (int)Hud.Anchor.BottomRight;
 
         public float OtherX { get; set; }
 
