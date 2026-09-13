@@ -100,6 +100,13 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdBuffX = "##wisp-pf-buffx";
     private const string IdBuffY = "##wisp-pf-buffy";
     private const string IdBuffMax = "##wisp-pf-buffmax";
+    private const string IdOtherGroup = "##wisp-pf-others";
+    private const string IdShowOther = "##wisp-pf-showother";
+    private const string IdOtherPosition = "##wisp-pf-otherposition";
+    private const string IdOtherSize = "##wisp-pf-othersize";
+    private const string IdOtherX = "##wisp-pf-otherx";
+    private const string IdOtherY = "##wisp-pf-othery";
+    private const string IdOtherMax = "##wisp-pf-othermax";
     private const string IdCleanse = "##wisp-pf-cleanse";
     private const string IdShowRescue = "##wisp-pf-showrescue";
     private const string IdRescuePosition = "##wisp-pf-rescueposition";
@@ -204,7 +211,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const int SlotBuffX = 27;
     private const int SlotBuffY = 28;
     private const int SlotBuffMax = 29;
-    private const int SlotCount = 30;
+    private const int SlotOtherSize = 30;
+    private const int SlotOtherX = 31;
+    private const int SlotOtherY = 32;
+    private const int SlotOtherMax = 33;
+    private const int SlotCount = 34;
 
     /// <summary>The three weights, in the order the segments sit. Built once, not per frame.</summary>
     private static readonly string[] WeightNames =
@@ -287,6 +298,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private readonly ArrowSelector<Anchor> m_rescuePosition;
     private readonly ArrowSelector<CleanseMark> m_cleanse;
     private readonly ArrowSelector<Anchor> m_buffPosition;
+    private readonly ArrowSelector<Anchor> m_otherPosition;
     private readonly ArrowSelector<NameShortening> m_shortening;
     private readonly ArrowSelector<string> m_direction;
     private readonly ArrowSelector<int> m_lines;
@@ -461,6 +473,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             Anchors.All,
             new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false });
 
+        m_otherPosition = new ArrowSelector<Anchor>(
+            IdOtherPosition,
+            Anchors.All,
+            new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false });
+
         m_rescuePosition = new ArrowSelector<Anchor>(
             IdRescuePosition,
             Anchors.All,
@@ -573,6 +590,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         BuffMaxCount = m_config.PartyFrames.BuffMaxCount,
         BuffShowStacks = m_config.PartyFrames.BuffShowStacks,
         BuffSwipe = m_config.PartyFrames.BuffSwipe,
+        ShowOtherBuffs = m_config.PartyFrames.ShowOtherBuffs,
+        OtherSize = m_config.PartyFrames.OtherSize,
+        OtherPosition = m_config.PartyFrames.OtherPosition,
+        OtherX = m_config.PartyFrames.OtherX,
+        OtherY = m_config.PartyFrames.OtherY,
+        OtherMaxCount = m_config.PartyFrames.OtherMaxCount,
         ShowRescueIcon = m_config.PartyFrames.ShowRescueIcon,
         RescueIconSize = m_config.PartyFrames.RescueIconSize,
         RescueIconPosition = m_config.PartyFrames.RescueIconPosition,
@@ -653,6 +676,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.PartyFrames.BuffMaxCount = source.BuffMaxCount;
             m_config.PartyFrames.BuffShowStacks = source.BuffShowStacks;
             m_config.PartyFrames.BuffSwipe = source.BuffSwipe;
+            m_config.PartyFrames.ShowOtherBuffs = source.ShowOtherBuffs;
+            m_config.PartyFrames.OtherSize = source.OtherSize;
+            m_config.PartyFrames.OtherPosition = source.OtherPosition;
+            m_config.PartyFrames.OtherX = source.OtherX;
+            m_config.PartyFrames.OtherY = source.OtherY;
+            m_config.PartyFrames.OtherMaxCount = source.OtherMaxCount;
             m_config.PartyFrames.ShowRescueIcon = source.ShowRescueIcon;
             m_config.PartyFrames.RescueIconSize = source.RescueIconSize;
             m_config.PartyFrames.RescueIconPosition = source.RescueIconPosition;
@@ -1787,8 +1816,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         Chrome.BeginGroupRow();
         Chrome.GroupScope buffs = this.DrawBuffIcons(Chrome.ColumnX(origin.X, width, 0), y, column, out float buffHeight);
-        Chrome.GroupScope cleanse = this.DrawCleanse(Chrome.ColumnX(origin.X, width, 1), y, column, out float cleanseHeight);
-        y += FrameRow(buffs, buffHeight, cleanse, cleanseHeight);
+        Chrome.GroupScope others = this.DrawOtherIcons(Chrome.ColumnX(origin.X, width, 1), y, column, out float otherHeight);
+        y += FrameRow(buffs, buffHeight, others, otherHeight);
+
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope cleanse = this.DrawCleanse(Chrome.ColumnX(origin.X, width, 0), y, column, out float cleanseHeight);
+        y += Chrome.GroupFrame(cleanse, cleanseHeight) + Tokens.Metric.ColumnGutter;
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
@@ -1981,6 +2014,70 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         rowY += pitch;
         this.PixelSlider(IdBuffY, Strings.OffsetY, SlotBuffY, group, rowY, -MaxOffset, MaxOffset, true, null);
+
+        float used = rowY - group.ContentY + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
+
+    /// <summary>
+    /// The third row: benefits somebody else put there. Same anatomy again — three rows, one
+    /// way of setting a row up.
+    /// </summary>
+    private Chrome.GroupScope DrawOtherIcons(float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdOtherGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupOthers,
+                Description = Strings.GroupOthersHint,
+            },
+            x,
+            y,
+            width);
+
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
+
+        if (Chrome.OptionRow(
+                IdShowOther,
+                Strings.ShowOthers,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.ShowOtherBuffs,
+                Chrome.OptionControl.Tick,
+                Strings.ShowOthersTooltip))
+        {
+            m_config.PartyFrames.ShowOtherBuffs = !m_config.PartyFrames.ShowOtherBuffs;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+        this.PixelSlider(IdOtherMax, Strings.AuraCount, SlotOtherMax, group, rowY, 1f, PartySnapshot.MaxAuras, true, Strings.AuraCountTooltip);
+
+        rowY += pitch;
+        this.PixelSlider(IdOtherSize, Strings.IconSize, SlotOtherSize, group, rowY, MinAuraSize, MaxAuraSize, true, null);
+
+        rowY += pitch;
+        int position = m_config.PartyFrames.OtherPosition;
+        if (m_otherPosition.Draw(
+                ref position,
+                Chrome.Row(Strings.TextPosition, group.ContentX, rowY, group.ContentWidth, true),
+                rowY,
+                Chrome.ControlWidth()))
+        {
+            m_config.PartyFrames.OtherPosition = position;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+        this.PixelSlider(IdOtherX, Strings.OffsetX, SlotOtherX, group, rowY, -MaxOffset, MaxOffset, true, null);
+
+        rowY += pitch;
+        this.PixelSlider(IdOtherY, Strings.OffsetY, SlotOtherY, group, rowY, -MaxOffset, MaxOffset, true, null);
 
         float used = rowY - group.ContentY + Chrome.RowHeight();
         Chrome.EndGroupContent(group, used);
@@ -2349,6 +2446,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         SlotBuffX => m_config.PartyFrames.BuffX,
         SlotBuffY => m_config.PartyFrames.BuffY,
         SlotBuffMax => m_config.PartyFrames.BuffMaxCount,
+        SlotOtherSize => m_config.PartyFrames.OtherSize,
+        SlotOtherX => m_config.PartyFrames.OtherX,
+        SlotOtherY => m_config.PartyFrames.OtherY,
+        SlotOtherMax => m_config.PartyFrames.OtherMaxCount,
         _ => m_config.PartyFrames.ManaHeight,
     };
 
@@ -2385,6 +2486,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             case SlotBuffX: m_config.PartyFrames.BuffX = value; break;
             case SlotBuffY: m_config.PartyFrames.BuffY = value; break;
             case SlotBuffMax: m_config.PartyFrames.BuffMaxCount = (int)value; break;
+            case SlotOtherSize: m_config.PartyFrames.OtherSize = value; break;
+            case SlotOtherX: m_config.PartyFrames.OtherX = value; break;
+            case SlotOtherY: m_config.PartyFrames.OtherY = value; break;
+            case SlotOtherMax: m_config.PartyFrames.OtherMaxCount = (int)value; break;
             default: m_config.PartyFrames.ManaHeight = value; break;
         }
     }
@@ -2399,7 +2504,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
             // One slider on these screens counts things rather than measuring them, and
             // "4 px" on a number of icons would be nonsense on the one row that reads it.
-            m_sizeText[slot] = slot is SlotAuraMax or SlotBuffMax
+            m_sizeText[slot] = slot is SlotAuraMax or SlotBuffMax or SlotOtherMax
                 ? pixels.ToString(CultureInfo.InvariantCulture)
                 : pixels.ToString(CultureInfo.InvariantCulture) + " px";
         }

@@ -284,6 +284,13 @@ internal static class Strings
     public const string OwnBuffsOnlyTooltip =
         "On, only what you cast yourself. Off, every benefit on them — food, raid buffs and all, which buries the one you are looking for.";
 
+    public const string GroupOthers = "Their effects";
+    public const string GroupOthersHint = "What is on them from somebody else.";
+
+    public const string ShowOthers = "Show icons";
+    public const string ShowOthersTooltip =
+        "A third row, for benefits cast by anybody but you — mitigation, another healer's work. Needs \"Only yours\" on above.";
+
     public const string CleanseWhenAble = "Only on cleanse jobs";
     public const string CleanseWhenAbleTooltip =
         "The mark is an instruction. Off, it also appears on jobs that cannot act on it. The icons show the effect either way.";

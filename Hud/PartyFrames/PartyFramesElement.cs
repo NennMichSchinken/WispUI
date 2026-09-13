@@ -1042,6 +1042,22 @@ internal sealed class PartyFramesElement : HudElement
                 innerMin,
                 innerMax);
         }
+
+        if (cfg.ShowOtherBuffs)
+        {
+            this.DrawIconRow(
+                dl,
+                m_snapshot.Others(slot),
+                cfg.OtherMaxCount,
+                cfg.OtherSize,
+                cfg.OtherPosition,
+                cfg.OtherX,
+                cfg.OtherY,
+                cfg.BuffShowStacks,
+                cfg.BuffSwipe,
+                innerMin,
+                innerMax);
+        }
     }
 
     /// <summary>

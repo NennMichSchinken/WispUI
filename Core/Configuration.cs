@@ -425,6 +425,33 @@ public sealed class Configuration : IPluginConfiguration
 
         public bool BuffSwipe { get; set; } = true;
 
+        // --- everybody else's: the third row -------------------------------------
+        // What is already keeping this person up without you — mitigation, somebody else's
+        // regen, a shield. Its own row so it can never take a place from the row above it.
+        //
+        // ⚠️ It is "not yours", not "mitigation". Whether the game's own data can tell a
+        // mitigation from any other benefit is an open question (/wisp status writes what the
+        // sheet says). Calling this row mitigation before that is answered would be naming it
+        // after something it does not know.
+
+        /// <summary>
+        /// Off by default. It is the busiest of the three and the least often needed, and a
+        /// third block of icons on a frame is a real cost — it has to be asked for.
+        /// </summary>
+        public bool ShowOtherBuffs { get; set; }
+
+        /// <summary>In pixels, and square.</summary>
+        public float OtherSize { get; set; } = 18f;
+
+        /// <summary>Index into the nine anchor points.</summary>
+        public int OtherPosition { get; set; } = (int)Hud.Anchor.BottomLeft;
+
+        public float OtherX { get; set; }
+
+        public float OtherY { get; set; }
+
+        public int OtherMaxCount { get; set; } = 3;
+
         /// <summary>One of <see cref="Hud.CleanseMark"/>.</summary>
         public int CleanseMark { get; set; } = (int)Hud.CleanseMark.Border;
 

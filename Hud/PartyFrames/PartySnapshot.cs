@@ -143,6 +143,9 @@ internal struct PartyMemberSnapshot
     /// <summary>How many of the benefits on them are worth drawing.</summary>
     public int BuffCount;
 
+    /// <summary>How many benefits on them came from somebody else.</summary>
+    public int OtherCount;
+
     /// <summary>
     /// Whether anything on them can be cleansed. Kept apart from the icon list because it is
     /// read whether or not the icons are turned on — it is the answer to the question a
@@ -235,6 +238,14 @@ internal sealed class PartySnapshot
     /// this person, and what have I already put on them.
     /// </summary>
     private readonly AuraSnapshot[] m_buffs = new AuraSnapshot[Capacity * MaxAuras];
+
+    /// <summary>
+    /// And a third, for benefits somebody else put there — the row a healer reads to see what
+    /// is already keeping this person up before adding to it. Its own row because it must not
+    /// compete for places with the player's own effects, which is the whole reason those have
+    /// a row of their own.
+    /// </summary>
+    private readonly AuraSnapshot[] m_others = new AuraSnapshot[Capacity * MaxAuras];
 
     /// <summary>One member's raw effects, reused. Never more than one member at a time.</summary>
     private readonly NativeUi.StatusEntry[] m_statuses =
@@ -399,6 +410,7 @@ internal sealed class PartySnapshot
             slot.Address = 0;
             slot.AuraCount = 0;
             slot.BuffCount = 0;
+            slot.OtherCount = 0;
             slot.HasDispellable = false;
             slot.RaiseRemaining = 0f;
             slot.RaiseIsLanded = false;
@@ -435,6 +447,7 @@ internal sealed class PartySnapshot
 
         slot.AuraCount = 0;
         slot.BuffCount = 0;
+        slot.OtherCount = 0;
         slot.HasDispellable = false;
         slot.RaiseRemaining = 0f;
         slot.RaiseIsLanded = false;
@@ -491,15 +504,26 @@ internal sealed class PartySnapshot
 
             if (facts.Category == 1)
             {
-                // 🔴 Only what this player put there, by default. In a full party a member
-                // carries dozens of benefits, and the one a healer is looking for is the
-                // regen they cast themselves — everything else buries it.
-                if (m_ownBuffsOnly && (uint)entry.SourceId != m_localEntityId)
+                // Two rows, split by who cast it. Yours is the one you are checking you have
+                // already done; everybody else's is what is keeping this person up without
+                // you. Mixed into one row they compete, and in a full party the dozens win.
+                bool mine = (uint)entry.SourceId == m_localEntityId;
+
+                if (mine)
                 {
-                    continue;
+                    Insert(m_buffs, start, ref slot.BuffCount, entry, facts, duration);
+                }
+                else if (!m_ownBuffsOnly)
+                {
+                    // Without the split, everything lands in the first row the way it did
+                    // before there was a second one.
+                    Insert(m_buffs, start, ref slot.BuffCount, entry, facts, duration);
+                }
+                else
+                {
+                    Insert(m_others, start, ref slot.OtherCount, entry, facts, duration);
                 }
 
-                Insert(m_buffs, start, ref slot.BuffCount, entry, facts, duration);
                 continue;
             }
 
@@ -527,6 +551,7 @@ internal sealed class PartySnapshot
 
         slot.AuraCount = 0;
         slot.BuffCount = 0;
+        slot.OtherCount = 0;
         slot.HasDispellable = false;
         slot.RaiseRemaining = 0f;
         slot.RaiseIsLanded = false;
@@ -608,6 +633,13 @@ internal sealed class PartySnapshot
             buff.Stacks = 0;
 
             slot.BuffCount++;
+
+            // The third row gets the same stand-ins in the other order, so it can be placed
+            // and told apart from the row above it at a glance.
+            ref AuraSnapshot other = ref m_others[start + slot.OtherCount];
+            other = buff;
+            other.Remaining = 30f - (((index * 7) + (i * 3)) % 28);
+            slot.OtherCount++;
         }
     }
 
@@ -673,6 +705,10 @@ internal sealed class PartySnapshot
     /// <summary>The benefits on them — by default only the ones this player put there.</summary>
     public ReadOnlySpan<AuraSnapshot> Buffs(int index) =>
         new(m_buffs, index * MaxAuras, m_members[index].BuffCount);
+
+    /// <summary>The benefits somebody else put there.</summary>
+    public ReadOnlySpan<AuraSnapshot> Others(int index) =>
+        new(m_others, index * MaxAuras, m_members[index].OtherCount);
 
     /// <summary>
     /// Finds a member in the game's own party list order.

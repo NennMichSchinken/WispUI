@@ -145,6 +145,18 @@ internal sealed record AppearanceBlock
 
     public bool BuffSwipe { get; init; }
 
+    public bool ShowOtherBuffs { get; init; }
+
+    public float OtherSize { get; init; }
+
+    public int OtherPosition { get; init; }
+
+    public float OtherX { get; init; }
+
+    public float OtherY { get; init; }
+
+    public int OtherMaxCount { get; init; }
+
     public bool ShowRescueIcon { get; init; }
 
     public float RescueIconSize { get; init; }

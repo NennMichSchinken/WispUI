@@ -301,6 +301,66 @@ internal static class StatusData
     }
 
     /// <summary>
+    /// Writes what the sheet holds about every effect currently on the player, to the log.
+    /// <para>
+    /// A diagnostic, reached by <c>/wisp status</c>, and it exists to answer one question: can
+    /// the game's own data tell a mitigation from any other benefit? If <c>ParamEffect</c> or
+    /// <c>ParamModifier</c> says "reduces damage taken", the mitigation row can be built the
+    /// way the cleanse mark was — out of the sheet, never going stale. If they say nothing,
+    /// the only honest alternative is a hand-kept list of ids, and that is worth knowing
+    /// before writing one.
+    /// </para>
+    /// </summary>
+    public static void DumpPlayerStatuses()
+    {
+        var player = Services.Objects.LocalPlayer;
+
+        if (player is null)
+        {
+            Services.Log.Information("No player to read.");
+            return;
+        }
+
+        Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.Status>? sheet =
+            Services.Data.GetExcelSheet<Lumina.Excel.Sheets.Status>();
+
+        if (sheet is null)
+        {
+            Services.Log.Information("No status sheet.");
+            return;
+        }
+
+        Services.Log.Information("--- effects on {Name} ---", player.Name.TextValue);
+
+        var buffer = new NativeUi.StatusEntry[NativeUi.StatusCapacity];
+        int count = NativeUi.ReadCharacterStatuses(player.Address, buffer);
+
+        for (int i = 0; i < count; i++)
+        {
+            uint id = buffer[i].StatusId;
+
+            if (!sheet.TryGetRow(id, out Lumina.Excel.Sheets.Status row))
+            {
+                continue;
+            }
+
+            Services.Log.Information(
+                "{Id} {Name} | cat {Category} | prio {Priority} | paramEffect {ParamEffect} | paramMod {ParamModifier} | param {Param} | maxStacks {MaxStacks} | dispel {Dispel}",
+                id,
+                row.Name.ExtractText(),
+                row.StatusCategory,
+                row.PartyListPriority,
+                row.ParamEffect,
+                row.ParamModifier,
+                buffer[i].Param,
+                row.MaxStacks,
+                row.CanDispel);
+        }
+
+        Services.Log.Information("--- {Count} effect(s) ---", count);
+    }
+
+    /// <summary>
     /// Keeps the highest ranked few in a small run of slots, in order. Called once per sheet
     /// row at load, over four slots — a full sort would be more code for the same answer.
     /// </summary>
