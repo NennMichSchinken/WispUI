@@ -79,6 +79,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdIconHideDps = "##wisp-pf-iconhidedps";
     private const string IdArrangeGroup = "##wisp-pf-arrange";
     private const string IdSizeGroup = "##wisp-pf-size";
+    private const string IdGameListGroup = "##wisp-pf-gamelist";
+    private const string IdHideNativeList = "##wisp-pf-hidenative";
     private const string IdDirection = "##wisp-pf-direction";
     private const string IdLines = "##wisp-pf-lines";
     private const string IdWidth = "##wisp-pf-width";
@@ -591,6 +593,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         Chrome.GroupScope arrange = this.DrawArrangement(Chrome.ColumnX(origin.X, width, 0), origin.Y, column, out float arrangeHeight);
         Chrome.GroupScope size = this.DrawSize(Chrome.ColumnX(origin.X, width, 1), origin.Y, column, out float sizeHeight);
         float y = origin.Y + FrameRow(arrange, arrangeHeight, size, sizeHeight);
+
+        // One group in the second row, in its own column like the party number on Icons.
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope list = this.DrawGameList(Chrome.ColumnX(origin.X, width, 0), y, column, out float listHeight);
+        y += Chrome.GroupFrame(list, listHeight) + Tokens.Metric.ColumnGutter;
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
@@ -1622,6 +1629,58 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         return group;
     }
 
+
+    /// <summary>
+    /// What becomes of the list the frames replace.
+    /// <para>
+    /// One switch, and a line saying what is not a switch: WispUI has no sorting of its own.
+    /// The frames read the order out of the game, so role sorting and the job order inside
+    /// each role are set once, in the game, and hold for both (Florian, 2026-09-13).
+    /// </para>
+    /// </summary>
+    private Chrome.GroupScope DrawGameList(float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdGameListGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupGameList,
+                Description = Strings.GroupGameListHint,
+            },
+            x,
+            y,
+            width);
+
+        float rowY = group.ContentY;
+
+        if (Chrome.OptionRow(
+                IdHideNativeList,
+                Strings.HideNativeList,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.HideNativePartyList,
+                Chrome.OptionControl.Tick,
+                Strings.HideNativeListTooltip))
+        {
+            m_config.PartyFrames.HideNativePartyList = !m_config.PartyFrames.HideNativePartyList;
+            m_config.MarkDirty();
+        }
+
+        // Flush left rather than under the control: it is not that switch's answer, it is the
+        // group's — it holds whether the list is hidden or not.
+        Ink.Draw(
+            ImGui.GetWindowDrawList(),
+            Ink.Role.Small,
+            new Vector2(group.ContentX, rowY + Chrome.RowHeight() + Tokens.Space.Sm),
+            Tokens.Col.InkFaint,
+            Strings.NativeListSorting);
+
+        float used = rowY - group.ContentY + Chrome.RowHeight() + Tokens.Space.Sm + Ink.LineHeight(Ink.Role.Small);
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
 
     private Chrome.GroupScope DrawArrangement(float x, float y, float width, out float contentHeight)
     {

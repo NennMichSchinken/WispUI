@@ -81,6 +81,11 @@ public sealed class Plugin : IDalamudPlugin
         Services.PluginInterface.UiBuilder.Draw -= this.OnDraw;
 
         m_mouseover.Dispose();
+
+        // A piece of the player's interface must never stay hidden by something that has
+        // stopped running. Nothing happens here if we never hid it.
+        NativeUi.RestoreNativePartyList();
+
         m_configWindow.ReleaseCursor();
         m_infoBar.Dispose();
         m_commands.Dispose();
@@ -123,6 +128,14 @@ public sealed class Plugin : IDalamudPlugin
         // sitting installed and inert, so a player who never turns it on never carries it.
         m_mouseover.Sync(m_config.PartyFrames.MouseoverCasting);
 
+        // On the tick rather than in the draw, because the game puts its own list back up on
+        // its own — a zone change, a duty, any rebuild of the interface — and the tick runs
+        // through all of that while drawing does not. Only a difference is ever written.
+        //
+        // The list goes only while there is something of ours in its place: switching the
+        // module off gives it back without the player having to remember a second tick.
+        NativeUi.SettleNativePartyList(
+            m_config.PartyFramesEnabled && m_config.PartyFrames.HideNativePartyList);
 
         this.SyncHudFonts();
     }

@@ -248,6 +248,17 @@ internal static class Strings
     public const string GroupSize = "Size";
     public const string GroupSizeHint = "How big each frame is, and how far apart.";
 
+    public const string GroupGameList = "Game's party list";
+    public const string GroupGameListHint = "The list these frames stand in for.";
+
+    public const string HideNativeList = "Hide it";
+    public const string HideNativeListTooltip =
+        "Hides the list the game draws, leaving only these frames. The frames keep its order and its right-click menu either way.";
+
+    // Under the switch, because it is what the switch does not change. There is no sorting
+    // setting in WispUI on purpose: the frames read the finished order out of the game.
+    public const string NativeListSorting = "Order and numbers follow the game's own settings.";
+
     public const string Direction = "Direction";
     public const string DirectionVertical = "Vertical";
     public const string DirectionHorizontal = "Horizontal";

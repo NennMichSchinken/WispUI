@@ -374,6 +374,21 @@ public sealed class Configuration : IPluginConfiguration
 
         /// <summary>How many lines the frames break into: 1, 2 or 4.</summary>
         public int Lines { get; set; } = 1;
+
+        /// <summary>
+        /// Hides the game's own party list while WispUI's frames are on.
+        /// <para>
+        /// Off by default, and deliberately. Hiding a piece of somebody's game interface the
+        /// first time a plugin loads is the kind of thing that gets found out rather than
+        /// chosen, and the frames are worth looking at beside the list they replace before the
+        /// list goes. It is one tick, both ways.
+        /// </para>
+        /// <para>
+        /// The frames keep their order and their right-click menu from the list even while it
+        /// is hidden — the game still keeps it, it simply is not drawn.
+        /// </para>
+        /// </summary>
+        public bool HideNativePartyList { get; set; }
     }
 
     internal static Configuration Load()
