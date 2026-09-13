@@ -263,6 +263,9 @@ internal sealed class PartySnapshot
     /// <summary>What each member was last seen doing, for when the game stops saying.</summary>
     private readonly KnownJobs m_jobs = new();
 
+    /// <summary>How far each member is, asked of the game on the tick.</summary>
+    private readonly RangeWatch m_range = new();
+
     /// <summary>Raises in flight, which exist before their effect does.</summary>
     private readonly RaiseWatch m_raises = new();
 
@@ -271,7 +274,11 @@ internal sealed class PartySnapshot
     private uint m_localEntityId;
 
     /// <summary>Looks for raises being cast. Called on the game's tick, not while drawing.</summary>
-    public void Tick(double now) => m_raises.Tick(now);
+    public void Tick(double now)
+    {
+        m_raises.Tick(now);
+        m_range.Tick(now);
+    }
 
     /// <summary>How many entries of <see cref="Members"/> hold someone this frame.</summary>
     public int Count { get; private set; }
@@ -301,8 +308,6 @@ internal sealed class PartySnapshot
         IPlayerCharacter? self = Services.Objects.LocalPlayer;
         m_localEntityId = self?.EntityId ?? 0u;
 
-        // Where everything is measured from. Read once rather than per member.
-        System.Numerics.Vector3 from = self?.Position ?? System.Numerics.Vector3.Zero;
 
         // The game's own order, read once. Everything below asks this rather than deciding
         // anything about order itself — see NativeUi.ReadPartyOrder for why there is no
@@ -379,7 +384,7 @@ internal sealed class PartySnapshot
             // Zero maximum health is the party list saying it has nothing for this slot.
             // Current health can legitimately be zero, so it is the maximum that is asked.
             slot.HasData = member.MaxHP > 0;
-            slot.Presence = Presence(member, here, from, slot.HasData);
+            slot.Presence = this.Presence(member, here, nameKey);
             slot.Address = member.Address;
 
             count++;
@@ -439,6 +444,7 @@ internal sealed class PartySnapshot
             slot.MaxHp = 128000u;
             slot.Hp = slot.MaxHp / 100u * PlaceholderHealth[i];
             slot.HasData = true;
+            slot.Presence = PartyPresence.Here;
             slot.MaxMp = 10000u;
             slot.Mp = slot.MaxMp / 100u * PlaceholderMana[i];
             slot.IsLocalPlayer = i == 0;
@@ -828,7 +834,7 @@ internal sealed class PartySnapshot
     /// different one, and somebody who has logged out has none at all.
     /// </para>
     /// </summary>
-    private static PartyPresence Presence(IPartyMember member, uint here, System.Numerics.Vector3 from, bool hasData)
+    private PartyPresence Presence(IPartyMember member, uint here, ulong who)
     {
         uint territory = member.Territory.RowId;
 
@@ -842,48 +848,28 @@ internal sealed class PartySnapshot
             return PartyPresence.Away;
         }
 
-        // No numbers at all, in this zone: too far for the game to load them.
-        if (!hasData)
-        {
-            return PartyPresence.OutOfRange;
-        }
-
-        // 🔴 And this is the case that was missing entirely. The game keeps reporting health
-        // for somebody in the same zone however far off they are, so a member across the map
-        // drew a full, bright frame that looked exactly like somebody standing next to you —
-        // while you could not target them at all (Florian, 2026-09-13, in PvP).
+        // 🔴 Asked of the game, not worked out from positions. Three attempts went into
+        // measuring the gap between two coordinates and not one of them ever dimmed anybody,
+        // because a party member the game has not loaded has no position to measure — which
+        // is precisely the case the measurement was for.
         //
-        // The distance is read straight off both structs, which is why it can be afforded
-        // once per member per frame. Asking for their game object instead would search the
-        // whole object table (spec §13.1).
-        System.Numerics.Vector3 at = member.Position;
+        // The game counts the distance to everything it has loaded, and has nothing at all
+        // for anybody it has not. That "nothing" is the answer: no object means too far to
+        // do anything about, which is the only question a frame is asking.
+        byte distance = m_range.DistanceTo(who);
 
-        // A member whose position has never been filled in. Nothing to measure, so nothing
-        // claimed — they are drawn as present rather than falsely dimmed.
-        if (at == System.Numerics.Vector3.Zero)
-        {
-            return PartyPresence.Here;
-        }
-
-        float dx = at.X - from.X;
-        float dy = at.Y - from.Y;
-        float dz = at.Z - from.Z;
-
-        return (dx * dx) + (dy * dy) + (dz * dz) > ReachSquared
-            ? PartyPresence.OutOfRange
-            : PartyPresence.Here;
+        return distance > Reach ? PartyPresence.OutOfRange : PartyPresence.Here;
     }
 
     /// <summary>
-    /// How far away somebody has to be before the frame says so, squared so the comparison
-    /// needs no square root.
+    /// How far away somebody has to be before the frame says so, in yalms.
     /// <para>
-    /// Thirty yalms, because that is the range of nearly every heal in the game. The question
-    /// a party frame is answering is not "how far is this person" but "can I do anything about
+    /// Thirty, because that is the range of nearly every heal in the game. The question a
+    /// party frame is answering is not "how far is this person" but "can I do anything about
     /// them", and thirty is where the answer turns to no.
     /// </para>
     /// </summary>
-    private const float ReachSquared = 30f * 30f;
+    private const byte Reach = 30;
 
     private int CollectLocalPlayer()
     {
@@ -913,6 +899,7 @@ internal sealed class PartySnapshot
         slot.Hp = player.CurrentHp;
         slot.MaxHp = player.MaxHp;
         slot.HasData = true;
+        slot.Presence = PartyPresence.Here;
         slot.Mp = player.CurrentMp;
         slot.MaxMp = player.MaxMp;
         slot.IsLocalPlayer = true;
