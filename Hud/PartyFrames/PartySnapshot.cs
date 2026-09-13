@@ -297,7 +297,12 @@ internal sealed class PartySnapshot
         int count = 0;
 
         m_ownBuffsOnly = ownBuffsOnly;
-        m_localEntityId = Services.Objects.LocalPlayer?.EntityId ?? 0u;
+
+        IPlayerCharacter? self = Services.Objects.LocalPlayer;
+        m_localEntityId = self?.EntityId ?? 0u;
+
+        // Where everything is measured from. Read once rather than per member.
+        System.Numerics.Vector3 from = self?.Position ?? System.Numerics.Vector3.Zero;
 
         // The game's own order, read once. Everything below asks this rather than deciding
         // anything about order itself — see NativeUi.ReadPartyOrder for why there is no
@@ -374,7 +379,7 @@ internal sealed class PartySnapshot
             // Zero maximum health is the party list saying it has nothing for this slot.
             // Current health can legitimately be zero, so it is the maximum that is asked.
             slot.HasData = member.MaxHP > 0;
-            slot.Presence = slot.HasData ? PartyPresence.Here : Presence(member, here);
+            slot.Presence = Presence(member, here, from, slot.HasData);
             slot.Address = member.Address;
 
             count++;
@@ -823,7 +828,7 @@ internal sealed class PartySnapshot
     /// different one, and somebody who has logged out has none at all.
     /// </para>
     /// </summary>
-    private static PartyPresence Presence(IPartyMember member, uint here)
+    private static PartyPresence Presence(IPartyMember member, uint here, System.Numerics.Vector3 from, bool hasData)
     {
         uint territory = member.Territory.RowId;
 
@@ -832,8 +837,53 @@ internal sealed class PartySnapshot
             return PartyPresence.Offline;
         }
 
-        return territory == here ? PartyPresence.OutOfRange : PartyPresence.Away;
+        if (territory != here)
+        {
+            return PartyPresence.Away;
+        }
+
+        // No numbers at all, in this zone: too far for the game to load them.
+        if (!hasData)
+        {
+            return PartyPresence.OutOfRange;
+        }
+
+        // 🔴 And this is the case that was missing entirely. The game keeps reporting health
+        // for somebody in the same zone however far off they are, so a member across the map
+        // drew a full, bright frame that looked exactly like somebody standing next to you —
+        // while you could not target them at all (Florian, 2026-09-13, in PvP).
+        //
+        // The distance is read straight off both structs, which is why it can be afforded
+        // once per member per frame. Asking for their game object instead would search the
+        // whole object table (spec §13.1).
+        System.Numerics.Vector3 at = member.Position;
+
+        // A member whose position has never been filled in. Nothing to measure, so nothing
+        // claimed — they are drawn as present rather than falsely dimmed.
+        if (at == System.Numerics.Vector3.Zero)
+        {
+            return PartyPresence.Here;
+        }
+
+        float dx = at.X - from.X;
+        float dy = at.Y - from.Y;
+        float dz = at.Z - from.Z;
+
+        return (dx * dx) + (dy * dy) + (dz * dz) > ReachSquared
+            ? PartyPresence.OutOfRange
+            : PartyPresence.Here;
     }
+
+    /// <summary>
+    /// How far away somebody has to be before the frame says so, squared so the comparison
+    /// needs no square root.
+    /// <para>
+    /// Thirty yalms, because that is the range of nearly every heal in the game. The question
+    /// a party frame is answering is not "how far is this person" but "can I do anything about
+    /// them", and thirty is where the answer turns to no.
+    /// </para>
+    /// </summary>
+    private const float ReachSquared = 30f * 30f;
 
     private int CollectLocalPlayer()
     {
