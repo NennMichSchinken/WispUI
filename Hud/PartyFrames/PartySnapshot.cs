@@ -260,6 +260,9 @@ internal sealed class PartySnapshot
     /// <summary>How long each effect runs, watched over time because the game never says.</summary>
     private readonly AuraDurations m_durations = new();
 
+    /// <summary>What each member was last seen doing, for when the game stops saying.</summary>
+    private readonly KnownJobs m_jobs = new();
+
     /// <summary>Raises in flight, which exist before their effect does.</summary>
     private readonly RaiseWatch m_raises = new();
 
@@ -347,7 +350,10 @@ internal sealed class PartySnapshot
                 slot.HudIndex = i;
             }
 
-            slot.JobId = member.ClassJob.RowId;
+            // Through the remembered jobs: the game reports none for anybody it has not
+            // loaded, and a frame that forgets what somebody does is the one that needed to
+            // say it most.
+            slot.JobId = m_jobs.Resolve(nameKey, member.ClassJob.RowId);
             slot.Role = Jobs.Role(slot.JobId);
             slot.Hp = member.CurrentHP;
             slot.MaxHp = member.MaxHP;
