@@ -140,6 +140,13 @@ internal sealed class PartyFramesElement : HudElement
     private float m_dim = 1f;
 
     /// <summary>
+    /// How solid that same frame is. Kept apart from the brightness because the two answer
+    /// different questions: darker says "this person is gone", see-through says "you cannot
+    /// reach them right now".
+    /// </summary>
+    private float m_alpha = 1f;
+
+    /// <summary>
     /// The job icon per slot, resolved while collecting and only painted while drawing.
     /// Looking a texture up is asking Dalamud a question, and the draw path asks nothing.
     /// </summary>
@@ -374,14 +381,19 @@ internal sealed class PartyFramesElement : HudElement
             // part of it. Dimming only the bar left a frame whose name, icons and number were
             // as loud as everybody else's, so it did not read as stepped back at all
             // (Florian, 2026-09-12).
-            // Three steps, because they are three different pieces of news: a pause, a wait,
-            // and over.
-            m_dim = member.Presence switch
+            // Three states, and they step back in two different ways on purpose.
+            //
+            // 🔴 Out of range is only made SEE-THROUGH, never darker. They are standing right
+            // there and will be back in a moment — the frame has to stay as readable as
+            // anybody else's, and darkening it would say something about them rather than
+            // about the distance (Florian, 2026-09-13). The other two are genuinely gone, and
+            // those recede in colour as well.
+            (m_dim, m_alpha) = member.Presence switch
             {
-                PartyPresence.Here => 1f,
-                PartyPresence.Offline => Tokens.Metric.OfflineDim,
-                PartyPresence.Away => Tokens.Metric.AwayDim,
-                _ => Tokens.Metric.OutOfRangeDim,
+                PartyPresence.Here => (1f, 1f),
+                PartyPresence.Offline => (Tokens.Metric.OfflineDim, Tokens.Metric.AbsentAlpha),
+                PartyPresence.Away => (Tokens.Metric.AwayDim, Tokens.Metric.AbsentAlpha),
+                _ => (1f, Tokens.Metric.OutOfRangeAlpha),
             };
 
             dl.AddRectFilled(min, max, this.Dim(Tokens.Col.FrameBg));
@@ -915,7 +927,7 @@ internal sealed class PartyFramesElement : HudElement
     /// </para>
     /// </summary>
     private uint Dim(uint colour) =>
-        m_dim >= 1f ? colour : Tokens.Col.Softer(Tokens.Col.Darker(colour, m_dim), Tokens.Metric.AbsentAlpha);
+        Tokens.Col.Softer(m_dim >= 1f ? colour : Tokens.Col.Darker(colour, m_dim), m_alpha);
 
     /// <summary>
     /// The same, for writing, and half as far.

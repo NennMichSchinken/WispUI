@@ -791,6 +791,17 @@ internal static class Tokens
         public const float AbsentAlpha = 0.85f;
 
         /// <summary>
+        /// How solid the frame of somebody merely too far away stays.
+        /// <para>
+        /// Lower than the others and WITHOUT any darkening: they are standing right there and
+        /// will be back in a moment, so the frame has to stay as readable as everybody else's.
+        /// Making it darker would be saying something about the person rather than about the
+        /// distance (Florian, 2026-09-13).
+        /// </para>
+        /// </summary>
+        public const float OutOfRangeAlpha = 0.7f;
+
+        /// <summary>
         /// A member in another zone entirely.
         /// <para>
         /// Its own step, between out of range and offline, because it is its own news. Out of

@@ -549,9 +549,16 @@ internal sealed class PartySnapshot
 
             if (facts.Category == 1)
             {
-                // Food and company buffs are worn all day and are never what anybody is
-                // looking at a party frame for.
-                if (facts.IsUpkeep)
+                // 🔴 Anything carried around rather than happening in this fight. Food, company
+                // buffs, the roulette bonus, rested experience — all of them sit on everybody
+                // all day and are never what a party frame is being read for (Florian,
+                // 2026-09-13, finding the roulette bonus in the row).
+                //
+                // Told apart by how long it runs rather than by a list of ids, because the
+                // list would need a new entry every time the game adds one of these and would
+                // be wrong until somebody noticed. Nothing that matters in a fight lasts a
+                // quarter of an hour, and nothing carried about lasts less.
+                if (facts.IsUpkeep || entry.Remaining <= 0f || entry.Remaining > Carried)
                 {
                     continue;
                 }
@@ -870,6 +877,13 @@ internal sealed class PartySnapshot
     /// </para>
     /// </summary>
     private const byte Reach = 30;
+
+    /// <summary>
+    /// Longer than this, in seconds, and a benefit is something the person is carrying about
+    /// rather than something that happened in this fight. Fifteen minutes: well above any
+    /// combat effect and well below food, company buffs and the roulette bonus.
+    /// </summary>
+    private const float Carried = 15f * 60f;
 
     private int CollectLocalPlayer()
     {
