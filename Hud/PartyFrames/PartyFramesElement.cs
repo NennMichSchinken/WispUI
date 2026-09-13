@@ -320,6 +320,7 @@ internal sealed class PartyFramesElement : HudElement
         var colourMode = (BarColourMode)cfg.ColourMode;
         var manaStyle = (ManaStyle)cfg.ManaStyle;
         HealthTextMode textMode = HealthText.At(cfg.HpTextMode);
+        var mark = (CleanseMark)cfg.CleanseMark;
 
         PartyMemberSnapshot[] members = m_snapshot.Members;
         int count = m_snapshot.Count;
@@ -389,7 +390,11 @@ internal sealed class PartyFramesElement : HudElement
 
             // Dimmed rather than recoloured, so the frame is still recognisably that
             // person's job at a glance.
-            uint colour = this.Dim(Tokens.Col.Faded(BarColour(colourMode, ref member), cfg.BarOpacity));
+            uint barColour = mark == CleanseMark.Bar && member.HasDispellable
+                ? Tokens.Col.Cleanse
+                : BarColour(colourMode, ref member);
+
+            uint colour = this.Dim(Tokens.Col.Faded(barColour, cfg.BarOpacity));
             float fraction = this.HealthFraction(i, ref member, cfg.SmoothBars, delta);
             Vector2 barMin = innerMin;
             Vector2 barMax = new(innerMax.X, healthBottom);
@@ -429,8 +434,15 @@ internal sealed class PartyFramesElement : HudElement
                 }
             }
 
-            dl.AddRect(min, max, this.Dim(Tokens.Col.FrameEdge), 0f, ImDrawFlags.None, border);
+            // The edge says whether anything on this person can be taken off — the one thing a
+            // healer scans a party for, and the reason it is the edge rather than the bar:
+            // the bar is already saying role and job, which is read first (Florian,
+            // 2026-09-13).
+            uint edge = mark == CleanseMark.Border && member.HasDispellable
+                ? Tokens.Col.Cleanse
+                : Tokens.Col.FrameEdge;
 
+            dl.AddRect(min, max, this.Dim(edge), 0f, ImDrawFlags.None, border);
         }
 
         // Between the two passes on purpose. The mouse decides which frame gets the ring, and
@@ -466,6 +478,8 @@ internal sealed class PartyFramesElement : HudElement
                 true);
             this.DrawJobIcon(dl, cfg, i, ref member, innerMin, innerMax);
             this.DrawLeaderIcon(dl, cfg, ref member, innerMin, innerMax);
+            this.DrawAuras(dl, cfg, i, innerMin, innerMax);
+            this.DrawRescue(dl, cfg, ref member, innerMin, innerMax);
             this.DrawTexts(dl, cfg, textMode, i, ref member, innerMin, innerMax);
             DrawPresenceNote(dl, cfg, ref member, innerMin, innerMax);
             dl.PopClipRect();
@@ -935,6 +949,248 @@ internal sealed class PartyFramesElement : HudElement
         }
 
         this.DrawIcon(dl, m_leaderIcon, cfg.LeaderIconSize, cfg.LeaderIconPosition, cfg.LeaderIconX, cfg.LeaderIconY, innerMin, innerMax);
+    }
+
+    /// <summary>
+    /// The row of afflictions, highest ranked first.
+    /// <para>
+    /// The row is hung on one of the nine points as a whole, so it stays put as effects come
+    /// and go: laying it out icon by icon would make the first one move every time a second
+    /// appeared, which is the opposite of somewhere to look.
+    /// </para>
+    /// <para>
+    /// Which way it grows follows the anchor, the way text does — a row hung on the right
+    /// grows left. Anything else would run it off the frame it belongs to.
+    /// </para>
+    /// </summary>
+    private void DrawAuras(
+        ImDrawListPtr dl,
+        Configuration.PartyFramesConfig cfg,
+        int slot,
+        Vector2 innerMin,
+        Vector2 innerMax)
+    {
+        if (!cfg.ShowAuras)
+        {
+            return;
+        }
+
+        ReadOnlySpan<AuraSnapshot> auras = m_snapshot.Auras(slot);
+        int count = Math.Min(auras.Length, cfg.AuraMaxCount);
+
+        if (count <= 0)
+        {
+            return;
+        }
+
+        float side = Tokens.Px(cfg.AuraSize);
+        float gap = Tokens.Px(AuraGap);
+        float width = (side * count) + (gap * (count - 1));
+
+        Anchor anchor = Anchors.At(cfg.AuraPosition);
+        Vector2 at = Anchors.Place(
+            anchor,
+            innerMin,
+            innerMax,
+            new Vector2(width, side),
+            Tokens.Metric.FramePadding);
+
+        at.X += Tokens.Px(cfg.AuraX);
+        at.Y += Tokens.Px(cfg.AuraY);
+
+        // Hung on the right, the first icon belongs at the right end and the row fills
+        // leftwards. The block is already placed, so this is only which end to start from.
+        bool rightToLeft = (int)anchor % 3 == 2;
+        float step = side + gap;
+
+        for (int i = 0; i < count; i++)
+        {
+            ref readonly AuraSnapshot aura = ref auras[i];
+            ImTextureID icon = Icons.Handle(aura.Icon);
+
+            if (icon.Handle == 0)
+            {
+                continue;
+            }
+
+            float x = rightToLeft ? at.X + width - side - (i * step) : at.X + (i * step);
+            Vector2 min = new(MathF.Round(x), at.Y);
+            Vector2 max = new(min.X + side, min.Y + side);
+
+            dl.AddImage(icon, min, max, Vector2.Zero, Vector2.One, this.Dim(0xFFFFFFFFu));
+
+            if (cfg.AuraSwipe)
+            {
+                this.DrawSwipe(dl, min, max, aura.Remaining, aura.Duration);
+            }
+
+            // A bright edge on what can be taken off, so the row answers "which one" once the
+            // frame's own edge has answered "is there one".
+            if (aura.CanDispel)
+            {
+                dl.AddRect(min, max, this.Dim(Tokens.Col.Cleanse), 0f, ImDrawFlags.None, Tokens.Px(1f));
+            }
+
+            if (cfg.AuraShowStacks && aura.Stacks > 1)
+            {
+                this.DrawStacks(dl, min, max, aura.Stacks);
+            }
+        }
+    }
+
+    /// <summary>Air between two affliction icons. Small on purpose: the row reads as a row.</summary>
+    private const float AuraGap = 2f;
+
+    /// <summary>
+    /// The dark wedge that sweeps off an icon as its effect runs out.
+    /// <para>
+    /// Drawn as a fan of triangles from the centre rather than one filled path, because a
+    /// wedge past a half turn is not convex and ImGui's filled-polygon call quietly draws
+    /// nonsense for one that is not. Each triangle is convex whatever the angle.
+    /// </para>
+    /// <para>
+    /// Clockwise from the top, covering the part already spent — the game's own direction, so
+    /// it reads without being learned.
+    /// </para>
+    /// </summary>
+    private void DrawSwipe(ImDrawListPtr dl, Vector2 min, Vector2 max, float remaining, float duration)
+    {
+        if (duration <= 0f || remaining <= 0f || remaining >= duration)
+        {
+            return;
+        }
+
+        float spent = 1f - (remaining / duration);
+
+        if (spent <= 0f)
+        {
+            return;
+        }
+
+        Vector2 centre = (min + max) * 0.5f;
+        uint colour = this.Dim(Tokens.Col.AuraSwipe);
+
+        // Enough steps that the edge of the wedge reads as straight at any icon size we allow,
+        // and few enough that eight of these a frame cost nothing.
+        const int Steps = 24;
+        int taken = (int)MathF.Ceiling(Steps * spent);
+
+        for (int i = 0; i < taken; i++)
+        {
+            float from = i / (float)Steps;
+            float to = MathF.Min((i + 1) / (float)Steps, spent);
+
+            if (to <= from)
+            {
+                break;
+            }
+
+            dl.AddTriangleFilled(centre, OnSquare(centre, min, max, from), OnSquare(centre, min, max, to), colour);
+        }
+    }
+
+    /// <summary>
+    /// Where a fraction of a turn clockwise from the top meets the edge of the square.
+    /// <para>
+    /// Against the square rather than a circle inside it, so the wedge reaches the corners and
+    /// the icon is actually covered — a circular sweep leaves four lit triangles behind.
+    /// </para>
+    /// </summary>
+    private static Vector2 OnSquare(Vector2 centre, Vector2 min, Vector2 max, float turn)
+    {
+        float angle = turn * MathF.Tau;
+        float dx = MathF.Sin(angle);
+        float dy = -MathF.Cos(angle);
+
+        float halfX = (max.X - min.X) * 0.5f;
+        float halfY = (max.Y - min.Y) * 0.5f;
+
+        // The longer of the two reaches decides: whichever axis would leave the square first
+        // is the one scaled to its edge.
+        float scale = MathF.Max(MathF.Abs(dx) / halfX, MathF.Abs(dy) / halfY);
+
+        return scale <= 0f ? centre : new Vector2(centre.X + (dx / scale), centre.Y + (dy / scale));
+    }
+
+    /// <summary>How many of it there are, in the bottom right of its icon.</summary>
+    private void DrawStacks(ImDrawListPtr dl, Vector2 min, Vector2 max, ushort stacks)
+    {
+        string text = StackText[Math.Min((int)stacks, StackText.Length) - 1];
+
+        // Half the icon, so the number scales with whatever size the icons are set to rather
+        // than staying put and swallowing a small one.
+        float size = MathF.Max(Tokens.Px(AuraStackMinSize), MathF.Round((max.Y - min.Y) * 0.5f));
+        float width = Ink.MeasureWidth(size, text);
+
+        Vector2 at = new(MathF.Round(max.X - width - 1f), MathF.Round(max.Y - size));
+
+        // Always outlined, whatever the frame's own text edge is set to. This one sits on a
+        // picture rather than on a bar, and a picture can be any colour underneath.
+        Ink.DrawScaledEdged(dl, size, at, this.Dim(Tokens.Col.HudInk), text, TextEdge.Outline);
+    }
+
+    /// <summary>Stack counts, built once. Past the end the number is simply not drawn.</summary>
+    private static readonly string[] StackText = BuildStackText();
+
+    private static string[] BuildStackText()
+    {
+        // Well past anything the game stacks, and it is thirty strings made once at load
+        // rather than one made per icon per frame.
+        var text = new string[30];
+
+        for (int i = 0; i < text.Length; i++)
+        {
+            text[i] = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        return text;
+    }
+
+    private const float AuraStackMinSize = 10f;
+
+    /// <summary>
+    /// A raise on its way, or somebody who cannot be killed.
+    /// <para>
+    /// Its own place rather than a slot in the icon row, because the row is ranked and drops
+    /// what does not fit — and these two are exactly what may not be dropped (Florian,
+    /// 2026-09-13). Invulnerability wins when both are somehow true: it is the one that
+    /// changes what you do in the next second.
+    /// </para>
+    /// </summary>
+    private void DrawRescue(
+        ImDrawListPtr dl,
+        Configuration.PartyFramesConfig cfg,
+        ref PartyMemberSnapshot member,
+        Vector2 innerMin,
+        Vector2 innerMax)
+    {
+        if (!cfg.ShowRescueIcon)
+        {
+            return;
+        }
+
+        // Whichever effect is actually on them, so the picture is the game's own for it and
+        // there is nothing of ours to keep in step with a patch.
+        uint status = member.InvulnerableStatus != 0 ? member.InvulnerableStatus
+            : member.RaiseRemaining > 0f ? StatusData.Raise
+            : 0u;
+
+        if (status == 0)
+        {
+            return;
+        }
+
+        uint iconId = StatusData.Of(status).Icon;
+
+        this.DrawIcon(
+            dl,
+            Icons.Handle(iconId),
+            cfg.RescueIconSize,
+            cfg.RescueIconPosition,
+            cfg.RescueIconX,
+            cfg.RescueIconY,
+            innerMin,
+            innerMax);
     }
 
     /// <summary>

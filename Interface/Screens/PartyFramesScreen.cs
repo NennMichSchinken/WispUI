@@ -79,6 +79,31 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdIconHideDps = "##wisp-pf-iconhidedps";
     private const string IdArrangeGroup = "##wisp-pf-arrange";
     private const string IdSizeGroup = "##wisp-pf-size";
+    private const string IdAuraGroup = "##wisp-pf-auras";
+    private const string IdCleanseGroup = "##wisp-pf-cleansegroup";
+    private const string IdRescueGroup = "##wisp-pf-rescuegroup";
+    private const string IdShowAuras = "##wisp-pf-showauras";
+    private const string IdAuraPosition = "##wisp-pf-auraposition";
+    private const string IdAuraSize = "##wisp-pf-aurasize";
+    private const string IdAuraX = "##wisp-pf-aurax";
+    private const string IdAuraY = "##wisp-pf-auray";
+    private const string IdAuraMax = "##wisp-pf-auramax";
+    private const string IdAuraStacks = "##wisp-pf-aurastacks";
+    private const string IdAuraSwipe = "##wisp-pf-auraswipe";
+    private const string IdCleanse = "##wisp-pf-cleanse";
+    private const string IdShowRescue = "##wisp-pf-showrescue";
+    private const string IdRescuePosition = "##wisp-pf-rescueposition";
+    private const string IdRescueSize = "##wisp-pf-rescuesize";
+    private const string IdRescueX = "##wisp-pf-rescuex";
+    private const string IdRescueY = "##wisp-pf-rescuey";
+
+    /// <summary>The three answers to "say that something can be cleansed", in that order.</summary>
+    private static readonly CleanseMark[] CleanseMarks =
+        { CleanseMark.Border, CleanseMark.Bar, CleanseMark.None };
+
+    private const float MinAuraSize = 10f;
+    private const float MaxAuraSize = 48f;
+
     private const string IdGameListGroup = "##wisp-pf-gamelist";
     private const string IdHideNativeList = "##wisp-pf-hidenative";
     private const string IdDirection = "##wisp-pf-direction";
@@ -158,7 +183,14 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const int SlotLeaderSize = 16;
     private const int SlotLeaderX = 17;
     private const int SlotLeaderY = 18;
-    private const int SlotCount = 19;
+    private const int SlotAuraSize = 19;
+    private const int SlotAuraX = 20;
+    private const int SlotAuraY = 21;
+    private const int SlotAuraMax = 22;
+    private const int SlotRescueSize = 23;
+    private const int SlotRescueX = 24;
+    private const int SlotRescueY = 25;
+    private const int SlotCount = 26;
 
     /// <summary>The three weights, in the order the segments sit. Built once, not per frame.</summary>
     private static readonly string[] WeightNames =
@@ -237,6 +269,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     private readonly ArrowSelector<Anchor> m_numberPosition;
     private readonly ArrowSelector<Anchor> m_leaderPosition;
+    private readonly ArrowSelector<Anchor> m_auraPosition;
+    private readonly ArrowSelector<Anchor> m_rescuePosition;
+    private readonly ArrowSelector<CleanseMark> m_cleanse;
     private readonly ArrowSelector<NameShortening> m_shortening;
     private readonly ArrowSelector<string> m_direction;
     private readonly ArrowSelector<int> m_lines;
@@ -388,6 +423,30 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             Anchors.All,
             new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false });
 
+        m_auraPosition = new ArrowSelector<Anchor>(
+            IdAuraPosition,
+            Anchors.All,
+            new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false });
+
+        m_rescuePosition = new ArrowSelector<Anchor>(
+            IdRescuePosition,
+            Anchors.All,
+            new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false });
+
+        m_cleanse = new ArrowSelector<CleanseMark>(
+            IdCleanse,
+            CleanseMarks,
+            new ArrowSelectorOptions<CleanseMark>
+            {
+                Label = static mark => mark switch
+                {
+                    CleanseMark.Border => Strings.CleanseBorder,
+                    CleanseMark.Bar => Strings.CleanseBar,
+                    _ => Strings.CleanseNone,
+                },
+                ShowCounter = false,
+            });
+
 
         m_shortening = new ArrowSelector<NameShortening>(
             IdShortenNames,
@@ -464,6 +523,20 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         LeaderIconPosition = m_config.PartyFrames.LeaderIconPosition,
         LeaderIconX = m_config.PartyFrames.LeaderIconX,
         LeaderIconY = m_config.PartyFrames.LeaderIconY,
+        ShowAuras = m_config.PartyFrames.ShowAuras,
+        AuraSize = m_config.PartyFrames.AuraSize,
+        AuraPosition = m_config.PartyFrames.AuraPosition,
+        AuraX = m_config.PartyFrames.AuraX,
+        AuraY = m_config.PartyFrames.AuraY,
+        AuraMaxCount = m_config.PartyFrames.AuraMaxCount,
+        AuraShowStacks = m_config.PartyFrames.AuraShowStacks,
+        AuraSwipe = m_config.PartyFrames.AuraSwipe,
+        ShowRescueIcon = m_config.PartyFrames.ShowRescueIcon,
+        RescueIconSize = m_config.PartyFrames.RescueIconSize,
+        RescueIconPosition = m_config.PartyFrames.RescueIconPosition,
+        RescueIconX = m_config.PartyFrames.RescueIconX,
+        RescueIconY = m_config.PartyFrames.RescueIconY,
+        CleanseMark = m_config.PartyFrames.CleanseMark,
     };
 
     public void ApplyAppearance(AppearanceBlock source, AppearanceFields mask)
@@ -476,6 +549,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         if ((mask & AppearanceFields.Colours) != 0)
         {
             m_config.PartyFrames.ColourMode = source.ColourMode;
+            m_config.PartyFrames.CleanseMark = source.CleanseMark;
         }
 
         if ((mask & AppearanceFields.Opacity) != 0)
@@ -518,6 +592,19 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.PartyFrames.LeaderIconPosition = source.LeaderIconPosition;
             m_config.PartyFrames.LeaderIconX = source.LeaderIconX;
             m_config.PartyFrames.LeaderIconY = source.LeaderIconY;
+            m_config.PartyFrames.ShowAuras = source.ShowAuras;
+            m_config.PartyFrames.AuraSize = source.AuraSize;
+            m_config.PartyFrames.AuraPosition = source.AuraPosition;
+            m_config.PartyFrames.AuraX = source.AuraX;
+            m_config.PartyFrames.AuraY = source.AuraY;
+            m_config.PartyFrames.AuraMaxCount = source.AuraMaxCount;
+            m_config.PartyFrames.AuraShowStacks = source.AuraShowStacks;
+            m_config.PartyFrames.AuraSwipe = source.AuraSwipe;
+            m_config.PartyFrames.ShowRescueIcon = source.ShowRescueIcon;
+            m_config.PartyFrames.RescueIconSize = source.RescueIconSize;
+            m_config.PartyFrames.RescueIconPosition = source.RescueIconPosition;
+            m_config.PartyFrames.RescueIconX = source.RescueIconX;
+            m_config.PartyFrames.RescueIconY = source.RescueIconY;
         }
 
         m_config.MarkDirty();
@@ -1631,6 +1718,214 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
 
     /// <summary>
+    /// The Auras tab: everything lying on a person. Not "debuff icons" — the icons are one of
+    /// three displays that come out of the same status pass, and the other two answer
+    /// questions the icons cannot (spec §13.2).
+    /// </summary>
+    public void DrawAuras(float width)
+    {
+        Vector2 origin = ImGui.GetCursorScreenPos();
+        float column = Chrome.ColumnWidth(width);
+
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope auras = this.DrawAuraIcons(Chrome.ColumnX(origin.X, width, 0), origin.Y, column, out float auraHeight);
+        Chrome.GroupScope rescue = this.DrawRescue(Chrome.ColumnX(origin.X, width, 1), origin.Y, column, out float rescueHeight);
+        float y = origin.Y + FrameRow(auras, auraHeight, rescue, rescueHeight);
+
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope cleanse = this.DrawCleanse(Chrome.ColumnX(origin.X, width, 0), y, column, out float cleanseHeight);
+        y += Chrome.GroupFrame(cleanse, cleanseHeight) + Tokens.Metric.ColumnGutter;
+
+        ImGui.SetCursorScreenPos(origin);
+        ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
+    }
+
+    private Chrome.GroupScope DrawAuraIcons(float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdAuraGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupAuras,
+                Description = Strings.GroupAurasHint,
+            },
+            x,
+            y,
+            width);
+
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
+
+        if (Chrome.OptionRow(
+                IdShowAuras,
+                Strings.ShowAuras,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.ShowAuras,
+                Chrome.OptionControl.Tick,
+                Strings.ShowAurasTooltip))
+        {
+            m_config.PartyFrames.ShowAuras = !m_config.PartyFrames.ShowAuras;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+        this.PixelSlider(IdAuraMax, Strings.AuraCount, SlotAuraMax, group, rowY, 1f, PartySnapshot.MaxAuras, true, Strings.AuraCountTooltip);
+
+        rowY += pitch;
+        this.PixelSlider(IdAuraSize, Strings.IconSize, SlotAuraSize, group, rowY, MinAuraSize, MaxAuraSize, true, null);
+
+        rowY += pitch;
+        int position = m_config.PartyFrames.AuraPosition;
+        if (m_auraPosition.Draw(
+                ref position,
+                Chrome.Row(Strings.TextPosition, group.ContentX, rowY, group.ContentWidth, true),
+                rowY,
+                Chrome.ControlWidth()))
+        {
+            m_config.PartyFrames.AuraPosition = position;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+        this.PixelSlider(IdAuraX, Strings.OffsetX, SlotAuraX, group, rowY, -MaxOffset, MaxOffset, true, null);
+
+        rowY += pitch;
+        this.PixelSlider(IdAuraY, Strings.OffsetY, SlotAuraY, group, rowY, -MaxOffset, MaxOffset, true, null);
+
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdAuraStacks,
+                Strings.AuraStacks,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.AuraShowStacks,
+                Chrome.OptionControl.Tick,
+                Strings.AuraStacksTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.AuraShowStacks = !m_config.PartyFrames.AuraShowStacks;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdAuraSwipe,
+                Strings.AuraSwipe,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.AuraSwipe,
+                Chrome.OptionControl.Tick,
+                Strings.AuraSwipeTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.AuraSwipe = !m_config.PartyFrames.AuraSwipe;
+            m_config.MarkDirty();
+        }
+
+        float used = rowY - group.ContentY + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
+
+    private Chrome.GroupScope DrawCleanse(float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdCleanseGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupCleanse,
+                Description = Strings.GroupCleanseHint,
+            },
+            x,
+            y,
+            width);
+
+        float rowY = group.ContentY;
+
+        int mark = Array.IndexOf(CleanseMarks, (CleanseMark)m_config.PartyFrames.CleanseMark);
+        mark = mark < 0 ? 0 : mark;
+
+        if (m_cleanse.Draw(
+                ref mark,
+                Chrome.Row(Strings.CleanseHow, group.ContentX, rowY, group.ContentWidth, false, Strings.CleanseHowTooltip),
+                rowY,
+                Chrome.ControlWidth()))
+        {
+            m_config.PartyFrames.CleanseMark = (int)CleanseMarks[mark];
+            m_config.MarkDirty();
+        }
+
+        float used = rowY - group.ContentY + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
+
+    private Chrome.GroupScope DrawRescue(float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdRescueGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupRescue,
+                Description = Strings.GroupRescueHint,
+            },
+            x,
+            y,
+            width);
+
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
+
+        if (Chrome.OptionRow(
+                IdShowRescue,
+                Strings.ShowRescue,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.ShowRescueIcon,
+                Chrome.OptionControl.Tick,
+                Strings.ShowRescueTooltip))
+        {
+            m_config.PartyFrames.ShowRescueIcon = !m_config.PartyFrames.ShowRescueIcon;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+        this.PixelSlider(IdRescueSize, Strings.IconSize, SlotRescueSize, group, rowY, MinIconSize, MaxIconSize, true, null);
+
+        rowY += pitch;
+        int position = m_config.PartyFrames.RescueIconPosition;
+        if (m_rescuePosition.Draw(
+                ref position,
+                Chrome.Row(Strings.TextPosition, group.ContentX, rowY, group.ContentWidth, true),
+                rowY,
+                Chrome.ControlWidth()))
+        {
+            m_config.PartyFrames.RescueIconPosition = position;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+        this.PixelSlider(IdRescueX, Strings.OffsetX, SlotRescueX, group, rowY, -MaxOffset, MaxOffset, true, null);
+
+        rowY += pitch;
+        this.PixelSlider(IdRescueY, Strings.OffsetY, SlotRescueY, group, rowY, -MaxOffset, MaxOffset, true, null);
+
+        float used = rowY - group.ContentY + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
+
+    /// <summary>
     /// What becomes of the list the frames replace.
     /// <para>
     /// One switch, and a line saying what is not a switch: WispUI has no sorting of its own.
@@ -1872,6 +2167,13 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         SlotLeaderSize => m_config.PartyFrames.LeaderIconSize,
         SlotLeaderX => m_config.PartyFrames.LeaderIconX,
         SlotLeaderY => m_config.PartyFrames.LeaderIconY,
+        SlotAuraSize => m_config.PartyFrames.AuraSize,
+        SlotAuraX => m_config.PartyFrames.AuraX,
+        SlotAuraY => m_config.PartyFrames.AuraY,
+        SlotAuraMax => m_config.PartyFrames.AuraMaxCount,
+        SlotRescueSize => m_config.PartyFrames.RescueIconSize,
+        SlotRescueX => m_config.PartyFrames.RescueIconX,
+        SlotRescueY => m_config.PartyFrames.RescueIconY,
         _ => m_config.PartyFrames.ManaHeight,
     };
 
@@ -1897,6 +2199,13 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             case SlotLeaderSize: m_config.PartyFrames.LeaderIconSize = value; break;
             case SlotLeaderX: m_config.PartyFrames.LeaderIconX = value; break;
             case SlotLeaderY: m_config.PartyFrames.LeaderIconY = value; break;
+            case SlotAuraSize: m_config.PartyFrames.AuraSize = value; break;
+            case SlotAuraX: m_config.PartyFrames.AuraX = value; break;
+            case SlotAuraY: m_config.PartyFrames.AuraY = value; break;
+            case SlotAuraMax: m_config.PartyFrames.AuraMaxCount = (int)value; break;
+            case SlotRescueSize: m_config.PartyFrames.RescueIconSize = value; break;
+            case SlotRescueX: m_config.PartyFrames.RescueIconX = value; break;
+            case SlotRescueY: m_config.PartyFrames.RescueIconY = value; break;
             default: m_config.PartyFrames.ManaHeight = value; break;
         }
     }
@@ -1908,7 +2217,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         if (m_sizeTextFor[slot] != pixels || m_sizeText[slot] is null)
         {
             m_sizeTextFor[slot] = pixels;
-            m_sizeText[slot] = pixels.ToString(CultureInfo.InvariantCulture) + " px";
+
+            // One slider on these screens counts things rather than measuring them, and
+            // "4 px" on a number of icons would be nonsense on the one row that reads it.
+            m_sizeText[slot] = slot == SlotAuraMax
+                ? pixels.ToString(CultureInfo.InvariantCulture)
+                : pixels.ToString(CultureInfo.InvariantCulture) + " px";
         }
 
         return m_sizeText[slot];

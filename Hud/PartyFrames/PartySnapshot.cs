@@ -46,6 +46,12 @@ internal struct AuraSnapshot
     /// <summary>Seconds left, or zero for an effect that does not run out.</summary>
     public float Remaining;
 
+    /// <summary>
+    /// How long it runs in total, as far as anyone has seen. Zero when it does not run out.
+    /// See <see cref="AuraDurations"/> for why this has to be watched rather than read.
+    /// </summary>
+    public float Duration;
+
     /// <summary>Stacks, where the effect has them.</summary>
     public ushort Stacks;
 
@@ -134,8 +140,12 @@ internal struct PartyMemberSnapshot
     /// <summary>Seconds left on a raise already cast on them, or zero for none.</summary>
     public float RaiseRemaining;
 
-    /// <summary>Whether something is keeping them alive no matter what lands.</summary>
-    public bool IsInvulnerable;
+    /// <summary>
+    /// Which effect is keeping them alive no matter what lands, or zero for none. The id
+    /// rather than a yes, so the frame can draw the game's own picture for that cooldown
+    /// instead of a mark of ours that would have to be kept in step with it.
+    /// </summary>
+    public uint InvulnerableStatus;
 }
 
 /// <summary>
@@ -200,6 +210,9 @@ internal sealed class PartySnapshot
     /// <summary>One member's raw effects, reused. Never more than one member at a time.</summary>
     private readonly NativeUi.StatusEntry[] m_statuses =
         new NativeUi.StatusEntry[NativeUi.StatusCapacity];
+
+    /// <summary>How long each effect runs, watched over time because the game never says.</summary>
+    private readonly AuraDurations m_durations = new();
 
     /// <summary>How many entries of <see cref="Members"/> hold someone this frame.</summary>
     public int Count { get; private set; }
@@ -292,6 +305,8 @@ internal sealed class PartySnapshot
         // Last, and only once the order is settled: a member's effects are stored beside their
         // place in the block, so reading them before the sort would file them under a frame
         // that is about to move.
+        m_durations.BeginPass();
+
         for (int i = 0; i < count; i++)
         {
             this.CollectAuras(i);
@@ -331,7 +346,7 @@ internal sealed class PartySnapshot
             slot.AuraCount = 0;
             slot.HasDispellable = false;
             slot.RaiseRemaining = 0f;
-            slot.IsInvulnerable = false;
+            slot.InvulnerableStatus = 0u;
         }
 
         this.IsSolo = false;
@@ -354,7 +369,7 @@ internal sealed class PartySnapshot
         slot.AuraCount = 0;
         slot.HasDispellable = false;
         slot.RaiseRemaining = 0f;
-        slot.IsInvulnerable = false;
+        slot.InvulnerableStatus = 0u;
 
         // Nobody loaded, nobody to read. A member across the map has no effects we can see,
         // which is what the game's own list shows too.
@@ -382,7 +397,7 @@ internal sealed class PartySnapshot
 
             if (StatusData.IsInvulnerability(id))
             {
-                slot.IsInvulnerable = true;
+                slot.InvulnerableStatus = id;
                 continue;
             }
 
@@ -400,7 +415,9 @@ internal sealed class PartySnapshot
                 slot.HasDispellable = true;
             }
 
-            Insert(m_auras, start, ref slot.AuraCount, entry, facts);
+            float duration = m_durations.Observe(slot.EntityId, id, entry.Remaining);
+
+            Insert(m_auras, start, ref slot.AuraCount, entry, facts, duration);
         }
     }
 
@@ -418,7 +435,8 @@ internal sealed class PartySnapshot
         int start,
         ref int count,
         in NativeUi.StatusEntry entry,
-        in StatusFacts facts)
+        in StatusFacts facts,
+        float duration)
     {
         int at = count;
 
@@ -440,6 +458,7 @@ internal sealed class PartySnapshot
         auras[start + at].StatusId = entry.StatusId;
         auras[start + at].Icon = facts.Icon;
         auras[start + at].Remaining = entry.Remaining;
+        auras[start + at].Duration = duration;
         auras[start + at].Stacks = entry.Param;
         auras[start + at].CanDispel = facts.CanDispel;
         auras[start + at].Priority = facts.Priority;

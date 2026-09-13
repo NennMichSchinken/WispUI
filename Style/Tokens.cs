@@ -278,6 +278,27 @@ internal static class Tokens
         public static readonly uint RoleDps = Rgb(0xFF6C6C);
 
         /// <summary>
+        /// ⚠️ NOT MEASURED. The mark for "this can be cleansed", picked to sit beside the
+        /// three role colours without being mistaken for one of them — a violet, which is the
+        /// one hue the roles do not occupy, and light enough to read on a filled bar.
+        /// <para>
+        /// A candidate for the pipette, and one of the harder ones: it has to hold against a
+        /// blue, a green and a red bar, not against a panel (session 8: a window colour is not
+        /// a HUD colour).
+        /// </para>
+        /// </summary>
+        public static readonly uint Cleanse = Rgb(0xC8A2E8);
+
+        /// <summary>
+        /// ⚠️ NOT MEASURED. Somebody who cannot be killed right now — the amber the game uses
+        /// on its own invulnerability effects, by eye.
+        /// </summary>
+        public static readonly uint Invulnerable = Rgb(0xF0C060);
+
+        /// <summary>The wedge that sweeps an affliction icon as it runs out.</summary>
+        public static readonly uint AuraSwipe = 0x96000000u;
+
+        /// <summary>
         /// The window edge, MEASURED pixel by pixel off the game's own frame: four rings,
         /// listed outermost first. The top edge carries the highlight (that near-white second
         /// pixel is what makes the frame read as lit from above); the sides are their own

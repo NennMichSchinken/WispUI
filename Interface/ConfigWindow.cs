@@ -799,6 +799,10 @@ internal sealed class ConfigWindow : Window
             {
                 m_partyFrames.DrawBindings(inner);
             }
+            else if (m_screen == Screen.PartyFrames && tab == 4)
+            {
+                m_partyFrames.DrawAuras(inner);
+            }
             else
             {
                 this.DrawScreenPlaceholder(inner);

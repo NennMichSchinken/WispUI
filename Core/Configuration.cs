@@ -348,6 +348,69 @@ public sealed class Configuration : IPluginConfiguration
 
         public float PartyNumberY { get; set; }
 
+        // --- what is on the person ----------------------------------------------
+        // The Auras tab. Not "debuff icons": everything lying on somebody, of which the
+        // icons are one display and the cleanse mark and the rescue icon are two more, all
+        // out of the same status pass (spec §13.2).
+
+        /// <summary>
+        /// The row of affliction icons. On, because it is the reason the tab exists.
+        /// </summary>
+        public bool ShowAuras { get; set; } = true;
+
+        /// <summary>In pixels, and square, like every other icon on a frame.</summary>
+        public float AuraSize { get; set; } = 20f;
+
+        /// <summary>Index into the nine anchor points.</summary>
+        public int AuraPosition { get; set; } = (int)Hud.Anchor.BottomRight;
+
+        public float AuraX { get; set; }
+
+        public float AuraY { get; set; }
+
+        /// <summary>
+        /// How many fit before the game's own ranking starts dropping them. Four, because a
+        /// frame is not a debuff list — the ones that matter rank highest, and a row of
+        /// twelve tiny squares is unreadable at the moment it would be needed.
+        /// </summary>
+        public int AuraMaxCount { get; set; } = 4;
+
+        /// <summary>
+        /// The stack count on effects that carry one. On: a stacking debuff is a different
+        /// thing at one stack than at five, and the number is the only thing that says so.
+        /// </summary>
+        public bool AuraShowStacks { get; set; } = true;
+
+        /// <summary>
+        /// The dark wedge that sweeps off an icon as it runs out — the game's own way of
+        /// showing a duration, read without a number.
+        /// </summary>
+        public bool AuraSwipe { get; set; } = true;
+
+        /// <summary>One of <see cref="Hud.CleanseMark"/>.</summary>
+        public int CleanseMark { get; set; } = (int)Hud.CleanseMark.Border;
+
+        // --- rescue: a raise on its way, and somebody who cannot be killed -------
+        // Their own place on the frame rather than a slot in the icon row, because the row
+        // is ranked and can drop things, and these two are exactly what must never be
+        // dropped (Florian, 2026-09-13).
+
+        /// <summary>
+        /// The raise-is-coming and cannot-be-killed marks. On: both change what you would do
+        /// next, which is a higher bar than most things on a frame clear.
+        /// </summary>
+        public bool ShowRescueIcon { get; set; } = true;
+
+        /// <summary>In pixels, and square. Larger than the affliction icons on purpose.</summary>
+        public float RescueIconSize { get; set; } = 24f;
+
+        /// <summary>Index into the nine anchor points.</summary>
+        public int RescueIconPosition { get; set; } = (int)Hud.Anchor.Centre;
+
+        public float RescueIconX { get; set; }
+
+        public float RescueIconY { get; set; }
+
         // --- layout: never copied between elements, it belongs to this one (CLAUDE.md §5.3) ---
         // Stated at scale 1.0 and put through the interface scale when drawn, like every other
         // measurement in the suite. Ranges and defaults come from the spec, §4.

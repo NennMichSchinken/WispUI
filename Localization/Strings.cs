@@ -248,6 +248,36 @@ internal static class Strings
     public const string GroupSize = "Size";
     public const string GroupSizeHint = "How big each frame is, and how far apart.";
 
+    // --- Auras: everything lying on a person ---------------------------------
+    public const string GroupAuras = "Afflictions";
+    public const string GroupAurasHint = "What is on them, worst first.";
+    public const string GroupCleanse = "Cleansable";
+    public const string GroupCleanseHint = "How a frame says Esuna would help.";
+    public const string GroupRescue = "Rescue";
+    public const string GroupRescueHint = "A raise on its way, and who cannot die.";
+
+    public const string ShowAuras = "Show icons";
+    public const string ShowAurasTooltip =
+        "The effects on this person, ranked the way the game's own party list ranks them.";
+    public const string AuraCount = "How many";
+    public const string AuraCountTooltip =
+        "Above this the lowest ranked are dropped. The game decides the ranking, not WispUI.";
+    public const string AuraStacks = "Stacks";
+    public const string AuraStacksTooltip = "The number on effects that stack. Nothing is drawn on those that do not.";
+    public const string AuraSwipe = "Sweep";
+    public const string AuraSwipeTooltip = "A dark wedge that sweeps off the icon as the effect runs out.";
+
+    public const string CleanseHow = "Mark";
+    public const string CleanseHowTooltip =
+        "Cleansable effects always get a bright edge on their own icon. This is the mark on the frame itself.";
+    public const string CleanseNone = "None";
+    public const string CleanseBorder = "Frame edge";
+    public const string CleanseBar = "Health bar";
+
+    public const string ShowRescue = "Show icon";
+    public const string ShowRescueTooltip =
+        "A raise already cast on them, or a cooldown that is keeping them alive. Its own place, so a busy frame cannot push it out.";
+
     public const string GroupGameList = "Game's party list";
     public const string GroupGameListHint = "The list these frames stand in for.";
 
