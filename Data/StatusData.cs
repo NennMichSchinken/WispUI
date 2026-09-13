@@ -330,22 +330,40 @@ internal static class StatusData
             return;
         }
 
-        Services.Log.Information("--- effects on {Name} ---", player.Name.TextValue);
-
         var buffer = new NativeUi.StatusEntry[NativeUi.StatusCapacity];
-        int count = NativeUi.ReadCharacterStatuses(player.Address, buffer);
+        int ours = NativeUi.ReadCharacterStatuses(player.Address, buffer);
 
-        for (int i = 0; i < count; i++)
+        // 🔴 Both counts, always. "Nothing on you" and "our read is broken" look identical
+        // from one number, and a diagnostic that cannot tell them apart is worse than none —
+        // it invites a conclusion from a zero (Florian, 2026-09-13, reporting exactly that
+        // zero while standing about with no buffs).
+        int dalamud = player.StatusList.Length;
+
+        Services.Log.Information(
+            "--- effects on {Name}: {Ours} read directly, {Theirs} through Dalamud ---",
+            player.Name.TextValue,
+            ours,
+            dalamud);
+
+        if (ours != dalamud)
+        {
+            Services.Log.Warning(
+                "The two disagree. The direct read is what the frames use, so this is the bug, "
+                + "not the party member's effects.");
+        }
+
+        for (int i = 0; i < ours; i++)
         {
             uint id = buffer[i].StatusId;
 
             if (!sheet.TryGetRow(id, out Lumina.Excel.Sheets.Status row))
             {
+                Services.Log.Information("{Id} — not in the sheet.", id);
                 continue;
             }
 
             Services.Log.Information(
-                "{Id} {Name} | cat {Category} | prio {Priority} | paramEffect {ParamEffect} | paramMod {ParamModifier} | param {Param} | maxStacks {MaxStacks} | dispel {Dispel}",
+                "{Id} {Name} | cat {Category} | prio {Priority} | paramEffect {ParamEffect} | paramMod {ParamModifier} | param {Param} | maxStacks {MaxStacks} | dispel {Dispel} | left {Left:0.0}s",
                 id,
                 row.Name.ExtractText(),
                 row.StatusCategory,
@@ -354,10 +372,41 @@ internal static class StatusData
                 row.ParamModifier,
                 buffer[i].Param,
                 row.MaxStacks,
-                row.CanDispel);
+                row.CanDispel,
+                buffer[i].Remaining);
         }
 
-        Services.Log.Information("--- {Count} effect(s) ---", count);
+        // The target too, when there is one — a tank with cooldowns up is the case this was
+        // written for, and standing on your own tells us nothing about mitigation.
+        if (Services.Targets.Target is Dalamud.Game.ClientState.Objects.Types.IBattleChara target)
+        {
+            int onTarget = NativeUi.ReadCharacterStatuses(target.Address, buffer);
+
+            Services.Log.Information(
+                "--- effects on target {Name}: {Count} ---",
+                target.Name.TextValue,
+                onTarget);
+
+            for (int i = 0; i < onTarget; i++)
+            {
+                uint id = buffer[i].StatusId;
+
+                if (!sheet.TryGetRow(id, out Lumina.Excel.Sheets.Status row))
+                {
+                    continue;
+                }
+
+                Services.Log.Information(
+                    "{Id} {Name} | cat {Category} | prio {Priority} | paramEffect {ParamEffect} | paramMod {ParamModifier} | param {Param}",
+                    id,
+                    row.Name.ExtractText(),
+                    row.StatusCategory,
+                    row.PartyListPriority,
+                    row.ParamEffect,
+                    row.ParamModifier,
+                    buffer[i].Param);
+            }
+        }
     }
 
     /// <summary>
