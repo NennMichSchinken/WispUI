@@ -286,6 +286,48 @@ internal static class NativeUi
         return count;
     }
 
+    /// <summary>
+    /// What job the game's own party list is drawing on one of its rows, or zero.
+    /// <para>
+    /// 🔴 The place a party member's job survives them not being loaded. Dalamud's party list
+    /// reports job zero for anybody in another zone — but the game's own list still shows
+    /// their icon, so the fact is there, just not where the obvious field is. It is on the
+    /// addon, as the icon id it is about to draw (Florian, 2026-09-13: two members elsewhere
+    /// drew grey while the native list beside them showed a White Mage and a Dark Knight).
+    /// </para>
+    /// <para>
+    /// Job icons run in sets of a hundred from 62000, so the job is the icon's last two
+    /// digits whichever set the list happens to be using.
+    /// </para>
+    /// </summary>
+    /// <param name="row">The row the member is drawn on, counting from zero.</param>
+    public static unsafe uint PartyListJob(int row)
+    {
+        if (row < 0)
+        {
+            return 0;
+        }
+
+        var addon = (FFXIVClientStructs.FFXIV.Client.UI.AddonPartyList*)Services.GameGui.GetAddonByName("_PartyList", 1).Address;
+
+        if (addon is null)
+        {
+            return 0;
+        }
+
+        Span<uint> icons = addon->PartyClassJobIconId;
+
+        if (row >= icons.Length)
+        {
+            return 0;
+        }
+
+        uint icon = icons[row];
+
+        // Nothing drawn on that row, or an icon from somewhere else entirely.
+        return icon < 62000u ? 0u : icon % 100u;
+    }
+
     /// <summary>Whether the game's party list is hidden because we hid it.</summary>
     private static bool s_partyListHidden;
 

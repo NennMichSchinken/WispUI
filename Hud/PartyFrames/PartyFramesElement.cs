@@ -1670,11 +1670,14 @@ internal sealed class PartyFramesElement : HudElement
             ref PartyMemberSnapshot member = ref members[i];
             m_logged[i] = member.EntityId;
             Services.Log.Information(
-                "  [{Slot}] {Name} job={Job} role={Role} hp={Hp}/{MaxHp} mp={Mp}/{MaxMp} self={Self}",
+                "  [{Slot}] {Name} no={Number} content={Content} job={Job} role={Role} presence={Presence} hp={Hp}/{MaxHp} mp={Mp}/{MaxMp} self={Self}",
                 i,
                 member.Name,
+                member.PartyNumber,
+                member.NameKey,
                 member.JobId,
                 member.Role,
+                member.Presence,
                 member.Hp,
                 member.MaxHp,
                 member.Mp,

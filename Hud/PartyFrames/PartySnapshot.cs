@@ -350,10 +350,19 @@ internal sealed class PartySnapshot
                 slot.HudIndex = i;
             }
 
-            // Through the remembered jobs: the game reports none for anybody it has not
-            // loaded, and a frame that forgets what somebody does is the one that needed to
+            // Three places, in order of how much they can be trusted: what the party list
+            // reports, what the game's own list is drawing on that row, and what we last saw.
+            // The first is empty for anybody not loaded, which is exactly when the other two
+            // matter — and a frame that forgets what somebody does is the one that needed to
             // say it most.
-            slot.JobId = m_jobs.Resolve(nameKey, member.ClassJob.RowId);
+            uint job = member.ClassJob.RowId;
+
+            if (job == 0)
+            {
+                job = NativeUi.PartyListJob(slot.PartyNumber - 1);
+            }
+
+            slot.JobId = m_jobs.Resolve(nameKey, job);
             slot.Role = Jobs.Role(slot.JobId);
             slot.Hp = member.CurrentHP;
             slot.MaxHp = member.MaxHP;
