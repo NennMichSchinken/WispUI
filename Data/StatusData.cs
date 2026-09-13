@@ -360,19 +360,33 @@ internal static class StatusData
         // from one number, and a diagnostic that cannot tell them apart is worse than none —
         // it invites a conclusion from a zero (Florian, 2026-09-13, reporting exactly that
         // zero while standing about with no buffs).
-        int dalamud = player.StatusList.Length;
+        // 🔴 Against Dalamud's FILLED entries, not its Length. Length is NumValidStatuses,
+        // which turns out to be the size of the slot table rather than a count of what is in
+        // it — so comparing against it reported a disagreement on a character with three
+        // effects and cost a round chasing a bug that was not there (2026-09-13). A
+        // diagnostic that cries wolf is worse than no diagnostic.
+        int slots = player.StatusList.Length;
+        int filled = 0;
+
+        for (int i = 0; i < slots; i++)
+        {
+            if (player.StatusList[i] is { StatusId: not 0 })
+            {
+                filled++;
+            }
+        }
 
         Services.Log.Information(
-            "--- effects on {Name}: {Ours} read directly, {Theirs} through Dalamud ---",
+            "--- effects on {Name}: {Ours} read directly, {Filled} through Dalamud ({Slots} slots) ---",
             player.Name.TextValue,
             ours,
-            dalamud);
+            filled,
+            slots);
 
-        if (ours != dalamud)
+        if (ours != filled)
         {
             Services.Log.Warning(
-                "The two disagree. The direct read is what the frames use, so this is the bug, "
-                + "not the party member's effects.");
+                "The two disagree, so the direct read the frames use is wrong — not the effects.");
         }
 
         for (int i = 0; i < ours; i++)
