@@ -162,6 +162,7 @@ internal static class Strings
     public const string PresenceOutOfRange = "Out of range";
     public const string PresenceAway = "Elsewhere";
     public const string PresenceOffline = "Offline";
+    public const string PresenceDead = "Dead";
 
     // --- bindings -----------------------------------------------------------
     public const string TabBindings = "Bindings";

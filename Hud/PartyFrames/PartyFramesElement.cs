@@ -911,8 +911,8 @@ internal sealed class PartyFramesElement : HudElement
         MathF.Round(left + (width * fraction));
 
     /// <summary>
-    /// Says what is wrong with a member the game has no numbers for, across the middle of
-    /// their frame.
+    /// Says across the middle of a frame what the bar alone cannot: that the game has no
+    /// numbers for this member, or that it has numbers and they are zero.
     /// <para>
     /// 🔴 In the middle, not where the health figure goes. The figure is a setting somebody
     /// can switch off, and this is not — a frame that has stopped reporting has to say so
@@ -921,7 +921,13 @@ internal sealed class PartyFramesElement : HudElement
     /// <para>
     /// Out of range says nothing at all. It is the common case, it lasts a few seconds, and a
     /// word written across four frames every time the group spreads out is noise. The dimming
-    /// already carries it; the other two are the ones worth a word.
+    /// already carries it; the others are the ones worth a word.
+    /// </para>
+    /// <para>
+    /// Dead joined them on 2026-09-18 (Florian). It is the odd one out: the other notes are
+    /// about somebody the game has stopped describing, and this one is about somebody it
+    /// describes perfectly well. What they share is that an empty bar is the same picture for
+    /// all of them, and only the word tells them apart.
     /// </para>
     /// </summary>
     private static void DrawPresenceNote(
@@ -931,21 +937,39 @@ internal sealed class PartyFramesElement : HudElement
         Vector2 innerMin,
         Vector2 innerMax)
     {
+        string note;
+
         if (member.HasData)
         {
-            return;
+            // Dead is the one note about somebody who IS here, which is why it cannot ride on
+            // the presence value the way the other two do — presence answers "can we see
+            // them", and a corpse answers yes.
+            //
+            // Not left to the health figure alone: that figure is optional, can be set to say
+            // percent, and can be anchored anywhere in the frame, so a group that turned it
+            // off would have nothing but an empty bar to go on. An empty bar is also what
+            // out of range looked like before session 9, and one of those two is urgent.
+            // MaxHp guards the frame or two after a zone change, where everything reads zero.
+            if (member.Hp != 0 || member.MaxHp == 0)
+            {
+                return;
+            }
+
+            note = Strings.PresenceDead;
         }
-
-        string note = member.Presence switch
+        else
         {
-            PartyPresence.Offline => Strings.PresenceOffline,
-            PartyPresence.Away => Strings.PresenceAway,
-            _ => string.Empty,
-        };
+            note = member.Presence switch
+            {
+                PartyPresence.Offline => Strings.PresenceOffline,
+                PartyPresence.Away => Strings.PresenceAway,
+                _ => string.Empty,
+            };
 
-        if (note.Length == 0)
-        {
-            return;
+            if (note.Length == 0)
+            {
+                return;
+            }
         }
 
         float size = Tokens.Px(cfg.HpTextSize);
