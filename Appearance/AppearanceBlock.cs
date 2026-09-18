@@ -12,8 +12,15 @@ namespace WispUI.Appearance;
 /// </summary>
 internal sealed record AppearanceBlock
 {
-    /// <summary>Index into the bar style list. An id, not the style itself.</summary>
-    public int BarStyle { get; init; }
+    /// <summary>
+    /// The bar style, by name. An id, not the style itself.
+    /// <para>
+    /// By name rather than by position, for the same reason the stored setting is: the list
+    /// changes between versions, and a block copied today should still mean the same style
+    /// when it is pasted after an update — which is the whole promise of the clipboard.
+    /// </para>
+    /// </summary>
+    public string BarStyleName { get; init; } = Data.BarStyles.DefaultName;
 
     /// <summary>
     /// What decides a bar's colour — see <see cref="BarColourMode"/>. The colour that

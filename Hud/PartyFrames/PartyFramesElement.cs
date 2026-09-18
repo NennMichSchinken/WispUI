@@ -328,7 +328,7 @@ internal sealed class PartyFramesElement : HudElement
         float y = Tokens.Px(cfg.PositionY);
         float delta = ImGui.GetIO().DeltaTime;
 
-        BarStyle style = BarStyles.All[Math.Clamp(cfg.BarStyle, 0, BarStyles.All.Length - 1)];
+        BarStyle style = BarStyles.All[BarStyles.IndexOf(cfg.BarStyleName)];
         var colourMode = (BarColourMode)cfg.ColourMode;
         var manaStyle = (ManaStyle)cfg.ManaStyle;
         HealthTextMode textMode = HealthText.At(cfg.HpTextMode);

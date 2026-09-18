@@ -558,7 +558,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     public AppearanceBlock GetAppearance() => new()
     {
-        BarStyle = m_config.PartyFrames.BarStyle,
+        BarStyleName = m_config.PartyFrames.BarStyleName,
         ColourMode = m_config.PartyFrames.ColourMode,
         BarOpacity = m_config.PartyFrames.BarOpacity,
         NamePosition = m_config.PartyFrames.NamePosition,
@@ -628,7 +628,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     {
         if ((mask & AppearanceFields.Texture) != 0)
         {
-            m_config.PartyFrames.BarStyle = source.BarStyle;
+            m_config.PartyFrames.BarStyleName = source.BarStyleName;
         }
 
         if ((mask & AppearanceFields.Colours) != 0)
@@ -835,14 +835,14 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
 
-        int style = m_config.PartyFrames.BarStyle;
+        int style = BarStyles.IndexOf(m_config.PartyFrames.BarStyleName);
         if (m_style.Draw(
                 ref style,
                 Chrome.Row(Strings.BarStyle, group.ContentX, rowY, group.ContentWidth, false),
                 rowY,
                 Chrome.ControlWidth()))
         {
-            m_config.PartyFrames.BarStyle = style;
+            m_config.PartyFrames.BarStyleName = BarStyles.NameAt(style);
             m_config.MarkDirty();
         }
 

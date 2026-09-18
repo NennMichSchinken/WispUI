@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 6;
+    public const int CurrentVersion = 7;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -71,7 +71,23 @@ public sealed class Configuration : IPluginConfiguration
     [Serializable]
     public sealed class PartyFramesConfig
     {
-        /// <summary>Index into the bar style list.</summary>
+        /// <summary>
+        /// The bar style, by name.
+        /// <para>
+        /// 🔴 By NAME and not by position, the same lesson the face learned in version 5: the
+        /// list grows and shrinks. Two painted styles were added in the middle and the
+        /// placeholder ones will be thinned out once they have been looked at — either of
+        /// those silently hands a stored index to a different style, and the player finds
+        /// their bar changed by an update they did not ask for.
+        /// </para>
+        /// </summary>
+        public string BarStyleName { get; set; } = Data.BarStyles.DefaultName;
+
+        /// <summary>
+        /// The old position in the style list. Nothing writes it any more; it is here so the
+        /// migration to version 7 can read what the user had. Droppable once no stored
+        /// configuration is older than that.
+        /// </summary>
         public int BarStyle { get; set; }
 
         /// <summary>Index into the colour modes: by role, by job, or a fixed colour.</summary>
@@ -719,27 +735,53 @@ public sealed class Configuration : IPluginConfiguration
             // job with no entry answers to the defaults, which do exactly what the two
             // switches did when both were on — so only somebody who had turned one off needs
             // anything written down, and for them it is written down for every job at once.
-            if (config.PartyFrames.ClickToTarget && config.PartyFrames.ContextMenu)
+            //
+            // 🔴 This block used to leave the whole method with a `return` when there was
+            // nothing to write. That was invisible while it was the last step and a trap the
+            // moment anything followed it: every later migration would have been skipped for
+            // exactly the people who had changed nothing. A step declines by doing nothing,
+            // never by ending the chain.
+            if (!config.PartyFrames.ClickToTarget || !config.PartyFrames.ContextMenu)
             {
-                return;
+                System.Collections.Generic.List<MouseBinding> kept = new();
+
+                if (config.PartyFrames.ClickToTarget)
+                {
+                    kept.Add(new MouseBinding { Button = 0, Kind = BindingKind.Target });
+                }
+
+                if (config.PartyFrames.ContextMenu)
+                {
+                    kept.Add(new MouseBinding { Button = 1, Kind = BindingKind.ContextMenu });
+                }
+
+                foreach ((uint id, _) in Data.JobList.Order)
+                {
+                    config.PartyFrames.Bindings.ByJob[id] = Clone(kept);
+                }
             }
+        }
 
-            System.Collections.Generic.List<MouseBinding> kept = new();
-
-            if (config.PartyFrames.ClickToTarget)
+        if (config.Version < 7)
+        {
+            // The style was a position in the style list. The list is no longer fixed — two
+            // painted styles joined it and the placeholder ones are on their way out — so the
+            // style is stored by name, and a position maps to the name it used to mean.
+            //
+            // Read against the list as it was at version 6, NOT against the list as it is
+            // now: the point of the step is that those two are no longer the same.
+            config.PartyFrames.BarStyleName = config.PartyFrames.BarStyle switch
             {
-                kept.Add(new MouseBinding { Button = 0, Kind = BindingKind.Target });
-            }
-
-            if (config.PartyFrames.ContextMenu)
-            {
-                kept.Add(new MouseBinding { Button = 1, Kind = BindingKind.ContextMenu });
-            }
-
-            foreach ((uint id, _) in Data.JobList.Order)
-            {
-                config.PartyFrames.Bindings.ByJob[id] = Clone(kept);
-            }
+                1 => "Gradient",
+                2 => "Inverse",
+                3 => "Glass",
+                4 => "Split",
+                5 => "Ridge",
+                6 => "Ridge fine",
+                7 => "Edge lit",
+                8 => "Hollow",
+                _ => "Flat",
+            };
         }
     }
 

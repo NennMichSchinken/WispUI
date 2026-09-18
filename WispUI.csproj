@@ -26,4 +26,12 @@
     <ItemGroup>
         <Content Include="Fonts\**" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
+
+    <!-- Our own bar textures, carried over from LumenUI, which is the same author under the
+         same MIT licence - so they travel without a condition attached, unlike the fonts.
+         Greyscale on purpose: a grey texture takes any tint, so one file serves every job
+         colour, every role colour and the shield. -->
+    <ItemGroup>
+        <Content Include="Textures\**" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
 </Project>

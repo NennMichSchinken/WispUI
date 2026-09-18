@@ -20,16 +20,39 @@ internal enum BarFill
     Hollow,
 }
 
-/// <summary>One entry of the bar style list: a name and the fill it stands for.</summary>
+/// <summary>
+/// One entry of the bar style list: a name, and either a shape to draw or a picture to paint.
+/// <para>
+/// A style carries a texture OR a fill, never both. The painted ones are our own greyscale
+/// files under <c>Textures/bars</c> — grey on purpose, because a grey picture takes any tint,
+/// so one file serves every job colour, every role colour and the shield, and adding a colour
+/// never means adding a texture.
+/// </para>
+/// </summary>
 internal readonly struct BarStyle
 {
     public readonly string Name;
     public readonly BarFill Fill;
 
+    /// <summary>A file under <c>Textures/</c>, or null for a style that is drawn rather than painted.</summary>
+    public readonly string? Texture;
+
     public BarStyle(string name, BarFill fill)
     {
         this.Name = name;
         this.Fill = fill;
+        this.Texture = null;
+    }
+
+    public BarStyle(string name, string texture)
+    {
+        this.Name = name;
+
+        // What it falls back to for the frame or two before the file is ready, and if it never
+        // is. A flat bar in the right colour is wrong in texture and right in everything else,
+        // which beats a bar that is not there.
+        this.Fill = BarFill.Flat;
+        this.Texture = texture;
     }
 }
 
@@ -48,6 +71,8 @@ internal static class BarStyles
     public static readonly BarStyle[] All =
     {
         new("Flat", BarFill.Flat),
+        new("Smooth", "bars/gradient.png"),
+        new("Smooth soft", "bars/gradient-soft.png"),
         new("Gradient", BarFill.Gradient),
         new("Inverse", BarFill.Inverse),
         new("Glass", BarFill.Glass),
@@ -57,6 +82,38 @@ internal static class BarStyles
         new("Edge lit", BarFill.EdgeLit),
         new("Hollow", BarFill.Hollow),
     };
+
+    /// <summary>
+    /// What a fresh configuration starts on: the painted smooth bar rather than a flat fill.
+    /// The drawn styles beside it are placeholders that were never a design decision, so they
+    /// are not what a new player should meet first.
+    /// </summary>
+    public const string DefaultName = "Smooth";
+
+    /// <summary>
+    /// Where a style sits in the list, by name. Zero for a name the list no longer has, which
+    /// is a style removed between versions rather than an error — the bar falls back to the
+    /// first entry and the player picks again, instead of the plugin refusing to draw.
+    /// </summary>
+    public static int IndexOf(string? name)
+    {
+        if (name is not null)
+        {
+            for (int i = 0; i < All.Length; i++)
+            {
+                if (string.Equals(All[i].Name, name, System.StringComparison.Ordinal))
+                {
+                    return i;
+                }
+            }
+        }
+
+        return 0;
+    }
+
+    /// <summary>The name at a position, for writing a selection back. Guarded against a stale index.</summary>
+    public static string NameAt(int index) =>
+        All[Math.Clamp(index, 0, All.Length - 1)].Name;
 
     /// <summary>The name of a style, for the selector. Returns a string that already exists.</summary>
     public static string Label(BarStyle style) => style.Name;
@@ -77,6 +134,23 @@ internal static class BarStyles
     /// <param name="radius">Zero for a bar inside a frame, whose corners the frame already has.</param>
     public static void Draw(ImDrawListPtr dl, BarStyle style, Vector2 min, Vector2 max, uint colour, float radius)
     {
+        // A painted style short-circuits the drawn ones. Tinted by the bar colour, which is
+        // what the greyscale buys: the picture carries the shading, the colour carries the
+        // meaning, and neither has to know about the other.
+        if (style.Texture is not null && Icons.Bundled(style.Texture, out ImTextureID handle))
+        {
+            if (radius > 0f)
+            {
+                dl.AddImageRounded(handle, min, max, Vector2.Zero, Vector2.One, colour, radius);
+            }
+            else
+            {
+                dl.AddImage(handle, min, max, Vector2.Zero, Vector2.One, colour);
+            }
+
+            return;
+        }
+
         uint plain = colour;
         uint bright = Lit(colour);
         float height = max.Y - min.Y;
