@@ -438,6 +438,50 @@ internal sealed class PartyFramesElement : HudElement
                 dl.PopClipRect();
             }
 
+            // Over the health, under everything else. A shield is part of what the bar says
+            // about staying alive, so it belongs in the bar rather than on top of the icons.
+            if (cfg.ShowShield && member.HasData && member.Shield > 0)
+            {
+                // The game keeps a percentage, so a hundredth of it is the share of the bar.
+                ShieldBand band = Shield.Band(fraction, member.Shield / 100f);
+
+                // 🔴 Its own strength, NOT the health bar's. The two were tied together at
+                // first and that was wrong: the bar's opacity is about how much the frame
+                // asserts itself over the world, while the shield's is about reading as
+                // something laid ON the bar (Florian, 2026-09-18, who wants the texture
+                // showing through weakened once there are shield textures).
+                uint shieldColour = this.Dim(Tokens.Col.Faded(cfg.ShieldColour, cfg.ShieldOpacity));
+                float barWidth = barMax.X - barMin.X;
+
+                // One band in one colour. Painted across the whole bar and clipped, exactly as
+                // the health fill above is — which is also the seam a shield texture drops
+                // into later: it becomes a style of its own here and nothing else moves.
+                if (band.HasBand)
+                {
+                    dl.PushClipRect(
+                        new Vector2(BarX(barMin.X, barWidth, band.Start), barMin.Y),
+                        new Vector2(BarX(barMin.X, barWidth, band.End), barMax.Y),
+                        true);
+                    BarStyles.Draw(dl, style, barMin, barMax, shieldColour, 0f);
+                    dl.PopClipRect();
+                }
+
+                // Where the band starts inside the fill it has no contrast of its own, so it
+                // gets a line. As the shield decays this line is what you watch: it travels
+                // right until the overflow is gone, and only then does the far end start
+                // coming back (Florian, 2026-09-18, describing exactly that).
+                if (band.HasMark)
+                {
+                    float markX = BarX(barMin.X, barWidth, band.MarkAt);
+                    float thickness = MathF.Max(1f, Tokens.Px(Tokens.Metric.ShieldMark));
+
+                    dl.AddRectFilled(
+                        new Vector2(markX, barMin.Y),
+                        new Vector2(markX + thickness, barMax.Y),
+                        shieldColour);
+                }
+            }
+
             if (mana)
             {
                 Vector2 manaMin = new(innerMin.X, innerMax.Y - manaHeight);
@@ -852,6 +896,13 @@ internal sealed class PartyFramesElement : HudElement
 
     /// <summary>The job the player is on, or zero when there is nobody to ask.</summary>
     private static uint LocalJobId() => Services.Objects.LocalPlayer?.ClassJob.RowId ?? 0u;
+
+    /// <summary>
+    /// A fraction of a bar, as a pixel on the screen. Rounded, so two pieces that meet at the
+    /// same fraction land on the same pixel and leave no seam between them.
+    /// </summary>
+    private static float BarX(float left, float width, float fraction) =>
+        MathF.Round(left + (width * fraction));
 
     /// <summary>
     /// Says what is wrong with a member the game has no numbers for, across the middle of

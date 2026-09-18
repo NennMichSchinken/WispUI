@@ -99,6 +99,13 @@ internal static class Strings
     public const string SmoothBars = "Smooth bars";
     public const string SmoothBarsTooltip = "Health slides to its new value instead of jumping.";
 
+    public const string GroupShield = "Shield";
+    public const string GroupShieldHint = "Damage that will not land.";
+    public const string ShieldColour = "Shield colour";
+    public const string ShieldOpacity = "Shield opacity";
+    public const string ShieldOpacityTooltip =
+        "The shield's own strength, separate from the health bar's. Lower reads as an overlay laid on the bar; too low and the part over empty bar picks up the world behind it.";
+
     public const string ColourByRole = "By role";
     public const string ColourByJob = "By job";
     public const string ColourFixed = "Fixed colour";

@@ -228,6 +228,43 @@ public sealed class Configuration : IPluginConfiguration
 
         public bool ManaForDps { get; set; }
 
+        // --- shields ------------------------------------------------------------
+        // What the bar says about damage that will not land. Read straight off the byte the
+        // game keeps beside a member's job and level, which is the same number its own party
+        // list draws from, so ours can never disagree with the native one.
+
+        /// <summary>The group's own switch. On: a shield nobody sees is a shield nobody uses.</summary>
+        public bool ShowShield { get; set; } = true;
+
+        /// <summary>
+        /// The shield's colour. A pale warm white by default, which is neither a role colour
+        /// nor a job colour and so cannot be mistaken for one.
+        /// <para>
+        /// ⚠️ Drawn at full strength and dimmed by colour where it must step back, never by
+        /// opacity: the band over empty bar has the world behind it, and a faded band there
+        /// picks up grass and stone and stops being a colour at all (CLAUDE.md, session 9).
+        /// </para>
+        /// </summary>
+        public uint ShieldColour { get; set; } = Style.Tokens.Col.Shield;
+
+        /// <summary>
+        /// How strongly the shield is drawn, on its own and not tied to the health bar's.
+        /// <para>
+        /// 🔴 Deliberately separate. The bar's opacity answers "how much should this frame
+        /// assert itself over the world"; this one answers "how much should the shield read as
+        /// something laid ON the bar" — which is a different question with a different answer,
+        /// and tying them made turning the frames down turn the shield down with them
+        /// (Florian, 2026-09-18).
+        /// </para>
+        /// <para>
+        /// ⚠️ Low values cost more than they look like they do wherever the band lies over
+        /// EMPTY bar, because there the world is behind it and grass and stone drag it towards
+        /// grey — the same trap as everywhere else on a HUD. Over the health fill it is only
+        /// ever the overlay it was asked to be.
+        /// </para>
+        /// </summary>
+        public float ShieldOpacity { get; set; } = 0.8f;
+
         // --- job icon -----------------------------------------------------------
         // Described exactly like a text is (spec §11.2): a switch, a size, one of the nine
         // anchors, and the two nudges off it. An icon is not a text, but where something sits

@@ -360,6 +360,7 @@ internal static class StatusData
         }
 
         DumpParty(player);
+        DumpMarkers();
 
         var buffer = new NativeUi.StatusEntry[NativeUi.StatusCapacity];
         int ours = NativeUi.ReadCharacterStatuses(player.Address, buffer);
@@ -471,13 +472,20 @@ internal static class StatusData
         var party = Services.Party;
         System.Numerics.Vector3 from = player.Position;
 
+        // Your own numbers as well as the party's. Alone the party list is EMPTY — the frame
+        // you are looking at then comes from a different read entirely — so a dump that only
+        // walked the party said nothing at all about the one frame on screen, which is exactly
+        // when somebody is most likely to be staring at a wrong one (2026-09-18).
         Services.Log.Information(
-            "--- party: {Count} slot(s), you at {X:0.0}/{Y:0.0}/{Z:0.0} in territory {Here} ---",
+            "--- party: {Count} slot(s), you at {X:0.0}/{Y:0.0}/{Z:0.0} in territory {Here} | your hp {Hp}/{MaxHp} | your shield {Shield}% ---",
             party.Length,
             from.X,
             from.Y,
             from.Z,
-            Services.ClientState.TerritoryType);
+            Services.ClientState.TerritoryType,
+            player.CurrentHp,
+            player.MaxHp,
+            NativeUi.CharacterShield(player.Address));
 
         for (int i = 0; i < party.Length; i++)
         {
@@ -496,18 +504,85 @@ internal static class StatusData
             double distance = System.Math.Sqrt((dx * dx) + (dy * dy) + (dz * dz));
 
             Services.Log.Information(
-                "  [{Slot}] {Name} | job {Job} | territory {Territory} | hp {Hp}/{MaxHp} | pos {X:0.0}/{Y:0.0}/{Z:0.0} | distance {Distance:0.0} | object {Object}",
+                "  [{Slot}] {Name} | job {Job} | territory {Territory} | hp {Hp}/{MaxHp} | shield {Shield}% | entity {Entity} | pos {X:0.0}/{Y:0.0}/{Z:0.0} | distance {Distance:0.0} | object {Object}",
                 i,
                 member.Name.TextValue,
                 member.ClassJob.RowId,
                 member.Territory.RowId,
                 member.CurrentHP,
                 member.MaxHP,
+                NativeUi.MemberShield(member.Address),
+                member.EntityId,
                 at.X,
                 at.Y,
                 at.Z,
                 distance,
                 member.GameObject is null ? "none" : "loaded");
+        }
+    }
+
+    /// <summary>
+    /// What the game has in its raid marker slots, beside what the marker sheet holds.
+    /// <para>
+    /// 🔴 Both, on purpose. The sheet looks like it is in the same order as the slots, and that
+    /// is exactly the kind of resemblance that cost a round in session 9 — a published plugin
+    /// doing something a certain way was taken as proof and was wrong. Printing the two side by
+    /// side turns "it looks like it lines up" into a thing somebody can see line up, by putting
+    /// a marker on a real person and reading which slot moved.
+    /// </para>
+    /// </summary>
+    private static void DumpMarkers()
+    {
+        var sheet = Services.Data.GetExcelSheet<Lumina.Excel.Sheets.Marker>();
+
+        if (sheet is not null)
+        {
+            Services.Log.Information("--- marker sheet: {Count} row(s) ---", sheet.Count);
+
+            foreach (Lumina.Excel.Sheets.Marker row in sheet)
+            {
+                string name = row.Name.ExtractText();
+
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    continue;
+                }
+
+                Services.Log.Information(
+                    "  row {Row} \"{Name}\" | icon {Icon} | sort {Sort}",
+                    row.RowId,
+                    name,
+                    row.Icon,
+                    row.SortOrder);
+            }
+        }
+
+        System.Span<uint> markers = stackalloc uint[NativeUi.MarkerSlots];
+        int slots = NativeUi.ReadMarkers(markers);
+
+        Services.Log.Information("--- marker slots in play: {Count} ---", slots);
+
+        for (int i = 0; i < slots; i++)
+        {
+            if (markers[i] == 0)
+            {
+                continue;
+            }
+
+            // Named where the object is loaded, because a bare entity id says nothing about
+            // who is standing there and the whole point is to match a slot to a person.
+            string who = "not loaded";
+
+            foreach (var obj in Services.Objects)
+            {
+                if (obj.EntityId == markers[i])
+                {
+                    who = obj.Name.TextValue;
+                    break;
+                }
+            }
+
+            Services.Log.Information("  slot {Slot} on entity {Entity} — {Who}", i, markers[i], who);
         }
     }
 
