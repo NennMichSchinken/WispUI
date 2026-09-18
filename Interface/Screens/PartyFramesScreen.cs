@@ -350,7 +350,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         // A long list: worth a popup, and long enough that the search box earns its place.
         m_style = new ArrowSelector<BarStyle>(
             IdStyle,
-            BarStyles.All,
+            BarStyles.ForBar,
             new ArrowSelectorOptions<BarStyle>
             {
                 Label = BarStyles.Label,
@@ -359,11 +359,16 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 EnableSearch = true,
             });
 
-        // The shield picks from the same list, with a selector of its own — one widget cannot
-        // serve two rows, because it carries the state of its popup and its search box.
+        // The shield picks from a list of its own, and a selector of its own — one widget
+        // cannot serve two rows, because it carries the state of its popup and its search box.
+        //
+        // 🔴 The two lists are FILTERED VIEWS of one list, not two lists of files. A style
+        // says where it may be offered and the filter does the rest, so a diagonal pattern
+        // never turns up as a health-bar fill and a plain gradient stays available to both.
+        // Adding a style is one entry with one flag, never an entry in two places.
         m_shieldStyle = new ArrowSelector<BarStyle>(
             IdShieldStyle,
-            BarStyles.All,
+            BarStyles.ForShield,
             new ArrowSelectorOptions<BarStyle>
             {
                 Label = BarStyles.Label,
@@ -850,14 +855,14 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
 
-        int style = BarStyles.IndexOf(m_config.PartyFrames.BarStyleName);
+        int style = BarStyles.IndexOf(BarStyles.ForBar, m_config.PartyFrames.BarStyleName);
         if (m_style.Draw(
                 ref style,
                 Chrome.Row(Strings.BarStyle, group.ContentX, rowY, group.ContentWidth, false),
                 rowY,
                 Chrome.ControlWidth()))
         {
-            m_config.PartyFrames.BarStyleName = BarStyles.NameAt(style);
+            m_config.PartyFrames.BarStyleName = BarStyles.NameAt(BarStyles.ForBar, style);
             m_config.MarkDirty();
         }
 
@@ -964,14 +969,14 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
 
-        int shieldStyle = BarStyles.IndexOf(m_config.PartyFrames.ShieldStyleName);
+        int shieldStyle = BarStyles.IndexOf(BarStyles.ForShield, m_config.PartyFrames.ShieldStyleName);
         if (m_shieldStyle.Draw(
                 ref shieldStyle,
                 Chrome.Row(Strings.ShieldStyle, group.ContentX, rowY, group.ContentWidth, false),
                 rowY,
                 Chrome.ControlWidth()))
         {
-            m_config.PartyFrames.ShieldStyleName = BarStyles.NameAt(shieldStyle);
+            m_config.PartyFrames.ShieldStyleName = BarStyles.NameAt(BarStyles.ForShield, shieldStyle);
             m_config.MarkDirty();
         }
 

@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 7;
+    public const int CurrentVersion = 8;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -270,7 +270,7 @@ public sealed class Configuration : IPluginConfiguration
         /// whole bar — stripes, say — is exactly what says "shield" on a short stretch of one.
         /// </para>
         /// </summary>
-        public string ShieldStyleName { get; set; } = Data.BarStyles.DefaultName;
+        public string ShieldStyleName { get; set; } = Data.BarStyles.ShieldDefaultName;
 
         public uint ShieldColour { get; set; } = Style.Tokens.Col.Shield;
 
@@ -793,6 +793,52 @@ public sealed class Configuration : IPluginConfiguration
                 8 => "Hollow",
                 _ => "Flat",
             };
+        }
+
+        if (config.Version < 8)
+        {
+            // The style list was rebuilt on WispUI's own textures. Seven files carried over
+            // from LumenUI went out — measured at under 10 % contrast once tinted, which is
+            // to say invisible — and with them eight of the nine drawn placeholder shapes,
+            // which were never a design decision in the first place.
+            //
+            // Read against the list as it was at version 7. Everything whose name survives
+            // keeps it; everything else lands on the nearest thing that still exists, which
+            // for most of the placeholders is the quiet default. Falling through to the
+            // list's first entry would work — that is what IndexOf does for an unknown name —
+            // but it would silently move somebody who had chosen a shaded bar onto a flat one.
+            config.PartyFrames.BarStyleName = config.PartyFrames.BarStyleName switch
+            {
+                "Flat" => "Flat",
+                "Hollow" => "Flat",
+
+                // Both old "Smooth" entries were the carried-over gradients, and both of them
+                // were nearly flat once tinted. Our own quiet gradient is what they were
+                // trying to be.
+                "Smooth" => "Smooth",
+                "Smooth soft" => "Smooth",
+
+                "Gradient" => "Gradient",
+                "Inverse" => "Gradient",
+
+                // The three that put a light edge or a step on the bar all land on the one
+                // texture that still does that.
+                "Glass" => "Bevel",
+                "Split" => "Bevel",
+                "Edge lit" => "Bevel",
+
+                _ => Data.BarStyles.DefaultName,
+            };
+
+            // The shield's own style arrived with the bar's default, because at the time there
+            // was nothing better to point it at. There is now: a pattern, which is the whole
+            // reason the shield picks separately. Nobody chose "Smooth" here — it is the value
+            // it was born with — so moving it is finishing the setting rather than overriding
+            // a decision.
+            if (config.PartyFrames.ShieldStyleName is "Smooth" or "Smooth soft")
+            {
+                config.PartyFrames.ShieldStyleName = Data.BarStyles.ShieldDefaultName;
+            }
         }
     }
 

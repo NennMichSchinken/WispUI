@@ -64,9 +64,23 @@ internal static class Icons
     /// </para>
     /// </summary>
     /// <param name="path">Relative to the plugin folder, e.g. <c>bars/gradient.png</c>.</param>
-    public static bool Bundled(string path, out ImTextureID handle)
+    public static bool Bundled(string path, out ImTextureID handle) =>
+        Bundled(path, out handle, out _);
+
+    /// <summary>
+    /// The same, and the size of the picture in its own pixels.
+    /// <para>
+    /// 🔴 Asked rather than assumed. A pattern that tiles needs to know how many of its own
+    /// pixels it covers, and writing that number down here as a constant is the same trap the
+    /// status-icon crop fell into in session 9 — a measurement is not a ratio until you know
+    /// what it is a ratio of, and the file can be re-exported at another size without anyone
+    /// remembering to come back and edit a number.
+    /// </para>
+    /// </summary>
+    public static bool Bundled(string path, out ImTextureID handle, out System.Numerics.Vector2 size)
     {
         handle = default;
+        size = System.Numerics.Vector2.One;
 
         if (!Ours.TryGetValue(path, out ISharedImmediateTexture? texture))
         {
@@ -88,6 +102,12 @@ internal static class Icons
         }
 
         handle = wrap.Handle;
+
+        // Guarded against zero, because the size ends up as a divisor.
+        size = new System.Numerics.Vector2(
+            wrap.Width > 0 ? wrap.Width : 1f,
+            wrap.Height > 0 ? wrap.Height : 1f);
+
         return true;
     }
 
