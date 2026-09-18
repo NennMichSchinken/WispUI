@@ -361,6 +361,7 @@ internal static class StatusData
 
         DumpParty(player);
         DumpMarkers();
+        DumpWindows();
 
         var buffer = new NativeUi.StatusEntry[NativeUi.StatusCapacity];
         int ours = NativeUi.ReadCharacterStatuses(player.Address, buffer);
@@ -531,6 +532,38 @@ internal static class StatusData
     /// a marker on a real person and reading which slot moved.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// Every window the game has on screen, with the depth layer it lives in and the box it
+    /// covers — so "our frames sit over the inventory" can be answered with the game's own
+    /// numbers rather than with a hand-written list of addon names.
+    /// <para>
+    /// What is being looked for: which layer <c>_PartyList</c> is in, and whether the windows
+    /// that are meant to cover it — inventory, character, the settings window — really are in
+    /// higher-numbered ones. If they are, the rule writes itself and never goes stale.
+    /// </para>
+    /// </summary>
+    private static void DumpWindows()
+    {
+        var windows = new NativeUi.NativeWindow[96];
+        int count = NativeUi.ReadNativeWindows(windows);
+
+        Services.Log.Information("--- native windows on screen: {Count} ---", count);
+
+        for (int i = 0; i < count; i++)
+        {
+            ref NativeUi.NativeWindow w = ref windows[i];
+
+            Services.Log.Information(
+                "  layer {Layer,2} | {Name,-28} | {X:0}, {Y:0} to {X2:0}, {Y2:0}",
+                w.Layer,
+                w.Name,
+                w.Min.X,
+                w.Min.Y,
+                w.Max.X,
+                w.Max.Y);
+        }
+    }
+
     private static void DumpMarkers()
     {
         var sheet = Services.Data.GetExcelSheet<Lumina.Excel.Sheets.Marker>();
