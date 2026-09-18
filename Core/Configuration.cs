@@ -261,6 +261,17 @@ public sealed class Configuration : IPluginConfiguration
         /// picks up grass and stone and stops being a colour at all (CLAUDE.md, session 9).
         /// </para>
         /// </summary>
+        /// <summary>
+        /// The shield's own texture, by name, out of the same list the bar picks from.
+        /// <para>
+        /// Its own setting rather than the bar's, for the same reason its opacity is: a shield
+        /// is something laid ON the bar, and what reads well as a bar fill is not what reads
+        /// well as an overlay (Florian, 2026-09-18). A pattern that would be noise across a
+        /// whole bar — stripes, say — is exactly what says "shield" on a short stretch of one.
+        /// </para>
+        /// </summary>
+        public string ShieldStyleName { get; set; } = Data.BarStyles.DefaultName;
+
         public uint ShieldColour { get; set; } = Style.Tokens.Col.Shield;
 
         /// <summary>

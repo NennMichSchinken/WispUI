@@ -40,6 +40,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdHealthX = "##wisp-pf-healthx";
     private const string IdHealthY = "##wisp-pf-healthy";
     private const string IdShieldGroup = "##wisp-pf-shieldgroup";
+    private const string IdShieldStyle = "##wisp-pf-shieldstyle";
     private const string IdShieldColour = "##wisp-pf-shieldcolour";
     private const string IdShieldOpacity = "##wisp-pf-shieldopacity";
     private const string IdManaStyle = "##wisp-pf-manastyle";
@@ -298,6 +299,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private readonly System.Collections.Generic.List<ActionEntry> m_actionChoices = new();
     private uint m_choicesFor = uint.MaxValue;
     private readonly ArrowSelector<Anchor> m_healthPosition;
+    private readonly ArrowSelector<BarStyle> m_shieldStyle;
     private readonly ArrowSelector<string> m_manaStyle;
     private readonly ArrowSelector<Anchor> m_iconPosition;
 
@@ -348,6 +350,19 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         // A long list: worth a popup, and long enough that the search box earns its place.
         m_style = new ArrowSelector<BarStyle>(
             IdStyle,
+            BarStyles.All,
+            new ArrowSelectorOptions<BarStyle>
+            {
+                Label = BarStyles.Label,
+                DrawPreview = BarStyles.DrawPreview,
+                EnablePopupList = true,
+                EnableSearch = true,
+            });
+
+        // The shield picks from the same list, with a selector of its own — one widget cannot
+        // serve two rows, because it carries the state of its popup and its search box.
+        m_shieldStyle = new ArrowSelector<BarStyle>(
+            IdShieldStyle,
             BarStyles.All,
             new ArrowSelectorOptions<BarStyle>
             {
@@ -948,6 +963,19 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
+
+        int shieldStyle = BarStyles.IndexOf(m_config.PartyFrames.ShieldStyleName);
+        if (m_shieldStyle.Draw(
+                ref shieldStyle,
+                Chrome.Row(Strings.ShieldStyle, group.ContentX, rowY, group.ContentWidth, false),
+                rowY,
+                Chrome.ControlWidth()))
+        {
+            m_config.PartyFrames.ShieldStyleName = BarStyles.NameAt(shieldStyle);
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
 
         uint shieldColour = m_config.PartyFrames.ShieldColour;
         if (Chrome.ColourRow(

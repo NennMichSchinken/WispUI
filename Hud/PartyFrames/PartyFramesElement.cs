@@ -329,6 +329,12 @@ internal sealed class PartyFramesElement : HudElement
         float delta = ImGui.GetIO().DeltaTime;
 
         BarStyle style = BarStyles.All[BarStyles.IndexOf(cfg.BarStyleName)];
+
+        // Resolved here beside the bar's, once for the whole block rather than once per frame
+        // per member: looking a name up walks the list, which is nothing on its own and is
+        // eight times nothing in a full party, sixty times a second, for an answer that cannot
+        // change between two members.
+        BarStyle shieldStyle = BarStyles.All[BarStyles.IndexOf(cfg.ShieldStyleName)];
         var colourMode = (BarColourMode)cfg.ColourMode;
         var manaStyle = (ManaStyle)cfg.ManaStyle;
         HealthTextMode textMode = HealthText.At(cfg.HpTextMode);
@@ -462,7 +468,7 @@ internal sealed class PartyFramesElement : HudElement
                         new Vector2(BarX(barMin.X, barWidth, band.Start), barMin.Y),
                         new Vector2(BarX(barMin.X, barWidth, band.End), barMax.Y),
                         true);
-                    BarStyles.Draw(dl, style, barMin, barMax, shieldColour, 0f);
+                    BarStyles.Draw(dl, shieldStyle, barMin, barMax, shieldColour, 0f);
                     dl.PopClipRect();
                 }
 

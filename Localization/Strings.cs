@@ -101,6 +101,7 @@ internal static class Strings
 
     public const string GroupShield = "Shield";
     public const string GroupShieldHint = "Damage that will not land.";
+    public const string ShieldStyle = "Shield texture";
     public const string ShieldColour = "Shield colour";
     public const string ShieldOpacity = "Shield opacity";
     public const string ShieldOpacityTooltip =
