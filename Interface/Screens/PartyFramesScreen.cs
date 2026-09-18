@@ -246,8 +246,22 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const int SlotOtherY = 32;
     private const int SlotOtherMax = 33;
     private const int SlotCleanseThickness = 34;
+
+    /// <summary>🔴 The last slot. Adding one below this means moving the line under it too.</summary>
     private const int SlotRaiseThickness = 35;
-    private const int SlotCount = 35;
+
+    /// <summary>
+    /// How many slots there are, derived from the last one rather than written down.
+    /// <para>
+    /// 🔴 It was a literal, and a literal is a second place to remember. Adding
+    /// <see cref="SlotRaiseThickness"/> without touching it put a slider's index one past the
+    /// end of every array sized from this, and the settings window threw on the frame the new
+    /// group first drew (Florian, 2026-09-18, with the stack trace). Written this way the two
+    /// cannot disagree: a new slot takes the next number, moves this line down, and every
+    /// array grows with it.
+    /// </para>
+    /// </summary>
+    private const int SlotCount = SlotRaiseThickness + 1;
 
     /// <summary>The three weights, in the order the segments sit. Built once, not per frame.</summary>
     private static readonly string[] WeightNames =
