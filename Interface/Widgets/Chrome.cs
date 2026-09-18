@@ -250,15 +250,44 @@ internal static class Chrome
             return;
         }
 
-        Ink.Push(Ink.Role.Body);
+        Tooltip(null, text);
+    }
+
+    /// <summary>
+    /// The tooltip itself, without the hover test — for callers that decide hovering for
+    /// themselves. The HUD does: it paints into a draw list rather than laying out items, so
+    /// there is no "item" for ImGui to have been hovered.
+    /// <para>
+    /// 🔴 In the interface face, never the one the player chose for their frames, and never
+    /// via <c>ImGui.SetTooltip</c> — that neither wraps nor takes the face (session 3). A
+    /// heading is optional so one routine serves a plain hint and a named effect.
+    /// </para>
+    /// </summary>
+    public static void Tooltip(string? heading, string text)
+    {
         ImGui.BeginTooltip();
         ImGui.PushTextWrapPos(Tokens.Metric.TooltipWrap);
-        ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.Ink);
-        ImGui.TextUnformatted(text);
-        ImGui.PopStyleColor();
+
+        if (!string.IsNullOrEmpty(heading))
+        {
+            Ink.Push(Ink.Role.Title);
+            ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.Heading);
+            ImGui.TextUnformatted(heading);
+            ImGui.PopStyleColor();
+            Ink.Pop(Ink.Role.Title);
+        }
+
+        if (text.Length > 0)
+        {
+            Ink.Push(Ink.Role.Body);
+            ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.Ink);
+            ImGui.TextUnformatted(text);
+            ImGui.PopStyleColor();
+            Ink.Pop(Ink.Role.Body);
+        }
+
         ImGui.PopTextWrapPos();
         ImGui.EndTooltip();
-        Ink.Pop(Ink.Role.Body);
     }
 
     /// <summary>

@@ -691,6 +691,51 @@ internal static class StatusData
     /// What is known about a status id. An id past the end of the sheet — which a patch can
     /// hand us before the data catches up — comes back empty rather than throwing.
     /// </summary>
+    /// <summary>
+    /// What an effect is called and what it does, for the tooltip on its icon.
+    /// <para>
+    /// 🔴 Looked up when somebody actually hovers, not primed with everything else. The sheet
+    /// carries a name and a description for several thousand effects, and pulling text out of
+    /// one builds strings — priming them all would cost a few thousand allocations at load for
+    /// the handful anybody ever points at. Cached after the first ask, so hovering costs one
+    /// dictionary hit per frame and nothing else (CLAUDE.md §7.1, §7.3).
+    /// </para>
+    /// <para>
+    /// A description can legitimately be empty. The caller draws the name alone rather than an
+    /// empty panel.
+    /// </para>
+    /// </summary>
+    public static bool Describe(uint statusId, out string name, out string description)
+    {
+        if (s_described.TryGetValue(statusId, out (string Name, string Text) known))
+        {
+            name = known.Name;
+            description = known.Text;
+            return name.Length > 0;
+        }
+
+        name = string.Empty;
+        description = string.Empty;
+
+        Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.Status>? sheet =
+            Services.Data.GetExcelSheet<Lumina.Excel.Sheets.Status>();
+
+        Lumina.Excel.Sheets.Status? row = sheet?.GetRowOrDefault(statusId);
+
+        if (row is not null)
+        {
+            name = row.Value.Name.ExtractText();
+            description = row.Value.Description.ExtractText();
+        }
+
+        // Remembered either way. An id the sheet does not have is a miss worth caching, or a
+        // patch that hands us a new effect costs a sheet walk every frame it is hovered.
+        s_described[statusId] = (name, description);
+        return name.Length > 0;
+    }
+
+    private static readonly System.Collections.Generic.Dictionary<uint, (string Name, string Text)> s_described = new();
+
     public static StatusFacts Of(uint statusId) =>
         statusId < (uint)s_facts.Length ? s_facts[statusId] : default;
 

@@ -5,6 +5,7 @@ using Dalamud.Game.ClientState.Objects.Types;
 using WispUI.Appearance;
 using WispUI.Core;
 using WispUI.Data;
+using WispUI.Interface.Widgets;
 using WispUI.Localization;
 using WispUI.Style;
 
@@ -341,6 +342,11 @@ internal sealed class PartyFramesElement : HudElement
         FrameMarkStyle cleanseMark = FrameMark.At(cfg.CleanseMark);
         FrameMarkStyle raiseMark = FrameMark.At(cfg.RaiseMark);
 
+        // Settled once for the whole block. Off while the stand-ins are up: there is nothing
+        // real to describe, and edit mode wants the cursor for dragging rather than for
+        // pointing at things.
+        m_wantTooltips = cfg.ShowAuraTooltips && !AuraPreview.Active && !EditMode.IsActive;
+
         // The mark is an instruction. On a job that cannot carry it out it is noise, so it is
         // off there by default — the icons still show the effect either way. The preview
         // ignores this, or setting it up on the wrong job would show nothing.
@@ -561,7 +567,6 @@ internal sealed class PartyFramesElement : HudElement
             // and the thing being looked for; a name is read once and then known, so a name
             // crossing them is the one that gives way (Florian, 2026-09-13).
             this.DrawAuras(dl, cfg, i, innerMin, innerMax);
-            this.DrawRescue(dl, cfg, ref member, innerMin, innerMax);
 
             // Over everything, and outside the frame rather than on its edge. On the edge a
             // thick mark eats into the bar it is meant to be framing, and under the second
@@ -598,9 +603,18 @@ internal sealed class PartyFramesElement : HudElement
                     cfg.RaiseOpacity);
             }
 
+            // 🔴 AFTER the marks, not before. The raise mark and the rescue icon are about the
+            // same moment, so they are on screen together more often than not — and with the
+            // icon drawn first the wash laid straight over the picture it was agreeing with
+            // (Florian, 2026-09-18). The mark is the thing read from across the screen and the
+            // icon is the thing read when you look, so the icon is the one that has to survive.
+            this.DrawRescue(dl, cfg, ref member, innerMin, innerMax);
+
             DrawPresenceNote(dl, cfg, ref member, innerMin, innerMax);
             dl.PopClipRect();
         }
+
+        this.DrawAuraTooltip();
     }
 
     /// <summary>
@@ -1237,6 +1251,47 @@ internal sealed class PartyFramesElement : HudElement
     /// does — a row hung on the right grows left.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// Whether the mouse is inside a rectangle, in screen pixels.
+    /// <para>
+    /// Asked of ImGui rather than of the game: the frames already put an invisible window
+    /// under the cursor to collect their clicks, so ImGui's idea of where the pointer is is
+    /// the same one every other part of this element works from.
+    /// </para>
+    /// </summary>
+    private static bool Inside(Vector2 min, Vector2 max)
+    {
+        Vector2 mouse = ImGui.GetMousePos();
+        return mouse.X >= min.X && mouse.X < max.X && mouse.Y >= min.Y && mouse.Y < max.Y;
+    }
+
+    /// <summary>Whether tooltips are wanted this frame, so the hover test is skipped when they are off.</summary>
+    private bool m_wantTooltips;
+
+    /// <summary>The effect the mouse is over, or zero. Settled during the pass, drawn after it.</summary>
+    private uint m_tooltipStatus;
+
+    /// <summary>
+    /// The tooltip for whichever icon the mouse ended up over.
+    /// <para>
+    /// Drawn after every frame has been painted, because a tooltip belongs over all of them —
+    /// drawn where it was noticed, the next frame's icons would be painted across it. Nothing
+    /// is looked up unless something is actually hovered, so the common case is one comparison.
+    /// </para>
+    /// </summary>
+    private void DrawAuraTooltip()
+    {
+        uint status = m_tooltipStatus;
+        m_tooltipStatus = 0u;
+
+        if (status == 0u || !StatusData.Describe(status, out string name, out string description))
+        {
+            return;
+        }
+
+        Chrome.Tooltip(name, description);
+    }
+
     private void DrawIconRow(
         ImDrawListPtr dl,
         ReadOnlySpan<AuraSnapshot> auras,
@@ -1292,6 +1347,15 @@ internal sealed class PartyFramesElement : HudElement
 
             // Cropped to the art. See Icons.StatusIcon — the whole texture is mostly margin.
             dl.AddImage(icon, min, max, uv0, uv1, this.Dim(0xFFFFFFFFu));
+
+            // Noted, not drawn. The tooltip belongs over every frame rather than over this
+            // one, and the rows are painted frame by frame — writing it here would put it
+            // under whatever is drawn next. So the last one the mouse was inside wins and the
+            // panel goes up once, after the loop.
+            if (m_wantTooltips && Inside(min, max))
+            {
+                m_tooltipStatus = aura.StatusId;
+            }
 
             if (swipe)
             {

@@ -276,6 +276,10 @@ internal static class Strings
     public const string AuraSwipe = "Sweep";
     public const string AuraSwipeTooltip = "A dark wedge that sweeps off the icon as the effect runs out.";
 
+    public const string AuraTooltips = "Describe on hover";
+    public const string AuraTooltipsTooltip =
+        "Point at any effect icon for the game's own name and description. Off by default: the cursor is over these frames while you are healing through them.";
+
     public const string CleanseHow = "Mark";
     public const string CleanseHowTooltip =
         "Cleansable effects always get a bright edge on their own icon. This is the mark on the frame itself.";

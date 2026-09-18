@@ -451,6 +451,24 @@ public sealed class Configuration : IPluginConfiguration
         /// </summary>
         public bool AuraSwipe { get; set; } = true;
 
+        /// <summary>
+        /// Point at any effect icon and the game's own name and description for it come up.
+        /// <para>
+        /// 🔴 OFF by default, and it is the one setting here where the default is the opposite
+        /// of the feature being good. The cursor is over these frames constantly and on
+        /// purpose — click-to-target, mouseover healing — so a panel that opens on hover would
+        /// open while somebody is healing through it, over the very frames they are reading.
+        /// Whoever wants it is somebody learning what an effect does, and they will go and
+        /// find the switch (Florian asked for it as an option, 2026-09-18).
+        /// </para>
+        /// <para>
+        /// One switch for all three icon rows rather than one each: "what is this picture" is
+        /// the same question whether the picture is a debuff, your own regen or somebody
+        /// else's work.
+        /// </para>
+        /// </summary>
+        public bool ShowAuraTooltips { get; set; }
+
         // --- benefits: a second row, in the other corner ------------------------
         // Its own row rather than a mix with the afflictions, because the two answer
         // different questions: what is wrong with this person, and what have I already put on

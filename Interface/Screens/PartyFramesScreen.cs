@@ -94,6 +94,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdAuraMax = "##wisp-pf-auramax";
     private const string IdAuraStacks = "##wisp-pf-aurastacks";
     private const string IdAuraSwipe = "##wisp-pf-auraswipe";
+    private const string IdAuraTooltips = "##wisp-pf-auratips";
     private const string IdPreviewAuras = "##wisp-pf-aurapreview";
     private const string IdCleanseWhenAble = "##wisp-pf-cleanseable";
     private const string IdCleanseColour = "##wisp-pf-cleansecolour";
@@ -2148,6 +2149,25 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 true))
         {
             m_config.PartyFrames.AuraSwipe = !m_config.PartyFrames.AuraSwipe;
+            m_config.MarkDirty();
+        }
+
+        // One switch for all three icon rows. "What is this picture" is the same question
+        // whether the picture is a debuff, your own regen or somebody else's work.
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdAuraTooltips,
+                Strings.AuraTooltips,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.ShowAuraTooltips,
+                Chrome.OptionControl.Tick,
+                Strings.AuraTooltipsTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.ShowAuraTooltips = !m_config.PartyFrames.ShowAuraTooltips;
             m_config.MarkDirty();
         }
 
