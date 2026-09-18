@@ -338,14 +338,15 @@ internal sealed class PartyFramesElement : HudElement
         var colourMode = (BarColourMode)cfg.ColourMode;
         var manaStyle = (ManaStyle)cfg.ManaStyle;
         HealthTextMode textMode = HealthText.At(cfg.HpTextMode);
-        var mark = (CleanseMark)cfg.CleanseMark;
+        FrameMarkStyle cleanseMark = FrameMark.At(cfg.CleanseMark);
+        FrameMarkStyle raiseMark = FrameMark.At(cfg.RaiseMark);
 
         // The mark is an instruction. On a job that cannot carry it out it is noise, so it is
         // off there by default — the icons still show the effect either way. The preview
         // ignores this, or setting it up on the wrong job would show nothing.
         if (!AuraPreview.Active && cfg.CleanseOnlyWhenAble && !CanCleanseNow())
         {
-            mark = CleanseMark.None;
+            cleanseMark = FrameMarkStyle.None;
         }
 
         PartyMemberSnapshot[] members = m_snapshot.Members;
@@ -424,7 +425,7 @@ internal sealed class PartyFramesElement : HudElement
 
             // Dimmed rather than recoloured, so the frame is still recognisably that
             // person's job at a glance.
-            uint barColour = mark == CleanseMark.Bar && member.HasDispellable
+            uint barColour = cleanseMark == FrameMarkStyle.Bar && member.HasDispellable
                 ? cfg.CleanseColour
                 : BarColour(colourMode, ref member);
 
@@ -566,9 +567,35 @@ internal sealed class PartyFramesElement : HudElement
             // thick mark eats into the bar it is meant to be framing, and under the second
             // pass the next frame's ground painted across it (Florian, 2026-09-13: it must
             // not sit behind the frame).
-            if (mark == CleanseMark.Border && member.HasDispellable)
+            // Cleanse first, raise over it. They can both be true — somebody being picked up
+            // may well have something cleansable on them — and of the two, "you personally
+            // have to do something" outranks "this one is already being handled".
+            if (member.HasDispellable)
             {
-                this.DrawCleanseMark(dl, cfg, m_frameMin[i], m_frameMax[i]);
+                FrameMark.Draw(
+                    dl,
+                    cleanseMark,
+                    m_frameMin[i],
+                    m_frameMax[i],
+                    this.Dim(cfg.CleanseColour),
+                    FrameMark.Thickness(cfg.CleanseThickness),
+                    cfg.CleanseOpacity);
+            }
+
+            // Raise covers the cast as well as the landed effect, which is the whole point:
+            // the eight seconds of casting are exactly when a second healer needs to know
+            // somebody is already on this one, and that is what the mark says from across the
+            // screen (Florian, 2026-09-18).
+            if (member.RaiseRemaining > 0f)
+            {
+                FrameMark.Draw(
+                    dl,
+                    raiseMark,
+                    m_frameMin[i],
+                    m_frameMax[i],
+                    this.Dim(cfg.RaiseColour),
+                    FrameMark.Thickness(cfg.RaiseThickness),
+                    cfg.RaiseOpacity);
             }
 
             DrawPresenceNote(dl, cfg, ref member, innerMin, innerMax);
@@ -1119,62 +1146,6 @@ internal sealed class PartyFramesElement : HudElement
 
         this.DrawIcon(dl, m_leaderIcon, cfg.LeaderIconSize, cfg.LeaderIconPosition, cfg.LeaderIconX, cfg.LeaderIconY, innerMin, innerMax);
     }
-
-    /// <summary>
-    /// The mark that says something on this person can be taken off: a band of colour rising
-    /// out of the bottom of the frame, and a thick edge around the whole of it.
-    /// <para>
-    /// 🔴 Two marks and not one, because one was not enough. A coloured edge alone was missed
-    /// at a glance, which is the only thing this mark has to do — a healer is not reading
-    /// frames, they are catching one out of eight (Florian, 2026-09-13). The rise gives it an
-    /// area rather than a line, and area is what the eye catches.
-    /// </para>
-    /// <para>
-    /// Drawn outside the frame, over everything. Inside it, a thick edge eats the bar it is
-    /// framing; underneath, the next frame's ground paints across it.
-    /// </para>
-    /// </summary>
-    private void DrawCleanseMark(
-        ImDrawListPtr dl,
-        Configuration.PartyFramesConfig cfg,
-        Vector2 min,
-        Vector2 max)
-    {
-        uint colour = this.Dim(cfg.CleanseColour);
-        float thickness = MathF.Max(Tokens.Line(1f), Tokens.Px(cfg.CleanseThickness));
-
-        // The rise, from the bottom of the frame to somewhere below halfway: far enough up to
-        // be an area, not so far that it washes the whole bar and takes the role colour with
-        // it. Fades to nothing, so it has no edge of its own to be mistaken for one.
-        float height = MathF.Round((max.Y - min.Y) * CleanseRise);
-        uint clear = colour & 0x00FFFFFFu;
-        uint strong = Fade(colour, CleanseRiseOpacity);
-
-        dl.AddRectFilledMultiColor(
-            new Vector2(min.X, max.Y - height),
-            max,
-            clear,
-            clear,
-            strong,
-            strong);
-
-        // Outside, so the frame keeps all of its own room. AddRect puts half the thickness
-        // either side of the path, so the path is pushed out by half.
-        float out2 = thickness * 0.5f;
-        dl.AddRect(
-            new Vector2(min.X - out2, min.Y - out2),
-            new Vector2(max.X + out2, max.Y + out2),
-            colour,
-            0f,
-            ImDrawFlags.None,
-            thickness);
-    }
-
-    /// <summary>How far up the frame the cleanse band reaches, as a share of its height.</summary>
-    private const float CleanseRise = 0.45f;
-
-    /// <summary>How solid that band is where it meets the bottom edge.</summary>
-    private const float CleanseRiseOpacity = 0.55f;
 
     /// <summary>The same colour at a share of its own alpha.</summary>
     private static uint Fade(uint colour, float amount)

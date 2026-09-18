@@ -178,7 +178,7 @@ internal sealed record AppearanceBlock
 
     /// <summary>
     /// Carried with the colours rather than the icons: it is not a picture, it is what the
-    /// frame's own edge or bar does — see <see cref="Hud.CleanseMark"/>.
+    /// frame's own edge or bar does — see <see cref="Hud.FrameMarkStyle"/>.
     /// </summary>
     public int CleanseMark { get; init; }
 
@@ -187,6 +187,17 @@ internal sealed record AppearanceBlock
     public uint CleanseColour { get; init; }
 
     public float CleanseThickness { get; init; }
+
+    public float CleanseOpacity { get; init; }
+
+    /// <summary>The same four shapes, saying that somebody is already being picked up.</summary>
+    public int RaiseMark { get; init; }
+
+    public uint RaiseColour { get; init; }
+
+    public float RaiseThickness { get; init; }
+
+    public float RaiseOpacity { get; init; }
 }
 
 /// <summary>

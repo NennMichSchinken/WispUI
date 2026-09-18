@@ -279,9 +279,15 @@ internal static class Strings
     public const string CleanseHow = "Mark";
     public const string CleanseHowTooltip =
         "Cleansable effects always get a bright edge on their own icon. This is the mark on the frame itself.";
-    public const string CleanseNone = "None";
-    public const string CleanseBorder = "Frame edge";
-    public const string CleanseBar = "Health bar";
+    // Shared by every frame mark, because the shapes are shared. A second mark is a group of
+    // settings, never a second set of these.
+    public const string MarkNone = "None";
+    public const string MarkBorder = "Edge and foot";
+    public const string MarkFull = "Edge and wash";
+    public const string MarkBar = "Health bar";
+    public const string MarkOpacity = "Fill strength";
+    public const string MarkOpacityTooltip =
+        "How solid the coloured fill is where it is strongest. The edge is not affected.";
 
     public const string GroupBuffs = "Your effects";
     public const string GroupBuffsHint = "What you have already put on them.";
@@ -303,6 +309,14 @@ internal static class Strings
     public const string CleanseColour = "Colour";
     public const string CleanseThickness = "Edge thickness";
     public const string CleanseThicknessTooltip = "The mark is drawn around the frame, so a thicker edge costs the frame nothing.";
+
+    public const string GroupRaiseMark = "Being raised";
+    public const string GroupRaiseMarkHint = "How a frame says somebody is already on this one.";
+    public const string RaiseHow = "Mark";
+    public const string RaiseHowTooltip =
+        "Shown from the moment the cast begins, not when the effect lands — those eight seconds are when a second healer needs to know.";
+    public const string RaiseColour = "Colour";
+    public const string RaiseThickness = "Edge thickness";
 
     public const string CleanseWhenAble = "Only on cleanse jobs";
     public const string CleanseWhenAbleTooltip =

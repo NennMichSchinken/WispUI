@@ -98,6 +98,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdCleanseWhenAble = "##wisp-pf-cleanseable";
     private const string IdCleanseColour = "##wisp-pf-cleansecolour";
     private const string IdCleanseThickness = "##wisp-pf-cleansethick";
+    private const string IdCleanseOpacity = "##wisp-pf-cleanseopacity";
+    private const string IdRaiseMarkGroup = "##wisp-pf-raisemarkgroup";
+    private const string IdRaiseMark = "##wisp-pf-raisemark";
+    private const string IdRaiseColour = "##wisp-pf-raisecolour";
+    private const string IdRaiseThickness = "##wisp-pf-raisethick";
+    private const string IdRaiseOpacity = "##wisp-pf-raiseopacity";
 
     private const float MinCleanseThickness = 1f;
     private const float MaxCleanseThickness = 8f;
@@ -125,8 +131,22 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdRescueY = "##wisp-pf-rescuey";
 
     /// <summary>The three answers to "say that something can be cleansed", in that order.</summary>
-    private static readonly CleanseMark[] CleanseMarks =
-        { CleanseMark.Border, CleanseMark.Bar, CleanseMark.None };
+    /// <summary>
+    /// The shapes a frame mark can take, in the order the arrows walk them. One list for every
+    /// mark there is: the cleanse mark and the raise mark offer exactly the same four, because
+    /// they are the same drawing asked to say different things.
+    /// </summary>
+    private static readonly FrameMarkStyle[] MarkStyles =
+        { FrameMarkStyle.Border, FrameMarkStyle.Full, FrameMarkStyle.Bar, FrameMarkStyle.None };
+
+    /// <summary>The name of a shape. Shared, so the two marks can never drift apart in wording.</summary>
+    private static string MarkLabel(FrameMarkStyle style) => style switch
+    {
+        FrameMarkStyle.Border => Strings.MarkBorder,
+        FrameMarkStyle.Full => Strings.MarkFull,
+        FrameMarkStyle.Bar => Strings.MarkBar,
+        _ => Strings.MarkNone,
+    };
 
     private const float MinAuraSize = 10f;
     private const float MaxAuraSize = 48f;
@@ -226,6 +246,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const int SlotOtherY = 32;
     private const int SlotOtherMax = 33;
     private const int SlotCleanseThickness = 34;
+    private const int SlotRaiseThickness = 35;
     private const int SlotCount = 35;
 
     /// <summary>The three weights, in the order the segments sit. Built once, not per frame.</summary>
@@ -308,7 +329,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private readonly ArrowSelector<Anchor> m_leaderPosition;
     private readonly ArrowSelector<Anchor> m_auraPosition;
     private readonly ArrowSelector<Anchor> m_rescuePosition;
-    private readonly ArrowSelector<CleanseMark> m_cleanse;
+    private readonly ArrowSelector<FrameMarkStyle> m_cleanse;
+    private readonly ArrowSelector<FrameMarkStyle> m_raiseMark;
     private readonly ArrowSelector<Anchor> m_buffPosition;
     private readonly ArrowSelector<Anchor> m_otherPosition;
     private readonly ArrowSelector<NameShortening> m_shortening;
@@ -323,6 +345,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     // allocation per frame in the draw path for a caption nobody asked to change (§7.1).
     private string m_shieldOpacityText = string.Empty;
     private int m_shieldOpacityTextFor = -1;
+
+    private string m_cleanseOpacityText = string.Empty;
+    private int m_cleanseOpacityTextFor = -1;
+
+    private string m_raiseOpacityText = string.Empty;
+    private int m_raiseOpacityTextFor = -1;
 
     /// <summary>One readout per slider, rebuilt only when its number changes.</summary>
     private readonly string[] m_sizeText = new string[SlotCount];
@@ -519,17 +547,26 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             Anchors.All,
             new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false, HideArrows = true });
 
-        m_cleanse = new ArrowSelector<CleanseMark>(
+        // Two selectors over one list of shapes. They cannot be one widget — a selector
+        // carries the state of its own popup — but they share the list and the labelling, so
+        // a shape added to MarkStyles turns up in both without either being touched.
+        m_cleanse = new ArrowSelector<FrameMarkStyle>(
             IdCleanse,
-            CleanseMarks,
-            new ArrowSelectorOptions<CleanseMark>
+            MarkStyles,
+            new ArrowSelectorOptions<FrameMarkStyle>
             {
-                Label = static mark => mark switch
-                {
-                    CleanseMark.Border => Strings.CleanseBorder,
-                    CleanseMark.Bar => Strings.CleanseBar,
-                    _ => Strings.CleanseNone,
-                },
+                Label = MarkLabel,
+                ShowCounter = false,
+                EnablePopupList = true,
+                HideArrows = true,
+            });
+
+        m_raiseMark = new ArrowSelector<FrameMarkStyle>(
+            IdRaiseMark,
+            MarkStyles,
+            new ArrowSelectorOptions<FrameMarkStyle>
+            {
+                Label = MarkLabel,
                 ShowCounter = false,
                 EnablePopupList = true,
                 HideArrows = true,
@@ -644,6 +681,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         CleanseOnlyWhenAble = m_config.PartyFrames.CleanseOnlyWhenAble,
         CleanseColour = m_config.PartyFrames.CleanseColour,
         CleanseThickness = m_config.PartyFrames.CleanseThickness,
+        CleanseOpacity = m_config.PartyFrames.CleanseOpacity,
+        RaiseMark = m_config.PartyFrames.RaiseMark,
+        RaiseColour = m_config.PartyFrames.RaiseColour,
+        RaiseThickness = m_config.PartyFrames.RaiseThickness,
+        RaiseOpacity = m_config.PartyFrames.RaiseOpacity,
     };
 
     public void ApplyAppearance(AppearanceBlock source, AppearanceFields mask)
@@ -660,6 +702,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.PartyFrames.CleanseOnlyWhenAble = source.CleanseOnlyWhenAble;
             m_config.PartyFrames.CleanseColour = source.CleanseColour;
             m_config.PartyFrames.CleanseThickness = source.CleanseThickness;
+            m_config.PartyFrames.CleanseOpacity = source.CleanseOpacity;
+            m_config.PartyFrames.RaiseMark = source.RaiseMark;
+            m_config.PartyFrames.RaiseColour = source.RaiseColour;
+            m_config.PartyFrames.RaiseThickness = source.RaiseThickness;
+            m_config.PartyFrames.RaiseOpacity = source.RaiseOpacity;
         }
 
         if ((mask & AppearanceFields.Opacity) != 0)
@@ -1971,8 +2018,13 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         y += FrameRow(buffs, buffHeight, others, otherHeight);
 
         Chrome.BeginGroupRow();
+        // 🔴 Six groups on this tab now, and §3.1 asks for three or four. The raise mark landed
+        // here because it belongs beside the cleanse mark — they are the same drawing saying
+        // opposite things, and putting them on different tabs would hide that. The tab needs
+        // splitting; which way is a layout decision, not a code one (Florian, 2026-09-18).
         Chrome.GroupScope cleanse = this.DrawCleanse(Chrome.ColumnX(origin.X, width, 0), y, column, out float cleanseHeight);
-        y += Chrome.GroupFrame(cleanse, cleanseHeight) + Tokens.Metric.ColumnGutter;
+        Chrome.GroupScope raiseMark = this.DrawRaiseMark(Chrome.ColumnX(origin.X, width, 1), y, column, out float raiseMarkHeight);
+        y += FrameRow(cleanse, cleanseHeight, raiseMark, raiseMarkHeight);
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
@@ -2251,7 +2303,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         float rowY = group.ContentY;
 
-        int mark = Array.IndexOf(CleanseMarks, (CleanseMark)m_config.PartyFrames.CleanseMark);
+        int mark = Array.IndexOf(MarkStyles, FrameMark.At(m_config.PartyFrames.CleanseMark));
         mark = mark < 0 ? 0 : mark;
 
         if (m_cleanse.Draw(
@@ -2260,7 +2312,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 rowY,
                 Chrome.ControlWidth()))
         {
-            m_config.PartyFrames.CleanseMark = (int)CleanseMarks[mark];
+            m_config.PartyFrames.CleanseMark = (int)MarkStyles[mark];
             m_config.MarkDirty();
         }
 
@@ -2293,6 +2345,30 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             Strings.CleanseThicknessTooltip);
 
         rowY += Chrome.RowPitch();
+        float cleanseOpacity = m_config.PartyFrames.CleanseOpacity;
+        Chrome.SliderResult cleanseFill = Chrome.Slider(
+            IdCleanseOpacity,
+            Strings.MarkOpacity,
+            this.CleanseOpacityCaption(cleanseOpacity),
+            group.ContentX,
+            rowY,
+            group.ContentWidth,
+            cleanseOpacity,
+            0f,
+            1f,
+            null,
+            Strings.MarkOpacityTooltip,
+            true,
+            OpacityStep,
+            OpacityEditScale);
+
+        if (cleanseFill.Changed)
+        {
+            m_config.PartyFrames.CleanseOpacity = cleanseFill.Value;
+            m_config.MarkDirty();
+        }
+
+        rowY += Chrome.RowPitch();
         if (Chrome.OptionRow(
                 IdCleanseWhenAble,
                 Strings.CleanseWhenAble,
@@ -2306,6 +2382,101 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 true))
         {
             m_config.PartyFrames.CleanseOnlyWhenAble = !m_config.PartyFrames.CleanseOnlyWhenAble;
+            m_config.MarkDirty();
+        }
+
+        float used = rowY - group.ContentY + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
+
+    /// <summary>
+    /// The mark that says somebody is already being picked up — the same four shapes the
+    /// cleanse mark uses, saying the opposite thing.
+    /// <para>
+    /// Its own group rather than four more rows under the rescue icon: the icon answers "what
+    /// is on them", the mark answers "can I stop looking at this frame", and a healer turns
+    /// them on for different reasons (Florian, 2026-09-18).
+    /// </para>
+    /// </summary>
+    private Chrome.GroupScope DrawRaiseMark(float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdRaiseMarkGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupRaiseMark,
+                Description = Strings.GroupRaiseMarkHint,
+            },
+            x,
+            y,
+            width);
+
+        float rowY = group.ContentY;
+
+        int mark = Array.IndexOf(MarkStyles, FrameMark.At(m_config.PartyFrames.RaiseMark));
+        mark = mark < 0 ? 0 : mark;
+
+        if (m_raiseMark.Draw(
+                ref mark,
+                Chrome.Row(Strings.RaiseHow, group.ContentX, rowY, group.ContentWidth, false, Strings.RaiseHowTooltip),
+                rowY,
+                Chrome.ControlWidth()))
+        {
+            m_config.PartyFrames.RaiseMark = (int)MarkStyles[mark];
+            m_config.MarkDirty();
+        }
+
+        rowY += Chrome.RowPitch();
+        uint colour = m_config.PartyFrames.RaiseColour;
+        if (Chrome.ColourRow(
+                IdRaiseColour,
+                Strings.RaiseColour,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                ref colour,
+                true,
+                null))
+        {
+            m_config.PartyFrames.RaiseColour = colour;
+            m_config.MarkDirty();
+        }
+
+        rowY += Chrome.RowPitch();
+        this.PixelSlider(
+            IdRaiseThickness,
+            Strings.RaiseThickness,
+            SlotRaiseThickness,
+            group,
+            rowY,
+            MinCleanseThickness,
+            MaxCleanseThickness,
+            true,
+            Strings.CleanseThicknessTooltip);
+
+        rowY += Chrome.RowPitch();
+        float raiseOpacity = m_config.PartyFrames.RaiseOpacity;
+        Chrome.SliderResult raiseFill = Chrome.Slider(
+            IdRaiseOpacity,
+            Strings.MarkOpacity,
+            this.RaiseOpacityCaption(raiseOpacity),
+            group.ContentX,
+            rowY,
+            group.ContentWidth,
+            raiseOpacity,
+            0f,
+            1f,
+            null,
+            Strings.MarkOpacityTooltip,
+            true,
+            OpacityStep,
+            OpacityEditScale);
+
+        if (raiseFill.Changed)
+        {
+            m_config.PartyFrames.RaiseOpacity = raiseFill.Value;
             m_config.MarkDirty();
         }
 
@@ -2649,6 +2820,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         SlotOtherY => m_config.PartyFrames.OtherY,
         SlotOtherMax => m_config.PartyFrames.OtherMaxCount,
         SlotCleanseThickness => m_config.PartyFrames.CleanseThickness,
+        SlotRaiseThickness => m_config.PartyFrames.RaiseThickness,
         _ => m_config.PartyFrames.ManaHeight,
     };
 
@@ -2690,6 +2862,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             case SlotOtherY: m_config.PartyFrames.OtherY = value; break;
             case SlotOtherMax: m_config.PartyFrames.OtherMaxCount = (int)value; break;
             case SlotCleanseThickness: m_config.PartyFrames.CleanseThickness = value; break;
+            case SlotRaiseThickness: m_config.PartyFrames.RaiseThickness = value; break;
             default: m_config.PartyFrames.ManaHeight = value; break;
         }
     }
@@ -2735,28 +2908,38 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         return m_arrangementText;
     }
 
-    private string OpacityCaption(float opacity)
+    /// <summary>
+    /// A percentage for a slider's own caption, built only when the number changes.
+    /// <para>
+    /// The cache is the point, not the formatting: this runs every frame for every opacity
+    /// slider on the screen, and <c>ToString</c> allocates every time it is called (CLAUDE.md
+    /// §7.1). Each caller keeps its own pair of fields, because two sliders at different values
+    /// sharing one cache would rebuild the string on every frame — the exact thing the cache
+    /// exists to prevent.
+    /// </para>
+    /// </summary>
+    private static string PercentCaption(float value, ref int cachedFor, ref string cached)
     {
-        int percent = (int)MathF.Round(opacity * 100f);
-        if (percent != m_opacityTextFor)
+        int percent = (int)MathF.Round(value * 100f);
+
+        if (percent != cachedFor)
         {
-            m_opacityTextFor = percent;
-            m_opacityText = percent.ToString(CultureInfo.InvariantCulture) + " %";
+            cachedFor = percent;
+            cached = percent.ToString(CultureInfo.InvariantCulture) + " %";
         }
 
-        return m_opacityText;
+        return cached;
     }
 
-    /// <summary>The same for the shield, with a cache of its own — see the fields.</summary>
-    private string ShieldOpacityCaption(float opacity)
-    {
-        int percent = (int)MathF.Round(opacity * 100f);
-        if (percent != m_shieldOpacityTextFor)
-        {
-            m_shieldOpacityTextFor = percent;
-            m_shieldOpacityText = percent.ToString(CultureInfo.InvariantCulture) + " %";
-        }
+    private string OpacityCaption(float opacity) =>
+        PercentCaption(opacity, ref m_opacityTextFor, ref m_opacityText);
 
-        return m_shieldOpacityText;
-    }
+    private string CleanseOpacityCaption(float opacity) =>
+        PercentCaption(opacity, ref m_cleanseOpacityTextFor, ref m_cleanseOpacityText);
+
+    private string RaiseOpacityCaption(float opacity) =>
+        PercentCaption(opacity, ref m_raiseOpacityTextFor, ref m_raiseOpacityText);
+
+    private string ShieldOpacityCaption(float opacity) =>
+        PercentCaption(opacity, ref m_shieldOpacityTextFor, ref m_shieldOpacityText);
 }

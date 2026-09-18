@@ -302,6 +302,19 @@ internal static class Tokens
         public static readonly uint Cleanse = Rgb(0xC8A2E8);
 
         /// <summary>
+        /// ⚠️ NOT MEASURED. Somebody a raise is already on its way to — "this one is handled",
+        /// said to the second healer.
+        /// <para>
+        /// A spring green, and deliberately NOT the healer role green <c>#6EF54D</c>. The mark
+        /// washes over a bar that may already be that exact colour, so taking it would make the
+        /// mark vanish on the job most likely to be casting the raise. Far enough from the
+        /// cleanse purple beside it to never be confused with it, which is the other job a
+        /// mark colour has.
+        /// </para>
+        /// </summary>
+        public static readonly uint Raise = Rgb(0x5BD98A);
+
+        /// <summary>
         /// ⚠️ NOT MEASURED. Somebody who cannot be killed right now — the amber the game uses
         /// on its own invulnerability effects, by eye.
         /// </summary>

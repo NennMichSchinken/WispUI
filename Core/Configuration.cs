@@ -520,8 +520,8 @@ public sealed class Configuration : IPluginConfiguration
 
         public int OtherMaxCount { get; set; } = 3;
 
-        /// <summary>One of <see cref="Hud.CleanseMark"/>.</summary>
-        public int CleanseMark { get; set; } = (int)Hud.CleanseMark.Border;
+        /// <summary>One of <see cref="Hud.FrameMarkStyle"/>.</summary>
+        public int CleanseMark { get; set; } = (int)Hud.FrameMarkStyle.Border;
 
         /// <summary>
         /// Show the cleanse mark only while on a job that can actually cleanse.
@@ -550,6 +550,33 @@ public sealed class Configuration : IPluginConfiguration
         /// and our own value was never pipetted.
         /// </summary>
         public uint CleanseColour { get; set; } = Style.Tokens.Col.Cleanse;
+
+        /// <summary>
+        /// How solid the cleanse fill is at its strongest. Was a constant until the full-frame
+        /// wash arrived beside the band — a band that fades out at the top can afford to be
+        /// strong where it starts, and a wash over the whole frame cannot, so the number had
+        /// to stop being one number for everybody (Florian, 2026-09-18).
+        /// </summary>
+        public float CleanseOpacity { get; set; } = 0.55f;
+
+        // --- the raise mark: the same marking, saying the opposite thing -------------------
+        // Cleanse says "you have to do something". This says "somebody already is" — which is
+        // why it is worth a mark of its own rather than a second meaning for the first one.
+
+        /// <summary>One of <see cref="Hud.FrameMarkStyle"/>.</summary>
+        public int RaiseMark { get; set; } = (int)Hud.FrameMarkStyle.Border;
+
+        /// <summary>
+        /// A spring green, and deliberately NOT the healer role colour <c>#6EF54D</c>: the mark
+        /// washes over a bar that may already be that exact green, and a mark you cannot see on
+        /// the very job most likely to be raising is no mark. Placeholder in the sense that
+        /// every colour here is — the picker is right beside it.
+        /// </summary>
+        public uint RaiseColour { get; set; } = Style.Tokens.Col.Raise;
+
+        public float RaiseThickness { get; set; } = 3f;
+
+        public float RaiseOpacity { get; set; } = 0.55f;
 
         // --- rescue: a raise on its way, and somebody who cannot be killed -------
         // Their own place on the frame rather than a slot in the icon row, because the row
