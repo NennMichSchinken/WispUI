@@ -307,6 +307,25 @@ internal static class Tokens
         /// </summary>
         public static readonly uint Invulnerable = Rgb(0xF0C060);
 
+        /// <summary>
+        /// ⚠️ NOT MEASURED. Damage that will not land, by eye: a pale warm white, deliberately
+        /// neither a role nor a job colour so a shield can never be mistaken for one. The
+        /// setting under Base is what it is really for — this is only where it starts.
+        /// </summary>
+        public static readonly uint Shield = Rgb(0xE9F0FF);
+
+        /// <summary>
+        /// How far the part of a shield lying over the health fill is taken down.
+        /// <para>
+        /// 🔴 Taken DOWN IN COLOUR, not in opacity, and it exists as a token because the number
+        /// is the whole point: that piece hides the health edge, and if it read as brightly as
+        /// the rest you would find the edge in the wrong place and call somebody healthier
+        /// than they are (Florian, 2026-09-18). Far enough apart to be told at a glance in a
+        /// fight, not so far that it stops looking like the same shield.
+        /// </para>
+        /// </summary>
+        public const float ShieldOverDim = 0.55f;
+
         /// <summary>The wedge that sweeps an affliction icon as it runs out.</summary>
         public static readonly uint AuraSwipe = 0x96000000u;
 
@@ -819,6 +838,13 @@ internal static class Tokens
         /// </para>
         /// </summary>
         public const float OfflineDim = 0.35f;
+
+        /// <summary>
+        /// How thick the line is that marks where a shield begins over the health fill, before
+        /// the interface scale is applied. Two, because one disappears against a busy bar
+        /// style and three starts reading as a piece of the shield rather than its edge.
+        /// </summary>
+        public const float ShieldMark = 2f;
 
         public static float BadgeHeight => Px(18f);
         public static float BadgePaddingX => Px(6f);

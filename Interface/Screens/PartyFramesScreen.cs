@@ -39,6 +39,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdHealthPosition = "##wisp-pf-healthposition";
     private const string IdHealthX = "##wisp-pf-healthx";
     private const string IdHealthY = "##wisp-pf-healthy";
+    private const string IdShowShield = "##wisp-pf-showshield";
+    private const string IdShieldStyle = "##wisp-pf-shieldstyle";
+    private const string IdShieldColour = "##wisp-pf-shieldcolour";
     private const string IdManaStyle = "##wisp-pf-manastyle";
     private const string IdManaHeight = "##wisp-pf-manaheight";
     private const string IdManaTanks = "##wisp-pf-manatanks";
@@ -237,6 +240,17 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         Strings.TextEdgeNone,
         Strings.TextEdgeShadow,
         Strings.TextEdgeOutline,
+    };
+
+    /// <summary>
+    /// The two places a shield can sit, in the order the segments sit. Two rather than a list,
+    /// because there is no third answer worth having and a pair of segments is read without
+    /// being opened.
+    /// </summary>
+    private static readonly string[] ShieldStyleNames =
+    {
+        Strings.ShieldStyleOverBar,
+        Strings.ShieldStyleIntoMissing,
     };
 
     /// <summary>What a bar takes its colour from. FFXIV's own convention, not one of ours.</summary>
@@ -881,6 +895,62 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 true))
         {
             m_config.PartyFrames.SmoothBars = !m_config.PartyFrames.SmoothBars;
+            m_config.MarkDirty();
+        }
+
+        // Shields live in this group rather than getting one of their own. A shield is not a
+        // badge on a frame, it is part of what the bar is saying about staying alive — and the
+        // Base tab is already at six groups, so a seventh would cost more than these three
+        // rows do (§3.1: tabs are cut by the kind of thing, and this is the same kind).
+        rowY += pitch;
+
+        if (Chrome.OptionRow(
+                IdShowShield,
+                Strings.ShowShield,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.ShowShield,
+                Chrome.OptionControl.Tick,
+                Strings.ShowShieldTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.ShowShield = !m_config.PartyFrames.ShowShield;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+
+        int shieldStyle = m_config.PartyFrames.ShieldStyle;
+        if (Chrome.SegmentRow(
+                IdShieldStyle,
+                Strings.ShieldStyle,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                ShieldStyleNames,
+                ref shieldStyle,
+                true,
+                Strings.ShieldStyleTooltip))
+        {
+            m_config.PartyFrames.ShieldStyle = shieldStyle;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+
+        uint shieldColour = m_config.PartyFrames.ShieldColour;
+        if (Chrome.ColourRow(
+                IdShieldColour,
+                Strings.ShieldColour,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                ref shieldColour,
+                true))
+        {
+            m_config.PartyFrames.ShieldColour = shieldColour;
             m_config.MarkDirty();
         }
 

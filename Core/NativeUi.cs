@@ -246,6 +246,87 @@ internal static class NativeUi
         return ReadStatuses(chara->GetStatusManager(), into);
     }
 
+    /// <summary>
+    /// How much of a shield sits on a party member, as a percentage of their maximum health.
+    /// <para>
+    /// A single byte the game keeps beside their job and level, and the same number its own
+    /// party list draws its shield segment from — so no arithmetic of ours can disagree with
+    /// what the native list shows. Zero means no shield.
+    /// </para>
+    /// <para>
+    /// ⚠️ It is a PERCENTAGE, not an amount of health. Multiplying it by maximum health to get
+    /// a figure in hit points would be inventing precision the byte does not carry.
+    /// </para>
+    /// </summary>
+    /// <param name="member">A party member's address, as Dalamud reports it.</param>
+    public static unsafe byte MemberShield(nint member)
+    {
+        if (member == 0)
+        {
+            return 0;
+        }
+
+        var party = (FFXIVClientStructs.FFXIV.Client.Game.Group.PartyMember*)member;
+        return party->DamageShield;
+    }
+
+    /// <summary>
+    /// The same, for a character in the world — the solo case, where there is no party list to
+    /// read and the player is still the one person a frame is about.
+    /// <para>
+    /// The game stores it in the same shape and the same place relative to job and level, so
+    /// the two read alike and the renderer never has to know which one it got.
+    /// </para>
+    /// </summary>
+    public static unsafe byte CharacterShield(nint character)
+    {
+        if (character == 0)
+        {
+            return 0;
+        }
+
+        var chara = (FFXIVClientStructs.FFXIV.Client.Game.Character.Character*)character;
+        return chara->ShieldValue;
+    }
+
+    /// <summary>How many raid marker slots the game keeps.</summary>
+    public const int MarkerSlots = 17;
+
+    /// <summary>
+    /// Reads who currently carries each raid marker, into a reused span.
+    /// <para>
+    /// The game stores it the other way round from the way a frame asks: the array is indexed
+    /// by MARKER, and each entry holds the object carrying it. So it is read once per frame and
+    /// each frame then searches it, rather than every frame asking the game separately —
+    /// seventeen comparisons per member is nothing, seventeen reads of game memory is not.
+    /// </para>
+    /// <para>
+    /// Entries are object ids, which for a player is their entity id. Anybody not loaded has
+    /// no entity id worth matching on, but they also cannot be carrying a marker we could see,
+    /// so the two gaps line up and neither needs handling.
+    /// </para>
+    /// </summary>
+    /// <returns>How many slots were filled in. Zero when the game has nothing to say.</returns>
+    public static unsafe int ReadMarkers(Span<uint> into)
+    {
+        var controller = FFXIVClientStructs.FFXIV.Client.Game.UI.MarkingController.Instance();
+
+        if (controller == null)
+        {
+            return 0;
+        }
+
+        int count = Math.Min(into.Length, MarkerSlots);
+        Span<FFXIVClientStructs.FFXIV.Client.Game.Object.GameObjectId> markers = controller->Markers;
+
+        for (int i = 0; i < count; i++)
+        {
+            into[i] = markers[i].ObjectId;
+        }
+
+        return count;
+    }
+
     private static unsafe int ReadStatuses(
         FFXIVClientStructs.FFXIV.Client.Game.StatusManager* manager,
         Span<StatusEntry> into)

@@ -106,6 +106,17 @@ internal struct PartyMemberSnapshot
     public uint MaxHp;
     public uint Mp;
     public uint MaxMp;
+
+    /// <summary>
+    /// The shield on them, as a percentage of maximum health, or zero for none.
+    /// <para>
+    /// A percentage because that is the shape the game keeps it in — one byte beside their job
+    /// and level, and the same one the native party list draws its own segment from. Kept as
+    /// the game gives it rather than converted to hit points, which would invent precision.
+    /// </para>
+    /// </summary>
+    public byte Shield;
+
     public bool IsLocalPlayer;
 
     /// <summary>Whether this member leads the party. Alone, nobody does.</summary>
@@ -213,6 +224,19 @@ internal sealed class PartySnapshot
     private static readonly uint[] PlaceholderHealth = { 100u, 64u, 92u, 38u, 100u, 71u, 17u, 85u };
 
     private static readonly uint[] PlaceholderMana = { 100u, 88u, 46u, 73u, 100u, 95u, 60u, 29u };
+
+    /// <summary>
+    /// Shields on the stand-ins, in hundredths of maximum health. Unlike the effects on a
+    /// person, a shield belongs with health and mana: it is something the bar says, and the
+    /// bar is exactly what edit mode is for placing.
+    /// <para>
+    /// Chosen to show every case at once rather than to look plausible. Most have none, which
+    /// is the common state; one sits inside the missing health, and two are deliberately
+    /// bigger than the gap they have to fill — those are the ones that produce the piece
+    /// lying over the health, and it cannot be judged without seeing it.
+    /// </para>
+    /// </summary>
+    private static readonly byte[] PlaceholderShield = { 30, 20, 25, 0, 40, 0, 0, 0 };
 
     private readonly PartyMemberSnapshot[] m_members = new PartyMemberSnapshot[Capacity];
 
@@ -375,6 +399,7 @@ internal sealed class PartySnapshot
             slot.MaxHp = member.MaxHP;
             slot.Mp = member.CurrentMP;
             slot.MaxMp = member.MaxMP;
+            slot.Shield = NativeUi.MemberShield(member.Address);
             slot.IsLocalPlayer = entityId == Services.Objects.LocalPlayer?.EntityId;
             slot.IsLeader = i == leader;
 
@@ -444,6 +469,7 @@ internal sealed class PartySnapshot
             slot.Presence = PartyPresence.Here;
             slot.MaxMp = 10000u;
             slot.Mp = slot.MaxMp / 100u * PlaceholderMana[i];
+            slot.Shield = PlaceholderShield[i];
             slot.IsLocalPlayer = i == 0;
             slot.IsLeader = i == 0;
 
@@ -913,6 +939,7 @@ internal sealed class PartySnapshot
         slot.Presence = PartyPresence.Here;
         slot.Mp = player.CurrentMp;
         slot.MaxMp = player.MaxMp;
+        slot.Shield = NativeUi.CharacterShield(player.Address);
         slot.IsLocalPlayer = true;
         slot.IsLeader = false;
         slot.Address = player.Address;

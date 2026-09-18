@@ -228,6 +228,28 @@ public sealed class Configuration : IPluginConfiguration
 
         public bool ManaForDps { get; set; }
 
+        // --- shields ------------------------------------------------------------
+        // What the bar says about damage that will not land. Read straight off the byte the
+        // game keeps beside a member's job and level, which is the same number its own party
+        // list draws from, so ours can never disagree with the native one.
+
+        /// <summary>The group's own switch. On: a shield nobody sees is a shield nobody uses.</summary>
+        public bool ShowShield { get; set; } = true;
+
+        /// <summary>One of <see cref="Hud.ShieldStyle"/>.</summary>
+        public int ShieldStyle { get; set; } = (int)Hud.ShieldStyle.OverBar;
+
+        /// <summary>
+        /// The shield's colour. A pale warm white by default, which is neither a role colour
+        /// nor a job colour and so cannot be mistaken for one.
+        /// <para>
+        /// ⚠️ Drawn at full strength and dimmed by colour where it must step back, never by
+        /// opacity: the band over empty bar has the world behind it, and a faded band there
+        /// picks up grass and stone and stops being a colour at all (CLAUDE.md, session 9).
+        /// </para>
+        /// </summary>
+        public uint ShieldColour { get; set; } = Style.Tokens.Col.Shield;
+
         // --- job icon -----------------------------------------------------------
         // Described exactly like a text is (spec §11.2): a switch, a size, one of the nine
         // anchors, and the two nudges off it. An icon is not a text, but where something sits
