@@ -138,6 +138,21 @@ internal static class BarStyles
 
     private const float GlowStrength = 0.68f;
 
+    /// <summary>
+    /// The aurora carries its own, stronger pair.
+    /// <para>
+    /// Not a second opinion about how bright a glow should be — the same numbers genuinely
+    /// read weaker here. The three lit shapes put their brightest value across the whole
+    /// width, so the peak is most of what you see. The aurora's peak is a curtain a few pixels
+    /// wide and everything between the curtains sits far below it, so at the shared strength
+    /// the bar averages out dimmer than the others even though the peaks match (Florian,
+    /// 2026-09-18, seeing it beside them in game).
+    /// </para>
+    /// </summary>
+    private const float AuroraLit = 0.45f;
+
+    private const float AuroraStrength = 0.88f;
+
     /// <summary>The whole list. The two selectors each show a filtered view of it.</summary>
     public static readonly BarStyle[] All =
     {
@@ -156,7 +171,7 @@ internal static class BarStyles
         new("Glow", "bars/body.png", "bars/lit-core.png", GlowLit, GlowStrength, BarStyleUse.Bar),
         new("Glow top", "bars/body.png", "bars/lit-top.png", GlowLit, GlowStrength, BarStyleUse.Bar),
         new("Glow bottom", "bars/body.png", "bars/lit-bottom.png", GlowLit, GlowStrength, BarStyleUse.Bar),
-        new("Aurora", "bars/body.png", "bars/aurora.png", GlowLit, GlowStrength, BarStyleUse.Bar),
+        new("Aurora", "bars/body.png", "bars/aurora.png", AuroraLit, AuroraStrength, BarStyleUse.Bar),
 
         // Patterns, for the shield only. A diagonal across a whole health bar is noise; across
         // the short stretch a shield covers it is the thing that says "this is laid on top".
