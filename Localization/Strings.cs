@@ -108,6 +108,9 @@ internal static class Strings
     public const string ShieldStyleTooltip =
         "On the bar: from the left edge, so its length alone is the amount. In the gap: from the health edge into the missing health, wrapping back over the health when it no longer fits.";
     public const string ShieldColour = "Shield colour";
+    public const string ShieldOpacity = "Shield opacity";
+    public const string ShieldOpacityTooltip =
+        "The shield's own strength, separate from the health bar's. Lower reads as an overlay laid on the bar; too low and the part over empty bar picks up the world behind it.";
 
     public const string ColourByRole = "By role";
     public const string ColourByJob = "By job";

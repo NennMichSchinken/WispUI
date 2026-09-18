@@ -4,25 +4,18 @@ namespace WispUI.Hud;
 
 /// <summary>
 /// Where a shield sits on the health bar.
-/// <para>
-/// Only two, and the difference is where the band is anchored — not how it is drawn. Both
-/// styles split the band the same way and both keep the whole shield visible; picking one is a
-/// question of which reading you want, not of which one tells the truth.
-/// </para>
 /// </summary>
 internal enum ShieldStyle
 {
     /// <summary>
-    /// From the left edge, over the health. The default, and what FFXIV's own party list does:
-    /// the shield is read as its own quantity, always starting from the same place, so its
-    /// length alone says how big it is without first finding the health edge.
+    /// From the left edge, over the health, so its length alone is the amount.
     /// </summary>
     OverBar = 0,
 
     /// <summary>
     /// From the health edge into the missing health, wrapping back over the health when it no
-    /// longer fits. What raid frames in other games do: health and shield together form one
-    /// run, which reads as "this is how much more this person can take" in a single glance.
+    /// longer fits. Health and shield form one run, which reads as "this is how much more this
+    /// person can take" in a single glance.
     /// </summary>
     IntoMissing = 1,
 }
@@ -30,47 +23,38 @@ internal enum ShieldStyle
 /// <summary>
 /// Where the shield band lies on a bar, as fractions of its width.
 /// <para>
-/// Two pieces rather than one, split at the health edge: the part lying over empty bar and the
-/// part lying over the health fill. 🔴 They are split because they must not be drawn alike.
-/// The piece over the fill covers the health edge, and if it looked the same as the rest you
-/// would read the edge in the wrong place and think somebody is healthier than they are
-/// (Florian, 2026-09-18). A shield is never allowed to lie about health.
+/// One band, one colour. It was two pieces for a while — the part over the health drawn darker
+/// than the part over empty bar — and that was wrong twice over: in game it read as a heal
+/// absorb rather than a shield (Florian, 2026-09-18), and the reasoning behind it did not hold
+/// either. The band covers health from its own start, so the job colour stops EARLIER than the
+/// real health does and somebody is read as worse off, never better. Under-reading health is
+/// the harmless direction, and the mark below finds the edge anyway.
 /// </para>
 /// </summary>
 internal readonly struct ShieldBand
 {
-    /// <summary>The piece over empty bar. Drawn solid, because the world is behind it.</summary>
-    public readonly float MainStart;
+    public readonly float Start;
 
-    public readonly float MainEnd;
-
-    /// <summary>The piece lying over the health fill. Drawn dimmer, never more transparent.</summary>
-    public readonly float OverStart;
-
-    public readonly float OverEnd;
+    public readonly float End;
 
     /// <summary>
     /// Where to put a bright line, or a negative number for nowhere.
     /// <para>
     /// Only ever set where the band starts inside the health fill, which is the one place its
-    /// edge has no contrast of its own to be found by. Everywhere else the change of shade is
-    /// the edge, and a line would be a second mark for the same thing.
+    /// edge has no contrast of its own to be found by. At the bar's own edge, or out in empty
+    /// bar, the band is already its own edge and a line would be a second mark for one thing.
     /// </para>
     /// </summary>
     public readonly float MarkAt;
 
-    public ShieldBand(float mainStart, float mainEnd, float overStart, float overEnd, float markAt)
+    public ShieldBand(float start, float end, float markAt)
     {
-        this.MainStart = mainStart;
-        this.MainEnd = mainEnd;
-        this.OverStart = overStart;
-        this.OverEnd = overEnd;
+        this.Start = start;
+        this.End = end;
         this.MarkAt = markAt;
     }
 
-    public bool HasMain => this.MainEnd > this.MainStart;
-
-    public bool HasOver => this.OverEnd > this.OverStart;
+    public bool HasBand => this.End > this.Start;
 
     public bool HasMark => this.MarkAt >= 0f;
 }
@@ -98,7 +82,7 @@ internal static class Shield
 
         if (shield <= 0f)
         {
-            return new ShieldBand(0f, 0f, 0f, 0f, -1f);
+            return new ShieldBand(0f, 0f, -1f);
         }
 
         float start;
@@ -113,24 +97,18 @@ internal static class Shield
         else
         {
             // From the health edge into what is missing; whatever does not fit turns round at
-            // the right edge and runs back over the health. Both pieces are the same shield,
-            // which is why the length of the whole band is the amount either way — that is the
-            // property the style would lose if the overflow were simply dropped.
+            // the right edge and runs back over the health. Both stretches are the same
+            // shield, which is why the band's length is the amount either way — the property
+            // this style would lose if the overflow were simply dropped at the bar's end.
             float spill = Math.Max(0f, health + shield - 1f);
             start = Math.Max(0f, health - spill);
             end = Math.Min(1f, health + shield);
         }
 
-        // Split at the health edge. Below it the band covers the fill, above it bare bar.
-        float overStart = Math.Min(start, health);
-        float overEnd = Math.Min(end, health);
-        float mainStart = Math.Max(start, health);
-        float mainEnd = Math.Max(end, health);
-
         // Marked only where the band begins inside the fill and has nothing else to be found
         // by. At the bar's own edge, or exactly at the health edge, there is already a line.
         float mark = start > 0f && start < health ? start : -1f;
 
-        return new ShieldBand(mainStart, mainEnd, overStart, overEnd, mark);
+        return new ShieldBand(start, end, mark);
     }
 }

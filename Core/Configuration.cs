@@ -250,6 +250,24 @@ public sealed class Configuration : IPluginConfiguration
         /// </summary>
         public uint ShieldColour { get; set; } = Style.Tokens.Col.Shield;
 
+        /// <summary>
+        /// How strongly the shield is drawn, on its own and not tied to the health bar's.
+        /// <para>
+        /// 🔴 Deliberately separate. The bar's opacity answers "how much should this frame
+        /// assert itself over the world"; this one answers "how much should the shield read as
+        /// something laid ON the bar" — which is a different question with a different answer,
+        /// and tying them made turning the frames down turn the shield down with them
+        /// (Florian, 2026-09-18).
+        /// </para>
+        /// <para>
+        /// ⚠️ Low values cost more than they look like they do wherever the band lies over
+        /// EMPTY bar, because there the world is behind it and grass and stone drag it towards
+        /// grey — the same trap as everywhere else on a HUD. Over the health fill it is only
+        /// ever the overlay it was asked to be.
+        /// </para>
+        /// </summary>
+        public float ShieldOpacity { get; set; } = 0.8f;
+
         // --- job icon -----------------------------------------------------------
         // Described exactly like a text is (spec §11.2): a switch, a size, one of the nine
         // anchors, and the two nudges off it. An icon is not a text, but where something sits

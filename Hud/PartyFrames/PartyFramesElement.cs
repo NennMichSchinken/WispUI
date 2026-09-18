@@ -448,38 +448,24 @@ internal sealed class PartyFramesElement : HudElement
                     fraction,
                     member.Shield / 100f);
 
-                uint shieldColour = this.Dim(Tokens.Col.Faded(cfg.ShieldColour, cfg.BarOpacity));
+                // 🔴 Its own strength, NOT the health bar's. The two were tied together at
+                // first and that was wrong: the bar's opacity is about how much the frame
+                // asserts itself over the world, while the shield's is about reading as
+                // something laid ON the bar (Florian, 2026-09-18, who wants the texture
+                // showing through weakened once there are shield textures).
+                uint shieldColour = this.Dim(Tokens.Col.Faded(cfg.ShieldColour, cfg.ShieldOpacity));
                 float barWidth = barMax.X - barMin.X;
 
-                // Painted across the whole bar and clipped to each piece, exactly as the
-                // health fill above is — which is also the seam a shield texture drops into
-                // later: it becomes a style of its own here and nothing else moves.
-                if (band.HasMain)
+                // One band in one colour. Painted across the whole bar and clipped, exactly as
+                // the health fill above is — which is also the seam a shield texture drops
+                // into later: it becomes a style of its own here and nothing else moves.
+                if (band.HasBand)
                 {
                     dl.PushClipRect(
-                        new Vector2(BarX(barMin.X, barWidth, band.MainStart), barMin.Y),
-                        new Vector2(BarX(barMin.X, barWidth, band.MainEnd), barMax.Y),
+                        new Vector2(BarX(barMin.X, barWidth, band.Start), barMin.Y),
+                        new Vector2(BarX(barMin.X, barWidth, band.End), barMax.Y),
                         true);
                     BarStyles.Draw(dl, style, barMin, barMax, shieldColour, 0f);
-                    dl.PopClipRect();
-                }
-
-                if (band.HasOver)
-                {
-                    // 🔴 Darker, NOT more transparent. This piece lies on the health fill and
-                    // hides the health edge; it has to be told apart from the piece beside it
-                    // or the edge gets read in the wrong place. Opacity would do it over a
-                    // panel and fails here, where the world is behind everything.
-                    uint overColour = this.Dim(
-                        Tokens.Col.Faded(
-                            Tokens.Col.Darker(cfg.ShieldColour, Tokens.Col.ShieldOverDim),
-                            cfg.BarOpacity));
-
-                    dl.PushClipRect(
-                        new Vector2(BarX(barMin.X, barWidth, band.OverStart), barMin.Y),
-                        new Vector2(BarX(barMin.X, barWidth, band.OverEnd), barMax.Y),
-                        true);
-                    BarStyles.Draw(dl, style, barMin, barMax, overColour, 0f);
                     dl.PopClipRect();
                 }
 

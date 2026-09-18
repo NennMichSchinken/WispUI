@@ -42,6 +42,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdShowShield = "##wisp-pf-showshield";
     private const string IdShieldStyle = "##wisp-pf-shieldstyle";
     private const string IdShieldColour = "##wisp-pf-shieldcolour";
+    private const string IdShieldOpacity = "##wisp-pf-shieldopacity";
     private const string IdManaStyle = "##wisp-pf-manastyle";
     private const string IdManaHeight = "##wisp-pf-manaheight";
     private const string IdManaTanks = "##wisp-pf-manatanks";
@@ -325,6 +326,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     private string m_opacityText = string.Empty;
     private int m_opacityTextFor = -1;
+
+    // 🔴 A second cache rather than a second caller of the first. One slot shared by two
+    // sliders rebuilds its string every frame as soon as the two values differ, which is an
+    // allocation per frame in the draw path for a caption nobody asked to change (§7.1).
+    private string m_shieldOpacityText = string.Empty;
+    private int m_shieldOpacityTextFor = -1;
 
     /// <summary>One readout per slider, rebuilt only when its number changes.</summary>
     private readonly string[] m_sizeText = new string[SlotCount];
@@ -951,6 +958,31 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 true))
         {
             m_config.PartyFrames.ShieldColour = shieldColour;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+
+        float shieldOpacity = m_config.PartyFrames.ShieldOpacity;
+        Chrome.SliderResult shieldResult = Chrome.Slider(
+            IdShieldOpacity,
+            Strings.ShieldOpacity,
+            this.ShieldOpacityCaption(shieldOpacity),
+            group.ContentX,
+            rowY,
+            group.ContentWidth,
+            shieldOpacity,
+            Configuration.MinBarOpacity,
+            1f,
+            null,
+            Strings.ShieldOpacityTooltip,
+            true,
+            OpacityStep,
+            OpacityEditScale);
+
+        if (shieldResult.Changed)
+        {
+            m_config.PartyFrames.ShieldOpacity = shieldResult.Value;
             m_config.MarkDirty();
         }
 
@@ -2657,5 +2689,18 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         }
 
         return m_opacityText;
+    }
+
+    /// <summary>The same for the shield, with a cache of its own — see the fields.</summary>
+    private string ShieldOpacityCaption(float opacity)
+    {
+        int percent = (int)MathF.Round(opacity * 100f);
+        if (percent != m_shieldOpacityTextFor)
+        {
+            m_shieldOpacityTextFor = percent;
+            m_shieldOpacityText = percent.ToString(CultureInfo.InvariantCulture) + " %";
+        }
+
+        return m_shieldOpacityText;
     }
 }

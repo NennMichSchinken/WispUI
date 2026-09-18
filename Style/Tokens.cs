@@ -314,18 +314,6 @@ internal static class Tokens
         /// </summary>
         public static readonly uint Shield = Rgb(0xE9F0FF);
 
-        /// <summary>
-        /// How far the part of a shield lying over the health fill is taken down.
-        /// <para>
-        /// 🔴 Taken DOWN IN COLOUR, not in opacity, and it exists as a token because the number
-        /// is the whole point: that piece hides the health edge, and if it read as brightly as
-        /// the rest you would find the edge in the wrong place and call somebody healthier
-        /// than they are (Florian, 2026-09-18). Far enough apart to be told at a glance in a
-        /// fight, not so far that it stops looking like the same shield.
-        /// </para>
-        /// </summary>
-        public const float ShieldOverDim = 0.55f;
-
         /// <summary>The wedge that sweeps an affliction icon as it runs out.</summary>
         public static readonly uint AuraSwipe = 0x96000000u;
 
