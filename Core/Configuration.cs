@@ -429,10 +429,14 @@ public sealed class Configuration : IPluginConfiguration
         // What is already keeping this person up without you — mitigation, somebody else's
         // regen, a shield. Its own row so it can never take a place from the row above it.
         //
-        // ⚠️ It is "not yours", not "mitigation". Whether the game's own data can tell a
-        // mitigation from any other benefit is an open question (/wisp status writes what the
-        // sheet says). Calling this row mitigation before that is answered would be naming it
-        // after something it does not know.
+        // 🔴 It is "not yours", and it stays that way — the question is SETTLED, not open
+        // (measured 2026-09-18, five Gunbreaker defensives at once). The sheet cannot tell a
+        // mitigation from any other benefit: ParamModifier reads -10 for a 15%, a 20% and a
+        // 30% reduction alike, yet +10 for Camouflage and 0 for Superbolide, so it carries
+        // neither the kind nor the amount. ParamEffect is 0 throughout and the Status sheet
+        // has no defensive flag at all. Florian decided the same day NOT to filter this row
+        // by hand: a list of ids would go stale at every job patch, and a row that filters
+        // wrongly is worse than one that does not filter, because people believe it.
 
         /// <summary>
         /// Off by default. It is the busiest of the three and the least often needed, and a

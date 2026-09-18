@@ -326,12 +326,18 @@ internal static class StatusData
     /// <summary>
     /// Writes what the sheet holds about every effect currently on the player, to the log.
     /// <para>
-    /// A diagnostic, reached by <c>/wisp status</c>, and it exists to answer one question: can
-    /// the game's own data tell a mitigation from any other benefit? If <c>ParamEffect</c> or
-    /// <c>ParamModifier</c> says "reduces damage taken", the mitigation row can be built the
-    /// way the cleanse mark was — out of the sheet, never going stale. If they say nothing,
-    /// the only honest alternative is a hand-kept list of ids, and that is worth knowing
-    /// before writing one.
+    /// A diagnostic, reached by <c>/wisp status</c>. It was written to answer one question —
+    /// can the game's own data tell a mitigation from any other benefit? — and that question is
+    /// now answered: <b>no</b>. Measured 2026-09-18 on five Gunbreaker defensives at once,
+    /// <c>ParamModifier</c> reads -10 for a 15%, a 20% and a 30% reduction alike, +10 for
+    /// Camouflage and 0 for Superbolide, so it carries neither the kind nor the amount, and
+    /// <c>ParamEffect</c> is 0 throughout. The <c>Status</c> sheet has no defensive flag.
+    /// Florian chose not to keep a hand list, so there is no mitigation row and will not be one.
+    /// </para>
+    /// <para>
+    /// It stays because it earned its keep on other questions three times over: it reads the
+    /// whole party, every effect with its sheet fields, and the target's effects too. Extend it
+    /// when the next question needs live data rather than writing a throwaway dump.
     /// </para>
     /// </summary>
     public static void DumpPlayerStatuses()
