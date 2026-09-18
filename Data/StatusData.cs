@@ -472,13 +472,20 @@ internal static class StatusData
         var party = Services.Party;
         System.Numerics.Vector3 from = player.Position;
 
+        // Your own numbers as well as the party's. Alone the party list is EMPTY — the frame
+        // you are looking at then comes from a different read entirely — so a dump that only
+        // walked the party said nothing at all about the one frame on screen, which is exactly
+        // when somebody is most likely to be staring at a wrong one (2026-09-18).
         Services.Log.Information(
-            "--- party: {Count} slot(s), you at {X:0.0}/{Y:0.0}/{Z:0.0} in territory {Here} ---",
+            "--- party: {Count} slot(s), you at {X:0.0}/{Y:0.0}/{Z:0.0} in territory {Here} | your hp {Hp}/{MaxHp} | your shield {Shield}% ---",
             party.Length,
             from.X,
             from.Y,
             from.Z,
-            Services.ClientState.TerritoryType);
+            Services.ClientState.TerritoryType,
+            player.CurrentHp,
+            player.MaxHp,
+            NativeUi.CharacterShield(player.Address));
 
         for (int i = 0; i < party.Length; i++)
         {

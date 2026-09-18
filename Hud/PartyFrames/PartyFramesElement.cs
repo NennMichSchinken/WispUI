@@ -443,10 +443,7 @@ internal sealed class PartyFramesElement : HudElement
             if (cfg.ShowShield && member.HasData && member.Shield > 0)
             {
                 // The game keeps a percentage, so a hundredth of it is the share of the bar.
-                ShieldBand band = Shield.Band(
-                    (ShieldStyle)cfg.ShieldStyle,
-                    fraction,
-                    member.Shield / 100f);
+                ShieldBand band = Shield.Band(fraction, member.Shield / 100f);
 
                 // 🔴 Its own strength, NOT the health bar's. The two were tied together at
                 // first and that was wrong: the bar's opacity is about how much the frame

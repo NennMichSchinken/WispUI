@@ -236,9 +236,6 @@ public sealed class Configuration : IPluginConfiguration
         /// <summary>The group's own switch. On: a shield nobody sees is a shield nobody uses.</summary>
         public bool ShowShield { get; set; } = true;
 
-        /// <summary>One of <see cref="Hud.ShieldStyle"/>.</summary>
-        public int ShieldStyle { get; set; } = (int)Hud.ShieldStyle.OverBar;
-
         /// <summary>
         /// The shield's colour. A pale warm white by default, which is neither a role colour
         /// nor a job colour and so cannot be mistaken for one.

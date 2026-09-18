@@ -39,8 +39,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdHealthPosition = "##wisp-pf-healthposition";
     private const string IdHealthX = "##wisp-pf-healthx";
     private const string IdHealthY = "##wisp-pf-healthy";
-    private const string IdShowShield = "##wisp-pf-showshield";
-    private const string IdShieldStyle = "##wisp-pf-shieldstyle";
+    private const string IdShieldGroup = "##wisp-pf-shieldgroup";
     private const string IdShieldColour = "##wisp-pf-shieldcolour";
     private const string IdShieldOpacity = "##wisp-pf-shieldopacity";
     private const string IdManaStyle = "##wisp-pf-manastyle";
@@ -241,17 +240,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         Strings.TextEdgeNone,
         Strings.TextEdgeShadow,
         Strings.TextEdgeOutline,
-    };
-
-    /// <summary>
-    /// The two places a shield can sit, in the order the segments sit. Two rather than a list,
-    /// because there is no third answer worth having and a pair of segments is read without
-    /// being opened.
-    /// </summary>
-    private static readonly string[] ShieldStyleNames =
-    {
-        Strings.ShieldStyleOverBar,
-        Strings.ShieldStyleIntoMissing,
     };
 
     /// <summary>What a bar takes its colour from. FFXIV's own convention, not one of ours.</summary>
@@ -736,10 +724,16 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         // taller one's bottom edge. Two groups that each stop where their own rows end leave a
         // step, and every group added later adds another one. Nothing else has to be squared
         // up between the columns: both stack on the same ladder (Chrome.RowPitch).
+        // 🔴 Seven groups, so one of them ends up alone in its row — there is no arrangement
+        // of seven into pairs. Which one is alone is the only real choice, and it is the mouse:
+        // it is the one group here that is not about what a frame SHOWS, so a row of its own
+        // reads as the separate concern it is rather than as a leftover. The other three rows
+        // pair by subject — the bar and what is laid on it, the two extra readings taken off
+        // it, and the name beside the lettering that draws every text.
         Chrome.BeginGroupRow();
         Chrome.GroupScope bar = this.DrawHealthBar(Chrome.ColumnX(origin.X, width, 0), y, column, out float barHeight);
-        Chrome.GroupScope name = this.DrawNameText(Chrome.ColumnX(origin.X, width, 1), y, column, out float nameHeight);
-        y += FrameRow(bar, barHeight, name, nameHeight);
+        Chrome.GroupScope shield = this.DrawShield(Chrome.ColumnX(origin.X, width, 1), y, column, out float shieldHeight);
+        y += FrameRow(bar, barHeight, shield, shieldHeight);
 
         Chrome.BeginGroupRow();
         Chrome.GroupScope figure = this.DrawHealthText(Chrome.ColumnX(origin.X, width, 0), y, column, out float figureHeight);
@@ -747,9 +741,15 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         y += FrameRow(figure, figureHeight, mana, manaHeight);
 
         Chrome.BeginGroupRow();
-        Chrome.GroupScope mouse = this.DrawMouse(Chrome.ColumnX(origin.X, width, 0), y, column, out float mouseHeight);
+        Chrome.GroupScope name = this.DrawNameText(Chrome.ColumnX(origin.X, width, 0), y, column, out float nameHeight);
         Chrome.GroupScope lettering = this.DrawTextStyle(Chrome.ColumnX(origin.X, width, 1), y, column, out float letteringHeight);
-        y += FrameRow(mouse, mouseHeight, lettering, letteringHeight);
+        y += FrameRow(name, nameHeight, lettering, letteringHeight);
+
+        // In its own column rather than stretched across both, like the lone groups on Icons
+        // and Layout: a group twice as wide reads as a different kind of thing.
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope mouse = this.DrawMouse(Chrome.ColumnX(origin.X, width, 0), y, column, out float mouseHeight);
+        y += Chrome.GroupFrame(mouse, mouseHeight) + Tokens.Metric.ColumnGutter;
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
@@ -905,47 +905,49 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        // Shields live in this group rather than getting one of their own. A shield is not a
-        // badge on a frame, it is part of what the bar is saying about staying alive — and the
-        // Base tab is already at six groups, so a seventh would cost more than these three
-        // rows do (§3.1: tabs are cut by the kind of thing, and this is the same kind).
-        rowY += pitch;
+        // The group ends with its last row, not with the gap that would follow it.
+        float used = rowY - group.ContentY + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
 
-        if (Chrome.OptionRow(
-                IdShowShield,
-                Strings.ShowShield,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.ShowShield,
-                Chrome.OptionControl.Tick,
-                Strings.ShowShieldTooltip,
-                true,
-                true))
+    /// <summary>
+    /// Shields: damage that will not land, drawn on the health bar.
+    /// <para>
+    /// Its own group rather than four more rows under the bar. It started inside that group on
+    /// the argument that a shield is part of what the bar says — which is true, and is why it
+    /// sits beside the bar rather than on the Icons tab — but eight rows in one group is not a
+    /// group any more, it is a list (Florian, 2026-09-18).
+    /// </para>
+    /// <para>
+    /// There is no placement setting. The shield fills the missing health and turns back over
+    /// the health when it no longer fits; the alternative was built, found to leave the gap
+    /// empty on a wounded person, and removed — see <see cref="Hud.Shield"/>.
+    /// </para>
+    /// </summary>
+    private Chrome.GroupScope DrawShield(float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdShieldGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupShield,
+                Description = Strings.GroupShieldHint,
+                Toggle = m_config.PartyFrames.ShowShield,
+            },
+            x,
+            y,
+            width);
+
+        if (group.ToggleClicked)
         {
             m_config.PartyFrames.ShowShield = !m_config.PartyFrames.ShowShield;
             m_config.MarkDirty();
         }
 
-        rowY += pitch;
-
-        int shieldStyle = m_config.PartyFrames.ShieldStyle;
-        if (Chrome.SegmentRow(
-                IdShieldStyle,
-                Strings.ShieldStyle,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                ShieldStyleNames,
-                ref shieldStyle,
-                true,
-                Strings.ShieldStyleTooltip))
-        {
-            m_config.PartyFrames.ShieldStyle = shieldStyle;
-            m_config.MarkDirty();
-        }
-
-        rowY += pitch;
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
 
         uint shieldColour = m_config.PartyFrames.ShieldColour;
         if (Chrome.ColourRow(
@@ -955,7 +957,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 rowY,
                 group.ContentWidth,
                 ref shieldColour,
-                true))
+                false))
         {
             m_config.PartyFrames.ShieldColour = shieldColour;
             m_config.MarkDirty();
@@ -986,7 +988,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        // The group ends with its last row, not with the gap that would follow it.
         float used = rowY - group.ContentY + Chrome.RowHeight();
         Chrome.EndGroupContent(group, used);
         contentHeight = used;

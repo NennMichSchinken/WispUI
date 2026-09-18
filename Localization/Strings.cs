@@ -99,14 +99,8 @@ internal static class Strings
     public const string SmoothBars = "Smooth bars";
     public const string SmoothBarsTooltip = "Health slides to its new value instead of jumping.";
 
-    public const string ShowShield = "Shield";
-    public const string ShowShieldTooltip =
-        "Damage that will not land, drawn on the health bar. The whole shield is always shown: the part lying over the health is dimmed so the health edge stays readable.";
-    public const string ShieldStyle = "Shield sits";
-    public const string ShieldStyleOverBar = "On the bar";
-    public const string ShieldStyleIntoMissing = "In the gap";
-    public const string ShieldStyleTooltip =
-        "On the bar: from the left edge, so its length alone is the amount. In the gap: from the health edge into the missing health, wrapping back over the health when it no longer fits.";
+    public const string GroupShield = "Shield";
+    public const string GroupShieldHint = "Damage that will not land.";
     public const string ShieldColour = "Shield colour";
     public const string ShieldOpacity = "Shield opacity";
     public const string ShieldOpacityTooltip =
