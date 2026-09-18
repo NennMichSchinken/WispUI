@@ -60,18 +60,29 @@ internal sealed class ConfigWindow : Window
     private static readonly string[] TabsGlobal = { Strings.TabBase };
     private static readonly string[] TabsProfile = { Strings.TabBase };
     /// <summary>
-    /// Split by what kind of thing a setting is, not by subject: the bar and what it says, the
-    /// badges on it, where the frames go, and what is on the person. Each tab lands at three
-    /// or four groups, which is a two by two grid and no scrolling — one tab carrying seven
-    /// groups was the state that made the question worth asking (Florian, 2026-09-12).
+    /// Split by what KIND of thing a setting is, not by subject (§3.1): the bar · what is
+    /// written on it · the badges on it · where the frames go · what is lying on the person ·
+    /// what needs doing about it · what the mouse does.
+    /// <para>
+    /// 🔴 That rule was written on 2026-09-12 because Base was carrying seven groups — and
+    /// Base went on carrying seven groups for another six days. Rewritten on 2026-09-18 with
+    /// every tab at three, which is a two by two grid with room left and nothing scrolling.
+    /// </para>
+    /// <para>
+    /// The price is seven chips instead of five, and the price is real: §3.1 says the tab
+    /// count is itself a cost and that this is expressly not DelvUI's road. Seven is where
+    /// Florian drew the line, with tabs of three rather than tabs of seven.
+    /// </para>
     /// </summary>
     private static readonly string[] TabsPartyFrames =
     {
         Strings.TabBase,
+        Strings.TabText,
         Strings.TabIcons,
         Strings.TabLayout,
-        Strings.TabBindings,
         Strings.TabAuras,
+        Strings.TabMarks,
+        Strings.TabBindings,
     };
 
     /// <summary>
@@ -802,19 +813,27 @@ internal sealed class ConfigWindow : Window
             }
             else if (m_screen == Screen.PartyFrames && tab == 1)
             {
-                m_partyFrames.DrawIcons(inner);
+                m_partyFrames.DrawText(inner);
             }
             else if (m_screen == Screen.PartyFrames && tab == 2)
             {
-                m_partyFrames.DrawLayout(inner);
+                m_partyFrames.DrawIcons(inner);
             }
             else if (m_screen == Screen.PartyFrames && tab == 3)
             {
-                m_partyFrames.DrawBindings(inner);
+                m_partyFrames.DrawLayout(inner);
             }
             else if (m_screen == Screen.PartyFrames && tab == 4)
             {
                 m_partyFrames.DrawAuras(inner);
+            }
+            else if (m_screen == Screen.PartyFrames && tab == 5)
+            {
+                m_partyFrames.DrawMarks(inner);
+            }
+            else if (m_screen == Screen.PartyFrames && tab == 6)
+            {
+                m_partyFrames.DrawBindings(inner);
             }
             else
             {

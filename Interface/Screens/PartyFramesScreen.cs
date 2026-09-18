@@ -809,32 +809,78 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         // taller one's bottom edge. Two groups that each stop where their own rows end leave a
         // step, and every group added later adds another one. Nothing else has to be squared
         // up between the columns: both stack on the same ladder (Chrome.RowPitch).
-        // 🔴 Seven groups, so one of them ends up alone in its row — there is no arrangement
-        // of seven into pairs. Which one is alone is the only real choice, and it is the mouse:
-        // it is the one group here that is not about what a frame SHOWS, so a row of its own
-        // reads as the separate concern it is rather than as a leftover. The other three rows
-        // pair by subject — the bar and what is laid on it, the two extra readings taken off
-        // it, and the name beside the lettering that draws every text.
+        //
+        // 🔴 Three groups, not seven. This tab carried seven until 2026-09-18 — the very state
+        // that made §3.1 get written six days earlier, left standing the whole time because
+        // writing the rule felt like fixing it. What is left is the bar itself and the two
+        // things drawn inside it: the shield laid on the fill, and the second reading beside
+        // it. Everything the bar SAYS moved to Text, and the mouse moved to Bindings.
         Chrome.BeginGroupRow();
         Chrome.GroupScope bar = this.DrawHealthBar(Chrome.ColumnX(origin.X, width, 0), y, column, out float barHeight);
         Chrome.GroupScope shield = this.DrawShield(Chrome.ColumnX(origin.X, width, 1), y, column, out float shieldHeight);
         y += FrameRow(bar, barHeight, shield, shieldHeight);
 
+        // In its own column rather than stretched across both, like every lone group in the
+        // suite: a group twice as wide reads as a different kind of thing.
         Chrome.BeginGroupRow();
-        Chrome.GroupScope figure = this.DrawHealthText(Chrome.ColumnX(origin.X, width, 0), y, column, out float figureHeight);
-        Chrome.GroupScope mana = this.DrawMana(Chrome.ColumnX(origin.X, width, 1), y, column, out float manaHeight);
-        y += FrameRow(figure, figureHeight, mana, manaHeight);
+        Chrome.GroupScope mana = this.DrawMana(Chrome.ColumnX(origin.X, width, 0), y, column, out float manaHeight);
+        y += Chrome.GroupFrame(mana, manaHeight) + Tokens.Metric.ColumnGutter;
+
+        ImGui.SetCursorScreenPos(origin);
+        ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
+    }
+
+    /// <summary>
+    /// The Text tab: everything written on a frame, and the one setting that decides how all
+    /// of it is drawn.
+    /// <para>
+    /// The name and the health figure sat on different tabs from the lettering that draws
+    /// them both, which is exactly the subject-shaped cut §3.1 warns about — "the name" and
+    /// "the numbers" are two subjects and one kind of thing.
+    /// </para>
+    /// </summary>
+    public void DrawText(float width)
+    {
+        Vector2 origin = ImGui.GetCursorScreenPos();
+        float column = Chrome.ColumnWidth(width);
+        float y = origin.Y;
 
         Chrome.BeginGroupRow();
         Chrome.GroupScope name = this.DrawNameText(Chrome.ColumnX(origin.X, width, 0), y, column, out float nameHeight);
-        Chrome.GroupScope lettering = this.DrawTextStyle(Chrome.ColumnX(origin.X, width, 1), y, column, out float letteringHeight);
-        y += FrameRow(name, nameHeight, lettering, letteringHeight);
+        Chrome.GroupScope figure = this.DrawHealthText(Chrome.ColumnX(origin.X, width, 1), y, column, out float figureHeight);
+        y += FrameRow(name, nameHeight, figure, figureHeight);
 
-        // In its own column rather than stretched across both, like the lone groups on Icons
-        // and Layout: a group twice as wide reads as a different kind of thing.
         Chrome.BeginGroupRow();
-        Chrome.GroupScope mouse = this.DrawMouse(Chrome.ColumnX(origin.X, width, 0), y, column, out float mouseHeight);
-        y += Chrome.GroupFrame(mouse, mouseHeight) + Tokens.Metric.ColumnGutter;
+        Chrome.GroupScope lettering = this.DrawTextStyle(Chrome.ColumnX(origin.X, width, 0), y, column, out float letteringHeight);
+        y += Chrome.GroupFrame(lettering, letteringHeight) + Tokens.Metric.ColumnGutter;
+
+        ImGui.SetCursorScreenPos(origin);
+        ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
+    }
+
+    /// <summary>
+    /// The Marks tab: the three ways a frame says it needs something from you.
+    /// <para>
+    /// They were spread across two tabs and read as three unrelated features. Together it is
+    /// obvious that they are one idea at three volumes — an icon you read when you look, and
+    /// two marks you read from across the screen — and that the two marks are literally the
+    /// same drawing (<see cref="Hud.FrameMark"/>).
+    /// </para>
+    /// </summary>
+    public void DrawMarks(float width)
+    {
+        Vector2 origin = ImGui.GetCursorScreenPos();
+        float column = Chrome.ColumnWidth(width);
+        float y = origin.Y;
+
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope cleanse = this.DrawCleanse(Chrome.ColumnX(origin.X, width, 0), y, column, out float cleanseHeight);
+        Chrome.GroupScope raiseMark = this.DrawRaiseMark(Chrome.ColumnX(origin.X, width, 1), y, column, out float raiseMarkHeight);
+        y += FrameRow(cleanse, cleanseHeight, raiseMark, raiseMarkHeight);
+
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope rescue = this.DrawRescue(Chrome.ColumnX(origin.X, width, 0), y, column, out float rescueHeight);
+        y += Chrome.GroupFrame(rescue, rescueHeight) + Tokens.Metric.ColumnGutter;
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
@@ -1621,6 +1667,16 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     {
         Vector2 origin = ImGui.GetCursorScreenPos();
         float y = origin.Y;
+        float column = Chrome.ColumnWidth(width);
+
+        // The mouse sits ABOVE the list, and on this tab rather than on Base (Florian,
+        // 2026-09-18: "ganz oben einfach als Haken"). "What clicking and pointing do" and
+        // "what each button does on a frame" were always one subject on two tabs, and
+        // mouseover casting in particular is a binding by any reading — it is the setting that
+        // decides where a key press lands.
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope mouse = this.DrawMouse(origin.X, y, column, out float mouseHeight);
+        y += Chrome.GroupFrame(mouse, mouseHeight) + Tokens.Metric.ColumnGutter;
 
         // 🔴 The one group in the suite that takes the full width, and the one row that
         // carries two controls. The grammar everywhere else — one setting, one control, half
@@ -2022,24 +2078,16 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         Vector2 origin = ImGui.GetCursorScreenPos();
         float column = Chrome.ColumnWidth(width);
 
+        // The three icon rows and nothing else. What to DO about an effect moved to Marks —
+        // this tab is only about the pictures of what is lying on somebody.
         Chrome.BeginGroupRow();
         Chrome.GroupScope auras = this.DrawAuraIcons(Chrome.ColumnX(origin.X, width, 0), origin.Y, column, out float auraHeight);
-        Chrome.GroupScope rescue = this.DrawRescue(Chrome.ColumnX(origin.X, width, 1), origin.Y, column, out float rescueHeight);
-        float y = origin.Y + FrameRow(auras, auraHeight, rescue, rescueHeight);
+        Chrome.GroupScope buffs = this.DrawBuffIcons(Chrome.ColumnX(origin.X, width, 1), origin.Y, column, out float buffHeight);
+        float y = origin.Y + FrameRow(auras, auraHeight, buffs, buffHeight);
 
         Chrome.BeginGroupRow();
-        Chrome.GroupScope buffs = this.DrawBuffIcons(Chrome.ColumnX(origin.X, width, 0), y, column, out float buffHeight);
-        Chrome.GroupScope others = this.DrawOtherIcons(Chrome.ColumnX(origin.X, width, 1), y, column, out float otherHeight);
-        y += FrameRow(buffs, buffHeight, others, otherHeight);
-
-        Chrome.BeginGroupRow();
-        // 🔴 Six groups on this tab now, and §3.1 asks for three or four. The raise mark landed
-        // here because it belongs beside the cleanse mark — they are the same drawing saying
-        // opposite things, and putting them on different tabs would hide that. The tab needs
-        // splitting; which way is a layout decision, not a code one (Florian, 2026-09-18).
-        Chrome.GroupScope cleanse = this.DrawCleanse(Chrome.ColumnX(origin.X, width, 0), y, column, out float cleanseHeight);
-        Chrome.GroupScope raiseMark = this.DrawRaiseMark(Chrome.ColumnX(origin.X, width, 1), y, column, out float raiseMarkHeight);
-        y += FrameRow(cleanse, cleanseHeight, raiseMark, raiseMarkHeight);
+        Chrome.GroupScope others = this.DrawOtherIcons(Chrome.ColumnX(origin.X, width, 0), y, column, out float otherHeight);
+        y += Chrome.GroupFrame(others, otherHeight) + Tokens.Metric.ColumnGutter;
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));

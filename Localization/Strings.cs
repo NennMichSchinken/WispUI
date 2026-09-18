@@ -37,6 +37,8 @@ internal static class Strings
     public const string TabIcons = "Icons";
     public const string TabLayout = "Layout";
     public const string TabAuras = "Auras";
+    public const string TabText = "Text";
+    public const string TabMarks = "Marks";
 
     // --- Module header ------------------------------------------------------
     public const string CopyAppearance = "Copy appearance";
