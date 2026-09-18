@@ -117,7 +117,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdOtherY = "##wisp-pf-othery";
     private const string IdOtherMax = "##wisp-pf-othermax";
     private const string IdCleanse = "##wisp-pf-cleanse";
-    private const string IdShowRescue = "##wisp-pf-showrescue";
+    private const string IdShowRaise = "##wisp-pf-showraise";
+    private const string IdShowInvuln = "##wisp-pf-showinvuln";
     private const string IdRescuePosition = "##wisp-pf-rescueposition";
     private const string IdRescueSize = "##wisp-pf-rescuesize";
     private const string IdRescueX = "##wisp-pf-rescuex";
@@ -633,7 +634,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         OtherX = m_config.PartyFrames.OtherX,
         OtherY = m_config.PartyFrames.OtherY,
         OtherMaxCount = m_config.PartyFrames.OtherMaxCount,
-        ShowRescueIcon = m_config.PartyFrames.ShowRescueIcon,
+        ShowRaiseIcon = m_config.PartyFrames.ShowRaiseIcon,
+        ShowInvulnIcon = m_config.PartyFrames.ShowInvulnIcon,
         RescueIconSize = m_config.PartyFrames.RescueIconSize,
         RescueIconPosition = m_config.PartyFrames.RescueIconPosition,
         RescueIconX = m_config.PartyFrames.RescueIconX,
@@ -723,7 +725,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.PartyFrames.OtherX = source.OtherX;
             m_config.PartyFrames.OtherY = source.OtherY;
             m_config.PartyFrames.OtherMaxCount = source.OtherMaxCount;
-            m_config.PartyFrames.ShowRescueIcon = source.ShowRescueIcon;
+            m_config.PartyFrames.ShowRaiseIcon = source.ShowRaiseIcon;
+            m_config.PartyFrames.ShowInvulnIcon = source.ShowInvulnIcon;
             m_config.PartyFrames.RescueIconSize = source.RescueIconSize;
             m_config.PartyFrames.RescueIconPosition = source.RescueIconPosition;
             m_config.PartyFrames.RescueIconX = source.RescueIconX;
@@ -2328,17 +2331,36 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
 
+        // Two switches for one place on the frame. They never show at once — invulnerability
+        // wins where both apply — but they answer different questions, so one of them being
+        // off is a real thing to want (Florian, 2026-09-18).
         if (Chrome.OptionRow(
-                IdShowRescue,
-                Strings.ShowRescue,
+                IdShowRaise,
+                Strings.ShowRaise,
                 group.ContentX,
                 rowY,
                 group.ContentWidth,
-                m_config.PartyFrames.ShowRescueIcon,
+                m_config.PartyFrames.ShowRaiseIcon,
                 Chrome.OptionControl.Tick,
-                Strings.ShowRescueTooltip))
+                Strings.ShowRaiseTooltip))
         {
-            m_config.PartyFrames.ShowRescueIcon = !m_config.PartyFrames.ShowRescueIcon;
+            m_config.PartyFrames.ShowRaiseIcon = !m_config.PartyFrames.ShowRaiseIcon;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+
+        if (Chrome.OptionRow(
+                IdShowInvuln,
+                Strings.ShowInvuln,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.ShowInvulnIcon,
+                Chrome.OptionControl.Tick,
+                Strings.ShowInvulnTooltip))
+        {
+            m_config.PartyFrames.ShowInvulnIcon = !m_config.PartyFrames.ShowInvulnIcon;
             m_config.MarkDirty();
         }
 

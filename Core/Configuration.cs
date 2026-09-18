@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 8;
+    public const int CurrentVersion = 9;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -557,8 +557,28 @@ public sealed class Configuration : IPluginConfiguration
         // dropped (Florian, 2026-09-13).
 
         /// <summary>
-        /// The raise-is-coming and cannot-be-killed marks. On: both change what you would do
-        /// next, which is a higher bar than most things on a frame clear.
+        /// The raise-is-coming mark. On: it changes what you would do next, which is a higher
+        /// bar than most things on a frame clear.
+        /// </summary>
+        public bool ShowRaiseIcon { get; set; } = true;
+
+        /// <summary>
+        /// The cannot-be-killed mark.
+        /// <para>
+        /// A switch of its own rather than a share of the raise's (Florian, 2026-09-18). The
+        /// two ride in the same place on the frame and never appear together, which is what
+        /// made one switch look reasonable — but they are read by different people at
+        /// different moments. A healer turns the raise mark on to see who somebody else has
+        /// already picked up; the invulnerability mark answers "stop healing, this is not
+        /// damage you can lose them to", and a group may well want one without the other.
+        /// </para>
+        /// </summary>
+        public bool ShowInvulnIcon { get; set; } = true;
+
+        /// <summary>
+        /// What the two above used to be, kept only so a configuration written before version 9
+        /// still has something to read into and the migration has something to read out of.
+        /// Nothing draws from it.
         /// </summary>
         public bool ShowRescueIcon { get; set; } = true;
 
@@ -839,6 +859,17 @@ public sealed class Configuration : IPluginConfiguration
             {
                 config.PartyFrames.ShieldStyleName = Data.BarStyles.ShieldDefaultName;
             }
+        }
+
+        if (config.Version < 9)
+        {
+            // One switch covered the raise mark and the invulnerability mark together; they
+            // are two now. Whoever had turned the pair off gets both off, which is the only
+            // reading of the old value that keeps a frame looking the way it looked — the
+            // alternative, defaulting both to on, would switch something back on for exactly
+            // the person who went looking for the switch.
+            config.PartyFrames.ShowRaiseIcon = config.PartyFrames.ShowRescueIcon;
+            config.PartyFrames.ShowInvulnIcon = config.PartyFrames.ShowRescueIcon;
         }
     }
 

@@ -90,13 +90,27 @@ internal static class StatusData
     /// </summary>
     private static readonly ushort[] Invulnerabilities =
     {
-        82,   // Hallowed Ground — Paladin
-        409,  // Living Dead — Dark Knight, the window before Walking Dead
-        810,  // Living Dead, the other id the effect is seen under
-        811,  // Walking Dead — the one that has to be healed through
-        1302, // Holmgang — Warrior
-        1836, // Superbolide — Gunbreaker
-        3255, // Superbolide, the other id the effect is seen under
+        // 🔴 Every name here is the one the GAME gave the id at load, read back out of the
+        // log on 2026-09-18 — not the one somebody wrote down when the list was assembled.
+        // Three of those were wrong: 409 was labelled Living Dead and is Holmgang, 1302 was
+        // labelled Holmgang and is a second Hallowed Ground, and 3255 was labelled Superbolide
+        // and is nothing of the sort. The ids all still resolve to real effects, so the list
+        // worked and the comments lied, which is the worse of the two — a label is a claim
+        // about the game (CLAUDE.md, session 10).
+        82,   // "Heiliger Boden"      — Hallowed Ground, Paladin
+        409,  // "Holmgang"            — Warrior
+        810,  // "Totenerweckung"      — Living Dead, Dark Knight
+        811,  // "Erweckter"           — Walking Dead, the one that has to be healed through
+        1302, // "Heiliger Boden"      — Hallowed Ground under a second id
+        1836, // "Meteoritenfall"      — Superbolide, Gunbreaker
+
+        // ⚠️ "Untote Auferstehung", and NOT verified to be an invulnerability. It resolves to
+        // a real effect and it sits in the Dark Knight's Living Dead family by its name, but
+        // nobody here has seen it stop a death. Left in because a false positive costs one
+        // icon and a false negative costs somebody who was written off as dead — but it is the
+        // one line in this list that is still a guess, and it comes out the moment it shows up
+        // on somebody who then dies.
+        3255,
     };
 
     /// <summary>

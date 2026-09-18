@@ -164,7 +164,9 @@ internal sealed record AppearanceBlock
 
     public int OtherMaxCount { get; init; }
 
-    public bool ShowRescueIcon { get; init; }
+    public bool ShowRaiseIcon { get; init; }
+
+    public bool ShowInvulnIcon { get; init; }
 
     public float RescueIconSize { get; init; }
 

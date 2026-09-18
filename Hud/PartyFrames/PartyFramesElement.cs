@@ -1463,15 +1463,17 @@ internal sealed class PartyFramesElement : HudElement
         Vector2 innerMin,
         Vector2 innerMax)
     {
-        if (!cfg.ShowRescueIcon)
-        {
-            return;
-        }
-
         // Whichever effect is actually on them, so the picture is the game's own for it and
         // there is nothing of ours to keep in step with a patch.
-        uint status = member.InvulnerableStatus != 0 ? member.InvulnerableStatus
-            : member.RaiseRemaining > 0f ? StatusData.Raise
+        //
+        // 🔴 Each is asked about its OWN switch, and the fall-through matters: somebody who is
+        // invulnerable AND has a raise in flight, with the invulnerability mark turned off,
+        // shows the raise rather than nothing. Written as one test on the pair — pick the
+        // effect first, then ask whether it may be drawn — that case would go blank, which is
+        // the one outcome neither switch was asked for.
+        uint status =
+            member.InvulnerableStatus != 0 && cfg.ShowInvulnIcon ? member.InvulnerableStatus
+            : member.RaiseRemaining > 0f && cfg.ShowRaiseIcon ? StatusData.Raise
             : 0u;
 
         if (status == 0)

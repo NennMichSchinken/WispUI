@@ -312,9 +312,13 @@ internal static class Strings
     public const string PreviewAurasTooltip =
         "Puts stand-in effects on the frames so they can be placed without waiting for a fight. Ends when this window closes.";
 
-    public const string ShowRescue = "Show icon";
-    public const string ShowRescueTooltip =
-        "A raise already cast on them, or a cooldown that is keeping them alive. Its own place, so a busy frame cannot push it out.";
+    public const string ShowRaise = "Show raise";
+    public const string ShowRaiseTooltip =
+        "A raise already on its way to them, from the moment the cast starts. Its own place on the frame, so a busy frame cannot push it out.";
+
+    public const string ShowInvuln = "Show invulnerability";
+    public const string ShowInvulnTooltip =
+        "A cooldown that is keeping them alive. Shares the place with the raise mark and wins it, because it is the one that changes what you do next.";
 
     public const string GroupGameList = "Game's party list";
     public const string GroupGameListHint = "The list these frames stand in for.";
