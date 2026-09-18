@@ -551,9 +551,19 @@ internal static class StatusData
     /// covers — so "our frames sit over the inventory" can be answered with the game's own
     /// numbers rather than with a hand-written list of addon names.
     /// <para>
-    /// What is being looked for: which layer <c>_PartyList</c> is in, and whether the windows
-    /// that are meant to cover it — inventory, character, the settings window — really are in
-    /// higher-numbered ones. If they are, the rule writes itself and never goes stale.
+    /// 🔴 MEASURED 2026-09-18, and the first guess was wrong. The layer separates almost
+    /// nothing: the character sheet, the chat log, every hotbar, the minimap and
+    /// <c>_PartyList</c> came back in layer five together — thirty-six of thirty-nine windows
+    /// in one layer, with only <c>_ScreenText</c> and the cursor above them. So whatever
+    /// decides that the character sheet covers the party list is INSIDE a layer, which leaves
+    /// the order of the layer's own list.
+    /// </para>
+    /// <para>
+    /// Which is why the slot is printed too. In that reading the character sheet sat at slot 6
+    /// and <c>_PartyList</c> at slot 15, so the earlier slot is the one in front — consistent
+    /// with what is on screen, and still only one sample. Opening the same two windows in the
+    /// other order settles it: if the earlier slot is the front, whichever was raised last
+    /// moves toward zero.
     /// </para>
     /// </summary>
     private static void DumpWindows()
@@ -568,8 +578,9 @@ internal static class StatusData
             ref NativeUi.NativeWindow w = ref windows[i];
 
             Services.Log.Information(
-                "  layer {Layer,2} | {Name,-28} | {X:0}, {Y:0} to {X2:0}, {Y2:0}",
+                "  layer {Layer,2} slot {Slot,3} | {Name,-28} | {X:0}, {Y:0} to {X2:0}, {Y2:0}",
                 w.Layer,
+                w.Slot,
                 w.Name,
                 w.Min.X,
                 w.Min.Y,
@@ -578,6 +589,23 @@ internal static class StatusData
         }
     }
 
+    /// <summary>
+    /// The marker sheet and the game's marker slots, side by side.
+    /// <para>
+    /// 🔴 MEASURED 2026-09-18, and worth writing down before anybody builds on it: the sheet's
+    /// ROW ORDER IS NOT THE ORDER THE MARKERS GO IN. Rows 9 to 14 carry sort orders 12 to 17,
+    /// and then rows 15, 16 and 17 come back with sort orders 6, 7 and 8 — Attack 6 through 8
+    /// were added to the game later and sit at the end of the sheet while belonging in the
+    /// middle of the list. Walking the sheet in row order and calling that the marker list
+    /// would put three markers in the wrong place, and it would look right for the first five.
+    /// <c>SortOrder</c> is the field to sort on.
+    /// </para>
+    /// <para>
+    /// Still open: whether a slot index in the controller lines up with that sorted order. That
+    /// needs markers actually placed on people — the reading above had none, which is how the
+    /// empty-slot bug beside it came to light.
+    /// </para>
+    /// </summary>
     private static void DumpMarkers()
     {
         var sheet = Services.Data.GetExcelSheet<Lumina.Excel.Sheets.Marker>();

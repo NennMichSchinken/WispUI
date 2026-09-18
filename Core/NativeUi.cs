@@ -322,11 +322,26 @@ internal static class NativeUi
 
         for (int i = 0; i < count; i++)
         {
-            into[i] = markers[i].ObjectId;
+            uint id = markers[i].ObjectId;
+
+            // 🔴 An empty slot is not zero. The game writes 0xE0000000 there — its own word for
+            // "no object", used the same way all over the client — and a check for zero alone
+            // reports all seventeen slots as taken. Worse than a wrong number: the diagnostic
+            // then looks the id up in the object table, where it matches the first unloaded
+            // thing it finds, and prints a confident name for a marker nobody placed. That is
+            // exactly the shape of the bad diagnostic from session 9 (Florian, 2026-09-18,
+            // whose seventeen empty slots all came back as the same minion).
+            into[i] = id == NoObject ? 0u : id;
         }
 
         return count;
     }
+
+    /// <summary>
+    /// The client's own value for "no object", which is not zero. VERIFIED in the game
+    /// structures, where it is the default for every optional object reference.
+    /// </summary>
+    private const uint NoObject = 0xE0000000u;
 
     private static unsafe int ReadStatuses(
         FFXIVClientStructs.FFXIV.Client.Game.StatusManager* manager,
@@ -465,14 +480,29 @@ internal static class NativeUi
         /// <summary>Which of the game's thirteen depth layers it was found in, counting from one.</summary>
         public readonly int Layer;
 
+        /// <summary>
+        /// Where it sits in that layer's own list, counting from zero — including the entries
+        /// that were skipped for being invisible, so the number means a position in the game's
+        /// list and not a position in ours.
+        /// <para>
+        /// This is the part that matters. MEASURED 2026-09-18: the layer does not separate a
+        /// window from a HUD element at all — the character sheet, the chat log, every hotbar
+        /// and <c>_PartyList</c> were all in layer five together. Whatever decides that the
+        /// character sheet covers the party list is inside one layer, which leaves the order
+        /// of the list itself.
+        /// </para>
+        /// </summary>
+        public readonly int Slot;
+
         public readonly Vector2 Min;
 
         public readonly Vector2 Max;
 
-        public NativeWindow(string name, int layer, Vector2 min, Vector2 max)
+        public NativeWindow(string name, int layer, int slot, Vector2 min, Vector2 max)
         {
             this.Name = name;
             this.Layer = layer;
+            this.Slot = slot;
             this.Min = min;
             this.Max = max;
         }
@@ -556,6 +586,7 @@ internal static class NativeUi
                 into[written++] = new NativeWindow(
                     unit->NameString,
                     layer,
+                    i,
                     new Vector2(bounds.Pos1.X, bounds.Pos1.Y),
                     new Vector2(bounds.Pos2.X, bounds.Pos2.Y));
             }
