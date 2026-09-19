@@ -70,6 +70,9 @@ internal sealed class ProfileScreen
     private bool m_pasteOverCurrent;
     private bool m_pasteOpen;
 
+    /// <summary>Whether the paste panel has actually appeared, as opposed to been asked for.</summary>
+    private bool m_pasteShown;
+
     private int m_jobChoice;
 
     /// <summary>Where the paste panel opens: under the button, worked out when it is drawn.</summary>
@@ -500,7 +503,11 @@ internal sealed class ProfileScreen
     {
         Chrome.GroupScope group = Chrome.BeginGroup(
             IdShareGroup,
-            new Chrome.GroupHead { Title = Strings.GroupProfileShare },
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupProfileShare,
+                Description = Strings.GroupProfileShareHint,
+            },
             x,
             y,
             width);
@@ -652,6 +659,8 @@ internal sealed class ProfileScreen
 
         if (ImGui.BeginPopup(IdPastePanel))
         {
+            m_pasteShown = true;
+
             if (Chrome.ClosePopupRequested)
             {
                 ImGui.CloseCurrentPopup();
@@ -738,11 +747,16 @@ internal sealed class ProfileScreen
 
             ImGui.EndPopup();
         }
-        else
+        else if (m_pasteShown)
         {
             // Closed by clicking away. The code is dropped rather than kept waiting: a
             // panel that reopens with somebody else's profile still in it is a surprise.
+            //
+            // Only once it has actually been open, though. BeginPopup answering false on
+            // the frame the popup was asked for would otherwise throw the pasted profile
+            // away before it was ever shown, and the button would read as doing nothing.
             m_pasted = null;
+            m_pasteShown = false;
         }
 
         ImGui.PopStyleColor(2);

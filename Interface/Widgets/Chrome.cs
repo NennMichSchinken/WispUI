@@ -883,10 +883,12 @@ internal static class Chrome
     /// <summary>What goes in the head of a group, beyond its name.</summary>
     internal readonly struct GroupHead
     {
-        public string Title { get; init; }
+        // Both may be left out by a caller that does not need them, which makes them null
+        // rather than empty — declared as such so nothing reads one without saying so.
+        public string? Title { get; init; }
 
-        /// <summary>One line saying what the group covers. May be empty.</summary>
-        public string Description { get; init; }
+        /// <summary>One line saying what the group covers. May be empty or left out.</summary>
+        public string? Description { get; init; }
 
         /// <summary>An on/off switch at the right of the head, or null for a group that is always on.</summary>
         public bool? Toggle { get; init; }
@@ -1056,13 +1058,22 @@ internal static class Chrome
         }
 
         // --- the name, and the line under it ---
-        Ink.Draw(dl, Ink.Role.Title, new Vector2(left, top), Tokens.Col.Faded(Tokens.Col.Heading, alpha), head.Title);
+        //
+        // 🔴 Both taken as "or nothing". Title and Description are declared as plain
+        // strings, but a group built with an object initialiser leaves out whatever it does
+        // not need, and a left-out string is null — so a group with no description crashed
+        // the draw path the first time one was written without one (2026-09-20). Nothing in
+        // a shared widget may depend on a caller having filled a field in (§7.6).
+        string title = head.Title ?? string.Empty;
+        string description = head.Description ?? string.Empty;
+
+        Ink.Draw(dl, Ink.Role.Title, new Vector2(left, top), Tokens.Col.Faded(Tokens.Col.Heading, alpha), title);
         float headHeight = Ink.LineHeight(Ink.Role.Title);
 
-        if (head.Description.Length > 0)
+        if (description.Length > 0)
         {
             float descY = MathF.Round(top + headHeight + Tokens.Space.Xs);
-            Ink.Draw(dl, Ink.Role.Small, new Vector2(left, descY), Tokens.Col.Faded(Tokens.Col.InkFaint, alpha), head.Description);
+            Ink.Draw(dl, Ink.Role.Small, new Vector2(left, descY), Tokens.Col.Faded(Tokens.Col.InkFaint, alpha), description);
             headHeight += Tokens.Space.Xs + Ink.LineHeight(Ink.Role.Small);
         }
 

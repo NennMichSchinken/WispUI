@@ -415,6 +415,7 @@ internal static class Strings
     public const string ProfileScopeBeaten = "A profile naming this job on its own wins over one naming its role.";
 
     public const string GroupProfileShare = "Share";
+    public const string GroupProfileShareHint = "Send this profile to somebody, or take theirs.";
     public const string ProfileThisOne = "This profile";
     public const string ProfileCopyCode = "Copy code";
     public const string ProfileCopied = "Copied. Paste it wherever you like.";
