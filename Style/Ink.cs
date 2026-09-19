@@ -333,6 +333,36 @@ internal static class Ink
         new(pos.X + MathF.Round(dx), pos.Y + MathF.Round(dy));
 
     /// <summary>
+    /// How tall a string comes out when it is allowed to break at a given width.
+    /// <para>
+    /// Through ImGui's own layout rather than the draw list, because breaking a line is
+    /// exactly what a draw list does not do — the same reason the tooltip had to be built
+    /// by hand in session 3. Everything in the window that is a sentence rather than a
+    /// label goes through these two.
+    /// </para>
+    /// </summary>
+    public static Vector2 MeasureWrapped(Role role, string text, float width)
+    {
+        Push(role);
+        Vector2 size = ImGui.CalcTextSize(text, false, width);
+        Pop(role);
+        return size;
+    }
+
+    /// <summary>The same string, drawn where it was measured.</summary>
+    public static void DrawWrapped(Role role, Vector2 pos, float width, uint colour, string text)
+    {
+        Push(role);
+        ImGui.PushStyleColor(ImGuiCol.Text, colour);
+        ImGui.SetCursorScreenPos(pos);
+        ImGui.PushTextWrapPos(pos.X + width);
+        ImGui.TextUnformatted(text);
+        ImGui.PopTextWrapPos();
+        ImGui.PopStyleColor();
+        Pop(role);
+    }
+
+    /// <summary>
     /// Pushes a role onto the ImGui font stack for code that uses the normal widget flow
     /// instead of a draw list. Allocation free, because the lock was already taken this frame.
     /// Always pair it with <see cref="Pop"/>.

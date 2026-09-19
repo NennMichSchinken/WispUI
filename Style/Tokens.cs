@@ -138,6 +138,12 @@ internal static class Tokens
 
         // --- nav (derived) ---
         public static readonly uint NavHover = Rgb(0x2A282A);
+
+        /// <summary>A hovered row in a list that is read rather than set (the release notes).</summary>
+        public static readonly uint RowHover = Rgb(0x2A282A);
+
+        /// <summary>Body text one step quieter than Ink, for a sentence nobody is hovering.</summary>
+        public static readonly uint InkSoft = Rgb(0xA9A9A9);
         public static readonly uint NavSelected = Rgb(0x2E2C2E);
         public static readonly uint NavCard = Rgb(0x2A282A);
         public static readonly uint NavCardEdge = Rgb(0x3F3C3F);
@@ -588,6 +594,12 @@ internal static class Tokens
 
         /// <summary>The radius of the dot that marks the chosen row.</summary>
         public static float RadioDot => Px(5f);
+
+        /// <summary>How much room the word in front of a release-note line takes.</summary>
+        public static float NewsKindColumn => Px(72f);
+
+        /// <summary>The arrow at the end of a note that leads somewhere.</summary>
+        public static float NewsChevron => Px(10f);
 
         public static float NavWidth => Px(205f);
         public static float NavItemHeight => Px(35f);

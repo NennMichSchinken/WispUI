@@ -44,6 +44,13 @@ public sealed class Configuration : IPluginConfiguration
     /// <summary>How many stand-ins the preview shows: one, four or a full party.</summary>
     public int PreviewCount { get; set; } = 4;
 
+    /// <summary>
+    /// The newest release whose notes have been opened, or empty for somebody who has never
+    /// looked. Compared as a name rather than parsed as a number: a version is what it is
+    /// called, and a release that never went out cannot be "greater" than one that did.
+    /// </summary>
+    public string NewsSeenVersion { get; set; } = string.Empty;
+
     // --- Modules ------------------------------------------------------------
 
     /// <summary>The quietest a health bar may be drawn. Below this it stops being readable.</summary>

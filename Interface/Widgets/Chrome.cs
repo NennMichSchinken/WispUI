@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
@@ -914,6 +915,17 @@ internal static class Chrome
     /// <summary>What a group reports back, and where its rows go.</summary>
     internal readonly struct GroupScope
     {
+        /// <summary>
+        /// The group's own id, carried so the frame can record where it ended up.
+        /// <para>
+        /// 🔴 This is what a patch note jumps to. The alternative was a second set of keys
+        /// registered beside the groups, the way the sister project does it — two lists to
+        /// keep in step, and a note pointing at a key somebody renamed lands nowhere. A
+        /// group already has exactly one name; that name is the target.
+        /// </para>
+        /// </summary>
+        public readonly string Id;
+
         public readonly float X;
         public readonly float Y;
         public readonly float Width;
@@ -935,6 +947,7 @@ internal static class Chrome
         public readonly bool CollapseClicked;
 
         public GroupScope(
+            string id,
             float x,
             float y,
             float width,
@@ -947,6 +960,7 @@ internal static class Chrome
             bool actionClicked,
             bool collapseClicked)
         {
+            this.Id = id;
             this.X = x;
             this.Y = y;
             this.Width = width;
@@ -1095,6 +1109,7 @@ internal static class Chrome
         }
 
         return new GroupScope(
+            id,
             x,
             y,
             width,
@@ -1287,15 +1302,81 @@ internal static class Chrome
     /// </summary>
     private static float FrameTo(in GroupScope scope, float bottom)
     {
-        ImGui.GetWindowDrawList().AddRect(
-            new Vector2(scope.X, scope.Y),
-            new Vector2(scope.X + scope.Width, bottom),
+        Vector2 min = new(scope.X, scope.Y);
+        Vector2 max = new(scope.X + scope.Width, bottom);
+
+        // Where this group ended up, for a patch note that wants to jump to it. Stamped
+        // with the frame, so nothing can scroll to a rectangle a group had on a screen
+        // that is no longer the one being drawn.
+        s_groupRects[scope.Id] = new GroupRect(min, max, ImGui.GetFrameCount());
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        if (s_flashStrength > 0f && string.Equals(s_flashGroup, scope.Id, StringComparison.Ordinal))
+        {
+            // Over the surface and under the outline: a wash, not a border. The same reason
+            // the cleanse mark is a band and not a line — area catches the eye (session 9).
+            dl.AddRectFilled(
+                min,
+                max,
+                Tokens.Col.Faded(Tokens.Col.Gold, s_flashStrength * FlashPeak),
+                Tokens.Radius.Group,
+                ImDrawFlags.RoundCornersAll);
+        }
+
+        dl.AddRect(
+            min,
+            max,
             Tokens.Col.Hairline,
             Tokens.Radius.Group,
             ImDrawFlags.RoundCornersAll,
             Tokens.Line(1f));
 
         return bottom - scope.Y;
+    }
+
+    /// <summary>How strong the flash is at its brightest. Enough to find, not enough to shout.</summary>
+    private const float FlashPeak = 0.22f;
+
+    private readonly record struct GroupRect(Vector2 Min, Vector2 Max, int Frame);
+
+    private static readonly Dictionary<string, GroupRect> s_groupRects = new(StringComparer.Ordinal);
+
+    private static string? s_flashGroup;
+    private static float s_flashStrength;
+
+    /// <summary>
+    /// Where a group was drawn this frame, or false when it was not drawn at all.
+    /// <para>
+    /// The frame stamp is the whole point: after a jump has switched the screen, the target
+    /// group has not been drawn yet, and a rectangle it held on some earlier screen would
+    /// send the scroll somewhere arbitrary. The caller waits until the answer is fresh.
+    /// </para>
+    /// </summary>
+    public static bool GroupRectThisFrame(string id, out Vector2 min, out Vector2 max)
+    {
+        min = default;
+        max = default;
+
+        if (!s_groupRects.TryGetValue(id, out GroupRect rect) || rect.Frame != ImGui.GetFrameCount())
+        {
+            return false;
+        }
+
+        min = rect.Min;
+        max = rect.Max;
+        return true;
+    }
+
+    /// <summary>
+    /// Which group is lit up and how brightly, pushed once per frame by whoever owns the
+    /// jump. Chrome keeps no timer of its own — how long a flash lasts is a decision, and
+    /// decisions live in the window, not in the widget that paints them (§7.9).
+    /// </summary>
+    public static void SetGroupFlash(string? id, float strength)
+    {
+        s_flashGroup = id;
+        s_flashStrength = Math.Clamp(strength, 0f, 1f);
     }
 
     /// <summary>The fold-away arrow in a group head, drawn as a triangle rather than typed.</summary>

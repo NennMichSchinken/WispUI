@@ -166,12 +166,9 @@ internal static class Strings
     // --- Party frames: the mouse ----------------------------------------------
     public const string HighlightHovered = "Ring the frame under the cursor";
     public const string HighlightHoveredTooltip = "The game's own party list marks it too.";
-    public const string ClickToTarget = "Click to select";
-    public const string ClickToTargetTooltip = "Left-click a frame to target that member.";
     // --- party frames: presence ----------------------------------------------
     // What a frame says instead of a health figure when the game has no numbers for that
     // member. Short, because it sits where a number sits.
-    public const string PresenceOutOfRange = "Out of range";
     public const string PresenceAway = "Elsewhere";
     public const string PresenceOffline = "Offline";
     public const string PresenceDead = "Dead";
@@ -186,12 +183,9 @@ internal static class Strings
     public const string BindingJobTooltip = "Kept per job, because what a button should do depends on what you play.";
     public const string BindingAdd = "Add binding";
     public const string BindingPick = "Pick an action…";
-    public const string BindingRemove = "Remove";
     public const string BindingAction = "Action";
     public const string BindingTarget = "Select target";
     public const string BindingContextMenu = "Game menu";
-    public const string BindingsEmpty = "Nothing bound. This job's frames will not answer the mouse.";
-    public const string BindingsReset = "Reset to defaults";
     public const string BindingNoActions = "This job has nothing that can be aimed at a party member.";
 
     public const string KeybindListening = "Press a button…";
@@ -220,8 +214,6 @@ internal static class Strings
     public const string TextEdgeShadow = "Shadow";
     public const string TextEdgeOutline = "Outline";
 
-    public const string ContextMenu = "Right-click menu";
-    public const string ContextMenuTooltip = "Right-click a frame for the game's own menu, the same one its party list opens.";
     public const string MouseoverTarget = "Mouseover target";
 
     // Says exactly what it does and no more. A hotbar key still goes to the selected target —
@@ -258,13 +250,14 @@ internal static class Strings
     // --- Placeholders while the screens are still empty ----------------------
     public const string NothingHereYet = "Nothing here yet";
     public const string SkeletonNote = "The controls arrive with the module itself.";
-    public const string PatchNotesLine1 = "The window frame is standing.";
-    public const string PatchNotesLine2 = "Click for the patch notes.";
-    public const string PatchNotesUnavailable = "Arrives with the first release.";
+    public const string NewsNew = "New";
+    public const string NewsChanged = "Changed";
+    public const string NewsFixed = "Fixed";
+    public const string NewsTitle = "What's new";
+    public const string NewsOpenHint = "What changed in this release.";
 
     // --- Disabled-state explanations -----------------------------------------
     // One short line each. A disabled control owes a reason, not a paragraph.
-    public const string EditModeDisabled = "Needs a HUD element to move.";
     public const string DefaultsDisabled = "Nothing to reset yet.";
     public const string PasteDisabled = "Nothing copied yet.";
     public const string ApplyDisabled = "Nothing ticked that this one has.";
