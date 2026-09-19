@@ -19,8 +19,8 @@ namespace WispUI.Style;
 /// </summary>
 internal static class Ink
 {
-    private static readonly ImFontPtr[] Fonts = new ImFontPtr[4];
-    private static readonly float[] Sizes = new float[4];
+    private static readonly ImFontPtr[] Fonts = new ImFontPtr[5];
+    private static readonly float[] Sizes = new float[5];
 
     /// <summary>
     /// The HUD's own faces, one per size in use, mirroring what <see cref="Style.Fonts"/>
@@ -37,6 +37,13 @@ internal static class Ink
         Title = 1,
         Body = 2,
         Small = 3,
+
+        /// <summary>
+        /// Dalamud's icon face. Not a text role — it is here so a glyph can be drawn under
+        /// the same one-lock-per-frame rule as everything else, rather than pushing a font
+        /// per icon and allocating for each one.
+        /// </summary>
+        Icon = 4,
     }
 
     /// <summary>
@@ -49,6 +56,7 @@ internal static class Ink
         Capture(1, Style.Fonts.Title);
         Capture(2, Style.Fonts.Body);
         Capture(3, Style.Fonts.Small);
+        Capture(4, WispUI.Core.Services.PluginInterface.UiBuilder.IconFontHandle);
 
         s_hudCount = 0;
 
@@ -85,6 +93,44 @@ internal static class Ink
         Vector2 size = ImGui.CalcTextSize(text);
         Pop(role);
         return size;
+    }
+
+    /// <summary>
+    /// Measures a string in a role at a size other than its own. For the icon face, which
+    /// Dalamud builds at one size and every caller wants at their own.
+    /// </summary>
+    public static Vector2 MeasureScaled(Role role, float pixels, string text)
+    {
+        int i = (int)role;
+
+        if (Fonts[i].IsNull || Sizes[i] <= 0f)
+        {
+            return ImGui.CalcTextSize(text);
+        }
+
+        Push(role);
+        Vector2 size = ImGui.CalcTextSize(text);
+        Pop(role);
+
+        // Scaled rather than measured again at the new size: a face measures at the size it
+        // was locked at, and AddText scales linearly from there.
+        return size * (pixels / Sizes[i]);
+    }
+
+    /// <summary>
+    /// Writes one glyph of the icon face at the size asked for. Separate from the text
+    /// drawing because an icon is placed by its box rather than by a baseline.
+    /// </summary>
+    public static void DrawGlyph(ImDrawListPtr dl, float pixels, Vector2 pos, uint colour, string glyph)
+    {
+        int i = (int)Role.Icon;
+
+        if (Fonts[i].IsNull)
+        {
+            return;
+        }
+
+        dl.AddText(Fonts[i], pixels, pos, colour, glyph);
     }
 
     /// <summary>Writes a string at an absolute screen position.</summary>

@@ -883,10 +883,16 @@ internal sealed class ConfigWindow : Window
             label);
 
         float pad = Tokens.Metric.PopupPadding;
-        float width = Tokens.Px(230f);
         float pitch = Chrome.RowPitch();
 
-        ImGui.SetNextWindowPos(new Vector2(MathF.Round(eyeX + size - width), y + barHeight + Tokens.Metric.PopupGap));
+        // 🔴 Two columns. Thirteen rows in one ran off the bottom of the window (Florian,
+        // 2026-09-19) — and a list that long is hard to read even where it fits, because
+        // nothing in it is grouped. Seven and six is one glance.
+        float column = Tokens.Px(190f);
+        float width = (column * 2f) + Tokens.Space.Lg;
+        int perColumn = (PreviewMask.All.Length + 1) / 2;
+
+        ImGui.SetNextWindowPos(new Vector2(MathF.Round(eyeX + size - width - pad), y + barHeight + Tokens.Metric.PopupGap));
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(pad, pad));
         ImGui.PushStyleVar(ImGuiStyleVar.PopupRounding, Tokens.Radius.Control);
         ImGui.PushStyleVar(ImGuiStyleVar.PopupBorderSize, Tokens.Line(1f));
@@ -901,38 +907,41 @@ internal sealed class ConfigWindow : Window
             }
 
             Vector2 origin = ImGui.GetCursorScreenPos();
-            float rowY = origin.Y;
 
             for (int i = 0; i < PreviewMask.All.Length; i++)
             {
                 PreviewPart part = PreviewMask.All[i];
+                int col = i / perColumn;
+                int row = i - (col * perColumn);
+                float rowX = origin.X + (col * (column + Tokens.Space.Lg));
+                float rowY = origin.Y + (row * pitch);
 
                 if (Chrome.OptionRow(
                         PreviewPartIds[i],
                         PreviewPartLabels[i],
-                        origin.X,
+                        rowX,
                         rowY,
-                        width,
+                        column,
                         PreviewMask.Shows(part),
                         Chrome.OptionControl.Tick,
                         null,
                         true,
-                        i > 0))
+                        row > 0))
                 {
                     PreviewMask.Toggle(part);
                 }
-
-                rowY += pitch;
             }
 
-            // Ticked means shown, so this row is the way back rather than a reset of
-            // settings — nothing here was ever written down.
-            if (PreviewMask.AnyHidden && Chrome.PillButton(IdPreviewShowAll, Strings.PreviewShowAll, origin.X, rowY))
+            float below = origin.Y + (perColumn * pitch);
+
+            // Ticked means shown, so this is the way back rather than a reset of settings —
+            // nothing here was ever written down.
+            if (PreviewMask.AnyHidden && Chrome.PillButton(IdPreviewShowAll, Strings.PreviewShowAll, origin.X, below))
             {
                 PreviewMask.ShowAll();
             }
 
-            ImGui.Dummy(new Vector2(width, rowY - origin.Y + Chrome.RowHeight()));
+            ImGui.Dummy(new Vector2(width, below - origin.Y + Chrome.RowHeight()));
             ImGui.EndPopup();
         }
 

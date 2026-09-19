@@ -27,6 +27,10 @@ internal static class Chrome
     private const string IdGroupCollapse = "##wisp-group-collapse";
     private const string IdGroupEye = "##wisp-group-eye";
 
+    /// <summary>Font Awesome's eye and crossed-out eye, as Dalamud's icon face carries them.</summary>
+    private const string EyeOpenGlyph = "F06E";
+    private const string EyeShutGlyph = "F070";
+
     /// <summary>Only ever mixed towards, never painted: the step a control takes under the hand.</summary>
     private const uint White = 0xFFFFFFFFu;
 
@@ -792,8 +796,15 @@ internal static class Chrome
     /// difference between this and everything else on the card.
     /// </para>
     /// <para>
-    /// Shut — a line through it — is the state worth noticing, so that is the one drawn in
-    /// gold. An open eye is the resting state and stays quiet.
+    /// Shut — the crossed-out glyph — is the state worth noticing, so that is the one drawn
+    /// in gold. An open eye is the resting state and stays quiet.
+    /// </para>
+    /// <para>
+    /// 🔴 A glyph from Dalamud's icon face, not two arcs drawn by hand. The hand-drawn one
+    /// was tried first and looked exactly as good as an eighteen pixel curve made of one
+    /// pixel strokes ever does, which is to say mushy (Florian, 2026-09-19: "das Auge sieht
+    /// nicht gut aus"). A face is hinted and rasterised for the size it is asked for; a path
+    /// is not. Anything glyph-shaped belongs in a font.
     /// </para>
     /// </summary>
     public static bool EyeButton(string id, float x, float y, float size, bool shown)
@@ -804,37 +815,19 @@ internal static class Chrome
         ShowHand(hovered);
         bool clicked = ImGui.IsItemClicked();
 
-        ImDrawListPtr dl = ImGui.GetWindowDrawList();
         uint ink = shown
             ? (hovered ? Tokens.Col.Ink : Tokens.Col.InkDim)
             : (hovered ? Tokens.Col.GoldHi : Tokens.Col.Gold);
 
-        float line = Tokens.Line(1f);
-        Vector2 centre = new(MathF.Round(x + (size * 0.5f)), MathF.Round(y + (size * 0.5f)));
-        float halfWidth = size * 0.45f;
-        float lid = size * 0.3f;
+        string glyph = shown ? EyeOpenGlyph : EyeShutGlyph;
+        Vector2 measured = Ink.MeasureScaled(Ink.Role.Icon, size, glyph);
 
-        // Two arcs meeting at the corners — the almond every eye glyph is. Built as one path
-        // so the join at each corner is a point rather than two overlapping line ends.
-        dl.PathClear();
-        dl.PathLineTo(new Vector2(centre.X - halfWidth, centre.Y));
-        dl.PathBezierQuadraticCurveTo(new Vector2(centre.X, centre.Y - lid), new Vector2(centre.X + halfWidth, centre.Y));
-        dl.PathBezierQuadraticCurveTo(new Vector2(centre.X, centre.Y + lid), new Vector2(centre.X - halfWidth, centre.Y));
-        dl.PathStroke(ink, ImDrawFlags.None, line);
-
-        dl.AddCircleFilled(centre, MathF.Max(1f, size * 0.13f), ink);
-
-        if (!shown)
-        {
-            // Corner to corner, and a touch past the lens on both ends: a slash that stops at
-            // the outline reads as part of the eye rather than as something over it.
-            float reach = size * 0.42f;
-            dl.AddLine(
-                new Vector2(centre.X - reach, centre.Y + reach),
-                new Vector2(centre.X + reach, centre.Y - reach),
-                ink,
-                Tokens.Line(1.5f));
-        }
+        Ink.DrawGlyph(
+            ImGui.GetWindowDrawList(),
+            size,
+            new Vector2(MathF.Round(x + ((size - measured.X) * 0.5f)), MathF.Round(y + ((size - measured.Y) * 0.5f))),
+            ink,
+            glyph);
 
         return clicked;
     }
