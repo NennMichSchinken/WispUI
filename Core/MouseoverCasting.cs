@@ -20,11 +20,18 @@ namespace WispUI.Core;
 /// (Florian, 2026-09-12). Every plugin that offers this redirects the action.
 /// </para>
 /// <para>
-/// The rule for <em>whether</em> to redirect is the game's own answer, not a list of ours:
-/// the action is offered to the hovered member and only redirected if the game says it could
-/// be used on them. A heal finds the party member under the cursor; a damage action does not,
-/// and goes to the enemy that is selected, untouched. No table of friendly and hostile
-/// actions to keep current, and nothing to get wrong when a job changes.
+/// Two questions decide whether an action is redirected, and they are different questions.
+/// <em>May</em> it go there is the game's own answer — the action is offered to the hovered
+/// member and left alone unless the game says it could be used on them, so a damage action
+/// goes to the selected enemy untouched without any table of ours to keep current.
+/// <em>Should</em> it go there is the player's, one spell at a time (<see cref="MouseoverSet"/>).
+/// </para>
+/// <para>
+/// 🔴 The second question used to be a single switch covering everything (Florian,
+/// 2026-09-19: made it a list). "Can be used on them" is true of every heal, every shield and
+/// every raise a job owns, and wanting one of those on the pointer is not wanting all of them
+/// — a regen you place deliberately and a raise you had better aim at the right corpse are
+/// exactly the two a blanket switch got wrong.
 /// </para>
 /// </summary>
 internal sealed unsafe class MouseoverCasting : IDisposable
@@ -41,6 +48,19 @@ internal sealed unsafe class MouseoverCasting : IDisposable
     /// table, and this runs inside the call that uses an action.
     /// </summary>
     private static nint s_targetAddress;
+
+    /// <summary>
+    /// The action ids the player has asked to be redirected, for the job being played. A flat
+    /// array rather than a set: it holds a handful of entries, it is read inside the game's
+    /// own call to use an action, and walking eight numbers beats hashing one.
+    /// </summary>
+    private static uint[] s_allowed = Array.Empty<uint>();
+
+    /// <summary>
+    /// How many of <see cref="s_allowed"/> are in use. Written after the array is filled, so
+    /// a read can never see a number larger than the entries behind it.
+    /// </summary>
+    private static int s_allowedCount;
 
     private readonly Hook<UseActionDelegate>? m_hook;
 
@@ -88,10 +108,54 @@ internal sealed unsafe class MouseoverCasting : IDisposable
     }
 
     /// <summary>
-    /// Puts the hook in or takes it out to match the setting. Called on the framework tick, so
-    /// the common case is a comparison of two booleans.
+    /// Takes the spells this job redirects and puts the hook in or out to match. Called on the
+    /// framework tick — the same thread the game uses an action on, which is why the list can
+    /// be refilled in place without anything having to be locked.
+    /// <para>
+    /// Refilled every tick rather than when something changes. A cache here would need to
+    /// notice a spell being switched off, a row being removed and a change of job, and the
+    /// work it would save is a walk over at most a dozen numbers.
+    /// </para>
     /// </summary>
-    public void Sync(bool wanted)
+    public void Sync(System.Collections.Generic.List<MouseoverSpell> spells)
+    {
+        int wants = 0;
+
+        for (int i = 0; i < spells.Count; i++)
+        {
+            if (spells[i].Enabled && spells[i].ActionId != 0)
+            {
+                wants++;
+            }
+        }
+
+        if (wants > s_allowed.Length)
+        {
+            // Only ever on the way up, and in practice once: a list this size is set up and
+            // then lived with.
+            s_allowed = new uint[wants];
+        }
+
+        int written = 0;
+
+        for (int i = 0; i < spells.Count; i++)
+        {
+            MouseoverSpell spell = spells[i];
+
+            if (spell.Enabled && spell.ActionId != 0)
+            {
+                s_allowed[written++] = spell.ActionId;
+            }
+        }
+
+        s_allowedCount = written;
+        this.Hook(written > 0);
+    }
+
+    /// <summary>
+    /// Puts the hook in or takes it out. The common case is a comparison of two booleans.
+    /// </summary>
+    private void Hook(bool wanted)
     {
         if (m_hook is null || wanted == m_wanted)
         {
@@ -154,16 +218,47 @@ internal sealed unsafe class MouseoverCasting : IDisposable
             return targetId;
         }
 
-        // 🔴 The game's own answer to the one question that matters: can this action be used
-        // on them. A first attempt asked GetActionStatus with its recast and cast checks
-        // switched off, and that turned out to answer a wider question than target validity —
-        // a damage action came back usable on a party member and the game then refused it as
-        // an invalid target (Florian, 2026-09-12). This asks about the target and nothing else.
-        //
         // The adjusted id, because that is the action a combo or a job gauge has turned the
         // pressed one into, and it is the adjusted one the game would have used.
-        return ActionManager.CanUseActionOnTarget(manager->GetAdjustedActionId(actionId), (GameObject*)address)
+        uint adjusted = manager->GetAdjustedActionId(actionId);
+
+        // The player's own list, asked first: it is a walk over a handful of numbers, while
+        // the question below reaches into the game. Both ids are offered, because the list
+        // holds what somebody picked off a menu and the key may carry either — the pressed
+        // action when nothing has replaced it, the adjusted one when something has.
+        if (!Allowed(actionId, adjusted))
+        {
+            return targetId;
+        }
+
+        // 🔴 The game's own answer to the other question: can this action be used on them. A
+        // first attempt asked GetActionStatus with its recast and cast checks switched off,
+        // and that turned out to answer a wider question than target validity — a damage
+        // action came back usable on a party member and the game then refused it as an
+        // invalid target (Florian, 2026-09-12). This asks about the target and nothing else.
+        //
+        // Still asked even though the player named the action. What they said is that this
+        // spell belongs on the pointer, not that it belongs on whatever is under it — and a
+        // heal aimed at a hostile would simply fail.
+        return ActionManager.CanUseActionOnTarget(adjusted, (GameObject*)address)
             ? over
             : targetId;
+    }
+
+    /// <summary>Whether either id is one the player asked to be redirected.</summary>
+    private static bool Allowed(uint pressed, uint adjusted)
+    {
+        uint[] allowed = s_allowed;
+        int count = s_allowedCount;
+
+        for (int i = 0; i < count && i < allowed.Length; i++)
+        {
+            if (allowed[i] == pressed || allowed[i] == adjusted)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

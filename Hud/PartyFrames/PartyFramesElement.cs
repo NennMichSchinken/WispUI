@@ -634,9 +634,20 @@ internal sealed class PartyFramesElement : HudElement
     {
         // Nothing to take while the layout is being set against stand-ins: there is nobody to
         // select, and edit mode wants the same button for dragging.
+        //
+        // 🔴 The mouseover spells are in this list too, and they were the easy one to leave
+        // out: nothing on a frame reacts to them, so nothing on screen would have said the
+        // mouse was never taken — the spells would simply have gone to the selected target,
+        // which is what they do anyway when you are not pointing at anybody. Pointing at
+        // somebody is only known while the mouse is ours.
+        uint job = LocalJobId();
+
         if (count == 0
             || EditMode.IsActive
-            || (cfg.Bindings.For(LocalJobId()).Count == 0 && !cfg.MouseoverTarget && !cfg.HighlightHovered))
+            || (cfg.Bindings.For(job).Count == 0
+                && cfg.Mouseover.For(job).Count == 0
+                && !cfg.MouseoverTarget
+                && !cfg.HighlightHovered))
         {
             this.ReleaseMouseOver();
             return;

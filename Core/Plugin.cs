@@ -62,7 +62,7 @@ public sealed class Plugin : IDalamudPlugin
         // Made now, put in place only if the player has asked for it. The hook it owns is the
         // suite's one reach into what a key press does, so it is never installed on spec.
         m_mouseover = new MouseoverCasting();
-        m_mouseover.Sync(m_config.PartyFrames.MouseoverCasting);
+        this.SyncMouseover();
 
         // The pointer switch is shared by everything running in the game, so its state is put
         // back to the game's at load rather than assumed. From here on it has one writer and
@@ -128,9 +128,9 @@ public sealed class Plugin : IDalamudPlugin
     {
         m_config.Tick();
 
-        // Two booleans compared. The hook goes in and comes out with the setting rather than
-        // sitting installed and inert, so a player who never turns it on never carries it.
-        m_mouseover.Sync(m_config.PartyFrames.MouseoverCasting);
+        // The hook goes in and comes out with the list rather than sitting installed and
+        // inert, so a player who has never named a spell never carries it.
+        this.SyncMouseover();
 
         // On the tick rather than in the draw, because the game puts its own list back up on
         // its own — a zone change, a duty, any rebuild of the interface — and the tick runs
@@ -147,6 +147,17 @@ public sealed class Plugin : IDalamudPlugin
         // per frame. Each element throttles its own.
         m_hud.Tick();
     }
+
+    /// <summary>
+    /// Hands the hook the spells the job being played redirects, which is also what decides
+    /// whether the hook is in place at all.
+    /// <para>
+    /// Asked of the job rather than kept: changing job changes the list, and there is no
+    /// event for it that is cheaper than the lookup.
+    /// </para>
+    /// </summary>
+    private void SyncMouseover() =>
+        m_mouseover.Sync(m_config.PartyFrames.Mouseover.For(Services.Objects.LocalPlayer?.ClassJob.RowId ?? 0u));
 
     /// <summary>
     /// Keeps the HUD's font handles in step with the face and the text sizes in use.

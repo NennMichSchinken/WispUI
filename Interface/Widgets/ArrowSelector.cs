@@ -109,7 +109,21 @@ internal sealed class ArrowSelector<T>
     private string m_counter = string.Empty;
     private int m_counterFor = -1;
 
-    private bool m_open;
+    /// <summary>
+    /// Which drawing of this selector has its list open, as ImGui's own resolved id, or zero
+    /// for none.
+    /// <para>
+    /// 🔴 Not a boolean, because one selector object is drawn many times in a frame: every
+    /// row of a list shares the instance and is told apart only by the id pushed around it.
+    /// A boolean said "a list is open" without saying whose, so the next row down asked ImGui
+    /// for a popup under a different id, was told there was none, and wrote the flag back to
+    /// false — the list opened and shut inside one frame. It held together only while exactly
+    /// one row in the window used a picker, which was true of the bindings list and stopped
+    /// being true the moment a second list of spells arrived (2026-09-19).
+    /// </para>
+    /// </summary>
+    private uint m_openId;
+
     private bool m_focusSearch;
     private string m_query = string.Empty;
 
@@ -217,15 +231,19 @@ internal sealed class ArrowSelector<T>
             }
         }
 
+        // The id this drawing of the selector resolves to, which is the popup's own id under
+        // whatever the caller has pushed around it.
+        uint popupId = ImGui.GetID(m_idPopup);
+
         if (faceClicked && m_options.EnablePopupList)
         {
-            m_open = true;
+            m_openId = popupId;
             m_focusSearch = m_options.EnableSearch;
             m_query = string.Empty;
             ImGui.OpenPopup(m_idPopup);
         }
 
-        if (m_open)
+        if (m_openId == popupId)
         {
             changed |= this.DrawPopup(ref index, x, y + height + Tokens.Metric.PopupGap, width);
         }
@@ -499,7 +517,7 @@ internal sealed class ArrowSelector<T>
                         {
                             index = i;
                             changed = true;
-                            m_open = false;
+                            m_openId = 0u;
                             ImGui.CloseCurrentPopup();
                         }
                     }
@@ -512,7 +530,7 @@ internal sealed class ArrowSelector<T>
         else
         {
             // Clicked away or dismissed with escape — ImGui has already closed it.
-            m_open = false;
+            m_openId = 0u;
         }
 
         Ink.Pop(Ink.Role.Body);

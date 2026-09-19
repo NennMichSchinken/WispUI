@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 9;
+    public const int CurrentVersion = 10;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -152,6 +152,12 @@ public sealed class Configuration : IPluginConfiguration
         /// why it is per job and what a job answers to before anybody has set it up.
         /// </summary>
         public BindingSet Bindings { get; set; } = new();
+
+        /// <summary>
+        /// Which spells go to whoever the mouse is over, per job. See
+        /// <see cref="MouseoverSet"/> for why this is a list and not a switch.
+        /// </summary>
+        public MouseoverSet Mouseover { get; set; } = new();
 
         /// <summary>
         /// The old position in a fixed list of six faces. Nothing writes it any more; it is
@@ -351,12 +357,10 @@ public sealed class Configuration : IPluginConfiguration
         public bool MouseoverTarget { get; set; } = true;
 
         /// <summary>
-        /// Send an action to whoever the mouse is over instead of to the selected target.
-        /// <para>
-        /// Off until asked for, and the only setting in the suite that deserves to be. The two
-        /// above change what is shown or what is selected; this changes what a key press does,
-        /// and nobody should find that out by surprise.
-        /// </para>
+        /// The old blanket switch for mouseover casting, in the same position as
+        /// <see cref="ClickToTarget"/> and kept for the same reason: the migration to version
+        /// 10 reads it to tell whether anybody was relying on it. Nothing writes it any more
+        /// — the spells are picked one at a time in <see cref="Mouseover"/>.
         /// </summary>
         public bool MouseoverCasting { get; set; }
 
@@ -915,6 +919,31 @@ public sealed class Configuration : IPluginConfiguration
             // the person who went looking for the switch.
             config.PartyFrames.ShowRaiseIcon = config.PartyFrames.ShowRescueIcon;
             config.PartyFrames.ShowInvulnIcon = config.PartyFrames.ShowRescueIcon;
+        }
+
+        if (config.Version < 10)
+        {
+            // Mouseover casting was one switch for every action a job owns and is now a list
+            // of spells. Nothing is written: the list starts empty on purpose (Florian,
+            // 2026-09-19).
+            //
+            // 🔴 The tempting step is the one not taken here — filling the list with every
+            // heal the job has, so that whoever had the switch on keeps what they had. It
+            // would be the wrong reading of the old value. Turning the switch on was a bet
+            // that redirecting everything was better than redirecting nothing, made when
+            // those were the only two offers; it was never a statement about any particular
+            // spell. Writing a dozen decisions somebody never made, into the one feature that
+            // changes what a key press does, is worse than an empty list they fill in a
+            // minute.
+            //
+            // Said out loud rather than done silently, because for that person the feature
+            // has stopped working and the reason is not on screen anywhere.
+            if (config.PartyFrames.MouseoverCasting)
+            {
+                Services.Log.Information(
+                    "Mouseover casting is now chosen per spell. The old switch was on; the new list starts empty — "
+                    + "pick the spells you want on the pointer under Party frames, Bindings.");
+            }
         }
     }
 

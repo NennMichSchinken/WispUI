@@ -48,10 +48,14 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdManaTanks = "##wisp-pf-manatanks";
     private const string IdManaHealers = "##wisp-pf-manahealers";
     private const string IdManaDps = "##wisp-pf-manadps";
-    private const string IdMouseGroup = "##wisp-pf-mouse";
     private const string IdMouseover = "##wisp-pf-mouseover";
-    private const string IdMouseoverCasting = "##wisp-pf-mocast";
     private const string IdHighlight = "##wisp-pf-highlight";
+    private const string IdJobGroup = "##wisp-pf-jobgroup";
+    private const string IdMouseoverGroup = "##wisp-pf-mogroup";
+    private const string IdMouseoverRow = "##wisp-pf-morow";
+    private const string IdMouseoverOn = "##wisp-pf-moon";
+    private const string IdMouseoverAdd = "##wisp-pf-moadd";
+    private const string IdMouseoverRemove = "##wisp-pf-moremove";
     private const string IdLeaderGroup = "##wisp-pf-leader";
     private const string IdLeaderSize = "##wisp-pf-leadersize";
     private const string IdLeaderPosition = "##wisp-pf-leaderposition";
@@ -1479,85 +1483,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     }
 
     /// <summary>
-    /// What the mouse does over a frame. Two switches and, when it matters, one line saying
-    /// that the game has its own setting for the second one.
-    /// </summary>
-    private Chrome.GroupScope DrawMouse(float x, float y, float width, out float contentHeight)
-    {
-        Chrome.GroupScope group = Chrome.BeginGroup(
-            IdMouseGroup,
-            new Chrome.GroupHead
-            {
-                Title = Strings.GroupMouse,
-                Description = Strings.GroupMouseHint,
-            },
-            x,
-            y,
-            width);
-
-        float pitch = Chrome.RowPitch();
-        float rowY = group.ContentY;
-
-        if (Chrome.OptionRow(
-                IdHighlight,
-                Strings.HighlightHovered,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.HighlightHovered,
-                Chrome.OptionControl.Tick,
-                Strings.HighlightHoveredTooltip,
-                true,
-                false))
-        {
-            m_config.PartyFrames.HighlightHovered = !m_config.PartyFrames.HighlightHovered;
-            m_config.MarkDirty();
-        }
-
-        rowY += pitch;
-        rowY += pitch;
-
-        if (Chrome.OptionRow(
-                IdMouseover,
-                Strings.MouseoverTarget,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.MouseoverTarget,
-                Chrome.OptionControl.Switch,
-                Strings.MouseoverTargetTooltip,
-                true,
-                true))
-        {
-            m_config.PartyFrames.MouseoverTarget = !m_config.PartyFrames.MouseoverTarget;
-            m_config.MarkDirty();
-        }
-
-        rowY += pitch;
-
-        if (Chrome.OptionRow(
-                IdMouseoverCasting,
-                Strings.MouseoverCasting,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.MouseoverCasting,
-                Chrome.OptionControl.Switch,
-                Strings.MouseoverCastingTooltip,
-                true,
-                true))
-        {
-            m_config.PartyFrames.MouseoverCasting = !m_config.PartyFrames.MouseoverCasting;
-            m_config.MarkDirty();
-        }
-
-        float used = rowY - group.ContentY + Chrome.RowHeight();
-        Chrome.EndGroupContent(group, used);
-        contentHeight = used;
-        return group;
-    }
-
-    /// <summary>
     /// How every text on a frame is lettered: which face, and what carries it over the world.
     /// <para>
     /// Two rows for all of them rather than two rows each. Both questions are about reading a
@@ -1657,42 +1582,94 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     }
 
     /// <summary>
-    /// The Bindings tab: what each mouse button does on a frame, for one job at a time.
+    /// The Bindings tab: which job is being set up, then the two lists that say where a
+    /// button and a key press land.
     /// <para>
-    /// A job at the top and a list under it, because the bindings are per job and there is no
-    /// reading of the list that makes sense without knowing which job it belongs to.
+    /// The job is its own panel at the top (Florian, 2026-09-19). It used to be the first row
+    /// of the bindings list, which was honest while it governed one list and became a lie the
+    /// moment it governed two — a setting that belongs to everything below it cannot live
+    /// inside one of the things below it.
+    /// </para>
+    /// <para>
+    /// 🔴 There is no group called "Mouse" any more. It held three switches that had nothing
+    /// to do with each other beyond involving a pointer, which is the subject-shaped cut §3.1
+    /// warns about. Two of them moved to the list each one serves — the hover ring to the
+    /// buttons, the mouseover target to the spells — and the third became the list itself.
+    /// A switch is better off beside what it affects than in a panel named after a device.
     /// </para>
     /// </summary>
     public void DrawBindings(float width)
     {
         Vector2 origin = ImGui.GetCursorScreenPos();
         float y = origin.Y;
-        float column = Chrome.ColumnWidth(width);
 
-        // The mouse sits ABOVE the list, and on this tab rather than on Base (Florian,
-        // 2026-09-18: "ganz oben einfach als Haken"). "What clicking and pointing do" and
-        // "what each button does on a frame" were always one subject on two tabs, and
-        // mouseover casting in particular is a binding by any reading — it is the setting that
-        // decides where a key press lands.
-        Chrome.BeginGroupRow();
-        Chrome.GroupScope mouse = this.DrawMouse(origin.X, y, column, out float mouseHeight);
-        y += Chrome.GroupFrame(mouse, mouseHeight) + Tokens.Metric.ColumnGutter;
+        // Resolved once for the whole tab: both lists below are the same job's.
+        if (m_bindingJob < 0)
+        {
+            m_bindingJob = Math.Max(0, JobList.IndexOf(Services.Objects.LocalPlayer?.ClassJob.RowId ?? 0u));
+        }
 
-        // 🔴 The one group in the suite that takes the full width, and the one row that
-        // carries two controls. The grammar everywhere else — one setting, one control, half
-        // the width — is what keeps a settings screen readable, and a binding is not a
-        // setting: it is a pair, and the pair is the thing. Splitting "this action" from
-        // "this button" across two rows would be two halves of one sentence (Florian,
-        // 2026-09-12, pointing at LumenUI's own bindings screen).
         Chrome.BeginGroupRow();
-        Chrome.GroupScope group = this.DrawBindingList(origin.X, y, width, out float height);
+        Chrome.GroupScope job = this.DrawJobPanel(origin.X, y, width, out float jobHeight);
+        y += Chrome.GroupFrame(job, jobHeight) + Tokens.Metric.ColumnGutter;
+
+        JobEntry entry = JobList.At(m_bindingJob);
+        this.SyncActionChoices(entry.Id);
+
+        // 🔴 The full width, and rows that carry more than one control. The grammar everywhere
+        // else — one setting, one control, half the width — is what keeps a settings screen
+        // readable, and neither of these is a setting: a binding is a pair, and half of a
+        // pair says nothing (Florian, 2026-09-12, pointing at LumenUI's own bindings screen).
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope group = this.DrawBindingList(origin.X, y, width, entry, out float height);
         y += Chrome.GroupFrame(group, height) + Tokens.Metric.ColumnGutter;
+
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope over = this.DrawMouseoverList(origin.X, y, width, entry, out float overHeight);
+        y += Chrome.GroupFrame(over, overHeight) + Tokens.Metric.ColumnGutter;
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
     }
 
-    private Chrome.GroupScope DrawBindingList(float x, float y, float width, out float contentHeight)
+    /// <summary>
+    /// Which job the rest of the tab is about. One row, across the full width, because what
+    /// it governs is the full width.
+    /// </summary>
+    private Chrome.GroupScope DrawJobPanel(float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdJobGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupJob,
+                Description = Strings.GroupJobHint,
+            },
+            x,
+            y,
+            width);
+
+        int job = m_bindingJob;
+
+        if (m_jobSelector.Draw(
+                ref job,
+                Chrome.Row(Strings.BindingJob, group.ContentX, group.ContentY, group.ContentWidth, false, Strings.BindingJobTooltip),
+                group.ContentY,
+                Chrome.ControlWidth()))
+        {
+            m_bindingJob = job;
+
+            // Whatever key was waiting to be pressed belonged to the old job's list.
+            m_listening = -1;
+        }
+
+        float used = Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
+
+    private Chrome.GroupScope DrawBindingList(float x, float y, float width, JobEntry entry, out float contentHeight)
     {
         Chrome.GroupScope group = Chrome.BeginGroup(
             IdBindingsGroup,
@@ -1708,28 +1685,26 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
 
-        // Which job is being set up. Defaults to the one being played, so opening the tab
-        // mid-session lands on the list that is actually in force.
-        if (m_bindingJob < 0)
-        {
-            m_bindingJob = Math.Max(0, JobList.IndexOf(Services.Objects.LocalPlayer?.ClassJob.RowId ?? 0u));
-        }
-
-        int job = m_bindingJob;
-        if (m_jobSelector.Draw(
-                ref job,
-                Chrome.Row(Strings.BindingJob, group.ContentX, rowY, group.ContentWidth, true, Strings.BindingJobTooltip),
+        // The hover ring sits above the list, because it is the answer to "which frame is
+        // this button about to act on" — the same question the list below it settles. It is
+        // not per job: a ring means the same thing whatever you are playing.
+        if (Chrome.OptionRow(
+                IdHighlight,
+                Strings.HighlightHovered,
+                group.ContentX,
                 rowY,
-                Chrome.ControlWidth()))
+                group.ContentWidth,
+                m_config.PartyFrames.HighlightHovered,
+                Chrome.OptionControl.Tick,
+                Strings.HighlightHoveredTooltip,
+                true,
+                false))
         {
-            m_bindingJob = job;
-            m_listening = -1;
+            m_config.PartyFrames.HighlightHovered = !m_config.PartyFrames.HighlightHovered;
+            m_config.MarkDirty();
         }
 
         rowY += pitch;
-
-        JobEntry entry = JobList.At(m_bindingJob);
-        this.SyncActionChoices(entry.Id);
 
         System.Collections.Generic.List<MouseBinding> bindings = m_config.PartyFrames.Bindings.Edit(entry.Id);
 
@@ -1783,10 +1758,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
             ImGui.PushID(i);
 
-            if (i > 0)
-            {
-                Chrome.RowDivider(group.ContentX, group.ContentX + group.ContentWidth, rowY);
-            }
+            // Every row, including the first: the hover ring now sits above the list, so
+            // there is always something for the first row to be divided from.
+            Chrome.RowDivider(group.ContentX, group.ContentX + group.ContentWidth, rowY);
 
             if (binding.Kind == BindingKind.Action)
             {
@@ -1898,6 +1872,191 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 Button = 2,
             });
 
+            m_config.MarkDirty();
+        }
+
+        return rowY + Chrome.RowPitch();
+    }
+
+    /// <summary>
+    /// Which spells go to whoever the pointer is on, for this job.
+    /// <para>
+    /// Built as a list rather than as a switch (Florian, 2026-09-19). One switch for every
+    /// action a job owns asked the wrong question: "can this be used on them" is true of
+    /// every heal, shield and raise a healer has, and wanting a regen on the pointer is not
+    /// wanting a raise there. The list asks it once per spell, which is how it comes up.
+    /// </para>
+    /// <para>
+    /// There is no switch over the list either, because the list already is one. Nothing
+    /// named, or everything switched off, and the hook is not installed at all — so the one
+    /// feature in the suite that changes what a key press does costs exactly nothing until
+    /// somebody asks for it.
+    /// </para>
+    /// </summary>
+    private Chrome.GroupScope DrawMouseoverList(float x, float y, float width, JobEntry job, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdMouseoverGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupMouseover,
+                Description = Strings.GroupMouseoverHint,
+            },
+            x,
+            y,
+            width);
+
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
+
+        // The weaker half of the same idea, and above the list for that reason: this only
+        // tells the game where you are pointing, which is all a <mo> macro needs and is the
+        // one setting here that changes nothing about a key press. Not per job — what you
+        // point at means the same on every job.
+        if (Chrome.OptionRow(
+                IdMouseover,
+                Strings.MouseoverTarget,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.MouseoverTarget,
+                Chrome.OptionControl.Switch,
+                Strings.MouseoverTargetTooltip,
+                true,
+                false))
+        {
+            m_config.PartyFrames.MouseoverTarget = !m_config.PartyFrames.MouseoverTarget;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+
+        // Read, not edited. An entry is made when a spell is added and not a moment earlier:
+        // for this list an empty entry and no entry mean the same thing, so opening the tab
+        // on twenty jobs would otherwise write twenty empty lists nobody asked for.
+        System.Collections.Generic.List<MouseoverSpell> spells = m_config.PartyFrames.Mouseover.For(job.Id);
+        rowY = this.DrawMouseoverRows(group, spells, job, rowY, pitch);
+
+        float used = rowY - group.ContentY + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
+
+    /// <summary>
+    /// One row per spell: what it is, whether it answers, and a way to take it out.
+    /// <para>
+    /// The same shape as a binding row minus the key, because there is no key to name — the
+    /// key is whatever you already have the spell on. That absence is the whole difference
+    /// between the two lists and is better shown by a missing column than explained.
+    /// </para>
+    /// </summary>
+    private float DrawMouseoverRows(
+        Chrome.GroupScope group,
+        System.Collections.Generic.List<MouseoverSpell> spells,
+        JobEntry job,
+        float rowY,
+        float pitch)
+    {
+        ActionEntry[] actions = ActionList.For(job.Id);
+
+        float toggleWidth = Tokens.Px(30f);
+        float trash = Tokens.Metric.TitleButton;
+        float gap = Tokens.Space.Md;
+
+        float trashX = group.ContentX + group.ContentWidth - trash;
+        float toggleX = trashX - gap - toggleWidth;
+        float nameWidth = toggleX - gap - group.ContentX;
+
+        int remove = -1;
+
+        // 🔴 Its own id scope, and not only for tidiness: the action picker is one object
+        // shared by both lists, and without this the second list's rows would resolve to the
+        // same ids as the first's.
+        ImGui.PushID(IdMouseoverRow);
+
+        for (int i = 0; i < spells.Count; i++)
+        {
+            MouseoverSpell spell = spells[i];
+
+            ImGui.PushID(i);
+            Chrome.RowDivider(group.ContentX, group.ContentX + group.ContentWidth, rowY);
+
+            int pick = this.ActionIndex(spell.ActionId);
+
+            if (m_actionPicker.Draw(ref pick, group.ContentX, rowY, nameWidth)
+                && pick >= 0 && pick < m_actionChoices.Count)
+            {
+                spell.ActionId = m_actionChoices[pick].Id;
+                m_config.MarkDirty();
+            }
+
+            if (Chrome.BindingToggle(IdMouseoverOn, toggleX, rowY, spell.Enabled))
+            {
+                spell.Enabled = !spell.Enabled;
+                m_config.MarkDirty();
+            }
+
+            float trashY = MathF.Round(rowY + ((Chrome.RowHeight() - trash) * 0.5f));
+
+            if (Chrome.CloseButton(IdMouseoverRemove, trashX, trashY))
+            {
+                remove = i;
+            }
+
+            ImGui.PopID();
+            rowY += pitch;
+        }
+
+        ImGui.PopID();
+
+        // After the loop, never inside it: taking a row out while walking the list is how a
+        // row gets skipped and an index ends up pointing at the wrong spell.
+        if (remove >= 0)
+        {
+            spells.RemoveAt(remove);
+            m_config.MarkDirty();
+        }
+
+        return this.DrawAddSpell(group, job, actions, rowY);
+    }
+
+    /// <summary>
+    /// The button that adds a spell, or the line that says this job has nothing to add.
+    /// <para>
+    /// The one place the job's entry is created, which is why it takes the job rather than
+    /// the list it was drawn from: a job nobody has added a spell to is handed a shared empty
+    /// list for reading, and that list must never be written to.
+    /// </para>
+    /// </summary>
+    private float DrawAddSpell(
+        Chrome.GroupScope group,
+        JobEntry job,
+        ActionEntry[] actions,
+        float rowY)
+    {
+        if (actions.Length == 0)
+        {
+            Chrome.RowDivider(group.ContentX, group.ContentX + group.ContentWidth, rowY);
+
+            Ink.Draw(
+                ImGui.GetWindowDrawList(),
+                Ink.Role.Small,
+                new Vector2(group.ContentX, rowY + Tokens.Space.Sm),
+                Tokens.Col.InkFaint,
+                Strings.BindingNoActions);
+
+            return rowY + Chrome.RowPitch();
+        }
+
+        Chrome.RowDivider(group.ContentX, group.ContentX + group.ContentWidth, rowY);
+
+        if (Chrome.PillButton(IdMouseoverAdd, Strings.MouseoverAdd, group.ContentX, rowY))
+        {
+            // The job's first action, the same stand-in a new binding gets. It is meant to be
+            // changed straight away, and starting on a real entry means the row reads as a
+            // spell you have not picked yet rather than as an empty control.
+            m_config.PartyFrames.Mouseover.Edit(job.Id).Add(new MouseoverSpell { ActionId = actions[0].Id });
             m_config.MarkDirty();
         }
 

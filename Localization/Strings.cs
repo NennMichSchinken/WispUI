@@ -152,8 +152,6 @@ internal static class Strings
     public const string GroupPartyNumber = "Party number";
     public const string GroupPartyNumberHint = "The 1 to 8 people are called out by.";
     // --- Party frames: the mouse ----------------------------------------------
-    public const string GroupMouse = "Mouse";
-    public const string GroupMouseHint = "What clicking and pointing do.";
     public const string HighlightHovered = "Ring the frame under the cursor";
     public const string HighlightHoveredTooltip = "The game's own party list marks it too.";
     public const string ClickToTarget = "Click to select";
@@ -168,10 +166,12 @@ internal static class Strings
 
     // --- bindings -----------------------------------------------------------
     public const string TabBindings = "Bindings";
+    public const string GroupJob = "Job";
+    public const string GroupJobHint = "Both lists below belong to the job picked here.";
     public const string GroupBindings = "Mouse bindings";
-    public const string GroupBindingsHint = "What each button does on a frame. Kept per job.";
-    public const string BindingJob = "Job";
-    public const string BindingJobTooltip = "Bindings are kept per job, because what a button should do depends on what you play.";
+    public const string GroupBindingsHint = "What each button does on a frame.";
+    public const string BindingJob = "Set up for";
+    public const string BindingJobTooltip = "Kept per job, because what a button should do depends on what you play.";
     public const string BindingAdd = "Add binding";
     public const string BindingRemove = "Remove";
     public const string BindingAction = "Action";
@@ -214,8 +214,12 @@ internal static class Strings
     // Says exactly what it does and no more. A hotbar key still goes to the selected target —
     // the game has no setting that changes that, whatever we assumed (Florian, 2026-09-12).
     public const string MouseoverTargetTooltip = "Makes <mo> macros act on whoever you point at.";
-    public const string MouseoverCasting = "Cast on mouseover";
-    public const string MouseoverCastingTooltip = "Sends an action to the frame under the cursor, without selecting them first.";
+
+    // The group is named after what it does, not after a switch, because it no longer is one:
+    // the list of spells is the setting (Florian, 2026-09-19).
+    public const string GroupMouseover = "Mouseover casting";
+    public const string GroupMouseoverHint = "Spells that go to the frame under the pointer instead of your target.";
+    public const string MouseoverAdd = "Add spell";
 
     public const string GroupLeader = "Leader";
     public const string GroupLeaderHint = "Who is in charge of the party.";
