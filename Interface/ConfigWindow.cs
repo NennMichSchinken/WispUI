@@ -652,7 +652,7 @@ internal sealed class ConfigWindow : Window
         y -= Tokens.Metric.NavButtonHeight + pad;
         this.DrawEditModeButton(dl, innerLeft, y, innerRight - innerLeft);
 
-        y -= Tokens.Metric.NavCardHeight + pad;
+        y -= NewsCardHeight() + pad;
         this.DrawNewsCard(dl, innerLeft, y, innerRight - innerLeft);
     }
 
@@ -711,9 +711,30 @@ internal sealed class ConfigWindow : Window
         Chrome.TooltipOnHover(Strings.EditModeHint);
     }
 
+    /// <summary>
+    /// How tall the card is: its padding, the badge row, and room for exactly two lines of
+    /// summary.
+    /// <para>
+    /// 🔴 Worked out from the parts rather than written down as a number. A fixed height
+    /// beside a wrapping text is a pair that has to be kept in step by hand, and the way it
+    /// fails is the text quietly leaving the card.
+    /// </para>
+    /// </summary>
+    private static float NewsCardHeight() =>
+        (Tokens.Space.Md * 2f)
+        + Tokens.Metric.BadgeHeight
+        + Tokens.Space.Xs
+        + (Ink.LineHeight(Ink.Role.Small) * NewsCardLines);
+
+    /// <summary>
+    /// Two, and the summary is written to fit. More would make the card a paragraph in the
+    /// navigation rail; fewer cannot say what a release was about.
+    /// </summary>
+    private const int NewsCardLines = 2;
+
     private void DrawNewsCard(ImDrawListPtr dl, float x, float y, float width)
     {
-        float height = Tokens.Metric.NavCardHeight;
+        float height = NewsCardHeight();
         Vector2 min = new(x, y);
         Vector2 max = new(x + width, y + height);
 
@@ -721,6 +742,12 @@ internal sealed class ConfigWindow : Window
         ImGui.InvisibleButton(IdNews, new Vector2(width, height));
         bool hovered = ImGui.IsItemHovered();
         Chrome.ShowHand(hovered);
+
+        // 🔴 Asked here and nowhere later. Everything below draws, and drawing a text is an
+        // ImGui item too — by the end of this method IsItemClicked would be asking about the
+        // summary rather than about the card, which is why the card did nothing at all
+        // (Florian, 2026-09-20).
+        bool clicked = ImGui.IsItemClicked();
 
         dl.AddRectFilled(min, max, Tokens.Col.NavCard, Tokens.Radius.Control);
         dl.AddRect(
@@ -765,19 +792,27 @@ internal sealed class ConfigWindow : Window
         // ends mid-word when somebody forgets — which is exactly what the sister project's
         // note warns about (its card truncates instead).
         float textY = MathF.Round(rowY + badgeHeight + Tokens.Space.Xs);
+        float textWidth = width - (Tokens.Space.Md * 2f);
+        float textRoom = Ink.LineHeight(Ink.Role.Small) * NewsCardLines;
+
+        // Clipped to the two lines it was given. The summary is written to fit, but a
+        // summary is prose somebody types at release time, and the card must not be the
+        // thing that goes wrong when one comes out a word too long.
+        dl.PushClipRect(new Vector2(innerX, textY), new Vector2(innerX + textWidth, textY + textRoom), true);
         Ink.DrawWrapped(
             Ink.Role.Small,
             new Vector2(innerX, textY),
-            width - (Tokens.Space.Md * 2f),
+            textWidth,
             Tokens.Col.InkFaint,
             Data.News.Latest.Summary);
+        dl.PopClipRect();
 
         if (hovered)
         {
             Chrome.Tooltip(null, Strings.NewsOpenHint);
         }
 
-        if (ImGui.IsItemClicked())
+        if (clicked)
         {
             this.OpenNews();
         }

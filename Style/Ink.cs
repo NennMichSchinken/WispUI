@@ -349,13 +349,22 @@ internal static class Ink
         return size;
     }
 
-    /// <summary>The same string, drawn where it was measured.</summary>
+    /// <summary>
+    /// The same string, drawn where it was measured.
+    /// <para>
+    /// 🔴 <c>PushTextWrapPos</c> takes a WINDOW-LOCAL x, not a screen one. Handed a screen
+    /// coordinate it wraps somewhere off to the right of everything, which looks exactly
+    /// like no wrapping at all — the text simply runs out of whatever it was drawn in
+    /// (Florian, 2026-09-20, the news card). The position is converted here so no caller
+    /// has to know, because every caller works in screen coordinates.
+    /// </para>
+    /// </summary>
     public static void DrawWrapped(Role role, Vector2 pos, float width, uint colour, string text)
     {
         Push(role);
         ImGui.PushStyleColor(ImGuiCol.Text, colour);
         ImGui.SetCursorScreenPos(pos);
-        ImGui.PushTextWrapPos(pos.X + width);
+        ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + width);
         ImGui.TextUnformatted(text);
         ImGui.PopTextWrapPos();
         ImGui.PopStyleColor();

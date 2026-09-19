@@ -109,7 +109,10 @@ internal static class News
         new(
             "0.1.0",
             "2026-09-20",
-            "Party frames, profiles per job, and a preview that draws the real thing.",
+            // 🔴 Two lines in the navigation card, and the card clips rather than grows.
+            // Roughly sixty characters fit — past that a sentence loses its end, which
+            // reads as a defect even though it is the intended cap.
+            "Party frames, profiles per job, and a live preview.",
             new NewsEntry[]
             {
                 new(
