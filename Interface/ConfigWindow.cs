@@ -70,8 +70,9 @@ internal sealed class ConfigWindow : Window
     /// </para>
     /// <para>
     /// The price is seven chips instead of five, and the price is real: §3.1 says the tab
-    /// count is itself a cost and that this is expressly not DelvUI's road. Seven is where
-    /// Florian drew the line, with tabs of three rather than tabs of seven.
+    /// count is itself a cost, and that answering a crowded tab with more tabs is a road worth
+    /// refusing to go far down. Seven is where Florian drew the line, with tabs of three
+    /// rather than tabs of seven.
     /// </para>
     /// </summary>
     private static readonly string[] TabsPartyFrames =
