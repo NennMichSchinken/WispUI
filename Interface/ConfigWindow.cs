@@ -138,6 +138,13 @@ internal sealed class ConfigWindow : Window
     };
 
     /// <summary>
+    /// Which chip is the bindings tab, asked of the list rather than written down. Two places
+    /// far apart act on it, and a literal in both is the pair that drifts when a tab is
+    /// inserted ahead of them.
+    /// </summary>
+    private static readonly int TabIndexBindings = Array.IndexOf(TabsPartyFrames, Strings.TabBindings);
+
+    /// <summary>
     /// The navigation tree. Suite-wide entries first, then a separator, then the HUD
     /// modules. Modules that are not built yet stay in the list, dimmed, so the tree
     /// still says what is coming.
@@ -761,6 +768,15 @@ internal sealed class ConfigWindow : Window
             return top;
         }
 
+        // Bindings is the one party tab the band says nothing about: it sets what a key and a
+        // pointer do on a frame, and none of that changes how the frame looks. A preview that
+        // cannot answer the question on screen is just height taken from the settings
+        // (Florian, 2026-09-19).
+        if (m_tabIndex[(int)m_screen] == TabIndexBindings)
+        {
+            return top;
+        }
+
         float x = left + Tokens.Metric.SectionPaddingX;
         float wide = right - x - Tokens.Metric.SectionPaddingX;
         float barHeight = Tokens.Metric.PreviewBarHeight;
@@ -1160,7 +1176,7 @@ internal sealed class ConfigWindow : Window
             {
                 m_partyFrames.DrawMarks(inner);
             }
-            else if (m_screen == Screen.PartyFrames && tab == 6)
+            else if (m_screen == Screen.PartyFrames && tab == TabIndexBindings)
             {
                 m_partyFrames.DrawBindings(inner);
             }
