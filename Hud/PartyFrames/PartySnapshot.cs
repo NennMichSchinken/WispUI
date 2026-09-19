@@ -431,25 +431,25 @@ internal sealed class PartySnapshot
 
         for (int i = 0; i < count; i++)
         {
-            if (AuraPreview.Active)
-            {
-                this.PreviewAuras(i);
-            }
-            else
-            {
-                this.CollectAuras(i);
-            }
+            this.CollectAuras(i);
         }
     }
 
     /// <summary>
-    /// Fills the array with a full party of stand-ins. Without a group there is nothing to lay
-    /// out against, and a layout you cannot see while you set it is a layout you set twice —
-    /// so edit mode brings its own eight, one per role, in the order a party is sorted.
+    /// Fills the array with stand-ins. Without a group there is nothing to lay out against,
+    /// and a layout you cannot see while you set it is a layout you set twice — so edit mode
+    /// brings its own eight, one per role, in the order a party is sorted.
+    /// <para>
+    /// The count is asked for, because the settings window preview offers the three party
+    /// sizes somebody actually plays: alone, a light party, a full one. Edit mode takes all
+    /// eight, which is where there is finally room to see what a row of icons does.
+    /// </para>
     /// </summary>
-    public void FillPlaceholders()
+    public void FillPlaceholders(int count = Capacity, bool withAuras = false)
     {
-        for (int i = 0; i < Capacity; i++)
+        count = Math.Clamp(count, 1, Capacity);
+
+        for (int i = 0; i < count; i++)
         {
             ref PartyMemberSnapshot slot = ref m_members[i];
             slot.EntityId = PlaceholderId + (uint)i;
@@ -485,15 +485,15 @@ internal sealed class PartySnapshot
             slot.InvulnerableStatus = 0u;
         }
 
-        this.IsSolo = false;
-        this.Count = Capacity;
+        this.IsSolo = count == 1;
+        this.Count = count;
 
         // Edit mode and the preview are the two halves of setting a frame up, and they are
         // most often on together: eight stand-in people is where there is finally room to see
         // what a row of icons does to a layout.
-        if (AuraPreview.Active)
+        if (withAuras)
         {
-            for (int i = 0; i < Capacity; i++)
+            for (int i = 0; i < count; i++)
             {
                 this.PreviewAuras(i);
             }

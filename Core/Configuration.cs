@@ -31,6 +31,19 @@ public sealed class Configuration : IPluginConfiguration
     /// <summary>Show an entry in the server info bar that opens the settings window.</summary>
     public bool ShowInfoBarEntry { get; set; } = true;
 
+    /// <summary>
+    /// Whether the preview band under the module header is open.
+    /// <para>
+    /// Saved, unlike the eye switches that hide parts of what it shows. Those are a way of
+    /// looking at one thing for a moment; this is whether you want the band at all, and
+    /// having to open it every session would make the answer "no" for everybody.
+    /// </para>
+    /// </summary>
+    public bool PreviewOpen { get; set; } = true;
+
+    /// <summary>How many stand-ins the preview shows: one, four or a full party.</summary>
+    public int PreviewCount { get; set; } = 4;
+
     // --- Modules ------------------------------------------------------------
 
     /// <summary>The quietest a health bar may be drawn. Below this it stops being readable.</summary>

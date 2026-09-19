@@ -100,7 +100,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdAuraStacks = "##wisp-pf-aurastacks";
     private const string IdAuraSwipe = "##wisp-pf-auraswipe";
     private const string IdAuraTooltips = "##wisp-pf-auratips";
-    private const string IdPreviewAuras = "##wisp-pf-aurapreview";
     private const string IdCleanseWhenAble = "##wisp-pf-cleanseable";
     private const string IdCleanseColour = "##wisp-pf-cleansecolour";
     private const string IdCleanseThickness = "##wisp-pf-cleansethick";
@@ -2395,25 +2394,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        // Right under the switch it belongs to, and not saved: everything below this row
-        // places something that is only on a frame some of the time, and placing it blind is
-        // placing it twice (Florian, 2026-09-13).
-        rowY += pitch;
-        if (Chrome.OptionRow(
-                IdPreviewAuras,
-                Strings.PreviewAuras,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                AuraPreview.Active,
-                Chrome.OptionControl.Tick,
-                Strings.PreviewAurasTooltip,
-                true,
-                true))
-        {
-            AuraPreview.Toggle();
-        }
-
+        // 🔴 "Preview auras" used to sit here — a tick that put made-up afflictions on the
+        // real frames, because everything below this row places something that is only on a
+        // frame some of the time and placing it blind is placing it twice (Florian,
+        // 2026-09-13). The preview band answers that properly and always carries them, so the
+        // tick is gone rather than kept as a second way to ask the same question (Florian,
+        // 2026-09-19).
         rowY += pitch;
         this.PixelSlider(IdAuraMax, Strings.AuraCount, SlotAuraMax, group, rowY, 1f, PartySnapshot.MaxAuras, true, Strings.AuraCountTooltip);
 

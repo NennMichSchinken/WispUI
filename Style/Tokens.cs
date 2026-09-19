@@ -556,7 +556,10 @@ internal static class Tokens
         /// in-game, 2026-09-11 — so both the window and the control column grew again.
         /// </summary>
         public static float WindowWidth => Px(1080f);
-        public static float WindowHeight => Px(700f);
+        // Grown from 700 when the preview band arrived (Florian, 2026-09-19). The band takes
+        // 200 off the content, which left the fuller tabs scrolling; 860 still fits a 1080p
+        // screen with room to spare.
+        public static float WindowHeight => Px(860f);
 
         /// <summary>The window edge: four rings, as measured off the game's own frame.</summary>
         public static float WindowBorder => Line(4f);
@@ -591,6 +594,17 @@ internal static class Tokens
         public static float TabGap => Px(2f);
 
         public static float ModuleHeaderHeight => Px(42f);
+
+        // --- the preview band ---------------------------------------------
+        // The strip under the module header that shows the element as it will look. Its
+        // height is fixed and the frames scroll inside it: a band that grew with the layout
+        // would take the window away from the settings it exists to serve, and the frame
+        // height alone can be set to 150.
+
+        public static float PreviewBarHeight => Px(30f);
+        public static float PreviewHeight => Px(200f);
+        public static float PreviewPadding => Px(12f);
+        public static float PreviewCaret => Px(9f);
 
         public static float ButtonHeight => Px(29f);
         public static float ButtonPaddingX => Px(12f);

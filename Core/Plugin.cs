@@ -43,7 +43,12 @@ public sealed class Plugin : IDalamudPlugin
         Scaling.Commit(m_config.Scale);
         Scaling.LogGameScaleReadings();
 
-        m_configWindow = new ConfigWindow(m_config);
+        // Kept in a local, because the settings window draws this same element as its
+        // preview. One object, one set of drawing code, two places it appears.
+        var frames = new PartyFramesElement(m_config);
+        m_hud.Add(frames);
+
+        m_configWindow = new ConfigWindow(m_config, frames);
         m_windows.AddWindow(m_configWindow);
         m_commands = new CommandHandler(m_configWindow);
 
@@ -57,10 +62,9 @@ public sealed class Plugin : IDalamudPlugin
         // can be released again.
         EditMode.Finished += this.OnEditModeFinished;
 
-        m_hud.Add(new PartyFramesElement(m_config));
-
         // Made now, put in place only if the player has asked for it. The hook it owns is the
         // suite's one reach into what a key press does, so it is never installed on spec.
+        //
         // 🔴 Made, and left alone. Asking which job is being played reads the object table,
         // and the object table may only be read on the main thread — which the constructor is
         // not (verified the hard way: the plugin failed to load, 2026-09-19). Nothing is lost

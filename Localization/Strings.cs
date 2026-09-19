@@ -19,6 +19,14 @@ internal static class Strings
 
     // --- Window chrome ------------------------------------------------------
     public const string Defaults = "Defaults";
+
+    // --- the preview band ---------------------------------------------------
+    // The counts are written as numbers, because that is what they are. "Light party" would
+    // be the game's word for one of them and have no counterpart for the other two.
+    public const string Preview = "Preview";
+    public const string PreviewSolo = "1";
+    public const string PreviewLight = "4";
+    public const string PreviewFull = "8";
     public const string EditMode = "Edit Mode";
     public const string EditModeKeys = "Drag or use the arrows  ·  Shift for 10  ·  Ctrl ignores the guides";
     public const string EditModeDone = "Done";
@@ -333,10 +341,6 @@ internal static class Strings
     public const string CleanseWhenAble = "Only on cleanse jobs";
     public const string CleanseWhenAbleTooltip =
         "The mark is an instruction. Off, it also appears on jobs that cannot act on it. The icons show the effect either way.";
-
-    public const string PreviewAuras = "Preview";
-    public const string PreviewAurasTooltip =
-        "Puts stand-in effects on the frames so they can be placed without waiting for a fight. Ends when this window closes.";
 
     public const string ShowRaise = "Show raise";
     public const string ShowRaiseTooltip =

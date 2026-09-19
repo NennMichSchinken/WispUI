@@ -61,6 +61,9 @@ internal sealed class PartyFramesElement : HudElement
     private readonly Configuration m_config;
     private readonly PartySnapshot m_snapshot = new();
 
+    /// <summary>The stand-ins the settings window preview is drawn from. Never the live one.</summary>
+    private readonly PartySnapshot m_preview = new();
+
     /// <summary>
     /// The health figure, kept per slot and rebuilt only when one of the numbers behind it
     /// moves. Formatting allocates, and a party of eight would do it eight times a frame for
@@ -104,20 +107,37 @@ internal sealed class PartyFramesElement : HudElement
     private readonly uint[] m_shownHealthFor = new uint[PartySnapshot.Capacity];
 
     /// <summary>
-    /// Each frame's inside, worked out in the first pass and read back in the second. The
-    /// two passes exist so a name or an icon can sit outside its own frame without the next
-    /// frame's ground being painted over it.
+    /// Where a block of frames landed, kept from the pass that drew it.
+    /// <para>
+    /// 🔴 One of these per block, and there are two blocks: the one on the world and the one
+    /// in the settings window's preview. They cannot share, because these numbers are what
+    /// the mouse is tested against — a preview drawn after the real frames would leave the
+    /// hit boxes sitting inside the settings window, and clicking a party member would target
+    /// whoever the preview happened to have in that spot. Which of the two draws first is not
+    /// something to rely on.
+    /// </para>
     /// </summary>
-    private readonly Vector2[] m_innerMin = new Vector2[PartySnapshot.Capacity];
-    private readonly Vector2[] m_innerMax = new Vector2[PartySnapshot.Capacity];
-    private readonly bool[] m_hasInside = new bool[PartySnapshot.Capacity];
+    private sealed class FrameGeometry
+    {
+        /// <summary>
+        /// Each frame's inside, worked out in the first pass and read back in the second. The
+        /// two passes exist so a name or an icon can sit outside its own frame without the
+        /// next frame's ground being painted over it.
+        /// </summary>
+        public readonly Vector2[] InnerMin = new Vector2[PartySnapshot.Capacity];
+        public readonly Vector2[] InnerMax = new Vector2[PartySnapshot.Capacity];
+        public readonly bool[] HasInside = new bool[PartySnapshot.Capacity];
 
-    /// <summary>
-    /// Each frame's outside, for the mouse. The inside is where things are drawn; the edge is
-    /// still part of the thing you are clicking on.
-    /// </summary>
-    private readonly Vector2[] m_frameMin = new Vector2[PartySnapshot.Capacity];
-    private readonly Vector2[] m_frameMax = new Vector2[PartySnapshot.Capacity];
+        /// <summary>
+        /// Each frame's outside, for the mouse. The inside is where things are drawn; the
+        /// edge is still part of the thing you are clicking on.
+        /// </summary>
+        public readonly Vector2[] FrameMin = new Vector2[PartySnapshot.Capacity];
+        public readonly Vector2[] FrameMax = new Vector2[PartySnapshot.Capacity];
+    }
+
+    private readonly FrameGeometry m_liveGeo = new();
+    private readonly FrameGeometry m_previewGeo = new();
 
     /// <summary>
     /// Whether we were the ones who last said what the mouse is over. The game fills that
@@ -180,27 +200,31 @@ internal sealed class PartyFramesElement : HudElement
     /// </summary>
     public override void Bounds(out Vector2 min, out Vector2 max)
     {
+        // Always the live block, never whatever was drawn last. Edit mode moves the frames on
+        // the world, and the preview is a picture of them somewhere else entirely.
+        FrameGeometry geo = m_liveGeo;
+
         min = default;
         max = default;
         bool any = false;
 
         for (int i = 0; i < m_snapshot.Count; i++)
         {
-            if (!m_hasInside[i])
+            if (!geo.HasInside[i])
             {
                 continue;
             }
 
             if (!any)
             {
-                min = m_frameMin[i];
-                max = m_frameMax[i];
+                min = geo.FrameMin[i];
+                max = geo.FrameMax[i];
                 any = true;
                 continue;
             }
 
-            min = Vector2.Min(min, m_frameMin[i]);
-            max = Vector2.Max(max, m_frameMax[i]);
+            min = Vector2.Min(min, geo.FrameMin[i]);
+            max = Vector2.Max(max, geo.FrameMax[i]);
         }
     }
 
@@ -224,7 +248,7 @@ internal sealed class PartyFramesElement : HudElement
         // things it covers — which is exactly wrong for a tab whose every control needs to be
         // watched while it is moved (Florian, 2026-09-13: the icons were never visible,
         // because turning on the thing that showed eight frames took the window away).
-        if (EditMode.IsActive || AuraPreview.Active)
+        if (EditMode.IsActive)
         {
             m_snapshot.FillPlaceholders();
             this.CollectIcons();
@@ -277,7 +301,7 @@ internal sealed class PartyFramesElement : HudElement
     {
         if (!NativeUi.ContextMenuBounds(out Vector2 menuMin, out Vector2 menuMax))
         {
-            this.DrawContent(dl);
+            this.DrawLive(dl);
             return;
         }
 
@@ -312,12 +336,72 @@ internal sealed class PartyFramesElement : HudElement
 
             // No special case for the mouse: while a menu is up the frames have already let go
             // of it, so nothing in here asks ImGui for anything that could be counted twice.
-            this.DrawContent(dl);
+            this.DrawLive(dl);
             dl.PopClipRect();
         }
     }
 
-    private void DrawContent(ImDrawListPtr dl)
+    public override bool HasPreview => true;
+
+    public override Vector2 PreviewSize(int count) =>
+        FrameLayout.BlockSize(
+            count,
+            (FrameDirection)m_config.PartyFrames.Direction,
+            m_config.PartyFrames.Lines,
+            Tokens.Px(m_config.PartyFrames.FrameWidth),
+            Tokens.Px(m_config.PartyFrames.FrameHeight),
+            Tokens.Px(m_config.PartyFrames.Spacing));
+
+    /// <summary>
+    /// The frames as they will look, drawn into the settings window.
+    /// <para>
+    /// Its own snapshot, and not only to keep the stand-ins out of the real one: the bars
+    /// carry their animation forward <em>as they are drawn</em>, so a block sharing the live
+    /// snapshot would advance it a second time every frame and every smooth bar in the game
+    /// would run at double speed.
+    /// </para>
+    /// </summary>
+    public override void DrawPreview(ImDrawListPtr dl, Vector2 origin, int count)
+    {
+        // Always with stand-in effects. The checkbox that used to put made-up afflictions on
+        // the real frames is gone: it existed because the icons could not be seen without a
+        // fight, and this band is that answer done properly (Florian, 2026-09-19).
+        m_preview.FillPlaceholders(count, true);
+        this.DrawContent(dl, origin, m_preview, m_previewGeo, false);
+    }
+
+    /// <summary>
+    /// The block on the world, at the position the player put it.
+    /// </summary>
+    private void DrawLive(ImDrawListPtr dl) =>
+        this.DrawContent(
+            dl,
+            new Vector2(Tokens.Px(m_config.PartyFrames.PositionX), Tokens.Px(m_config.PartyFrames.PositionY)),
+            m_snapshot,
+            m_liveGeo,
+            true);
+
+    /// <summary>
+    /// Draws one block of frames: the real one on the world, or the preview in the settings
+    /// window. One routine for both, and that is the point — a preview drawn by a second,
+    /// simpler renderer is a preview that lies, and every change after it would have to be
+    /// made twice.
+    /// </summary>
+    /// <param name="origin">The block's top-left corner, already in screen pixels.</param>
+    /// <param name="snapshot">Who to draw. The preview brings its own, filled with stand-ins.</param>
+    /// <param name="geo">Where to record what was drawn.</param>
+    /// <param name="live">
+    /// Whether this block is the one on the world. Only that one takes the mouse, tells the
+    /// game what is being pointed at, and shows tooltips — a picture in a window does none of
+    /// those things, and a second block asking ImGui for the same mouse would be two answers
+    /// to one question.
+    /// </param>
+    private void DrawContent(
+        ImDrawListPtr dl,
+        Vector2 origin,
+        PartySnapshot snapshot,
+        FrameGeometry geo,
+        bool live)
     {
         Configuration.PartyFramesConfig cfg = m_config.PartyFrames;
 
@@ -325,8 +409,8 @@ internal sealed class PartyFramesElement : HudElement
         float height = Tokens.Px(cfg.FrameHeight);
         float spacing = Tokens.Px(cfg.Spacing);
         float border = Tokens.Metric.FrameBorder;
-        float x = Tokens.Px(cfg.PositionX);
-        float y = Tokens.Px(cfg.PositionY);
+        float x = origin.X;
+        float y = origin.Y;
         float delta = ImGui.GetIO().DeltaTime;
 
         BarStyle style = BarStyles.At(BarStyles.ForBar, cfg.BarStyleName);
@@ -345,18 +429,20 @@ internal sealed class PartyFramesElement : HudElement
         // Settled once for the whole block. Off while the stand-ins are up: there is nothing
         // real to describe, and edit mode wants the cursor for dragging rather than for
         // pointing at things.
-        m_wantTooltips = cfg.ShowAuraTooltips && !AuraPreview.Active && !EditMode.IsActive;
+        // Never for the preview: there is nothing real to describe, and the pointer is over a
+        // settings window whose own tooltips would fight with these.
+        m_wantTooltips = live && cfg.ShowAuraTooltips && !EditMode.IsActive;
 
         // The mark is an instruction. On a job that cannot carry it out it is noise, so it is
         // off there by default — the icons still show the effect either way. The preview
         // ignores this, or setting it up on the wrong job would show nothing.
-        if (!AuraPreview.Active && cfg.CleanseOnlyWhenAble && !CanCleanseNow())
+        if (live && cfg.CleanseOnlyWhenAble && !CanCleanseNow())
         {
             cleanseMark = FrameMarkStyle.None;
         }
 
-        PartyMemberSnapshot[] members = m_snapshot.Members;
-        int count = m_snapshot.Count;
+        PartyMemberSnapshot[] members = snapshot.Members;
+        int count = snapshot.Count;
 
         for (int i = 0; i < count; i++)
         {
@@ -379,16 +465,16 @@ internal sealed class PartyFramesElement : HudElement
             // A frame smaller than its own edge has no inside to draw into. It cannot happen
             // at the sizes the sliders offer, and one branch is cheaper than handing a draw
             // list a backwards rectangle.
-            m_hasInside[i] = innerMax.X > innerMin.X && innerMax.Y > innerMin.Y;
-            if (!m_hasInside[i])
+            geo.HasInside[i] = innerMax.X > innerMin.X && innerMax.Y > innerMin.Y;
+            if (!geo.HasInside[i])
             {
                 continue;
             }
 
-            m_innerMin[i] = innerMin;
-            m_innerMax[i] = innerMax;
-            m_frameMin[i] = min;
-            m_frameMax[i] = max;
+            geo.InnerMin[i] = innerMin;
+            geo.InnerMax[i] = innerMax;
+            geo.FrameMin[i] = min;
+            geo.FrameMax[i] = max;
 
             // 🔴 One factor for the whole frame, set here and read by everything that draws
             // part of it. Dimming only the bar left a frame whose name, icons and number were
@@ -526,7 +612,10 @@ internal sealed class PartyFramesElement : HudElement
         // the ring belongs over the bars but under the icons and the text — a highlight that
         // covers the job icon hides the thing you were pointing at to read (Florian,
         // 2026-09-12). Asking the mouse here is what puts it in the middle of the stack.
-        this.TakeTheMouse(dl, cfg, count);
+        if (live)
+        {
+            this.TakeTheMouse(dl, cfg, geo, count);
+        }
 
         // The second pass. A name or an icon may be placed outside its own frame — above it,
         // beside it — and that is a layout people build on purpose, not a mistake to guard
@@ -536,14 +625,14 @@ internal sealed class PartyFramesElement : HudElement
 
         for (int i = 0; i < count; i++)
         {
-            if (!m_hasInside[i])
+            if (!geo.HasInside[i])
             {
                 continue;
             }
 
             ref PartyMemberSnapshot member = ref members[i];
-            Vector2 innerMin = m_innerMin[i];
-            Vector2 innerMax = m_innerMax[i];
+            Vector2 innerMin = geo.InnerMin[i];
+            Vector2 innerMax = geo.InnerMax[i];
 
             // Clipped to the frame grown by the whole reach of the offset sliders: everything
             // that can be placed is drawn in full, and a name too long for even that is cut
@@ -580,8 +669,8 @@ internal sealed class PartyFramesElement : HudElement
                 FrameMark.Draw(
                     dl,
                     cleanseMark,
-                    m_frameMin[i],
-                    m_frameMax[i],
+                    geo.FrameMin[i],
+                    geo.FrameMax[i],
                     this.Dim(cfg.CleanseColour),
                     FrameMark.Thickness(cfg.CleanseThickness),
                     cfg.CleanseOpacity);
@@ -596,8 +685,8 @@ internal sealed class PartyFramesElement : HudElement
                 FrameMark.Draw(
                     dl,
                     raiseMark,
-                    m_frameMin[i],
-                    m_frameMax[i],
+                    geo.FrameMin[i],
+                    geo.FrameMax[i],
                     this.Dim(cfg.RaiseColour),
                     FrameMark.Thickness(cfg.RaiseThickness),
                     cfg.RaiseOpacity);
@@ -614,7 +703,10 @@ internal sealed class PartyFramesElement : HudElement
             dl.PopClipRect();
         }
 
-        this.DrawAuraTooltip();
+        if (live)
+        {
+            this.DrawAuraTooltip();
+        }
     }
 
     /// <summary>
@@ -630,7 +722,7 @@ internal sealed class PartyFramesElement : HudElement
     /// ImGui takes every button or none.
     /// </para>
     /// </summary>
-    private void TakeTheMouse(ImDrawListPtr dl, Configuration.PartyFramesConfig cfg, int count)
+    private void TakeTheMouse(ImDrawListPtr dl, Configuration.PartyFramesConfig cfg, FrameGeometry geo, int count)
     {
         // Nothing to take while the layout is being set against stand-ins: there is nobody to
         // select, and edit mode wants the same button for dragging.
@@ -653,18 +745,18 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        Vector2 blockMin = m_frameMin[0];
-        Vector2 blockMax = m_frameMax[0];
+        Vector2 blockMin = geo.FrameMin[0];
+        Vector2 blockMax = geo.FrameMax[0];
 
         for (int i = 1; i < count; i++)
         {
-            if (!m_hasInside[i])
+            if (!geo.HasInside[i])
             {
                 continue;
             }
 
-            blockMin = Vector2.Min(blockMin, m_frameMin[i]);
-            blockMax = Vector2.Max(blockMax, m_frameMax[i]);
+            blockMin = Vector2.Min(blockMin, geo.FrameMin[i]);
+            blockMax = Vector2.Max(blockMax, geo.FrameMax[i]);
         }
 
 
@@ -706,12 +798,12 @@ internal sealed class PartyFramesElement : HudElement
 
             for (int i = 0; i < count; i++)
             {
-                if (!m_hasInside[i])
+                if (!geo.HasInside[i])
                 {
                     continue;
                 }
 
-                ImGui.SetCursorScreenPos(m_frameMin[i]);
+                ImGui.SetCursorScreenPos(geo.FrameMin[i]);
                 ImGui.PushID(i);
                 // The button's own answer, which comes on release inside the frame and not on
                 // press. That is what the game's party list does — you can put the button down
@@ -727,7 +819,7 @@ internal sealed class PartyFramesElement : HudElement
                 // would only mean a button that is taken from the player and handed nothing.
                 bool clicked = ImGui.InvisibleButton(
                     IdSlot,
-                    m_frameMax[i] - m_frameMin[i],
+                    geo.FrameMax[i] - geo.FrameMin[i],
                     ImGuiButtonFlags.MouseButtonLeft
                     | ImGuiButtonFlags.MouseButtonRight
                     | ImGuiButtonFlags.MouseButtonMiddle);
@@ -758,8 +850,8 @@ internal sealed class PartyFramesElement : HudElement
                     float ring = Tokens.Metric.FrameHoverRing;
                     Ring(
                         dl,
-                        new Vector2(m_frameMin[i].X - ring, m_frameMin[i].Y - ring),
-                        new Vector2(m_frameMax[i].X + ring, m_frameMax[i].Y + ring),
+                        new Vector2(geo.FrameMin[i].X - ring, geo.FrameMin[i].Y - ring),
+                        new Vector2(geo.FrameMax[i].X + ring, geo.FrameMax[i].Y + ring),
                         ring,
                         Tokens.Col.FrameHover);
                 }

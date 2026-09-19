@@ -80,4 +80,35 @@ internal static class FrameLayout
             ? new Vector2(slot * alongX, line * alongY)
             : new Vector2(line * alongX, slot * alongY);
     }
+
+    /// <summary>
+    /// How much room the whole block takes, corner to corner.
+    /// <para>
+    /// Worked out from the same two numbers <see cref="Offset"/> uses rather than by walking
+    /// the frames, so the size and the positions cannot drift apart. The gaps are between the
+    /// frames only: a block does not carry a margin of its own.
+    /// </para>
+    /// </summary>
+    public static Vector2 BlockSize(
+        int count,
+        FrameDirection direction,
+        int lines,
+        float width,
+        float height,
+        float spacing)
+    {
+        count = Math.Max(1, count);
+        int perLine = PerLine(count, lines);
+
+        // The lines actually used, which is not the same as the lines asked for: four lines
+        // hold two frames when there are only two of them.
+        int used = (count + perLine - 1) / perLine;
+
+        float along = (perLine * width) + ((perLine - 1) * spacing);
+        float across = (used * height) + ((used - 1) * spacing);
+
+        return direction == FrameDirection.Horizontal
+            ? new Vector2(along, across)
+            : new Vector2((used * width) + ((used - 1) * spacing), (perLine * height) + ((perLine - 1) * spacing));
+    }
 }
