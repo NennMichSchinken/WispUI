@@ -79,6 +79,19 @@ internal sealed class ArrowSelectorOptions<T>
     /// </para>
     /// </summary>
     public Vector2? PreviewSize { get; init; }
+
+    /// <summary>
+    /// What the face says while nothing has been chosen, or null if this control always has
+    /// an answer.
+    /// <para>
+    /// Most selectors do always have one — a bar style, a font, an anchor. A row added to a
+    /// list does not: it is added precisely in order to choose, and starting it on the first
+    /// entry of the list puts a real spell in front of somebody who has not picked one yet
+    /// (Florian, 2026-09-19). Setting this makes index -1 a legal state rather than an error
+    /// to be corrected.
+    /// </para>
+    /// </summary>
+    public string? Placeholder { get; init; }
 }
 
 /// <summary>
@@ -163,17 +176,24 @@ internal sealed class ArrowSelector<T>
             return false;
         }
 
+        // Nothing chosen yet, where that is a state this control has. Left alone: -1 is what
+        // the caller stored and what it expects back until somebody picks something.
+        bool unset = m_options.Placeholder is not null && index < 0;
+
         // A stored index can outlive the list it pointed into — a texture removed, a list
         // shortened by an update. Fall back to the first entry and say so, rather than throw
         // in the draw path.
-        if (index < 0 || index >= count)
+        if (!unset && (index < 0 || index >= count))
         {
             Services.Log.Warning($"Selector {m_idFace} had index {index} for {count} items; fell back to the first.");
             index = 0;
         }
 
         bool wrap = m_options.WrapAround;
-        bool atStart = !wrap && index == 0;
+
+        // Unset sits before the first entry, so the left arrow has nowhere to go and the
+        // right one steps onto entry zero — the same reading as anywhere else in the list.
+        bool atStart = !wrap && index <= 0;
         bool atEnd = !wrap && index == count - 1;
 
         bool bare = m_options.HideArrows;
@@ -373,7 +393,8 @@ internal sealed class ArrowSelector<T>
             dl.AddRectFilled(min, max, hovered && openable ? Tokens.Col.Panel : Tokens.Col.Input);
         }
 
-        T item = m_items[index];
+        bool unset = index < 0;
+        T item = unset ? default! : m_items[index];
         float pad = Tokens.Metric.SelectorPaddingX;
         float left = x + pad;
         float right = max.X - pad;
@@ -384,11 +405,22 @@ internal sealed class ArrowSelector<T>
             float swatchTop = MathF.Round(y + ((height - swatch.Y) * 0.5f));
             Vector2 swatchMin = new(left, swatchTop);
             Vector2 swatchMax = new(left + swatch.X, swatchTop + swatch.Y);
-            m_options.DrawPreview(dl, item, swatchMin, swatchMax);
+
+            if (unset)
+            {
+                // An empty square where the picture will be, so a row waiting to be filled
+                // in starts its text on the same column as the rows above it.
+                dl.AddRectFilled(swatchMin, swatchMax, Tokens.Col.Control2, Tokens.Radius.Control);
+            }
+            else
+            {
+                m_options.DrawPreview(dl, item, swatchMin, swatchMax);
+            }
+
             left = swatchMax.X + Tokens.Space.Md;
         }
 
-        if (m_options.ShowCounter)
+        if (m_options.ShowCounter && !unset)
         {
             string counter = this.Counter(index, count);
             float counterWidth = Ink.Measure(Ink.Role.Small, counter).X;
@@ -410,8 +442,8 @@ internal sealed class ArrowSelector<T>
                 dl,
                 Ink.Role.Body,
                 new Vector2(left, Chrome.CenterY(y, height, Ink.Role.Body)),
-                Tokens.Col.Ink,
-                m_options.Label(item));
+                unset ? Tokens.Col.InkFaint : Tokens.Col.Ink,
+                unset ? m_options.Placeholder! : m_options.Label(item));
             dl.PopClipRect();
         }
 

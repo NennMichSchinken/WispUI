@@ -173,6 +173,7 @@ internal static class Strings
     public const string BindingJob = "Set up for";
     public const string BindingJobTooltip = "Kept per job, because what a button should do depends on what you play.";
     public const string BindingAdd = "Add binding";
+    public const string BindingPick = "Pick an action…";
     public const string BindingRemove = "Remove";
     public const string BindingAction = "Action";
     public const string BindingTarget = "Select target";
@@ -220,6 +221,7 @@ internal static class Strings
     public const string GroupMouseover = "Mouseover casting";
     public const string GroupMouseoverHint = "Spells that go to the frame under the pointer instead of your target.";
     public const string MouseoverAdd = "Add spell";
+    public const string MouseoverPick = "Pick a spell…";
 
     public const string GroupLeader = "Leader";
     public const string GroupLeaderHint = "Who is in charge of the party.";

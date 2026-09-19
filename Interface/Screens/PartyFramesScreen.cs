@@ -77,6 +77,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdBindingKey = "##wisp-pf-bindkey";
     private const string IdBindingJob = "##wisp-pf-bindjob";
     private const string IdBindingAction = "##wisp-pf-bindaction";
+    private const string IdSpellAction = "##wisp-pf-spellaction";
     private const string IdBindingAdd = "##wisp-pf-bindadd";
     private const string IdBindingRemoveRow = "##wisp-pf-bindremoverow";
     private const string IdBindingName = "##wisp-pf-bindname";
@@ -331,6 +332,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private readonly ArrowSelector<FontChoice> m_font;
     private readonly ArrowSelector<JobEntry> m_jobSelector;
     private readonly ArrowSelector<ActionEntry> m_actionPicker;
+    private readonly ArrowSelector<ActionEntry> m_spellPicker;
 
     /// <summary>Which job the bindings tab is showing, and which row is waiting for a press.</summary>
     private int m_bindingJob = -1;
@@ -494,42 +496,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 ShowCounter = false,
             });
 
-        // The one list that changes while the window is open: it holds whatever the chosen
-        // job can aim at a party member, and is refilled in place when that job changes.
-        m_actionPicker = new ArrowSelector<ActionEntry>(
-            IdBindingAction,
-            m_actionChoices,
-            new ArrowSelectorOptions<ActionEntry>
-            {
-                Label = static action => action.Name,
-                EnablePopupList = true,
-                EnableSearch = true,
-                ShowCounter = false,
-
-                // No arrows and no box. Stepping through a job's whole action list one at a
-                // time is not a way anybody would use it, and a field drawn round the name
-                // would make the row read as two settings rather than one binding (Florian,
-                // 2026-09-12).
-                HideArrows = true,
-                Flat = true,
-
-                // The action's own icon, which is how a spell is recognised before its name is
-                // read. Icons.Handle caches the lookup and hands back a null handle for
-                // anything not loaded, which the selector simply does not draw.
-                // Square, because an action icon is. The default preview strip is wide and
-                // short for bar fills, and an icon stretched into it comes out smeared.
-                PreviewSize = Tokens.Px(22f, 22f),
-
-                DrawPreview = static (dl, action, min, max) =>
-                {
-                    ImTextureID icon = Icons.Handle(action.Icon);
-
-                    if (!icon.IsNull)
-                    {
-                        dl.AddImage(icon, min, max);
-                    }
-                },
-            });
+        // Two pickers over one list of choices. Same control, same behaviour, different words
+        // on an empty row — a binding row is waiting for an action and a mouseover row for a
+        // spell, and each list should say what it is asking for.
+        m_actionPicker = ActionPicker(IdBindingAction, m_actionChoices, Strings.BindingPick);
+        m_spellPicker = ActionPicker(IdSpellAction, m_actionChoices, Strings.MouseoverPick);
 
         m_iconPosition = new ArrowSelector<Anchor>(
             IdIconPosition,
@@ -1864,7 +1835,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             bindings.Add(new MouseBinding
             {
                 Kind = BindingKind.Action,
-                ActionId = actions[0].Id,
+
+                // Nothing picked. The row asks for an action instead of arriving with one,
+                // for the same reason a mouseover row does (Florian, 2026-09-19).
+                ActionId = 0u,
 
                 // Middle by default, because left and right are already spoken for and a new
                 // row that silently shadowed one of them would be the worst first impression
@@ -1984,7 +1958,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
             int pick = this.ActionIndex(spell.ActionId);
 
-            if (m_actionPicker.Draw(ref pick, group.ContentX, rowY, nameWidth)
+            if (m_spellPicker.Draw(ref pick, group.ContentX, rowY, nameWidth)
                 && pick >= 0 && pick < m_actionChoices.Count)
             {
                 spell.ActionId = m_actionChoices[pick].Id;
@@ -2053,19 +2027,81 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         if (Chrome.PillButton(IdMouseoverAdd, Strings.MouseoverAdd, group.ContentX, rowY))
         {
-            // The job's first action, the same stand-in a new binding gets. It is meant to be
-            // changed straight away, and starting on a real entry means the row reads as a
-            // spell you have not picked yet rather than as an empty control.
-            m_config.PartyFrames.Mouseover.Edit(job.Id).Add(new MouseoverSpell { ActionId = actions[0].Id });
+            // Empty, and the row says so. A new row started on the job's first action, which
+            // read as a choice somebody had made and had to be undone before it could be made
+            // (Florian, 2026-09-19).
+            m_config.PartyFrames.Mouseover.Edit(job.Id).Add(new MouseoverSpell());
             m_config.MarkDirty();
         }
 
         return rowY + Chrome.RowPitch();
     }
 
-    /// <summary>Where an action sits in the picker's list, or the first entry when it is gone.</summary>
+    /// <summary>
+    /// The picker a row of a list gets: a job's actions, no arrows, no box, the action's own
+    /// icon beside its name, and a placeholder for the row nobody has filled in yet.
+    /// <para>
+    /// The list it reads is the shared one, refilled in place when the job changes, so both
+    /// pickers always offer the job on screen.
+    /// </para>
+    /// </summary>
+    private static ArrowSelector<ActionEntry> ActionPicker(
+        string id,
+        System.Collections.Generic.IReadOnlyList<ActionEntry> choices,
+        string placeholder) =>
+        new(
+            id,
+            choices,
+            new ArrowSelectorOptions<ActionEntry>
+            {
+                Label = static action => action.Name,
+                EnablePopupList = true,
+                EnableSearch = true,
+                ShowCounter = false,
+                Placeholder = placeholder,
+
+                // No arrows and no box. Stepping through a job's whole action list one at a
+                // time is not a way anybody would use it, and a field drawn round the name
+                // would make the row read as two settings rather than one binding (Florian,
+                // 2026-09-12).
+                HideArrows = true,
+                Flat = true,
+
+                // The action's own icon, which is how a spell is recognised before its name is
+                // read. Icons.Handle caches the lookup and hands back a null handle for
+                // anything not loaded, which the selector simply does not draw.
+                // Square, because an action icon is. The default preview strip is wide and
+                // short for bar fills, and an icon stretched into it comes out smeared.
+                PreviewSize = Tokens.Px(22f, 22f),
+
+                DrawPreview = static (dl, action, min, max) =>
+                {
+                    ImTextureID icon = Icons.Handle(action.Icon);
+
+                    if (!icon.IsNull)
+                    {
+                        dl.AddImage(icon, min, max);
+                    }
+                },
+            });
+
+    /// <summary>
+    /// Where an action sits in the picker's list, or -1 for a row that has not been filled
+    /// in — a fresh one, or one whose action this job does not have.
+    /// <para>
+    /// It used to answer zero for both, which put the job's first action in front of somebody
+    /// who had picked nothing (Florian, 2026-09-19). The second case is the same mistake
+    /// quietly: a row that has lost its action is better off saying so than showing whatever
+    /// happens to be at the top of the list.
+    /// </para>
+    /// </summary>
     private int ActionIndex(uint actionId)
     {
+        if (actionId == 0u)
+        {
+            return -1;
+        }
+
         for (int i = 0; i < m_actionChoices.Count; i++)
         {
             if (m_actionChoices[i].Id == actionId)
@@ -2074,7 +2110,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             }
         }
 
-        return 0;
+        return -1;
     }
 
     /// <summary>
