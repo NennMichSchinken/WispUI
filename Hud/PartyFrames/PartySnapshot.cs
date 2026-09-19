@@ -692,11 +692,43 @@ internal sealed class PartySnapshot
             slot.HasDispellable = false;
         }
 
-        uint[] benefits = StatusData.PreviewBuffs;
+        // 🔴 Your own row shows what the job being played leaves behind — a White Mage sees
+        // Regen and Medica, not four effects out of the sheet nobody recognises (Florian,
+        // 2026-09-19). Derived from the job's actions by name; see JobBuffs for why that is
+        // the only link the game offers. A job that leaves nothing falls back to the generic
+        // set rather than showing an empty row, because the row still has to be placeable.
+        uint[] mine = JobBuffs.For(Services.Objects.LocalPlayer?.ClassJob.RowId ?? 0u, MaxAuras);
 
-        for (int i = 0; i < MaxAuras && i < benefits.Length; i++)
+        if (mine.Length == 0)
         {
-            uint id = benefits[i];
+            mine = StatusData.PreviewBuffs;
+        }
+
+        Fill(m_buffs, start, ref slot.BuffCount, mine, (index * 5) + 11);
+
+        // 🔴 And the third row gets a DIFFERENT set, not the same one shuffled. It used to be
+        // the second row's stand-ins in another order, which made the two rows impossible to
+        // tell apart while placing them — the whole reason there are two is that one is
+        // yours and one is somebody else's (Florian, 2026-09-19: the row read as empty
+        // because it was indistinguishable from the one above it). The generic benefits are
+        // the honest stand-in for "put there by another player".
+        Fill(m_others, start, ref slot.OtherCount, StatusData.PreviewBuffs, (index * 7) + 3);
+    }
+
+    /// <summary>
+    /// Lays a set of stand-in effects into one member's slice of a row.
+    /// </summary>
+    /// <param name="scatter">
+    /// Shifts where each icon sits in its sweep, so what the countdown is doing can be seen
+    /// in one look rather than by watching a single icon for half a minute.
+    /// </param>
+    private static void Fill(AuraSnapshot[] into, int start, ref int count, uint[] ids, int scatter)
+    {
+        count = 0;
+
+        for (int i = 0; i < MaxAuras && i < ids.Length; i++)
+        {
+            uint id = ids[i];
 
             if (id == 0)
             {
@@ -705,23 +737,16 @@ internal sealed class PartySnapshot
 
             StatusFacts facts = StatusData.Of(id);
 
-            ref AuraSnapshot buff = ref m_buffs[start + slot.BuffCount];
-            buff.StatusId = id;
-            buff.Icon = facts.Icon;
-            buff.CanDispel = false;
-            buff.Priority = facts.Priority;
-            buff.Duration = 30f;
-            buff.Remaining = 30f - (((index * 5) + (i * 11)) % 28);
-            buff.Stacks = 0;
+            ref AuraSnapshot slot = ref into[start + count];
+            slot.StatusId = id;
+            slot.Icon = facts.Icon;
+            slot.CanDispel = false;
+            slot.Priority = facts.Priority;
+            slot.Duration = 30f;
+            slot.Remaining = 30f - ((scatter + (i * 11)) % 28);
+            slot.Stacks = 0;
 
-            slot.BuffCount++;
-
-            // The third row gets the same stand-ins in the other order, so it can be placed
-            // and told apart from the row above it at a glance.
-            ref AuraSnapshot other = ref m_others[start + slot.OtherCount];
-            other = buff;
-            other.Remaining = 30f - (((index * 7) + (i * 3)) % 28);
-            slot.OtherCount++;
+            count++;
         }
     }
 

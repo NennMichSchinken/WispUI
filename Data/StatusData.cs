@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using WispUI.Core;
 
 namespace WispUI.Data;
@@ -224,6 +225,8 @@ internal static class StatusData
         var facts = new StatusFacts[size];
         var invulnerable = new bool[size];
 
+        var named = new Dictionary<string, uint>(StringComparer.Ordinal);
+
         foreach (Lumina.Excel.Sheets.Status row in sheet)
         {
             ref StatusFacts entry = ref facts[row.RowId];
@@ -238,6 +241,28 @@ internal static class StatusData
             // the one effect everybody wears all the time, and there is no field for "this is
             // a meal". One id rather than a list, because one meal buff covers every dish.
             entry.IsUpkeep = row.IsFcBuff || row.RowId == WellFed;
+
+            // 🔴 Benefits filed under their own name, which is the one link the game has
+            // between a job and an effect it puts on somebody else.
+            //
+            // There is no direct one. Action carries StatusGainSelf, and that is the effect an
+            // action gives the CASTER — nothing says which job applies which effect to a party
+            // member. What is true is that the two are almost always called the same thing:
+            // Regen the spell leaves Regen the effect, Medica II leaves Medica II. Matching on
+            // that is a derivation from the data rather than a list of ours to keep current,
+            // and the actions that leave nothing simply fail to match, which quietly selects
+            // exactly the effects a job does leave behind.
+            if (row.StatusCategory == 1 && row.Icon != 0)
+            {
+                string name = row.Name.ExtractText();
+
+                // First writer wins. Later expansions reuse a name for a higher version of
+                // the same thing, and the earlier row is the one the older action refers to.
+                if (name.Length > 0 && !named.ContainsKey(name))
+                {
+                    named[name] = row.RowId;
+                }
+            }
         }
 
         for (int i = 0; i < Invulnerabilities.Length; i++)
@@ -263,6 +288,7 @@ internal static class StatusData
         }
 
         s_facts = facts;
+        s_named = named;
         s_invulnerable = invulnerable;
         BuildPreview(sheet, previewSlots);
     }
@@ -742,6 +768,16 @@ internal static class StatusData
     }
 
     private static readonly System.Collections.Generic.Dictionary<uint, (string Name, string Text)> s_described = new();
+
+    /// <summary>
+    /// Benefits by name. See the note where it is filled: a name is the only link the game
+    /// offers between a job's spell and the effect it leaves on somebody else.
+    /// </summary>
+    private static Dictionary<string, uint> s_named = new(StringComparer.Ordinal);
+
+    /// <summary>The benefit called this, or zero. Asked at load, never in a draw.</summary>
+    public static uint NamedBenefit(string name) =>
+        s_named.TryGetValue(name, out uint id) ? id : 0u;
 
     public static StatusFacts Of(uint statusId) =>
         statusId < (uint)s_facts.Length ? s_facts[statusId] : default;
