@@ -38,12 +38,17 @@ public sealed class Plugin : IDalamudPlugin
 
         // The status sheet, flattened once. Every frame asks it about every effect on every
         // member, and a sheet read never belongs in that path (CLAUDE.md §7.3).
-        Data.StatusData.Prime();
+        Data.StatusData.Prime(Hud.PartyFrames.PartySnapshot.MaxAuras);
 
         Scaling.Commit(m_config.Scale);
         Scaling.LogGameScaleReadings();
 
-        m_configWindow = new ConfigWindow(m_config);
+        // Kept in a local, because the settings window draws this same element as its
+        // preview. One object, one set of drawing code, two places it appears.
+        var frames = new PartyFramesElement(m_config);
+        m_hud.Add(frames);
+
+        m_configWindow = new ConfigWindow(m_config, frames);
         m_windows.AddWindow(m_configWindow);
         m_commands = new CommandHandler(m_configWindow);
 
@@ -57,12 +62,15 @@ public sealed class Plugin : IDalamudPlugin
         // can be released again.
         EditMode.Finished += this.OnEditModeFinished;
 
-        m_hud.Add(new PartyFramesElement(m_config));
-
         // Made now, put in place only if the player has asked for it. The hook it owns is the
         // suite's one reach into what a key press does, so it is never installed on spec.
+        //
+        // 🔴 Made, and left alone. Asking which job is being played reads the object table,
+        // and the object table may only be read on the main thread — which the constructor is
+        // not (verified the hard way: the plugin failed to load, 2026-09-19). Nothing is lost
+        // by waiting: the hook starts out uninstalled, which is the right state until a tick
+        // says otherwise, and the first tick is a few milliseconds away.
         m_mouseover = new MouseoverCasting();
-        m_mouseover.Sync(m_config.PartyFrames.MouseoverCasting);
 
         // The pointer switch is shared by everything running in the game, so its state is put
         // back to the game's at load rather than assumed. From here on it has one writer and
@@ -128,9 +136,9 @@ public sealed class Plugin : IDalamudPlugin
     {
         m_config.Tick();
 
-        // Two booleans compared. The hook goes in and comes out with the setting rather than
-        // sitting installed and inert, so a player who never turns it on never carries it.
-        m_mouseover.Sync(m_config.PartyFrames.MouseoverCasting);
+        // The hook goes in and comes out with the list rather than sitting installed and
+        // inert, so a player who has never named a spell never carries it.
+        this.SyncMouseover();
 
         // On the tick rather than in the draw, because the game puts its own list back up on
         // its own — a zone change, a duty, any rebuild of the interface — and the tick runs
@@ -147,6 +155,17 @@ public sealed class Plugin : IDalamudPlugin
         // per frame. Each element throttles its own.
         m_hud.Tick();
     }
+
+    /// <summary>
+    /// Hands the hook the spells the job being played redirects, which is also what decides
+    /// whether the hook is in place at all.
+    /// <para>
+    /// Asked of the job rather than kept: changing job changes the list, and there is no
+    /// event for it that is cheaper than the lookup.
+    /// </para>
+    /// </summary>
+    private void SyncMouseover() =>
+        m_mouseover.Sync(m_config.PartyFrames.Mouseover.For(Services.Objects.LocalPlayer?.ClassJob.RowId ?? 0u));
 
     /// <summary>
     /// Keeps the HUD's font handles in step with the face and the text sizes in use.

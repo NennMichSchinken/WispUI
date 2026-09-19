@@ -26,4 +26,15 @@
     <ItemGroup>
         <Content Include="Fonts\**" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
+
+    <!-- Our own bar textures - drawn for WispUI, nothing carried in, so nothing here has a
+         condition attached the way the fonts do.
+
+         Greyscale on purpose: a grey picture takes any tint, so one file serves every job
+         colour, every role colour and the shield, and adding a colour never means adding a
+         texture. The light layers are white with their shape in the alpha channel, which is
+         what lets a bar be painted BRIGHTER than its colour - a multiplied base never can. -->
+    <ItemGroup>
+        <Content Include="Textures\**" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
 </Project>

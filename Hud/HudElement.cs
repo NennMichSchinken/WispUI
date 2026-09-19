@@ -79,4 +79,40 @@ internal abstract class HudElement
     public virtual void MoveTo(System.Numerics.Vector2 topLeft)
     {
     }
+
+    // --- preview -------------------------------------------------------------
+    // The settings window can show an element as it will look, without a fight and without
+    // leaving the window. Stated here rather than known by the window, for the same reason
+    // as the dragging above: the window has no idea what any element is made of, and the
+    // second module to want a preview should get one by answering these three.
+
+    /// <summary>
+    /// Whether this element can draw itself into the settings window. False leaves the
+    /// preview band out entirely rather than showing an empty one.
+    /// </summary>
+    public virtual bool HasPreview => false;
+
+    /// <summary>
+    /// How much room a preview of <paramref name="count"/> stand-ins needs, in screen pixels.
+    /// The band shows what fits and scrolls for the rest, so this may be larger than the
+    /// window — it is a measurement, not a request.
+    /// </summary>
+    public virtual System.Numerics.Vector2 PreviewSize(int count) => default;
+
+    /// <summary>
+    /// Draws the element with stand-in data, with its top-left corner at
+    /// <paramref name="origin"/>.
+    /// <para>
+    /// 🔴 The same drawing code as the real thing, never a simplified copy. A preview that is
+    /// drawn by different code is a preview that can disagree with the game, and it would
+    /// disagree exactly when somebody is relying on it — while they are changing something.
+    /// </para>
+    /// <para>
+    /// It must not take the mouse, write anything the live block reads, or advance anything
+    /// the live block advances.
+    /// </para>
+    /// </summary>
+    public virtual void DrawPreview(ImDrawListPtr dl, System.Numerics.Vector2 origin, int count)
+    {
+    }
 }

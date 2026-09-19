@@ -6,6 +6,7 @@ using Dalamud.Game.ClientState.Keys;
 using Dalamud.Interface.Windowing;
 using WispUI.Appearance;
 using WispUI.Core;
+using WispUI.Hud;
 using WispUI.Interface.Screens;
 using WispUI.Interface.Widgets;
 using WispUI.Localization;
@@ -28,6 +29,11 @@ internal sealed class ConfigWindow : Window
 {
     private const string IdClose = "##wisp-close";
     private const string IdContent = "##wisp-content";
+    private const string IdPreview = "##wisp-preview";
+    private const string IdPreviewToggle = "##wisp-previewtoggle";
+    private const string IdPreviewEye = "##wisp-previeweye";
+    private const string IdPreviewEyeMenu = "##wisp-previeweyemenu";
+    private const string IdPreviewShowAll = "##wisp-previewshowall";
     private const string IdNews = "##wisp-news";
     private const string IdEditMode = "##wisp-editmode";
     private const string IdModuleSwitch = "##wisp-module-switch";
@@ -57,22 +63,86 @@ internal sealed class ConfigWindow : Window
         "##wisp-tab7",
     };
 
+    /// <summary>
+    /// The party sizes the preview offers. Not a slider from one to eight: these are the
+    /// three arrangements anybody actually plays in, and the ones in between tell you nothing
+    /// a full party does not.
+    /// </summary>
+    private static readonly int[] PreviewCounts = { 1, 4, 8 };
+
+    private static readonly string[] PreviewCountLabels =
+    {
+        Strings.PreviewSolo,
+        Strings.PreviewLight,
+        Strings.PreviewFull,
+    };
+
+    private static readonly string[] PreviewCountIds = { "##wisp-pv1", "##wisp-pv4", "##wisp-pv8" };
+
+    /// <summary>
+    /// What each part of the preview is called in the menu, in the same order as
+    /// <see cref="PreviewMask.All"/>. Two lists rather than one of pairs, because the enum
+    /// lives beside the drawing and the words live in the strings file.
+    /// </summary>
+    private static readonly string[] PreviewPartLabels =
+    {
+        Strings.GroupNameText,
+        Strings.GroupHealthText,
+        Strings.GroupMana,
+        Strings.GroupShield,
+        Strings.GroupJobIcon,
+        Strings.GroupLeader,
+        Strings.GroupPartyNumber,
+        Strings.GroupAuras,
+        Strings.GroupBuffs,
+        Strings.GroupOthers,
+        Strings.GroupCleanse,
+        Strings.GroupRaiseMark,
+        Strings.GroupRescue,
+    };
+
+    private static readonly string[] PreviewPartIds =
+    {
+        "##wisp-eye0", "##wisp-eye1", "##wisp-eye2", "##wisp-eye3", "##wisp-eye4",
+        "##wisp-eye5", "##wisp-eye6", "##wisp-eye7", "##wisp-eye8", "##wisp-eye9",
+        "##wisp-eye10", "##wisp-eye11", "##wisp-eye12",
+    };
+
     private static readonly string[] TabsGlobal = { Strings.TabBase };
     private static readonly string[] TabsProfile = { Strings.TabBase };
     /// <summary>
-    /// Split by what kind of thing a setting is, not by subject: the bar and what it says, the
-    /// badges on it, where the frames go, and what is on the person. Each tab lands at three
-    /// or four groups, which is a two by two grid and no scrolling — one tab carrying seven
-    /// groups was the state that made the question worth asking (Florian, 2026-09-12).
+    /// Split by what KIND of thing a setting is, not by subject (§3.1): the bar · what is
+    /// written on it · the badges on it · where the frames go · what is lying on the person ·
+    /// what needs doing about it · what the mouse does.
+    /// <para>
+    /// 🔴 That rule was written on 2026-09-12 because Base was carrying seven groups — and
+    /// Base went on carrying seven groups for another six days. Rewritten on 2026-09-18 with
+    /// every tab at three, which is a two by two grid with room left and nothing scrolling.
+    /// </para>
+    /// <para>
+    /// The price is seven chips instead of five, and the price is real: §3.1 says the tab
+    /// count is itself a cost, and that answering a crowded tab with more tabs is a road worth
+    /// refusing to go far down. Seven is where Florian drew the line, with tabs of three
+    /// rather than tabs of seven.
+    /// </para>
     /// </summary>
     private static readonly string[] TabsPartyFrames =
     {
         Strings.TabBase,
+        Strings.TabText,
         Strings.TabIcons,
         Strings.TabLayout,
-        Strings.TabBindings,
         Strings.TabAuras,
+        Strings.TabMarks,
+        Strings.TabBindings,
     };
+
+    /// <summary>
+    /// Which chip is the bindings tab, asked of the list rather than written down. Two places
+    /// far apart act on it, and a literal in both is the pair that drifts when a tab is
+    /// inserted ahead of them.
+    /// </summary>
+    private static readonly int TabIndexBindings = Array.IndexOf(TabsPartyFrames, Strings.TabBindings);
 
     /// <summary>
     /// The navigation tree. Suite-wide entries first, then a separator, then the HUD
@@ -90,6 +160,16 @@ internal sealed class ConfigWindow : Window
     };
 
     private readonly Configuration m_config;
+
+    /// <summary>
+    /// The element the preview band shows, or null for a screen with nothing to show.
+    /// <para>
+    /// Handed in rather than looked up: the window knows about screens, not about what is
+    /// being drawn on the world. When the second module wants a band, this becomes a lookup
+    /// from screen to element and nothing else here changes.
+    /// </para>
+    /// </summary>
+    private readonly Hud.HudElement? m_previewOf;
     private readonly GlobalScreen m_global;
     private readonly PartyFramesScreen m_partyFrames;
 
@@ -117,7 +197,7 @@ internal sealed class ConfigWindow : Window
     /// <summary>Whether the pointer is currently ours to speak for.</summary>
     private bool m_ownsCursor;
 
-    public ConfigWindow(Configuration config)
+    public ConfigWindow(Configuration config, Hud.HudElement? previewOf)
         : base(
             Strings.WindowId,
             ImGuiWindowFlags.NoTitleBar
@@ -127,6 +207,7 @@ internal sealed class ConfigWindow : Window
             | ImGuiWindowFlags.NoScrollWithMouse)
     {
         m_config = config;
+        m_previewOf = previewOf;
         m_global = new GlobalScreen(config);
         m_global.InfoBarPreferenceChanged += () => this.InfoBarPreferenceChanged?.Invoke();
 
@@ -157,17 +238,10 @@ internal sealed class ConfigWindow : Window
         m_clipboard.ForgetUndo();
         Chrome.CancelValueEdit();
 
-        // The aura preview belongs to the act of setting something up. With the window gone
-        // there is none going on, and stand-in effects left on the frames would be a party
-        // permanently in trouble.
-        //
-        // Except while edit mode is on, which closed this window itself and is the other half
-        // of the same job — stopping here would take the icons away at the moment they are
-        // being arranged.
-        if (!EditMode.IsActive)
-        {
-            Hud.AuraPreview.Stop();
-        }
+        // The eye switches are a way of looking at the preview, not settings. Everything is
+        // back on the next time the window opens, which is the whole reason they are allowed
+        // to be as many as they are.
+        PreviewMask.ShowAll();
 
         this.ReleaseCursor();
     }
@@ -667,7 +741,289 @@ internal sealed class ConfigWindow : Window
         float y = this.DrawTabs(dl, left, right, top);
         y += Chrome.Rule(dl, left, right, y);
         y = this.DrawScreenHeader(dl, left, right, y);
+        y = this.DrawPreviewBand(dl, left, right, y);
         this.DrawContent(left, right, y, bottom);
+    }
+
+    /// <summary>
+    /// The element as it will look, under the header and above the settings that change it.
+    /// <para>
+    /// 🔴 It draws the element's own drawing code with stand-in people, not a picture of it.
+    /// A preview built from a second, simpler renderer is one that can disagree with the
+    /// game, and it would disagree exactly while somebody is relying on it.
+    /// </para>
+    /// <para>
+    /// Fixed height, and the block scrolls inside it. The frames can be set to 150 tall and
+    /// arranged in four lines, so a band that grew to fit would take the window away from the
+    /// settings it exists to serve (Florian, 2026-09-19, describing LumenUI's: never more
+    /// than a third of the screen, scroll for the rest).
+    /// </para>
+    /// </summary>
+    private float DrawPreviewBand(ImDrawListPtr dl, float left, float right, float top)
+    {
+        // Only where there is something to show. The suite-wide screens configure nothing
+        // that can be drawn, and an empty band on them would be furniture.
+        if (m_screen != Screen.PartyFrames || m_previewOf is null || !m_previewOf.HasPreview)
+        {
+            return top;
+        }
+
+        // Bindings is the one party tab the band says nothing about: it sets what a key and a
+        // pointer do on a frame, and none of that changes how the frame looks. A preview that
+        // cannot answer the question on screen is just height taken from the settings
+        // (Florian, 2026-09-19).
+        if (m_tabIndex[(int)m_screen] == TabIndexBindings)
+        {
+            return top;
+        }
+
+        float x = left + Tokens.Metric.SectionPaddingX;
+        float wide = right - x - Tokens.Metric.SectionPaddingX;
+        float barHeight = Tokens.Metric.PreviewBarHeight;
+        float y = top;
+
+        bool open = m_config.PreviewOpen;
+
+        // The caret and the word are one target: a five-pixel triangle is not something to
+        // ask anybody to hit.
+        string title = Strings.Preview;
+        float caret = Tokens.Metric.PreviewCaret;
+        float titleWidth = MathF.Round(Ink.Measure(Ink.Role.Small, title).X);
+        float headWidth = caret + Tokens.Space.Sm + titleWidth;
+
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.InvisibleButton(IdPreviewToggle, new Vector2(headWidth, barHeight));
+        bool hovered = ImGui.IsItemHovered();
+        Chrome.ShowHand(hovered);
+
+        if (ImGui.IsItemClicked())
+        {
+            m_config.PreviewOpen = !m_config.PreviewOpen;
+            m_config.MarkDirty();
+            open = m_config.PreviewOpen;
+        }
+
+        uint ink = hovered ? Tokens.Col.GoldHi : Tokens.Col.Heading;
+        float mid = MathF.Round(y + (barHeight * 0.5f));
+        float half = caret * 0.5f;
+
+        // Down when it is open, right when it is shut — the direction it will move in.
+        if (open)
+        {
+            dl.AddTriangleFilled(
+                new Vector2(x, mid - (half * 0.6f)),
+                new Vector2(x + caret, mid - (half * 0.6f)),
+                new Vector2(x + half, mid + (half * 0.8f)),
+                ink);
+        }
+        else
+        {
+            dl.AddTriangleFilled(
+                new Vector2(x, mid - half),
+                new Vector2(x + (caret * 0.8f), mid),
+                new Vector2(x, mid + half),
+                ink);
+        }
+
+        Ink.Draw(
+            dl,
+            Ink.Role.Small,
+            new Vector2(MathF.Round(x + caret + Tokens.Space.Sm), Chrome.CenterY(y, barHeight, Ink.Role.Small)),
+            ink,
+            title);
+
+        // How many stand-ins. The three party sizes somebody actually plays, as chips rather
+        // than a selector: they are one tap each and all three are worth seeing at a glance.
+        float chipX = x + headWidth + Tokens.Space.Lg;
+
+        for (int i = 0; i < PreviewCounts.Length; i++)
+        {
+            float width = Chrome.MeasureTab(PreviewCountLabels[i]);
+
+            if (Chrome.Tab(PreviewCountIds[i], PreviewCountLabels[i], chipX, y, width, m_config.PreviewCount == PreviewCounts[i]))
+            {
+                m_config.PreviewCount = PreviewCounts[i];
+                m_config.MarkDirty();
+            }
+
+            chipX += width + Tokens.Metric.TabGap;
+        }
+
+        this.DrawPreviewEyeMenu(dl, x + wide, y, barHeight);
+
+        y += barHeight + Tokens.Space.Sm;
+
+        if (!open)
+        {
+            return y + Tokens.Space.Sm;
+        }
+
+        float height = Tokens.Metric.PreviewHeight;
+        this.DrawPreviewViewport(dl, x, y, wide, height);
+
+        return y + height + Tokens.Space.Md;
+    }
+
+    /// <summary>
+    /// The eye at the right of the band, and the list of everything the preview can be asked
+    /// to leave out.
+    /// <para>
+    /// The same switches as the eyes on the cards, in one place. The eye on a card is the
+    /// quick way while you are already there; this is the way to take four things out at once
+    /// without hunting across seven tabs for them.
+    /// </para>
+    /// </summary>
+    private void DrawPreviewEyeMenu(ImDrawListPtr dl, float rightEdge, float y, float barHeight)
+    {
+        float size = Tokens.Metric.EyeGlyph;
+        float eyeX = MathF.Round(rightEdge - size);
+        float eyeY = MathF.Round(y + ((barHeight - size) * 0.5f));
+
+        // The button says whether anything is hidden at all, which is the one thing somebody
+        // needs to know without opening it — a preview missing a name for no visible reason
+        // is a bug report waiting to happen.
+        if (Chrome.EyeButton(IdPreviewEye, eyeX, eyeY, size, !PreviewMask.AnyHidden))
+        {
+            ImGui.OpenPopup(IdPreviewEyeMenu);
+        }
+
+        Chrome.TooltipOnHover(Strings.PreviewHideTooltip);
+
+        string label = Strings.PreviewHide;
+        float labelWidth = MathF.Round(Ink.Measure(Ink.Role.Small, label).X);
+        Ink.Draw(
+            dl,
+            Ink.Role.Small,
+            new Vector2(eyeX - Tokens.Space.Sm - labelWidth, Chrome.CenterY(y, barHeight, Ink.Role.Small)),
+            Tokens.Col.InkFaint,
+            label);
+
+        float pad = Tokens.Metric.PopupPadding;
+
+        // 🔴 Menu rows, not settings rows, and two columns. Thirteen settings rows in one
+        // column ran off the bottom of the window and still read as a form rather than as a
+        // list (Florian, 2026-09-19, twice). A checklist is read down in one go.
+        float pitch = Tokens.Metric.MenuRowHeight;
+        float column = Tokens.Px(160f);
+        float gutter = Tokens.Space.Xl;
+        float width = (column * 2f) + gutter;
+        int perColumn = (PreviewMask.All.Length + 1) / 2;
+
+        // Right edge under the right edge of the eye, so the menu hangs off the button that
+        // opened it. The window is the content plus its padding on both sides.
+        ImGui.SetNextWindowPos(new Vector2(
+            MathF.Round(eyeX + size - width - (pad * 2f)),
+            y + barHeight + Tokens.Metric.PopupGap));
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(pad, pad));
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupRounding, Tokens.Radius.Control);
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupBorderSize, Tokens.Line(1f));
+        ImGui.PushStyleColor(ImGuiCol.PopupBg, Tokens.Col.PopupBg);
+        ImGui.PushStyleColor(ImGuiCol.Border, Tokens.Col.PopupEdge);
+
+        if (ImGui.BeginPopup(IdPreviewEyeMenu))
+        {
+            if (Chrome.ClosePopupRequested)
+            {
+                ImGui.CloseCurrentPopup();
+            }
+
+            Vector2 origin = ImGui.GetCursorScreenPos();
+
+            for (int i = 0; i < PreviewMask.All.Length; i++)
+            {
+                PreviewPart part = PreviewMask.All[i];
+                int col = i / perColumn;
+                int row = i - (col * perColumn);
+                float rowX = origin.X + (col * (column + gutter));
+                float rowY = origin.Y + (row * pitch);
+
+                if (Chrome.MenuTickRow(PreviewPartIds[i], PreviewPartLabels[i], rowX, rowY, column, PreviewMask.Shows(part)))
+                {
+                    PreviewMask.Toggle(part);
+                }
+            }
+
+            float below = origin.Y + (perColumn * pitch) + Tokens.Space.Sm;
+
+            // Ticked means shown, so this is the way back rather than a reset of settings —
+            // nothing here was ever written down. It keeps its place whether or not it can be
+            // pressed, so the menu does not change height as things are switched off.
+            if (PreviewMask.AnyHidden
+                && Chrome.PillButton(IdPreviewShowAll, Strings.PreviewShowAll, origin.X, below))
+            {
+                PreviewMask.ShowAll();
+            }
+
+            // 🔴 Back to the corner first. Every row above placed itself with
+            // SetCursorScreenPos, and each of those invisible buttons pushed ImGui's own
+            // cursor further down — so a Dummy from wherever it ended up measured the list
+            // twice over and left the popup half empty (Florian, 2026-09-19: "immer noch zu
+            // lang"). The rows are drawn at absolute positions; the size has to be stated the
+            // same way.
+            ImGui.SetCursorScreenPos(origin);
+            ImGui.Dummy(new Vector2(width, below - origin.Y + Tokens.Metric.ButtonHeight));
+            ImGui.EndPopup();
+        }
+
+        ImGui.PopStyleColor(2);
+        ImGui.PopStyleVar(3);
+    }
+
+    /// <summary>
+    /// The dark area the frames are drawn into: clipped to its own rectangle, scrolled when
+    /// the block is larger than it, and centred when it is smaller.
+    /// </summary>
+    private void DrawPreviewViewport(ImDrawListPtr dl, float x, float y, float width, float height)
+    {
+        // Behind the frames rather than the window's own surface. What a frame really sits on
+        // is the game, which is anything at all, so the honest backdrop here is a neutral
+        // dark that neither flatters nor fights the colours being set.
+        dl.AddRectFilled(new Vector2(x, y), new Vector2(x + width, y + height), Tokens.Col.Input, Tokens.Radius.Control);
+        dl.AddRect(
+            new Vector2(x, y),
+            new Vector2(x + width, y + height),
+            Tokens.Col.Hairline,
+            Tokens.Radius.Control,
+            ImDrawFlags.RoundCornersAll,
+            Tokens.Line(1f));
+
+        ImGui.PushStyleColor(ImGuiCol.ChildBg, Transparent);
+        ImGui.PushStyleColor(ImGuiCol.ScrollbarBg, Tokens.Col.ScrollTrack);
+        ImGui.PushStyleColor(ImGuiCol.ScrollbarGrab, Tokens.Col.ScrollGrab);
+        ImGui.PushStyleColor(ImGuiCol.ScrollbarGrabHovered, Tokens.Col.ScrollGrabHover);
+        ImGui.PushStyleColor(ImGuiCol.ScrollbarGrabActive, Tokens.Col.ScrollGrabHover);
+        ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarSize, Tokens.Metric.ScrollbarWidth);
+        ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarRounding, Tokens.Radius.Small);
+
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+
+        if (ImGui.BeginChild(IdPreview, new Vector2(width, height), false, ImGuiWindowFlags.HorizontalScrollbar))
+        {
+            float pad = Tokens.Metric.PreviewPadding;
+            Vector2 block = m_previewOf!.PreviewSize(m_config.PreviewCount);
+            Vector2 content = block + new Vector2(pad * 2f, pad * 2f);
+
+            // Centred while it fits, hard against the padding once it does not — a block that
+            // stayed centred while it overflowed would put its middle in view and cut both
+            // ends, which is the one arrangement that shows neither edge.
+            float offsetX = content.X < width ? MathF.Round((width - content.X) * 0.5f) : 0f;
+            float offsetY = content.Y < height ? MathF.Round((height - content.Y) * 0.5f) : 0f;
+
+            ImGui.SetCursorPos(new Vector2(offsetX + pad, offsetY + pad));
+
+            // Read after the cursor is placed, so it already carries the scroll.
+            Vector2 origin = ImGui.GetCursorScreenPos();
+
+            // What the scrollbars measure themselves against. Nothing is drawn by it — the
+            // frames go straight into the draw list, which ImGui cannot size a window from.
+            ImGui.Dummy(block);
+
+            m_previewOf.DrawPreview(ImGui.GetWindowDrawList(), origin, m_config.PreviewCount);
+        }
+
+        ImGui.EndChild();
+        ImGui.PopStyleVar(2);
+        ImGui.PopStyleColor(5);
     }
 
     /// <summary>
@@ -802,19 +1158,27 @@ internal sealed class ConfigWindow : Window
             }
             else if (m_screen == Screen.PartyFrames && tab == 1)
             {
-                m_partyFrames.DrawIcons(inner);
+                m_partyFrames.DrawText(inner);
             }
             else if (m_screen == Screen.PartyFrames && tab == 2)
             {
-                m_partyFrames.DrawLayout(inner);
+                m_partyFrames.DrawIcons(inner);
             }
             else if (m_screen == Screen.PartyFrames && tab == 3)
             {
-                m_partyFrames.DrawBindings(inner);
+                m_partyFrames.DrawLayout(inner);
             }
             else if (m_screen == Screen.PartyFrames && tab == 4)
             {
                 m_partyFrames.DrawAuras(inner);
+            }
+            else if (m_screen == Screen.PartyFrames && tab == 5)
+            {
+                m_partyFrames.DrawMarks(inner);
+            }
+            else if (m_screen == Screen.PartyFrames && tab == TabIndexBindings)
+            {
+                m_partyFrames.DrawBindings(inner);
             }
             else
             {

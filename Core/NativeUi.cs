@@ -6,6 +6,7 @@ using Dalamud.Bindings.ImGui;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Component.GUI;
+using FFXIVClientStructs.Interop;
 
 namespace WispUI.Core;
 
@@ -321,11 +322,26 @@ internal static class NativeUi
 
         for (int i = 0; i < count; i++)
         {
-            into[i] = markers[i].ObjectId;
+            uint id = markers[i].ObjectId;
+
+            // 🔴 An empty slot is not zero. The game writes 0xE0000000 there — its own word for
+            // "no object", used the same way all over the client — and a check for zero alone
+            // reports all seventeen slots as taken. Worse than a wrong number: the diagnostic
+            // then looks the id up in the object table, where it matches the first unloaded
+            // thing it finds, and prints a confident name for a marker nobody placed. That is
+            // exactly the shape of the bad diagnostic from session 9 (Florian, 2026-09-18,
+            // whose seventeen empty slots all came back as the same minion).
+            into[i] = id == NoObject ? 0u : id;
         }
 
         return count;
     }
+
+    /// <summary>
+    /// The client's own value for "no object", which is not zero. VERIFIED in the game
+    /// structures, where it is the default for every optional object reference.
+    /// </summary>
+    private const uint NoObject = 0xE0000000u;
 
     private static unsafe int ReadStatuses(
         FFXIVClientStructs.FFXIV.Client.Game.StatusManager* manager,
@@ -453,6 +469,131 @@ internal static class NativeUi
     /// player's interface must never be left hidden by something that is no longer running.
     /// </summary>
     public static void RestoreNativePartyList() => SettleNativePartyList(false);
+
+    /// <summary>
+    /// One of the game's own windows, as it stands on the screen right now.
+    /// </summary>
+    internal readonly struct NativeWindow
+    {
+        public readonly string Name;
+
+        /// <summary>Which of the game's thirteen depth layers it was found in, counting from one.</summary>
+        public readonly int Layer;
+
+        /// <summary>
+        /// Where it sits in that layer's own list, counting from zero — including the entries
+        /// that were skipped for being invisible, so the number means a position in the game's
+        /// list and not a position in ours.
+        /// <para>
+        /// This is the part that matters. MEASURED 2026-09-18: the layer does not separate a
+        /// window from a HUD element at all — the character sheet, the chat log, every hotbar
+        /// and <c>_PartyList</c> were all in layer five together. Whatever decides that the
+        /// character sheet covers the party list is inside one layer, which leaves the order
+        /// of the list itself.
+        /// </para>
+        /// </summary>
+        public readonly int Slot;
+
+        public readonly Vector2 Min;
+
+        public readonly Vector2 Max;
+
+        public NativeWindow(string name, int layer, int slot, Vector2 min, Vector2 max)
+        {
+            this.Name = name;
+            this.Layer = layer;
+            this.Slot = slot;
+            this.Min = min;
+            this.Max = max;
+        }
+    }
+
+    /// <summary>
+    /// Walks the game's depth layers and writes down every window that is on screen, with the
+    /// layer it lives in and the box it covers.
+    /// <para>
+    /// The game keeps its interface in thirteen numbered lists and draws them in order, which
+    /// is the only statement anywhere about what sits over what. Reading it is the difference
+    /// between "our frames go under the inventory" and a hand-written list of addon names that
+    /// is wrong the first time somebody opens a window we did not think of.
+    /// </para>
+    /// <para>
+    /// ⚠️ NOT a draw-path call. It walks up to thirteen lists of up to 256 entries and builds
+    /// strings; it exists for <c>/wisp status</c>, so the layer question can be settled with
+    /// numbers off a real screen rather than by argument.
+    /// </para>
+    /// </summary>
+    /// <returns>How many were written, which may be fewer than found if the buffer runs out.</returns>
+    public static unsafe int ReadNativeWindows(Span<NativeWindow> into)
+    {
+        var manager = FFXIVClientStructs.FFXIV.Client.UI.RaptureAtkUnitManager.Instance();
+
+        if (manager == null)
+        {
+            return 0;
+        }
+
+        int written = 0;
+
+        // The thirteen lists are separate fields rather than an array, so they are visited by
+        // name. Tedious and honest: an array cast over them would be one wrong offset away
+        // from reading whatever follows.
+        for (int layer = 1; layer <= 13 && written < into.Length; layer++)
+        {
+            AtkUnitList* list = layer switch
+            {
+                1 => &manager->DepthLayerOneList,
+                2 => &manager->DepthLayerTwoList,
+                3 => &manager->DepthLayerThreeList,
+                4 => &manager->DepthLayerFourList,
+                5 => &manager->DepthLayerFiveList,
+                6 => &manager->DepthLayerSixList,
+                7 => &manager->DepthLayerSevenList,
+                8 => &manager->DepthLayerEightList,
+                9 => &manager->DepthLayerNineList,
+                10 => &manager->DepthLayerTenList,
+                11 => &manager->DepthLayerElevenList,
+                12 => &manager->DepthLayerTwelveList,
+                _ => &manager->DepthLayerThirteenList,
+            };
+
+            Span<Pointer<AtkUnitBase>> entries = list->Entries;
+            int count = Math.Min((int)list->Count, entries.Length);
+
+            for (int i = 0; i < count && written < into.Length; i++)
+            {
+                AtkUnitBase* unit = entries[i].Value;
+
+                if (unit is null || !unit->IsVisible || unit->RootNode is null)
+                {
+                    continue;
+                }
+
+                // The window's own box, which is not the root node's: a window with a collision
+                // node reports that instead, and that is the part the player can actually hit.
+                FFXIVClientStructs.FFXIV.Common.Math.Bounds bounds;
+                unit->GetWindowBounds(&bounds);
+
+                float width = bounds.Width;
+                float height = bounds.Height;
+
+                // Built but empty, or collapsed to nothing. It covers no pixels either way.
+                if (width <= 1f || height <= 1f)
+                {
+                    continue;
+                }
+
+                into[written++] = new NativeWindow(
+                    unit->NameString,
+                    layer,
+                    i,
+                    new Vector2(bounds.Pos1.X, bounds.Pos1.Y),
+                    new Vector2(bounds.Pos2.X, bounds.Pos2.Y));
+            }
+        }
+
+        return written;
+    }
 
     /// <summary>
     /// Opens the game's own right-click menu on a party member — the one with Examine, Trade,

@@ -19,6 +19,18 @@ internal static class Strings
 
     // --- Window chrome ------------------------------------------------------
     public const string Defaults = "Defaults";
+
+    // --- the preview band ---------------------------------------------------
+    // The counts are written as numbers, because that is what they are. "Light party" would
+    // be the game's word for one of them and have no counterpart for the other two.
+    public const string Preview = "Preview";
+    public const string PreviewSolo = "1";
+    public const string PreviewLight = "4";
+    public const string PreviewFull = "8";
+    public const string PreviewHide = "Hide in preview";
+    public const string PreviewEyeTooltip = "Leaves this out of the preview. It changes nothing in the game, and comes back when this window closes.";
+    public const string PreviewShowAll = "Show everything again";
+    public const string PreviewHideTooltip = "Leave parts out of the preview while you work. Nothing here changes the game, and it all comes back when this window closes.";
     public const string EditMode = "Edit Mode";
     public const string EditModeKeys = "Drag or use the arrows  ·  Shift for 10  ·  Ctrl ignores the guides";
     public const string EditModeDone = "Done";
@@ -37,6 +49,8 @@ internal static class Strings
     public const string TabIcons = "Icons";
     public const string TabLayout = "Layout";
     public const string TabAuras = "Auras";
+    public const string TabText = "Text";
+    public const string TabMarks = "Marks";
 
     // --- Module header ------------------------------------------------------
     public const string CopyAppearance = "Copy appearance";
@@ -101,6 +115,7 @@ internal static class Strings
 
     public const string GroupShield = "Shield";
     public const string GroupShieldHint = "Damage that will not land.";
+    public const string ShieldStyle = "Shield texture";
     public const string ShieldColour = "Shield colour";
     public const string ShieldOpacity = "Shield opacity";
     public const string ShieldOpacityTooltip =
@@ -149,8 +164,6 @@ internal static class Strings
     public const string GroupPartyNumber = "Party number";
     public const string GroupPartyNumberHint = "The 1 to 8 people are called out by.";
     // --- Party frames: the mouse ----------------------------------------------
-    public const string GroupMouse = "Mouse";
-    public const string GroupMouseHint = "What clicking and pointing do.";
     public const string HighlightHovered = "Ring the frame under the cursor";
     public const string HighlightHoveredTooltip = "The game's own party list marks it too.";
     public const string ClickToTarget = "Click to select";
@@ -161,14 +174,18 @@ internal static class Strings
     public const string PresenceOutOfRange = "Out of range";
     public const string PresenceAway = "Elsewhere";
     public const string PresenceOffline = "Offline";
+    public const string PresenceDead = "Dead";
 
     // --- bindings -----------------------------------------------------------
     public const string TabBindings = "Bindings";
+    public const string GroupJob = "Job";
+    public const string GroupJobHint = "Both lists below belong to the job picked here.";
     public const string GroupBindings = "Mouse bindings";
-    public const string GroupBindingsHint = "What each button does on a frame. Kept per job.";
-    public const string BindingJob = "Job";
-    public const string BindingJobTooltip = "Bindings are kept per job, because what a button should do depends on what you play.";
+    public const string GroupBindingsHint = "What each button does on a frame.";
+    public const string BindingJob = "Set up for";
+    public const string BindingJobTooltip = "Kept per job, because what a button should do depends on what you play.";
     public const string BindingAdd = "Add binding";
+    public const string BindingPick = "Pick an action…";
     public const string BindingRemove = "Remove";
     public const string BindingAction = "Action";
     public const string BindingTarget = "Select target";
@@ -210,8 +227,13 @@ internal static class Strings
     // Says exactly what it does and no more. A hotbar key still goes to the selected target —
     // the game has no setting that changes that, whatever we assumed (Florian, 2026-09-12).
     public const string MouseoverTargetTooltip = "Makes <mo> macros act on whoever you point at.";
-    public const string MouseoverCasting = "Cast on mouseover";
-    public const string MouseoverCastingTooltip = "Sends an action to the frame under the cursor, without selecting them first.";
+
+    // The group is named after what it does, not after a switch, because it no longer is one:
+    // the list of spells is the setting (Florian, 2026-09-19).
+    public const string GroupMouseover = "Mouseover casting";
+    public const string GroupMouseoverHint = "Spells that go to the frame under the pointer instead of your target.";
+    public const string MouseoverAdd = "Add spell";
+    public const string MouseoverPick = "Pick a spell…";
 
     public const string GroupLeader = "Leader";
     public const string GroupLeaderHint = "Who is in charge of the party.";
@@ -256,16 +278,16 @@ internal static class Strings
     public const string GroupSizeHint = "How big each frame is, and how far apart.";
 
     // --- Auras: everything lying on a person ---------------------------------
-    public const string GroupAuras = "Afflictions";
+    // "Debuffs", not "Afflictions". The second was ours and read as a translation of
+    // something; the first is the word the people using this already say (Florian,
+    // 2026-09-19). The code keeps saying auras, which is its own business.
+    public const string GroupAuras = "Debuffs";
     public const string GroupAurasHint = "What is on them, worst first.";
     public const string GroupCleanse = "Cleansable";
     public const string GroupCleanseHint = "How a frame says Esuna would help.";
     public const string GroupRescue = "Rescue";
     public const string GroupRescueHint = "A raise on its way, and who cannot die.";
 
-    public const string ShowAuras = "Show icons";
-    public const string ShowAurasTooltip =
-        "The effects on this person, ranked the way the game's own party list ranks them.";
     public const string AuraCount = "How many";
     public const string AuraCountTooltip =
         "Above this the lowest ranked are dropped. The game decides the ranking, not WispUI.";
@@ -274,19 +296,26 @@ internal static class Strings
     public const string AuraSwipe = "Sweep";
     public const string AuraSwipeTooltip = "A dark wedge that sweeps off the icon as the effect runs out.";
 
+    public const string AuraTooltips = "Describe on hover";
+    public const string AuraTooltipsTooltip =
+        "Point at any effect icon for the game's own name and description. Off by default: the cursor is over these frames while you are healing through them.";
+
     public const string CleanseHow = "Mark";
     public const string CleanseHowTooltip =
         "Cleansable effects always get a bright edge on their own icon. This is the mark on the frame itself.";
-    public const string CleanseNone = "None";
-    public const string CleanseBorder = "Frame edge";
-    public const string CleanseBar = "Health bar";
+    // Shared by every frame mark, because the shapes are shared. A second mark is a group of
+    // settings, never a second set of these.
+    public const string MarkNone = "None";
+    public const string MarkBorder = "Edge and foot";
+    public const string MarkFull = "Edge and wash";
+    public const string MarkBar = "Health bar";
+    public const string MarkOpacity = "Fill strength";
+    public const string MarkOpacityTooltip =
+        "How solid the coloured fill is where it is strongest. The edge is not affected.";
 
     public const string GroupBuffs = "Your effects";
     public const string GroupBuffsHint = "What you have already put on them.";
 
-    public const string ShowBuffs = "Show icons";
-    public const string ShowBuffsTooltip =
-        "A second row, for the benefits on this person — regens and the like.";
     public const string OwnBuffsOnly = "Only yours";
     public const string OwnBuffsOnlyTooltip =
         "On, only what you cast yourself. Off, every benefit on them — food, raid buffs and all, which buries the one you are looking for.";
@@ -294,25 +323,30 @@ internal static class Strings
     public const string GroupOthers = "Their effects";
     public const string GroupOthersHint = "What is on them from somebody else.";
 
-    public const string ShowOthers = "Show icons";
-    public const string ShowOthersTooltip =
-        "A third row, for benefits cast by anybody but you — mitigation, another healer's work. Needs \"Only yours\" on above.";
 
     public const string CleanseColour = "Colour";
     public const string CleanseThickness = "Edge thickness";
     public const string CleanseThicknessTooltip = "The mark is drawn around the frame, so a thicker edge costs the frame nothing.";
 
+    public const string GroupRaiseMark = "Being raised";
+    public const string GroupRaiseMarkHint = "How a frame says somebody is already on this one.";
+    public const string RaiseHow = "Mark";
+    public const string RaiseHowTooltip =
+        "Shown from the moment the cast begins, not when the effect lands — those eight seconds are when a second healer needs to know.";
+    public const string RaiseColour = "Colour";
+    public const string RaiseThickness = "Edge thickness";
+
     public const string CleanseWhenAble = "Only on cleanse jobs";
     public const string CleanseWhenAbleTooltip =
         "The mark is an instruction. Off, it also appears on jobs that cannot act on it. The icons show the effect either way.";
 
-    public const string PreviewAuras = "Preview";
-    public const string PreviewAurasTooltip =
-        "Puts stand-in effects on the frames so they can be placed without waiting for a fight. Ends when this window closes.";
+    public const string ShowRaise = "Show raise";
+    public const string ShowRaiseTooltip =
+        "A raise already on its way to them, from the moment the cast starts. Its own place on the frame, so a busy frame cannot push it out.";
 
-    public const string ShowRescue = "Show icon";
-    public const string ShowRescueTooltip =
-        "A raise already cast on them, or a cooldown that is keeping them alive. Its own place, so a busy frame cannot push it out.";
+    public const string ShowInvuln = "Show invulnerability";
+    public const string ShowInvulnTooltip =
+        "A cooldown that is keeping them alive. Shares the place with the raise mark and wins it, because it is the one that changes what you do next.";
 
     public const string GroupGameList = "Game's party list";
     public const string GroupGameListHint = "The list these frames stand in for.";

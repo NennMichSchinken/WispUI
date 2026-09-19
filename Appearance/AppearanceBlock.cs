@@ -12,8 +12,15 @@ namespace WispUI.Appearance;
 /// </summary>
 internal sealed record AppearanceBlock
 {
-    /// <summary>Index into the bar style list. An id, not the style itself.</summary>
-    public int BarStyle { get; init; }
+    /// <summary>
+    /// The bar style, by name. An id, not the style itself.
+    /// <para>
+    /// By name rather than by position, for the same reason the stored setting is: the list
+    /// changes between versions, and a block copied today should still mean the same style
+    /// when it is pasted after an update — which is the whole promise of the clipboard.
+    /// </para>
+    /// </summary>
+    public string BarStyleName { get; init; } = Data.BarStyles.DefaultName;
 
     /// <summary>
     /// What decides a bar's colour — see <see cref="BarColourMode"/>. The colour that
@@ -157,7 +164,9 @@ internal sealed record AppearanceBlock
 
     public int OtherMaxCount { get; init; }
 
-    public bool ShowRescueIcon { get; init; }
+    public bool ShowRaiseIcon { get; init; }
+
+    public bool ShowInvulnIcon { get; init; }
 
     public float RescueIconSize { get; init; }
 
@@ -169,7 +178,7 @@ internal sealed record AppearanceBlock
 
     /// <summary>
     /// Carried with the colours rather than the icons: it is not a picture, it is what the
-    /// frame's own edge or bar does — see <see cref="Hud.CleanseMark"/>.
+    /// frame's own edge or bar does — see <see cref="Hud.FrameMarkStyle"/>.
     /// </summary>
     public int CleanseMark { get; init; }
 
@@ -178,6 +187,17 @@ internal sealed record AppearanceBlock
     public uint CleanseColour { get; init; }
 
     public float CleanseThickness { get; init; }
+
+    public float CleanseOpacity { get; init; }
+
+    /// <summary>The same four shapes, saying that somebody is already being picked up.</summary>
+    public int RaiseMark { get; init; }
+
+    public uint RaiseColour { get; init; }
+
+    public float RaiseThickness { get; init; }
+
+    public float RaiseOpacity { get; init; }
 }
 
 /// <summary>

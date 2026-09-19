@@ -25,6 +25,8 @@ internal static class Chrome
     private const string IdGroupToggle = "##wisp-group-toggle";
     private const string IdGroupAction = "##wisp-group-action";
     private const string IdGroupCollapse = "##wisp-group-collapse";
+    private const string IdGroupEye = "##wisp-group-eye";
+
 
     /// <summary>Only ever mixed towards, never painted: the step a control takes under the hand.</summary>
     private const uint White = 0xFFFFFFFFu;
@@ -250,15 +252,68 @@ internal static class Chrome
             return;
         }
 
-        Ink.Push(Ink.Role.Body);
+        Tooltip(null, text);
+    }
+
+    /// <summary>
+    /// The tooltip itself, without the hover test — for callers that decide hovering for
+    /// themselves. The HUD does: it paints into a draw list rather than laying out items, so
+    /// there is no "item" for ImGui to have been hovered.
+    /// <para>
+    /// 🔴 In the interface face, never the one the player chose for their frames, and never
+    /// via <c>ImGui.SetTooltip</c> — that neither wraps nor takes the face (session 3). A
+    /// heading is optional so one routine serves a plain hint and a named effect.
+    /// </para>
+    /// </summary>
+    public static void Tooltip(string? heading, string text)
+    {
+        // 🔴 Its own look, pushed here rather than inherited. A tooltip is a popup window as
+        // far as ImGui is concerned, so it reads whatever popup padding, rounding, border and
+        // colours happen to be pushed where it is raised — which made the same tooltip come
+        // out framed and padded inside an open selector list and bare and cramped over a row
+        // in the settings window (Florian, 2026-09-19). These are the selector list's values,
+        // because that is the one that looked right.
+        //
+        // Before BeginTooltip, never after: a window reads its padding and border when it
+        // begins, not while it is filled.
+        float pad = Tokens.Metric.PopupPadding;
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(pad, pad));
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupRounding, Tokens.Radius.Control);
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupBorderSize, Tokens.Line(1f));
+
+        // The gap between the heading and the text under it, pinned for the same reason as
+        // the padding: it is the window's spacing otherwise, and that differs by where the
+        // tooltip was raised.
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(0f, Tokens.Space.Sm));
+        ImGui.PushStyleColor(ImGuiCol.PopupBg, Tokens.Col.PopupBg);
+        ImGui.PushStyleColor(ImGuiCol.Border, Tokens.Col.PopupEdge);
+
         ImGui.BeginTooltip();
         ImGui.PushTextWrapPos(Tokens.Metric.TooltipWrap);
-        ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.Ink);
-        ImGui.TextUnformatted(text);
-        ImGui.PopStyleColor();
+
+        if (!string.IsNullOrEmpty(heading))
+        {
+            Ink.Push(Ink.Role.Title);
+            ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.Heading);
+            ImGui.TextUnformatted(heading);
+            ImGui.PopStyleColor();
+            Ink.Pop(Ink.Role.Title);
+        }
+
+        if (text.Length > 0)
+        {
+            Ink.Push(Ink.Role.Body);
+            ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.Ink);
+            ImGui.TextUnformatted(text);
+            ImGui.PopStyleColor();
+            Ink.Pop(Ink.Role.Body);
+        }
+
         ImGui.PopTextWrapPos();
         ImGui.EndTooltip();
-        Ink.Pop(Ink.Role.Body);
+
+        ImGui.PopStyleColor(2);
+        ImGui.PopStyleVar(4);
     }
 
     /// <summary>
@@ -605,6 +660,60 @@ internal static class Chrome
     }
 
     /// <summary>
+    /// One line of a checklist in a popup: a name, a tick against the right edge, and the
+    /// whole line as the target.
+    /// <para>
+    /// 🔴 Not <see cref="OptionRow"/>, which was tried first and read wrong (Florian,
+    /// 2026-09-19: "vom Spacing her"). A settings row is a paragraph — it is tall, it carries
+    /// a divider, it expects air around it, because there are four of them on a card and each
+    /// one is a decision. A menu is a list you read down in one go, so it is tight, has no
+    /// dividers, and marks where the pointer is instead. Same tick, same colours, different
+    /// rhythm, and the rhythm is the whole difference.
+    /// </para>
+    /// </summary>
+    public static bool MenuTickRow(string id, string label, float x, float y, float width, bool ticked)
+    {
+        float height = Tokens.Metric.MenuRowHeight;
+        float pad = Tokens.Space.Sm;
+
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.InvisibleButton(id, new Vector2(width, height));
+        bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
+        bool clicked = ImGui.IsItemClicked();
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        if (hovered)
+        {
+            // The band runs the full width of the row including its padding, so the pointer
+            // marks a line of the list rather than a box inside it.
+            dl.AddRectFilled(
+                new Vector2(x - pad, y),
+                new Vector2(x + width + pad, y + height),
+                Tokens.Col.NavHover,
+                Tokens.Radius.Small);
+        }
+
+        Ink.Draw(
+            dl,
+            Ink.Role.Body,
+            new Vector2(x, CenterY(y, height, Ink.Role.Body)),
+            hovered ? Tokens.Col.Ink : (ticked ? Tokens.Col.Ink : Tokens.Col.InkDim),
+            label);
+
+        float box = Tokens.Metric.CheckBox;
+        PaintTick(
+            dl,
+            new Vector2(MathF.Round(x + width - box), MathF.Round(y + ((height - box) * 0.5f))),
+            ticked,
+            hovered,
+            1f);
+
+        return clicked;
+    }
+
+    /// <summary>
     /// A row whose control is a strip of two or three choices, all of them visible at once.
     /// <para>
     /// The selector answers "which one of many"; this answers "this one or that one", where
@@ -730,6 +839,47 @@ internal static class Chrome
         return used + Ink.LineHeight(Ink.Role.Small) + Tokens.Metric.SectionHeadGap;
     }
 
+    /// <summary>
+    /// The eye that takes one part out of the preview for a moment, or puts it back.
+    /// <para>
+    /// Drawn rather than written: it sits in a group's head beside a switch and a badge, and
+    /// a word there would read as another setting. An eye says "look", which is the whole
+    /// difference between this and everything else on the card.
+    /// </para>
+    /// <para>
+    /// Shut — the crossed-out glyph — is the state worth noticing, so that is the one drawn
+    /// in gold. An open eye is the resting state and stays quiet.
+    /// </para>
+    /// <para>
+    /// 🔴 A glyph from Dalamud's icon face, not two arcs drawn by hand. The hand-drawn one
+    /// was tried first and looked exactly as good as an eighteen pixel curve made of one
+    /// pixel strokes ever does, which is to say mushy (Florian, 2026-09-19: "das Auge sieht
+    /// nicht gut aus"). A face is hinted and rasterised for the size it is asked for; a path
+    /// is not. Anything glyph-shaped belongs in a font.
+    /// </para>
+    /// </summary>
+    public static bool EyeButton(string id, float x, float y, float size, bool shown)
+    {
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.InvisibleButton(id, new Vector2(size, size));
+        bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
+        bool clicked = ImGui.IsItemClicked();
+
+        uint ink = shown
+            ? (hovered ? Tokens.Col.Ink : Tokens.Col.InkDim)
+            : (hovered ? Tokens.Col.GoldHi : Tokens.Col.Gold);
+
+        LineIcons.Draw(
+            ImGui.GetWindowDrawList(),
+            shown ? LineIcons.Eye : LineIcons.EyeOff,
+            new Vector2(MathF.Round(x), MathF.Round(y)),
+            size,
+            ink);
+
+        return clicked;
+    }
+
     /// <summary>What goes in the head of a group, beyond its name.</summary>
     internal readonly struct GroupHead
     {
@@ -750,6 +900,13 @@ internal static class Chrome
         public bool Collapsible { get; init; }
 
         public bool Collapsed { get; init; }
+
+        /// <summary>
+        /// The part of the preview this card governs, or null for a card that governs
+        /// nothing drawable. Set, it puts an eye in the head that takes that part out of the
+        /// preview while you look at the rest.
+        /// </summary>
+        public Hud.PreviewPart? Eye { get; init; }
     }
 
     /// <summary>What a group reports back, and where its rows go.</summary>
@@ -837,6 +994,20 @@ internal static class Chrome
         {
             cursor -= Tokens.Metric.SwitchWidth;
             toggleClicked = Switch(IdGroupToggle, cursor, top, head.Toggle.Value, true);
+            cursor -= Tokens.Space.Md;
+        }
+
+        if (head.Eye is not null)
+        {
+            float size = Tokens.Metric.EyeGlyph;
+            cursor -= size;
+
+            if (EyeButton(IdGroupEye, cursor, MathF.Round(top + ((Ink.LineHeight(Ink.Role.Title) - size) * 0.5f)), size, Hud.PreviewMask.Shows(head.Eye.Value)))
+            {
+                Hud.PreviewMask.Toggle(head.Eye.Value);
+            }
+
+            TooltipOnHover(Strings.PreviewEyeTooltip);
             cursor -= Tokens.Space.Md;
         }
 

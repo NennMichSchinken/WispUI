@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using WispUI.Core;
 
 namespace WispUI.Data;
@@ -90,13 +92,27 @@ internal static class StatusData
     /// </summary>
     private static readonly ushort[] Invulnerabilities =
     {
-        82,   // Hallowed Ground — Paladin
-        409,  // Living Dead — Dark Knight, the window before Walking Dead
-        810,  // Living Dead, the other id the effect is seen under
-        811,  // Walking Dead — the one that has to be healed through
-        1302, // Holmgang — Warrior
-        1836, // Superbolide — Gunbreaker
-        3255, // Superbolide, the other id the effect is seen under
+        // 🔴 Every name here is the one the GAME gave the id at load, read back out of the
+        // log on 2026-09-18 — not the one somebody wrote down when the list was assembled.
+        // Three of those were wrong: 409 was labelled Living Dead and is Holmgang, 1302 was
+        // labelled Holmgang and is a second Hallowed Ground, and 3255 was labelled Superbolide
+        // and is nothing of the sort. The ids all still resolve to real effects, so the list
+        // worked and the comments lied, which is the worse of the two — a label is a claim
+        // about the game (CLAUDE.md, session 10).
+        82,   // "Heiliger Boden"      — Hallowed Ground, Paladin
+        409,  // "Holmgang"            — Warrior
+        810,  // "Totenerweckung"      — Living Dead, Dark Knight
+        811,  // "Erweckter"           — Walking Dead, the one that has to be healed through
+        1302, // "Heiliger Boden"      — Hallowed Ground under a second id
+        1836, // "Meteoritenfall"      — Superbolide, Gunbreaker
+
+        // ⚠️ "Untote Auferstehung", and NOT verified to be an invulnerability. It resolves to
+        // a real effect and it sits in the Dark Knight's Living Dead family by its name, but
+        // nobody here has seen it stop a death. Left in because a false positive costs one
+        // icon and a false negative costs somebody who was written off as dead — but it is the
+        // one line in this list that is still a guess, and it comes out the moment it shows up
+        // on somebody who then dies.
+        3255,
     };
 
     /// <summary>
@@ -184,7 +200,7 @@ internal static class StatusData
     /// broken one.
     /// </para>
     /// </summary>
-    public static void Prime()
+    public static void Prime(int previewSlots)
     {
         Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.Status>? sheet =
             Services.Data.GetExcelSheet<Lumina.Excel.Sheets.Status>();
@@ -209,6 +225,8 @@ internal static class StatusData
         var facts = new StatusFacts[size];
         var invulnerable = new bool[size];
 
+        var named = new Dictionary<string, uint>(StringComparer.Ordinal);
+
         foreach (Lumina.Excel.Sheets.Status row in sheet)
         {
             ref StatusFacts entry = ref facts[row.RowId];
@@ -223,6 +241,28 @@ internal static class StatusData
             // the one effect everybody wears all the time, and there is no field for "this is
             // a meal". One id rather than a list, because one meal buff covers every dish.
             entry.IsUpkeep = row.IsFcBuff || row.RowId == WellFed;
+
+            // 🔴 Benefits filed under their own name, which is the one link the game has
+            // between a job and an effect it puts on somebody else.
+            //
+            // There is no direct one. Action carries StatusGainSelf, and that is the effect an
+            // action gives the CASTER — nothing says which job applies which effect to a party
+            // member. What is true is that the two are almost always called the same thing:
+            // Regen the spell leaves Regen the effect, Medica II leaves Medica II. Matching on
+            // that is a derivation from the data rather than a list of ours to keep current,
+            // and the actions that leave nothing simply fail to match, which quietly selects
+            // exactly the effects a job does leave behind.
+            if (row.StatusCategory == 1 && row.Icon != 0)
+            {
+                string name = row.Name.ExtractText();
+
+                // First writer wins. Later expansions reuse a name for a higher version of
+                // the same thing, and the earlier row is the one the older action refers to.
+                if (name.Length > 0 && !named.ContainsKey(name))
+                {
+                    named[name] = row.RowId;
+                }
+            }
         }
 
         for (int i = 0; i < Invulnerabilities.Length; i++)
@@ -248,8 +288,9 @@ internal static class StatusData
         }
 
         s_facts = facts;
+        s_named = named;
         s_invulnerable = invulnerable;
-        BuildPreview(sheet);
+        BuildPreview(sheet, previewSlots);
     }
 
     /// <summary>
@@ -270,17 +311,23 @@ internal static class StatusData
     /// <summary>An invulnerability the preview can show, or zero if none resolved.</summary>
     public static uint PreviewInvulnerability { get; private set; }
 
-    private static void BuildPreview(Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.Status> sheet)
+    private static void BuildPreview(Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.Status> sheet, int slots)
     {
+        // 🔴 As many as a frame can show, asked for by the caller rather than written down
+        // here. It was four while a frame could show eight, so turning the count up past four
+        // did nothing and read as a broken slider (Florian, 2026-09-19). A number that stands
+        // for "as many as fit" has to come from whoever knows how many fit.
+        slots = Math.Max(1, slots);
         // 🔴 The highest ranked, not the first found. The sheet's early rows are leftovers and
         // oddities, and a preview built from them showed four effects nobody recognises — the
         // point of a preview is that it looks like a frame in a real fight (Florian,
         // 2026-09-13). PartyListPriority is the game saying which effects it would actually
         // put on a party list, which is exactly the question.
-        var picked = new uint[4];
-        var benefits = new uint[4];
+        var picked = new uint[slots];
+        var benefits = new uint[slots];
         var pickedRank = new byte[picked.Length];
         var benefitRank = new byte[benefits.Length];
+        int half = Math.Max(1, picked.Length / 2);
 
         foreach (Lumina.Excel.Sheets.Status row in sheet)
         {
@@ -297,14 +344,14 @@ internal static class StatusData
 
                 case 2:
                     // Half the row cleansable and half not, so both looks are on screen: the
-                    // first two slots are kept for effects Esuna takes off.
+                    // front half is kept for effects Esuna takes off.
                     if (row.CanDispel)
                     {
-                        Rank(picked, pickedRank, 0, 2, row.RowId, row.PartyListPriority);
+                        Rank(picked, pickedRank, 0, half, row.RowId, row.PartyListPriority);
                     }
                     else
                     {
-                        Rank(picked, pickedRank, 2, 4, row.RowId, row.PartyListPriority);
+                        Rank(picked, pickedRank, half, picked.Length, row.RowId, row.PartyListPriority);
                     }
 
                     break;
@@ -361,6 +408,7 @@ internal static class StatusData
 
         DumpParty(player);
         DumpMarkers();
+        DumpWindows();
 
         var buffer = new NativeUi.StatusEntry[NativeUi.StatusCapacity];
         int ours = NativeUi.ReadCharacterStatuses(player.Address, buffer);
@@ -531,6 +579,66 @@ internal static class StatusData
     /// a marker on a real person and reading which slot moved.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// Every window the game has on screen, with the depth layer it lives in and the box it
+    /// covers — so "our frames sit over the inventory" can be answered with the game's own
+    /// numbers rather than with a hand-written list of addon names.
+    /// <para>
+    /// 🔴 MEASURED 2026-09-18, and the first guess was wrong. The layer separates almost
+    /// nothing: the character sheet, the chat log, every hotbar, the minimap and
+    /// <c>_PartyList</c> came back in layer five together — thirty-six of thirty-nine windows
+    /// in one layer, with only <c>_ScreenText</c> and the cursor above them. So whatever
+    /// decides that the character sheet covers the party list is INSIDE a layer, which leaves
+    /// the order of the layer's own list.
+    /// </para>
+    /// <para>
+    /// Which is why the slot is printed too. In that reading the character sheet sat at slot 6
+    /// and <c>_PartyList</c> at slot 15, so the earlier slot is the one in front — consistent
+    /// with what is on screen, and still only one sample. Opening the same two windows in the
+    /// other order settles it: if the earlier slot is the front, whichever was raised last
+    /// moves toward zero.
+    /// </para>
+    /// </summary>
+    private static void DumpWindows()
+    {
+        var windows = new NativeUi.NativeWindow[96];
+        int count = NativeUi.ReadNativeWindows(windows);
+
+        Services.Log.Information("--- native windows on screen: {Count} ---", count);
+
+        for (int i = 0; i < count; i++)
+        {
+            ref NativeUi.NativeWindow w = ref windows[i];
+
+            Services.Log.Information(
+                "  layer {Layer,2} slot {Slot,3} | {Name,-28} | {X:0}, {Y:0} to {X2:0}, {Y2:0}",
+                w.Layer,
+                w.Slot,
+                w.Name,
+                w.Min.X,
+                w.Min.Y,
+                w.Max.X,
+                w.Max.Y);
+        }
+    }
+
+    /// <summary>
+    /// The marker sheet and the game's marker slots, side by side.
+    /// <para>
+    /// 🔴 MEASURED 2026-09-18, and worth writing down before anybody builds on it: the sheet's
+    /// ROW ORDER IS NOT THE ORDER THE MARKERS GO IN. Rows 9 to 14 carry sort orders 12 to 17,
+    /// and then rows 15, 16 and 17 come back with sort orders 6, 7 and 8 — Attack 6 through 8
+    /// were added to the game later and sit at the end of the sheet while belonging in the
+    /// middle of the list. Walking the sheet in row order and calling that the marker list
+    /// would put three markers in the wrong place, and it would look right for the first five.
+    /// <c>SortOrder</c> is the field to sort on.
+    /// </para>
+    /// <para>
+    /// Still open: whether a slot index in the controller lines up with that sorted order. That
+    /// needs markers actually placed on people — the reading above had none, which is how the
+    /// empty-slot bug beside it came to light.
+    /// </para>
+    /// </summary>
     private static void DumpMarkers()
     {
         var sheet = Services.Data.GetExcelSheet<Lumina.Excel.Sheets.Marker>();
@@ -616,6 +724,61 @@ internal static class StatusData
     /// What is known about a status id. An id past the end of the sheet — which a patch can
     /// hand us before the data catches up — comes back empty rather than throwing.
     /// </summary>
+    /// <summary>
+    /// What an effect is called and what it does, for the tooltip on its icon.
+    /// <para>
+    /// 🔴 Looked up when somebody actually hovers, not primed with everything else. The sheet
+    /// carries a name and a description for several thousand effects, and pulling text out of
+    /// one builds strings — priming them all would cost a few thousand allocations at load for
+    /// the handful anybody ever points at. Cached after the first ask, so hovering costs one
+    /// dictionary hit per frame and nothing else (CLAUDE.md §7.1, §7.3).
+    /// </para>
+    /// <para>
+    /// A description can legitimately be empty. The caller draws the name alone rather than an
+    /// empty panel.
+    /// </para>
+    /// </summary>
+    public static bool Describe(uint statusId, out string name, out string description)
+    {
+        if (s_described.TryGetValue(statusId, out (string Name, string Text) known))
+        {
+            name = known.Name;
+            description = known.Text;
+            return name.Length > 0;
+        }
+
+        name = string.Empty;
+        description = string.Empty;
+
+        Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.Status>? sheet =
+            Services.Data.GetExcelSheet<Lumina.Excel.Sheets.Status>();
+
+        Lumina.Excel.Sheets.Status? row = sheet?.GetRowOrDefault(statusId);
+
+        if (row is not null)
+        {
+            name = row.Value.Name.ExtractText();
+            description = row.Value.Description.ExtractText();
+        }
+
+        // Remembered either way. An id the sheet does not have is a miss worth caching, or a
+        // patch that hands us a new effect costs a sheet walk every frame it is hovered.
+        s_described[statusId] = (name, description);
+        return name.Length > 0;
+    }
+
+    private static readonly System.Collections.Generic.Dictionary<uint, (string Name, string Text)> s_described = new();
+
+    /// <summary>
+    /// Benefits by name. See the note where it is filled: a name is the only link the game
+    /// offers between a job's spell and the effect it leaves on somebody else.
+    /// </summary>
+    private static Dictionary<string, uint> s_named = new(StringComparer.Ordinal);
+
+    /// <summary>The benefit called this, or zero. Asked at load, never in a draw.</summary>
+    public static uint NamedBenefit(string name) =>
+        s_named.TryGetValue(name, out uint id) ? id : 0u;
+
     public static StatusFacts Of(uint statusId) =>
         statusId < (uint)s_facts.Length ? s_facts[statusId] : default;
 

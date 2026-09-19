@@ -63,6 +63,51 @@ internal static class ActionList
         return built;
     }
 
+    /// <summary>
+    /// What the game says an action does, for a tooltip. Empty for an action with no text of
+    /// its own.
+    /// <para>
+    /// 🔴 The description is <b>not</b> in the Action sheet. It lives in ActionTransient,
+    /// which is keyed by the same row id and holds the one field.
+    /// </para>
+    /// <para>
+    /// Read on the first hover and kept, never on load: a job has a dozen actions and a
+    /// player reads one or two of them, so building every description up front would be work
+    /// done for text nobody asked to see. The same shape as the effect tooltips
+    /// (<see cref="StatusData.Describe"/>), including caching the misses — an id the sheet
+    /// does not have would otherwise cost a lookup every frame it is hovered.
+    /// </para>
+    /// </summary>
+    public static string Describe(uint actionId)
+    {
+        if (Described.TryGetValue(actionId, out string? known))
+        {
+            return known;
+        }
+
+        string text = string.Empty;
+
+        try
+        {
+            Lumina.Excel.ExcelSheet<ActionTransient>? sheet = Services.Data.GetExcelSheet<ActionTransient>();
+            ActionTransient? row = sheet?.GetRowOrDefault(actionId);
+
+            if (row is not null)
+            {
+                text = row.Value.Description.ExtractText();
+            }
+        }
+        catch (Exception ex)
+        {
+            Services.Log.Error(ex, "No description could be read for action {Action}.", actionId);
+        }
+
+        Described[actionId] = text;
+        return text;
+    }
+
+    private static readonly Dictionary<uint, string> Described = new();
+
     private static ActionEntry[] Build(uint jobId)
     {
         Building.Clear();

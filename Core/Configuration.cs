@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 6;
+    public const int CurrentVersion = 11;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -30,6 +30,19 @@ public sealed class Configuration : IPluginConfiguration
 
     /// <summary>Show an entry in the server info bar that opens the settings window.</summary>
     public bool ShowInfoBarEntry { get; set; } = true;
+
+    /// <summary>
+    /// Whether the preview band under the module header is open.
+    /// <para>
+    /// Saved, unlike the eye switches that hide parts of what it shows. Those are a way of
+    /// looking at one thing for a moment; this is whether you want the band at all, and
+    /// having to open it every session would make the answer "no" for everybody.
+    /// </para>
+    /// </summary>
+    public bool PreviewOpen { get; set; } = true;
+
+    /// <summary>How many stand-ins the preview shows: one, four or a full party.</summary>
+    public int PreviewCount { get; set; } = 4;
 
     // --- Modules ------------------------------------------------------------
 
@@ -71,7 +84,23 @@ public sealed class Configuration : IPluginConfiguration
     [Serializable]
     public sealed class PartyFramesConfig
     {
-        /// <summary>Index into the bar style list.</summary>
+        /// <summary>
+        /// The bar style, by name.
+        /// <para>
+        /// 🔴 By NAME and not by position, the same lesson the face learned in version 5: the
+        /// list grows and shrinks. Two painted styles were added in the middle and the
+        /// placeholder ones will be thinned out once they have been looked at — either of
+        /// those silently hands a stored index to a different style, and the player finds
+        /// their bar changed by an update they did not ask for.
+        /// </para>
+        /// </summary>
+        public string BarStyleName { get; set; } = Data.BarStyles.DefaultName;
+
+        /// <summary>
+        /// The old position in the style list. Nothing writes it any more; it is here so the
+        /// migration to version 7 can read what the user had. Droppable once no stored
+        /// configuration is older than that.
+        /// </summary>
         public int BarStyle { get; set; }
 
         /// <summary>Index into the colour modes: by role, by job, or a fixed colour.</summary>
@@ -136,6 +165,12 @@ public sealed class Configuration : IPluginConfiguration
         /// why it is per job and what a job answers to before anybody has set it up.
         /// </summary>
         public BindingSet Bindings { get; set; } = new();
+
+        /// <summary>
+        /// Which spells go to whoever the mouse is over, per job. See
+        /// <see cref="MouseoverSet"/> for why this is a list and not a switch.
+        /// </summary>
+        public MouseoverSet Mouseover { get; set; } = new();
 
         /// <summary>
         /// The old position in a fixed list of six faces. Nothing writes it any more; it is
@@ -205,8 +240,15 @@ public sealed class Configuration : IPluginConfiguration
 
         // --- mana ---------------------------------------------------------------
 
-        /// <summary>The master switch. The three role switches decide who it then applies to.</summary>
-        public bool ShowMana { get; set; } = true;
+        /// <summary>
+        /// The master switch. The three role switches decide who it then applies to.
+        /// <para>
+        /// Off out of the box (Florian, 2026-09-19). A second bar on every frame is a lot of
+        /// height and a lot of ink for something most people never look at, and the ones who
+        /// do — a healer watching their own, a Summoner — know they want it.
+        /// </para>
+        /// </summary>
+        public bool ShowMana { get; set; }
 
         /// <summary>0 a thin strip along the bottom edge, 1 a bar of its own.</summary>
         public int ManaStyle { get; set; }
@@ -245,6 +287,17 @@ public sealed class Configuration : IPluginConfiguration
         /// picks up grass and stone and stops being a colour at all (CLAUDE.md, session 9).
         /// </para>
         /// </summary>
+        /// <summary>
+        /// The shield's own texture, by name, out of the same list the bar picks from.
+        /// <para>
+        /// Its own setting rather than the bar's, for the same reason its opacity is: a shield
+        /// is something laid ON the bar, and what reads well as a bar fill is not what reads
+        /// well as an overlay (Florian, 2026-09-18). A pattern that would be noise across a
+        /// whole bar — stripes, say — is exactly what says "shield" on a short stretch of one.
+        /// </para>
+        /// </summary>
+        public string ShieldStyleName { get; set; } = Data.BarStyles.ShieldDefaultName;
+
         public uint ShieldColour { get; set; } = Style.Tokens.Col.Shield;
 
         /// <summary>
@@ -324,12 +377,10 @@ public sealed class Configuration : IPluginConfiguration
         public bool MouseoverTarget { get; set; } = true;
 
         /// <summary>
-        /// Send an action to whoever the mouse is over instead of to the selected target.
-        /// <para>
-        /// Off until asked for, and the only setting in the suite that deserves to be. The two
-        /// above change what is shown or what is selected; this changes what a key press does,
-        /// and nobody should find that out by surprise.
-        /// </para>
+        /// The old blanket switch for mouseover casting, in the same position as
+        /// <see cref="ClickToTarget"/> and kept for the same reason: the migration to version
+        /// 10 reads it to tell whether anybody was relying on it. Nothing writes it any more
+        /// — the spells are picked one at a time in <see cref="Mouseover"/>.
         /// </summary>
         public bool MouseoverCasting { get; set; }
 
@@ -424,6 +475,24 @@ public sealed class Configuration : IPluginConfiguration
         /// </summary>
         public bool AuraSwipe { get; set; } = true;
 
+        /// <summary>
+        /// Point at any effect icon and the game's own name and description for it come up.
+        /// <para>
+        /// 🔴 OFF by default, and it is the one setting here where the default is the opposite
+        /// of the feature being good. The cursor is over these frames constantly and on
+        /// purpose — click-to-target, mouseover healing — so a panel that opens on hover would
+        /// open while somebody is healing through it, over the very frames they are reading.
+        /// Whoever wants it is somebody learning what an effect does, and they will go and
+        /// find the switch (Florian asked for it as an option, 2026-09-18).
+        /// </para>
+        /// <para>
+        /// One switch for all three icon rows rather than one each: "what is this picture" is
+        /// the same question whether the picture is a debuff, your own regen or somebody
+        /// else's work.
+        /// </para>
+        /// </summary>
+        public bool ShowAuraTooltips { get; set; }
+
         // --- benefits: a second row, in the other corner ------------------------
         // Its own row rather than a mix with the afflictions, because the two answer
         // different questions: what is wrong with this person, and what have I already put on
@@ -493,8 +562,31 @@ public sealed class Configuration : IPluginConfiguration
 
         public int OtherMaxCount { get; set; } = 3;
 
-        /// <summary>One of <see cref="Hud.CleanseMark"/>.</summary>
-        public int CleanseMark { get; set; } = (int)Hud.CleanseMark.Border;
+        /// <summary>
+        /// One of <see cref="Hud.FrameMarkStyle"/>. None out of the box.
+        /// <para>
+        /// 🔴 The marks are the loudest thing a frame can do — a border or a wash across the
+        /// whole of it — and a newcomer meeting one has no way to know what it is telling
+        /// them. Loud belongs to somebody who asked for it (Florian, 2026-09-19). The icons
+        /// still say what is on a person either way; this is only about shouting it.
+        /// </para>
+        /// </summary>
+        public int CleanseMark { get; set; } = (int)Hud.FrameMarkStyle.Border;
+
+        /// <summary>
+        /// Whether the cleanse mark appears at all. Off out of the box.
+        /// <para>
+        /// 🔴 The marks are the loudest thing a frame can do — a border or a wash across the
+        /// whole of it — and somebody meeting one on their first login has no way to know
+        /// what it is telling them. Loud belongs to whoever asked for it (Florian,
+        /// 2026-09-19). The icons still say what is on a person; this is only about shouting.
+        /// </para>
+        /// <para>
+        /// Separate from the shape above, so switching it off and on again gives back the
+        /// shape that was chosen rather than the first one in the list.
+        /// </para>
+        /// </summary>
+        public bool ShowCleanseMark { get; set; }
 
         /// <summary>
         /// Show the cleanse mark only while on a job that can actually cleanse.
@@ -524,14 +616,66 @@ public sealed class Configuration : IPluginConfiguration
         /// </summary>
         public uint CleanseColour { get; set; } = Style.Tokens.Col.Cleanse;
 
+        /// <summary>
+        /// How solid the cleanse fill is at its strongest. Was a constant until the full-frame
+        /// wash arrived beside the band — a band that fades out at the top can afford to be
+        /// strong where it starts, and a wash over the whole frame cannot, so the number had
+        /// to stop being one number for everybody (Florian, 2026-09-18).
+        /// </summary>
+        public float CleanseOpacity { get; set; } = 0.55f;
+
+        // --- the raise mark: the same marking, saying the opposite thing -------------------
+        // Cleanse says "you have to do something". This says "somebody already is" — which is
+        // why it is worth a mark of its own rather than a second meaning for the first one.
+
+        /// <summary>One of <see cref="Hud.FrameMarkStyle"/>. None out of the box, with the
+        /// cleanse mark and for the same reason.</summary>
+        public int RaiseMark { get; set; } = (int)Hud.FrameMarkStyle.Border;
+
+        /// <summary>Whether the raise mark appears, with the cleanse mark and for the same
+        /// reason.</summary>
+        public bool ShowRaiseMark { get; set; }
+
+        /// <summary>
+        /// A spring green, and deliberately NOT the healer role colour <c>#6EF54D</c>: the mark
+        /// washes over a bar that may already be that exact green, and a mark you cannot see on
+        /// the very job most likely to be raising is no mark. Placeholder in the sense that
+        /// every colour here is — the picker is right beside it.
+        /// </summary>
+        public uint RaiseColour { get; set; } = Style.Tokens.Col.Raise;
+
+        public float RaiseThickness { get; set; } = 3f;
+
+        public float RaiseOpacity { get; set; } = 0.55f;
+
         // --- rescue: a raise on its way, and somebody who cannot be killed -------
         // Their own place on the frame rather than a slot in the icon row, because the row
         // is ranked and can drop things, and these two are exactly what must never be
         // dropped (Florian, 2026-09-13).
 
         /// <summary>
-        /// The raise-is-coming and cannot-be-killed marks. On: both change what you would do
-        /// next, which is a higher bar than most things on a frame clear.
+        /// The raise-is-coming mark. On: it changes what you would do next, which is a higher
+        /// bar than most things on a frame clear.
+        /// </summary>
+        public bool ShowRaiseIcon { get; set; } = true;
+
+        /// <summary>
+        /// The cannot-be-killed mark.
+        /// <para>
+        /// A switch of its own rather than a share of the raise's (Florian, 2026-09-18). The
+        /// two ride in the same place on the frame and never appear together, which is what
+        /// made one switch look reasonable — but they are read by different people at
+        /// different moments. A healer turns the raise mark on to see who somebody else has
+        /// already picked up; the invulnerability mark answers "stop healing, this is not
+        /// damage you can lose them to", and a group may well want one without the other.
+        /// </para>
+        /// </summary>
+        public bool ShowInvulnIcon { get; set; } = true;
+
+        /// <summary>
+        /// What the two above used to be, kept only so a configuration written before version 9
+        /// still has something to read into and the migration has something to read out of.
+        /// Nothing draws from it.
         /// </summary>
         public bool ShowRescueIcon { get; set; } = true;
 
@@ -719,26 +863,158 @@ public sealed class Configuration : IPluginConfiguration
             // job with no entry answers to the defaults, which do exactly what the two
             // switches did when both were on — so only somebody who had turned one off needs
             // anything written down, and for them it is written down for every job at once.
-            if (config.PartyFrames.ClickToTarget && config.PartyFrames.ContextMenu)
+            //
+            // 🔴 This block used to leave the whole method with a `return` when there was
+            // nothing to write. That was invisible while it was the last step and a trap the
+            // moment anything followed it: every later migration would have been skipped for
+            // exactly the people who had changed nothing. A step declines by doing nothing,
+            // never by ending the chain.
+            if (!config.PartyFrames.ClickToTarget || !config.PartyFrames.ContextMenu)
             {
-                return;
+                System.Collections.Generic.List<MouseBinding> kept = new();
+
+                if (config.PartyFrames.ClickToTarget)
+                {
+                    kept.Add(new MouseBinding { Button = 0, Kind = BindingKind.Target });
+                }
+
+                if (config.PartyFrames.ContextMenu)
+                {
+                    kept.Add(new MouseBinding { Button = 1, Kind = BindingKind.ContextMenu });
+                }
+
+                foreach ((uint id, _) in Data.JobList.Order)
+                {
+                    config.PartyFrames.Bindings.ByJob[id] = Clone(kept);
+                }
+            }
+        }
+
+        if (config.Version < 7)
+        {
+            // The style was a position in the style list. The list is no longer fixed — two
+            // painted styles joined it and the placeholder ones are on their way out — so the
+            // style is stored by name, and a position maps to the name it used to mean.
+            //
+            // Read against the list as it was at version 6, NOT against the list as it is
+            // now: the point of the step is that those two are no longer the same.
+            config.PartyFrames.BarStyleName = config.PartyFrames.BarStyle switch
+            {
+                1 => "Gradient",
+                2 => "Inverse",
+                3 => "Glass",
+                4 => "Split",
+                5 => "Ridge",
+                6 => "Ridge fine",
+                7 => "Edge lit",
+                8 => "Hollow",
+                _ => "Flat",
+            };
+        }
+
+        if (config.Version < 8)
+        {
+            // The style list was rebuilt on WispUI's own textures. Seven files carried over
+            // from LumenUI went out — measured at under 10 % contrast once tinted, which is
+            // to say invisible — and with them eight of the nine drawn placeholder shapes,
+            // which were never a design decision in the first place.
+            //
+            // Read against the list as it was at version 7. Everything whose name survives
+            // keeps it; everything else lands on the nearest thing that still exists, which
+            // for most of the placeholders is the quiet default. Falling through to the
+            // list's first entry would work — that is what IndexOf does for an unknown name —
+            // but it would silently move somebody who had chosen a shaded bar onto a flat one.
+            config.PartyFrames.BarStyleName = config.PartyFrames.BarStyleName switch
+            {
+                "Flat" => "Flat",
+                "Hollow" => "Flat",
+
+                // Both old "Smooth" entries were the carried-over gradients, and both of them
+                // were nearly flat once tinted. Our own quiet gradient is what they were
+                // trying to be.
+                "Smooth" => "Smooth",
+                "Smooth soft" => "Smooth",
+
+                "Gradient" => "Gradient",
+                "Inverse" => "Gradient",
+
+                // The three that put a light edge or a step on the bar all land on the one
+                // texture that still does that.
+                "Glass" => "Bevel",
+                "Split" => "Bevel",
+                "Edge lit" => "Bevel",
+
+                _ => Data.BarStyles.DefaultName,
+            };
+
+            // The shield's own style arrived with the bar's default, because at the time there
+            // was nothing better to point it at. There is now: a pattern, which is the whole
+            // reason the shield picks separately. Nobody chose "Smooth" here — it is the value
+            // it was born with — so moving it is finishing the setting rather than overriding
+            // a decision.
+            if (config.PartyFrames.ShieldStyleName is "Smooth" or "Smooth soft")
+            {
+                config.PartyFrames.ShieldStyleName = Data.BarStyles.ShieldDefaultName;
+            }
+        }
+
+        if (config.Version < 9)
+        {
+            // One switch covered the raise mark and the invulnerability mark together; they
+            // are two now. Whoever had turned the pair off gets both off, which is the only
+            // reading of the old value that keeps a frame looking the way it looked — the
+            // alternative, defaulting both to on, would switch something back on for exactly
+            // the person who went looking for the switch.
+            config.PartyFrames.ShowRaiseIcon = config.PartyFrames.ShowRescueIcon;
+            config.PartyFrames.ShowInvulnIcon = config.PartyFrames.ShowRescueIcon;
+        }
+
+        if (config.Version < 10)
+        {
+            // Mouseover casting was one switch for every action a job owns and is now a list
+            // of spells. Nothing is written: the list starts empty on purpose (Florian,
+            // 2026-09-19).
+            //
+            // 🔴 The tempting step is the one not taken here — filling the list with every
+            // heal the job has, so that whoever had the switch on keeps what they had. It
+            // would be the wrong reading of the old value. Turning the switch on was a bet
+            // that redirecting everything was better than redirecting nothing, made when
+            // those were the only two offers; it was never a statement about any particular
+            // spell. Writing a dozen decisions somebody never made, into the one feature that
+            // changes what a key press does, is worse than an empty list they fill in a
+            // minute.
+            //
+            // Said out loud rather than done silently, because for that person the feature
+            // has stopped working and the reason is not on screen anywhere.
+            if (config.PartyFrames.MouseoverCasting)
+            {
+                Services.Log.Information(
+                    "Mouseover casting is now chosen per spell. The old switch was on; the new list starts empty — "
+                    + "pick the spells you want on the pointer under Party frames, Bindings.");
+            }
+        }
+
+        if (config.Version < 11)
+        {
+            // The two marks had "None" in their list of shapes, which made turning one off a
+            // search through a list of what it can look like. They have a switch of their own
+            // now, and the shape list is only shapes (CLAUDE.md, version 3: whether something
+            // is shown does not belong in the list of what it can show).
+            //
+            // None meant off, so that is what it becomes — and the shape goes back to the
+            // default, so switching it on afterwards gives a mark rather than nothing. Any
+            // other shape was somebody choosing to have the mark, switch on and shape kept.
+            config.PartyFrames.ShowCleanseMark = config.PartyFrames.CleanseMark != (int)Hud.FrameMarkStyle.None;
+            config.PartyFrames.ShowRaiseMark = config.PartyFrames.RaiseMark != (int)Hud.FrameMarkStyle.None;
+
+            if (!config.PartyFrames.ShowCleanseMark)
+            {
+                config.PartyFrames.CleanseMark = (int)Hud.FrameMarkStyle.Border;
             }
 
-            System.Collections.Generic.List<MouseBinding> kept = new();
-
-            if (config.PartyFrames.ClickToTarget)
+            if (!config.PartyFrames.ShowRaiseMark)
             {
-                kept.Add(new MouseBinding { Button = 0, Kind = BindingKind.Target });
-            }
-
-            if (config.PartyFrames.ContextMenu)
-            {
-                kept.Add(new MouseBinding { Button = 1, Kind = BindingKind.ContextMenu });
-            }
-
-            foreach ((uint id, _) in Data.JobList.Order)
-            {
-                config.PartyFrames.Bindings.ByJob[id] = Clone(kept);
+                config.PartyFrames.RaiseMark = (int)Hud.FrameMarkStyle.Border;
             }
         }
     }

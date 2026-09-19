@@ -40,6 +40,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdHealthX = "##wisp-pf-healthx";
     private const string IdHealthY = "##wisp-pf-healthy";
     private const string IdShieldGroup = "##wisp-pf-shieldgroup";
+    private const string IdShieldStyle = "##wisp-pf-shieldstyle";
     private const string IdShieldColour = "##wisp-pf-shieldcolour";
     private const string IdShieldOpacity = "##wisp-pf-shieldopacity";
     private const string IdManaStyle = "##wisp-pf-manastyle";
@@ -47,10 +48,14 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdManaTanks = "##wisp-pf-manatanks";
     private const string IdManaHealers = "##wisp-pf-manahealers";
     private const string IdManaDps = "##wisp-pf-manadps";
-    private const string IdMouseGroup = "##wisp-pf-mouse";
     private const string IdMouseover = "##wisp-pf-mouseover";
-    private const string IdMouseoverCasting = "##wisp-pf-mocast";
     private const string IdHighlight = "##wisp-pf-highlight";
+    private const string IdJobGroup = "##wisp-pf-jobgroup";
+    private const string IdMouseoverGroup = "##wisp-pf-mogroup";
+    private const string IdMouseoverRow = "##wisp-pf-morow";
+    private const string IdMouseoverOn = "##wisp-pf-moon";
+    private const string IdMouseoverAdd = "##wisp-pf-moadd";
+    private const string IdMouseoverRemove = "##wisp-pf-moremove";
     private const string IdLeaderGroup = "##wisp-pf-leader";
     private const string IdLeaderSize = "##wisp-pf-leadersize";
     private const string IdLeaderPosition = "##wisp-pf-leaderposition";
@@ -72,6 +77,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdBindingKey = "##wisp-pf-bindkey";
     private const string IdBindingJob = "##wisp-pf-bindjob";
     private const string IdBindingAction = "##wisp-pf-bindaction";
+    private const string IdSpellAction = "##wisp-pf-spellaction";
     private const string IdBindingAdd = "##wisp-pf-bindadd";
     private const string IdBindingRemoveRow = "##wisp-pf-bindremoverow";
     private const string IdBindingName = "##wisp-pf-bindname";
@@ -85,7 +91,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdAuraGroup = "##wisp-pf-auras";
     private const string IdCleanseGroup = "##wisp-pf-cleansegroup";
     private const string IdRescueGroup = "##wisp-pf-rescuegroup";
-    private const string IdShowAuras = "##wisp-pf-showauras";
     private const string IdAuraPosition = "##wisp-pf-auraposition";
     private const string IdAuraSize = "##wisp-pf-aurasize";
     private const string IdAuraX = "##wisp-pf-aurax";
@@ -93,15 +98,20 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdAuraMax = "##wisp-pf-auramax";
     private const string IdAuraStacks = "##wisp-pf-aurastacks";
     private const string IdAuraSwipe = "##wisp-pf-auraswipe";
-    private const string IdPreviewAuras = "##wisp-pf-aurapreview";
+    private const string IdAuraTooltips = "##wisp-pf-auratips";
     private const string IdCleanseWhenAble = "##wisp-pf-cleanseable";
     private const string IdCleanseColour = "##wisp-pf-cleansecolour";
     private const string IdCleanseThickness = "##wisp-pf-cleansethick";
+    private const string IdCleanseOpacity = "##wisp-pf-cleanseopacity";
+    private const string IdRaiseMarkGroup = "##wisp-pf-raisemarkgroup";
+    private const string IdRaiseMark = "##wisp-pf-raisemark";
+    private const string IdRaiseColour = "##wisp-pf-raisecolour";
+    private const string IdRaiseThickness = "##wisp-pf-raisethick";
+    private const string IdRaiseOpacity = "##wisp-pf-raiseopacity";
 
     private const float MinCleanseThickness = 1f;
     private const float MaxCleanseThickness = 8f;
     private const string IdBuffGroup = "##wisp-pf-buffs";
-    private const string IdShowBuffs = "##wisp-pf-showbuffs";
     private const string IdOwnBuffs = "##wisp-pf-ownbuffs";
     private const string IdBuffPosition = "##wisp-pf-buffposition";
     private const string IdBuffSize = "##wisp-pf-buffsize";
@@ -109,22 +119,41 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdBuffY = "##wisp-pf-buffy";
     private const string IdBuffMax = "##wisp-pf-buffmax";
     private const string IdOtherGroup = "##wisp-pf-others";
-    private const string IdShowOther = "##wisp-pf-showother";
     private const string IdOtherPosition = "##wisp-pf-otherposition";
     private const string IdOtherSize = "##wisp-pf-othersize";
     private const string IdOtherX = "##wisp-pf-otherx";
     private const string IdOtherY = "##wisp-pf-othery";
     private const string IdOtherMax = "##wisp-pf-othermax";
     private const string IdCleanse = "##wisp-pf-cleanse";
-    private const string IdShowRescue = "##wisp-pf-showrescue";
+    private const string IdShowRaise = "##wisp-pf-showraise";
+    private const string IdShowInvuln = "##wisp-pf-showinvuln";
     private const string IdRescuePosition = "##wisp-pf-rescueposition";
     private const string IdRescueSize = "##wisp-pf-rescuesize";
     private const string IdRescueX = "##wisp-pf-rescuex";
     private const string IdRescueY = "##wisp-pf-rescuey";
 
     /// <summary>The three answers to "say that something can be cleansed", in that order.</summary>
-    private static readonly CleanseMark[] CleanseMarks =
-        { CleanseMark.Border, CleanseMark.Bar, CleanseMark.None };
+    /// <summary>
+    /// The shapes a frame mark can take, in the order the arrows walk them. One list for every
+    /// mark there is: the cleanse mark and the raise mark offer exactly the same four, because
+    /// they are the same drawing asked to say different things.
+    /// </summary>
+    /// <para>
+    /// 🔴 No "None" in it. Whether a mark appears is the switch in the group head; this is
+    /// the list of what it can look like. Mixing the two makes turning something off a
+    /// search through a list of shapes, which is the lesson version 3 was migrated for.
+    /// </para>
+    private static readonly FrameMarkStyle[] MarkStyles =
+        { FrameMarkStyle.Border, FrameMarkStyle.Full, FrameMarkStyle.Bar };
+
+    /// <summary>The name of a shape. Shared, so the two marks can never drift apart in wording.</summary>
+    private static string MarkLabel(FrameMarkStyle style) => style switch
+    {
+        FrameMarkStyle.Border => Strings.MarkBorder,
+        FrameMarkStyle.Full => Strings.MarkFull,
+        FrameMarkStyle.Bar => Strings.MarkBar,
+        _ => Strings.MarkNone,
+    };
 
     private const float MinAuraSize = 10f;
     private const float MaxAuraSize = 48f;
@@ -224,7 +253,22 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const int SlotOtherY = 32;
     private const int SlotOtherMax = 33;
     private const int SlotCleanseThickness = 34;
-    private const int SlotCount = 35;
+
+    /// <summary>🔴 The last slot. Adding one below this means moving the line under it too.</summary>
+    private const int SlotRaiseThickness = 35;
+
+    /// <summary>
+    /// How many slots there are, derived from the last one rather than written down.
+    /// <para>
+    /// 🔴 It was a literal, and a literal is a second place to remember. Adding
+    /// <see cref="SlotRaiseThickness"/> without touching it put a slider's index one past the
+    /// end of every array sized from this, and the settings window threw on the frame the new
+    /// group first drew (Florian, 2026-09-18, with the stack trace). Written this way the two
+    /// cannot disagree: a new slot takes the next number, moves this line down, and every
+    /// array grows with it.
+    /// </para>
+    /// </summary>
+    private const int SlotCount = SlotRaiseThickness + 1;
 
     /// <summary>The three weights, in the order the segments sit. Built once, not per frame.</summary>
     private static readonly string[] WeightNames =
@@ -289,6 +333,16 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private readonly ArrowSelector<FontChoice> m_font;
     private readonly ArrowSelector<JobEntry> m_jobSelector;
     private readonly ArrowSelector<ActionEntry> m_actionPicker;
+    private readonly ArrowSelector<ActionEntry> m_spellPicker;
+
+    /// <summary>The spell the row being drawn holds, so the picker can keep offering it.</summary>
+    private uint m_spellHeld;
+
+    /// <summary>The row whose list should open on its first drawing, or -1 for none.</summary>
+    private int m_spellOpenRow = -1;
+
+    /// <summary>The mouseover rows being drawn, which is what "already taken" is measured against.</summary>
+    private System.Collections.Generic.List<MouseoverSpell>? m_spellRows;
 
     /// <summary>Which job the bindings tab is showing, and which row is waiting for a press.</summary>
     private int m_bindingJob = -1;
@@ -298,6 +352,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private readonly System.Collections.Generic.List<ActionEntry> m_actionChoices = new();
     private uint m_choicesFor = uint.MaxValue;
     private readonly ArrowSelector<Anchor> m_healthPosition;
+    private readonly ArrowSelector<BarStyle> m_shieldStyle;
     private readonly ArrowSelector<string> m_manaStyle;
     private readonly ArrowSelector<Anchor> m_iconPosition;
 
@@ -305,7 +360,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private readonly ArrowSelector<Anchor> m_leaderPosition;
     private readonly ArrowSelector<Anchor> m_auraPosition;
     private readonly ArrowSelector<Anchor> m_rescuePosition;
-    private readonly ArrowSelector<CleanseMark> m_cleanse;
+    private readonly ArrowSelector<FrameMarkStyle> m_cleanse;
+    private readonly ArrowSelector<FrameMarkStyle> m_raiseMark;
     private readonly ArrowSelector<Anchor> m_buffPosition;
     private readonly ArrowSelector<Anchor> m_otherPosition;
     private readonly ArrowSelector<NameShortening> m_shortening;
@@ -320,6 +376,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     // allocation per frame in the draw path for a caption nobody asked to change (§7.1).
     private string m_shieldOpacityText = string.Empty;
     private int m_shieldOpacityTextFor = -1;
+
+    private string m_cleanseOpacityText = string.Empty;
+    private int m_cleanseOpacityTextFor = -1;
+
+    private string m_raiseOpacityText = string.Empty;
+    private int m_raiseOpacityTextFor = -1;
 
     /// <summary>One readout per slider, rebuilt only when its number changes.</summary>
     private readonly string[] m_sizeText = new string[SlotCount];
@@ -348,7 +410,25 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         // A long list: worth a popup, and long enough that the search box earns its place.
         m_style = new ArrowSelector<BarStyle>(
             IdStyle,
-            BarStyles.All,
+            BarStyles.ForBar,
+            new ArrowSelectorOptions<BarStyle>
+            {
+                Label = BarStyles.Label,
+                DrawPreview = BarStyles.DrawPreview,
+                EnablePopupList = true,
+                EnableSearch = true,
+            });
+
+        // The shield picks from a list of its own, and a selector of its own — one widget
+        // cannot serve two rows, because it carries the state of its popup and its search box.
+        //
+        // 🔴 The two lists are FILTERED VIEWS of one list, not two lists of files. A style
+        // says where it may be offered and the filter does the rest, so a diagonal pattern
+        // never turns up as a health-bar fill and a plain gradient stays available to both.
+        // Adding a style is one entry with one flag, never an entry in two places.
+        m_shieldStyle = new ArrowSelector<BarStyle>(
+            IdShieldStyle,
+            BarStyles.ForShield,
             new ArrowSelectorOptions<BarStyle>
             {
                 Label = BarStyles.Label,
@@ -426,42 +506,15 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 ShowCounter = false,
             });
 
-        // The one list that changes while the window is open: it holds whatever the chosen
-        // job can aim at a party member, and is refilled in place when that job changes.
-        m_actionPicker = new ArrowSelector<ActionEntry>(
-            IdBindingAction,
-            m_actionChoices,
-            new ArrowSelectorOptions<ActionEntry>
-            {
-                Label = static action => action.Name,
-                EnablePopupList = true,
-                EnableSearch = true,
-                ShowCounter = false,
+        // Two pickers over one list of choices. Same control, same behaviour, different words
+        // on an empty row — a binding row is waiting for an action and a mouseover row for a
+        // spell, and each list should say what it is asking for.
+        m_actionPicker = ActionPicker(IdBindingAction, m_actionChoices, Strings.BindingPick, null);
 
-                // No arrows and no box. Stepping through a job's whole action list one at a
-                // time is not a way anybody would use it, and a field drawn round the name
-                // would make the row read as two settings rather than one binding (Florian,
-                // 2026-09-12).
-                HideArrows = true,
-                Flat = true,
-
-                // The action's own icon, which is how a spell is recognised before its name is
-                // read. Icons.Handle caches the lookup and hands back a null handle for
-                // anything not loaded, which the selector simply does not draw.
-                // Square, because an action icon is. The default preview strip is wide and
-                // short for bar fills, and an icon stretched into it comes out smeared.
-                PreviewSize = Tokens.Px(22f, 22f),
-
-                DrawPreview = static (dl, action, min, max) =>
-                {
-                    ImTextureID icon = Icons.Handle(action.Icon);
-
-                    if (!icon.IsNull)
-                    {
-                        dl.AddImage(icon, min, max);
-                    }
-                },
-            });
+        // The spell list hides what it already holds. Only that list: a second row casting
+        // the same spell is nothing but a mistake, while the bindings list has two rows that
+        // are not actions at all and no such rule to apply.
+        m_spellPicker = ActionPicker(IdSpellAction, m_actionChoices, Strings.MouseoverPick, this.SpellOnOffer);
 
         m_iconPosition = new ArrowSelector<Anchor>(
             IdIconPosition,
@@ -498,17 +551,26 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             Anchors.All,
             new ArrowSelectorOptions<Anchor> { Label = AnchorLabel, EnablePopupList = true, ShowCounter = false, HideArrows = true });
 
-        m_cleanse = new ArrowSelector<CleanseMark>(
+        // Two selectors over one list of shapes. They cannot be one widget — a selector
+        // carries the state of its own popup — but they share the list and the labelling, so
+        // a shape added to MarkStyles turns up in both without either being touched.
+        m_cleanse = new ArrowSelector<FrameMarkStyle>(
             IdCleanse,
-            CleanseMarks,
-            new ArrowSelectorOptions<CleanseMark>
+            MarkStyles,
+            new ArrowSelectorOptions<FrameMarkStyle>
             {
-                Label = static mark => mark switch
-                {
-                    CleanseMark.Border => Strings.CleanseBorder,
-                    CleanseMark.Bar => Strings.CleanseBar,
-                    _ => Strings.CleanseNone,
-                },
+                Label = MarkLabel,
+                ShowCounter = false,
+                EnablePopupList = true,
+                HideArrows = true,
+            });
+
+        m_raiseMark = new ArrowSelector<FrameMarkStyle>(
+            IdRaiseMark,
+            MarkStyles,
+            new ArrowSelectorOptions<FrameMarkStyle>
+            {
+                Label = MarkLabel,
                 ShowCounter = false,
                 EnablePopupList = true,
                 HideArrows = true,
@@ -558,7 +620,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     public AppearanceBlock GetAppearance() => new()
     {
-        BarStyle = m_config.PartyFrames.BarStyle,
+        BarStyleName = m_config.PartyFrames.BarStyleName,
         ColourMode = m_config.PartyFrames.ColourMode,
         BarOpacity = m_config.PartyFrames.BarOpacity,
         NamePosition = m_config.PartyFrames.NamePosition,
@@ -613,7 +675,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         OtherX = m_config.PartyFrames.OtherX,
         OtherY = m_config.PartyFrames.OtherY,
         OtherMaxCount = m_config.PartyFrames.OtherMaxCount,
-        ShowRescueIcon = m_config.PartyFrames.ShowRescueIcon,
+        ShowRaiseIcon = m_config.PartyFrames.ShowRaiseIcon,
+        ShowInvulnIcon = m_config.PartyFrames.ShowInvulnIcon,
         RescueIconSize = m_config.PartyFrames.RescueIconSize,
         RescueIconPosition = m_config.PartyFrames.RescueIconPosition,
         RescueIconX = m_config.PartyFrames.RescueIconX,
@@ -622,13 +685,18 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         CleanseOnlyWhenAble = m_config.PartyFrames.CleanseOnlyWhenAble,
         CleanseColour = m_config.PartyFrames.CleanseColour,
         CleanseThickness = m_config.PartyFrames.CleanseThickness,
+        CleanseOpacity = m_config.PartyFrames.CleanseOpacity,
+        RaiseMark = m_config.PartyFrames.RaiseMark,
+        RaiseColour = m_config.PartyFrames.RaiseColour,
+        RaiseThickness = m_config.PartyFrames.RaiseThickness,
+        RaiseOpacity = m_config.PartyFrames.RaiseOpacity,
     };
 
     public void ApplyAppearance(AppearanceBlock source, AppearanceFields mask)
     {
         if ((mask & AppearanceFields.Texture) != 0)
         {
-            m_config.PartyFrames.BarStyle = source.BarStyle;
+            m_config.PartyFrames.BarStyleName = source.BarStyleName;
         }
 
         if ((mask & AppearanceFields.Colours) != 0)
@@ -638,6 +706,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.PartyFrames.CleanseOnlyWhenAble = source.CleanseOnlyWhenAble;
             m_config.PartyFrames.CleanseColour = source.CleanseColour;
             m_config.PartyFrames.CleanseThickness = source.CleanseThickness;
+            m_config.PartyFrames.CleanseOpacity = source.CleanseOpacity;
+            m_config.PartyFrames.RaiseMark = source.RaiseMark;
+            m_config.PartyFrames.RaiseColour = source.RaiseColour;
+            m_config.PartyFrames.RaiseThickness = source.RaiseThickness;
+            m_config.PartyFrames.RaiseOpacity = source.RaiseOpacity;
         }
 
         if ((mask & AppearanceFields.Opacity) != 0)
@@ -703,7 +776,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.PartyFrames.OtherX = source.OtherX;
             m_config.PartyFrames.OtherY = source.OtherY;
             m_config.PartyFrames.OtherMaxCount = source.OtherMaxCount;
-            m_config.PartyFrames.ShowRescueIcon = source.ShowRescueIcon;
+            m_config.PartyFrames.ShowRaiseIcon = source.ShowRaiseIcon;
+            m_config.PartyFrames.ShowInvulnIcon = source.ShowInvulnIcon;
             m_config.PartyFrames.RescueIconSize = source.RescueIconSize;
             m_config.PartyFrames.RescueIconPosition = source.RescueIconPosition;
             m_config.PartyFrames.RescueIconX = source.RescueIconX;
@@ -724,32 +798,78 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         // taller one's bottom edge. Two groups that each stop where their own rows end leave a
         // step, and every group added later adds another one. Nothing else has to be squared
         // up between the columns: both stack on the same ladder (Chrome.RowPitch).
-        // 🔴 Seven groups, so one of them ends up alone in its row — there is no arrangement
-        // of seven into pairs. Which one is alone is the only real choice, and it is the mouse:
-        // it is the one group here that is not about what a frame SHOWS, so a row of its own
-        // reads as the separate concern it is rather than as a leftover. The other three rows
-        // pair by subject — the bar and what is laid on it, the two extra readings taken off
-        // it, and the name beside the lettering that draws every text.
+        //
+        // 🔴 Three groups, not seven. This tab carried seven until 2026-09-18 — the very state
+        // that made §3.1 get written six days earlier, left standing the whole time because
+        // writing the rule felt like fixing it. What is left is the bar itself and the two
+        // things drawn inside it: the shield laid on the fill, and the second reading beside
+        // it. Everything the bar SAYS moved to Text, and the mouse moved to Bindings.
         Chrome.BeginGroupRow();
         Chrome.GroupScope bar = this.DrawHealthBar(Chrome.ColumnX(origin.X, width, 0), y, column, out float barHeight);
         Chrome.GroupScope shield = this.DrawShield(Chrome.ColumnX(origin.X, width, 1), y, column, out float shieldHeight);
         y += FrameRow(bar, barHeight, shield, shieldHeight);
 
+        // In its own column rather than stretched across both, like every lone group in the
+        // suite: a group twice as wide reads as a different kind of thing.
         Chrome.BeginGroupRow();
-        Chrome.GroupScope figure = this.DrawHealthText(Chrome.ColumnX(origin.X, width, 0), y, column, out float figureHeight);
-        Chrome.GroupScope mana = this.DrawMana(Chrome.ColumnX(origin.X, width, 1), y, column, out float manaHeight);
-        y += FrameRow(figure, figureHeight, mana, manaHeight);
+        Chrome.GroupScope mana = this.DrawMana(Chrome.ColumnX(origin.X, width, 0), y, column, out float manaHeight);
+        y += Chrome.GroupFrame(mana, manaHeight) + Tokens.Metric.ColumnGutter;
+
+        ImGui.SetCursorScreenPos(origin);
+        ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
+    }
+
+    /// <summary>
+    /// The Text tab: everything written on a frame, and the one setting that decides how all
+    /// of it is drawn.
+    /// <para>
+    /// The name and the health figure sat on different tabs from the lettering that draws
+    /// them both, which is exactly the subject-shaped cut §3.1 warns about — "the name" and
+    /// "the numbers" are two subjects and one kind of thing.
+    /// </para>
+    /// </summary>
+    public void DrawText(float width)
+    {
+        Vector2 origin = ImGui.GetCursorScreenPos();
+        float column = Chrome.ColumnWidth(width);
+        float y = origin.Y;
 
         Chrome.BeginGroupRow();
         Chrome.GroupScope name = this.DrawNameText(Chrome.ColumnX(origin.X, width, 0), y, column, out float nameHeight);
-        Chrome.GroupScope lettering = this.DrawTextStyle(Chrome.ColumnX(origin.X, width, 1), y, column, out float letteringHeight);
-        y += FrameRow(name, nameHeight, lettering, letteringHeight);
+        Chrome.GroupScope figure = this.DrawHealthText(Chrome.ColumnX(origin.X, width, 1), y, column, out float figureHeight);
+        y += FrameRow(name, nameHeight, figure, figureHeight);
 
-        // In its own column rather than stretched across both, like the lone groups on Icons
-        // and Layout: a group twice as wide reads as a different kind of thing.
         Chrome.BeginGroupRow();
-        Chrome.GroupScope mouse = this.DrawMouse(Chrome.ColumnX(origin.X, width, 0), y, column, out float mouseHeight);
-        y += Chrome.GroupFrame(mouse, mouseHeight) + Tokens.Metric.ColumnGutter;
+        Chrome.GroupScope lettering = this.DrawTextStyle(Chrome.ColumnX(origin.X, width, 0), y, column, out float letteringHeight);
+        y += Chrome.GroupFrame(lettering, letteringHeight) + Tokens.Metric.ColumnGutter;
+
+        ImGui.SetCursorScreenPos(origin);
+        ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
+    }
+
+    /// <summary>
+    /// The Marks tab: the three ways a frame says it needs something from you.
+    /// <para>
+    /// They were spread across two tabs and read as three unrelated features. Together it is
+    /// obvious that they are one idea at three volumes — an icon you read when you look, and
+    /// two marks you read from across the screen — and that the two marks are literally the
+    /// same drawing (<see cref="Hud.FrameMark"/>).
+    /// </para>
+    /// </summary>
+    public void DrawMarks(float width)
+    {
+        Vector2 origin = ImGui.GetCursorScreenPos();
+        float column = Chrome.ColumnWidth(width);
+        float y = origin.Y;
+
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope cleanse = this.DrawCleanse(Chrome.ColumnX(origin.X, width, 0), y, column, out float cleanseHeight);
+        Chrome.GroupScope raiseMark = this.DrawRaiseMark(Chrome.ColumnX(origin.X, width, 1), y, column, out float raiseMarkHeight);
+        y += FrameRow(cleanse, cleanseHeight, raiseMark, raiseMarkHeight);
+
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope rescue = this.DrawRescue(Chrome.ColumnX(origin.X, width, 0), y, column, out float rescueHeight);
+        y += Chrome.GroupFrame(rescue, rescueHeight) + Tokens.Metric.ColumnGutter;
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
@@ -835,14 +955,14 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
 
-        int style = m_config.PartyFrames.BarStyle;
+        int style = BarStyles.IndexOf(BarStyles.ForBar, m_config.PartyFrames.BarStyleName);
         if (m_style.Draw(
                 ref style,
                 Chrome.Row(Strings.BarStyle, group.ContentX, rowY, group.ContentWidth, false),
                 rowY,
                 Chrome.ControlWidth()))
         {
-            m_config.PartyFrames.BarStyle = style;
+            m_config.PartyFrames.BarStyleName = BarStyles.NameAt(BarStyles.ForBar, style);
             m_config.MarkDirty();
         }
 
@@ -932,6 +1052,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdShieldGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.Shield,
                 Title = Strings.GroupShield,
                 Description = Strings.GroupShieldHint,
                 Toggle = m_config.PartyFrames.ShowShield,
@@ -948,6 +1069,19 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
+
+        int shieldStyle = BarStyles.IndexOf(BarStyles.ForShield, m_config.PartyFrames.ShieldStyleName);
+        if (m_shieldStyle.Draw(
+                ref shieldStyle,
+                Chrome.Row(Strings.ShieldStyle, group.ContentX, rowY, group.ContentWidth, false),
+                rowY,
+                Chrome.ControlWidth()))
+        {
+            m_config.PartyFrames.ShieldStyleName = BarStyles.NameAt(BarStyles.ForShield, shieldStyle);
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
 
         uint shieldColour = m_config.PartyFrames.ShieldColour;
         if (Chrome.ColourRow(
@@ -1005,6 +1139,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdTextGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.Name,
                 Title = Strings.GroupNameText,
                 Description = Strings.GroupNameTextHint,
                 Toggle = m_config.PartyFrames.ShowName,
@@ -1094,6 +1229,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdHealthTextGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.HealthText,
                 Title = Strings.GroupHealthText,
                 Description = Strings.GroupHealthTextHint,
                 Toggle = m_config.PartyFrames.ShowHealthText,
@@ -1159,6 +1295,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdManaGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.Mana,
                 Title = Strings.GroupMana,
                 Description = Strings.GroupManaHint,
                 Toggle = m_config.PartyFrames.ShowMana,
@@ -1267,6 +1404,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdIconGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.JobIcon,
                 Title = Strings.GroupJobIcon,
                 Description = Strings.GroupJobIconHint,
                 Toggle = m_config.PartyFrames.ShowJobIcon,
@@ -1335,85 +1473,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     }
 
     /// <summary>
-    /// What the mouse does over a frame. Two switches and, when it matters, one line saying
-    /// that the game has its own setting for the second one.
-    /// </summary>
-    private Chrome.GroupScope DrawMouse(float x, float y, float width, out float contentHeight)
-    {
-        Chrome.GroupScope group = Chrome.BeginGroup(
-            IdMouseGroup,
-            new Chrome.GroupHead
-            {
-                Title = Strings.GroupMouse,
-                Description = Strings.GroupMouseHint,
-            },
-            x,
-            y,
-            width);
-
-        float pitch = Chrome.RowPitch();
-        float rowY = group.ContentY;
-
-        if (Chrome.OptionRow(
-                IdHighlight,
-                Strings.HighlightHovered,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.HighlightHovered,
-                Chrome.OptionControl.Tick,
-                Strings.HighlightHoveredTooltip,
-                true,
-                false))
-        {
-            m_config.PartyFrames.HighlightHovered = !m_config.PartyFrames.HighlightHovered;
-            m_config.MarkDirty();
-        }
-
-        rowY += pitch;
-        rowY += pitch;
-
-        if (Chrome.OptionRow(
-                IdMouseover,
-                Strings.MouseoverTarget,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.MouseoverTarget,
-                Chrome.OptionControl.Switch,
-                Strings.MouseoverTargetTooltip,
-                true,
-                true))
-        {
-            m_config.PartyFrames.MouseoverTarget = !m_config.PartyFrames.MouseoverTarget;
-            m_config.MarkDirty();
-        }
-
-        rowY += pitch;
-
-        if (Chrome.OptionRow(
-                IdMouseoverCasting,
-                Strings.MouseoverCasting,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.MouseoverCasting,
-                Chrome.OptionControl.Switch,
-                Strings.MouseoverCastingTooltip,
-                true,
-                true))
-        {
-            m_config.PartyFrames.MouseoverCasting = !m_config.PartyFrames.MouseoverCasting;
-            m_config.MarkDirty();
-        }
-
-        float used = rowY - group.ContentY + Chrome.RowHeight();
-        Chrome.EndGroupContent(group, used);
-        contentHeight = used;
-        return group;
-    }
-
-    /// <summary>
     /// How every text on a frame is lettered: which face, and what carries it over the world.
     /// <para>
     /// Two rows for all of them rather than two rows each. Both questions are about reading a
@@ -1443,7 +1502,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         int face = FontLibrary.IndexOf(m_config.PartyFrames.FontName);
         if (m_font.Draw(
                 ref face,
-                Chrome.Row(Strings.TextFont, group.ContentX, rowY, group.ContentWidth, true, Strings.TextFontTooltip),
+                Chrome.Row(Strings.TextFont, group.ContentX, rowY, group.ContentWidth, false, Strings.TextFontTooltip),
                 rowY,
                 Chrome.ControlWidth()))
         {
@@ -1513,10 +1572,20 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     }
 
     /// <summary>
-    /// The Bindings tab: what each mouse button does on a frame, for one job at a time.
+    /// The Bindings tab: which job is being set up, then the two lists that say where a
+    /// button and a key press land.
     /// <para>
-    /// A job at the top and a list under it, because the bindings are per job and there is no
-    /// reading of the list that makes sense without knowing which job it belongs to.
+    /// The job is its own panel at the top (Florian, 2026-09-19). It used to be the first row
+    /// of the bindings list, which was honest while it governed one list and became a lie the
+    /// moment it governed two — a setting that belongs to everything below it cannot live
+    /// inside one of the things below it.
+    /// </para>
+    /// <para>
+    /// 🔴 There is no group called "Mouse" any more. It held three switches that had nothing
+    /// to do with each other beyond involving a pointer, which is the subject-shaped cut §3.1
+    /// warns about. Two of them moved to the list each one serves — the hover ring to the
+    /// buttons, the mouseover target to the spells — and the third became the list itself.
+    /// A switch is better off beside what it affects than in a panel named after a device.
     /// </para>
     /// </summary>
     public void DrawBindings(float width)
@@ -1524,21 +1593,73 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         Vector2 origin = ImGui.GetCursorScreenPos();
         float y = origin.Y;
 
-        // 🔴 The one group in the suite that takes the full width, and the one row that
-        // carries two controls. The grammar everywhere else — one setting, one control, half
-        // the width — is what keeps a settings screen readable, and a binding is not a
-        // setting: it is a pair, and the pair is the thing. Splitting "this action" from
-        // "this button" across two rows would be two halves of one sentence (Florian,
-        // 2026-09-12, pointing at LumenUI's own bindings screen).
+        // Resolved once for the whole tab: both lists below are the same job's.
+        if (m_bindingJob < 0)
+        {
+            m_bindingJob = Math.Max(0, JobList.IndexOf(Services.Objects.LocalPlayer?.ClassJob.RowId ?? 0u));
+        }
+
         Chrome.BeginGroupRow();
-        Chrome.GroupScope group = this.DrawBindingList(origin.X, y, width, out float height);
+        Chrome.GroupScope job = this.DrawJobPanel(origin.X, y, width, out float jobHeight);
+        y += Chrome.GroupFrame(job, jobHeight) + Tokens.Metric.ColumnGutter;
+
+        JobEntry entry = JobList.At(m_bindingJob);
+        this.SyncActionChoices(entry.Id);
+
+        // 🔴 The full width, and rows that carry more than one control. The grammar everywhere
+        // else — one setting, one control, half the width — is what keeps a settings screen
+        // readable, and neither of these is a setting: a binding is a pair, and half of a
+        // pair says nothing (Florian, 2026-09-12, pointing at LumenUI's own bindings screen).
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope group = this.DrawBindingList(origin.X, y, width, entry, out float height);
         y += Chrome.GroupFrame(group, height) + Tokens.Metric.ColumnGutter;
+
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope over = this.DrawMouseoverList(origin.X, y, width, entry, out float overHeight);
+        y += Chrome.GroupFrame(over, overHeight) + Tokens.Metric.ColumnGutter;
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
     }
 
-    private Chrome.GroupScope DrawBindingList(float x, float y, float width, out float contentHeight)
+    /// <summary>
+    /// Which job the rest of the tab is about. One row, across the full width, because what
+    /// it governs is the full width.
+    /// </summary>
+    private Chrome.GroupScope DrawJobPanel(float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdJobGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupJob,
+                Description = Strings.GroupJobHint,
+            },
+            x,
+            y,
+            width);
+
+        int job = m_bindingJob;
+
+        if (m_jobSelector.Draw(
+                ref job,
+                Chrome.Row(Strings.BindingJob, group.ContentX, group.ContentY, group.ContentWidth, false, Strings.BindingJobTooltip),
+                group.ContentY,
+                Chrome.ControlWidth()))
+        {
+            m_bindingJob = job;
+
+            // Whatever key was waiting to be pressed belonged to the old job's list.
+            m_listening = -1;
+        }
+
+        float used = Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
+
+    private Chrome.GroupScope DrawBindingList(float x, float y, float width, JobEntry entry, out float contentHeight)
     {
         Chrome.GroupScope group = Chrome.BeginGroup(
             IdBindingsGroup,
@@ -1554,28 +1675,26 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
 
-        // Which job is being set up. Defaults to the one being played, so opening the tab
-        // mid-session lands on the list that is actually in force.
-        if (m_bindingJob < 0)
-        {
-            m_bindingJob = Math.Max(0, JobList.IndexOf(Services.Objects.LocalPlayer?.ClassJob.RowId ?? 0u));
-        }
-
-        int job = m_bindingJob;
-        if (m_jobSelector.Draw(
-                ref job,
-                Chrome.Row(Strings.BindingJob, group.ContentX, rowY, group.ContentWidth, true, Strings.BindingJobTooltip),
+        // The hover ring sits above the list, because it is the answer to "which frame is
+        // this button about to act on" — the same question the list below it settles. It is
+        // not per job: a ring means the same thing whatever you are playing.
+        if (Chrome.OptionRow(
+                IdHighlight,
+                Strings.HighlightHovered,
+                group.ContentX,
                 rowY,
-                Chrome.ControlWidth()))
+                group.ContentWidth,
+                m_config.PartyFrames.HighlightHovered,
+                Chrome.OptionControl.Tick,
+                Strings.HighlightHoveredTooltip,
+                true,
+                false))
         {
-            m_bindingJob = job;
-            m_listening = -1;
+            m_config.PartyFrames.HighlightHovered = !m_config.PartyFrames.HighlightHovered;
+            m_config.MarkDirty();
         }
 
         rowY += pitch;
-
-        JobEntry entry = JobList.At(m_bindingJob);
-        this.SyncActionChoices(entry.Id);
 
         System.Collections.Generic.List<MouseBinding> bindings = m_config.PartyFrames.Bindings.Edit(entry.Id);
 
@@ -1629,10 +1748,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
             ImGui.PushID(i);
 
-            if (i > 0)
-            {
-                Chrome.RowDivider(group.ContentX, group.ContentX + group.ContentWidth, rowY);
-            }
+            // Every row, including the first: the hover ring now sits above the list, so
+            // there is always something for the first row to be divided from.
+            Chrome.RowDivider(group.ContentX, group.ContentX + group.ContentWidth, rowY);
 
             if (binding.Kind == BindingKind.Action)
             {
@@ -1736,7 +1854,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             bindings.Add(new MouseBinding
             {
                 Kind = BindingKind.Action,
-                ActionId = actions[0].Id,
+
+                // Nothing picked. The row asks for an action instead of arriving with one,
+                // for the same reason a mouseover row does (Florian, 2026-09-19).
+                ActionId = 0u,
 
                 // Middle by default, because left and right are already spoken for and a new
                 // row that silently shadowed one of them would be the worst first impression
@@ -1750,9 +1871,320 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         return rowY + Chrome.RowPitch();
     }
 
-    /// <summary>Where an action sits in the picker's list, or the first entry when it is gone.</summary>
+    /// <summary>
+    /// Which spells go to whoever the pointer is on, for this job.
+    /// <para>
+    /// Built as a list rather than as a switch (Florian, 2026-09-19). One switch for every
+    /// action a job owns asked the wrong question: "can this be used on them" is true of
+    /// every heal, shield and raise a healer has, and wanting a regen on the pointer is not
+    /// wanting a raise there. The list asks it once per spell, which is how it comes up.
+    /// </para>
+    /// <para>
+    /// There is no switch over the list either, because the list already is one. Nothing
+    /// named, or everything switched off, and the hook is not installed at all — so the one
+    /// feature in the suite that changes what a key press does costs exactly nothing until
+    /// somebody asks for it.
+    /// </para>
+    /// </summary>
+    private Chrome.GroupScope DrawMouseoverList(float x, float y, float width, JobEntry job, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdMouseoverGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupMouseover,
+                Description = Strings.GroupMouseoverHint,
+            },
+            x,
+            y,
+            width);
+
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
+
+        // The weaker half of the same idea, and above the list for that reason: this only
+        // tells the game where you are pointing, which is all a <mo> macro needs and is the
+        // one setting here that changes nothing about a key press. Not per job — what you
+        // point at means the same on every job.
+        if (Chrome.OptionRow(
+                IdMouseover,
+                Strings.MouseoverTarget,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.MouseoverTarget,
+                Chrome.OptionControl.Switch,
+                Strings.MouseoverTargetTooltip,
+                true,
+                false))
+        {
+            m_config.PartyFrames.MouseoverTarget = !m_config.PartyFrames.MouseoverTarget;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+
+        // Read, not edited. An entry is made when a spell is added and not a moment earlier:
+        // for this list an empty entry and no entry mean the same thing, so opening the tab
+        // on twenty jobs would otherwise write twenty empty lists nobody asked for.
+        System.Collections.Generic.List<MouseoverSpell> spells = m_config.PartyFrames.Mouseover.For(job.Id);
+        rowY = this.DrawMouseoverRows(group, spells, job, rowY, pitch);
+
+        float used = rowY - group.ContentY + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
+
+    /// <summary>
+    /// One row per spell: what it is, whether it answers, and a way to take it out.
+    /// <para>
+    /// The same shape as a binding row minus the key, because there is no key to name — the
+    /// key is whatever you already have the spell on. That absence is the whole difference
+    /// between the two lists and is better shown by a missing column than explained.
+    /// </para>
+    /// </summary>
+    private float DrawMouseoverRows(
+        Chrome.GroupScope group,
+        System.Collections.Generic.List<MouseoverSpell> spells,
+        JobEntry job,
+        float rowY,
+        float pitch)
+    {
+        ActionEntry[] actions = ActionList.For(job.Id);
+
+        // What the picker measures "already taken" against, for as long as this list is the
+        // one being drawn.
+        m_spellRows = spells;
+
+        float toggleWidth = Tokens.Px(30f);
+        float trash = Tokens.Metric.TitleButton;
+        float gap = Tokens.Space.Md;
+
+        float trashX = group.ContentX + group.ContentWidth - trash;
+        float toggleX = trashX - gap - toggleWidth;
+        float nameWidth = toggleX - gap - group.ContentX;
+
+        int remove = -1;
+
+        // 🔴 Its own id scope, and not only for tidiness: every row of every list is the same
+        // few controls, and the id is the only thing telling one row's popup from another's.
+        ImGui.PushID(IdMouseoverRow);
+
+        for (int i = 0; i < spells.Count; i++)
+        {
+            MouseoverSpell spell = spells[i];
+
+            ImGui.PushID(i);
+            Chrome.RowDivider(group.ContentX, group.ContentX + group.ContentWidth, rowY);
+
+            // What this row holds, for the length of its own drawing. The picker asks it
+            // while the list is open, so that a row keeps offering its own spell while the
+            // others are hidden — otherwise a row could not show what it already is.
+            m_spellHeld = spell.ActionId;
+
+            // The row a press of "Add spell" made, which did not exist yet when the press
+            // happened. Opening it here saves the click that only says "yes, the row I just
+            // asked for" (Florian, 2026-09-19).
+            if (i == m_spellOpenRow)
+            {
+                m_spellOpenRow = -1;
+                m_spellPicker.RequestOpen();
+            }
+
+            int pick = this.ActionIndex(spell.ActionId);
+
+            if (m_spellPicker.Draw(ref pick, group.ContentX, rowY, nameWidth)
+                && pick >= 0 && pick < m_actionChoices.Count)
+            {
+                spell.ActionId = m_actionChoices[pick].Id;
+                m_config.MarkDirty();
+            }
+
+            if (Chrome.BindingToggle(IdMouseoverOn, toggleX, rowY, spell.Enabled))
+            {
+                spell.Enabled = !spell.Enabled;
+                m_config.MarkDirty();
+            }
+
+            float trashY = MathF.Round(rowY + ((Chrome.RowHeight() - trash) * 0.5f));
+
+            if (Chrome.CloseButton(IdMouseoverRemove, trashX, trashY))
+            {
+                remove = i;
+            }
+
+            ImGui.PopID();
+            rowY += pitch;
+        }
+
+        ImGui.PopID();
+
+        // Whatever is left has gone stale — a row taken away before it was ever drawn. Only
+        // ever cleared here, which is before the button below can ask for a new one.
+        m_spellOpenRow = -1;
+
+        // After the loop, never inside it: taking a row out while walking the list is how a
+        // row gets skipped and an index ends up pointing at the wrong spell.
+        if (remove >= 0)
+        {
+            spells.RemoveAt(remove);
+            m_config.MarkDirty();
+        }
+
+        return this.DrawAddSpell(group, job, actions, rowY);
+    }
+
+    /// <summary>
+    /// The button that adds a spell, or the line that says this job has nothing to add.
+    /// <para>
+    /// The one place the job's entry is created, which is why it takes the job rather than
+    /// the list it was drawn from: a job nobody has added a spell to is handed a shared empty
+    /// list for reading, and that list must never be written to.
+    /// </para>
+    /// </summary>
+    private float DrawAddSpell(
+        Chrome.GroupScope group,
+        JobEntry job,
+        ActionEntry[] actions,
+        float rowY)
+    {
+        if (actions.Length == 0)
+        {
+            Chrome.RowDivider(group.ContentX, group.ContentX + group.ContentWidth, rowY);
+
+            Ink.Draw(
+                ImGui.GetWindowDrawList(),
+                Ink.Role.Small,
+                new Vector2(group.ContentX, rowY + Tokens.Space.Sm),
+                Tokens.Col.InkFaint,
+                Strings.BindingNoActions);
+
+            return rowY + Chrome.RowPitch();
+        }
+
+        Chrome.RowDivider(group.ContentX, group.ContentX + group.ContentWidth, rowY);
+
+        if (Chrome.PillButton(IdMouseoverAdd, Strings.MouseoverAdd, group.ContentX, rowY))
+        {
+            // Empty, and the row says so. A new row started on the job's first action, which
+            // read as a choice somebody had made and had to be undone before it could be made
+            // (Florian, 2026-09-19).
+            System.Collections.Generic.List<MouseoverSpell> rows = m_config.PartyFrames.Mouseover.Edit(job.Id);
+
+            // Noted before the row is added, so it is the index the new row will have.
+            m_spellOpenRow = rows.Count;
+            rows.Add(new MouseoverSpell());
+            m_config.MarkDirty();
+        }
+
+        return rowY + Chrome.RowPitch();
+    }
+
+    /// <summary>
+    /// The picker a row of a list gets: a job's actions, no arrows, no box, the action's own
+    /// icon beside its name, and a placeholder for the row nobody has filled in yet.
+    /// <para>
+    /// The list it reads is the shared one, refilled in place when the job changes, so both
+    /// pickers always offer the job on screen.
+    /// </para>
+    /// </summary>
+    private static ArrowSelector<ActionEntry> ActionPicker(
+        string id,
+        System.Collections.Generic.IReadOnlyList<ActionEntry> choices,
+        string placeholder,
+        Func<ActionEntry, bool>? available) =>
+        new(
+            id,
+            choices,
+            new ArrowSelectorOptions<ActionEntry>
+            {
+                Label = static action => action.Name,
+                EnablePopupList = true,
+                EnableSearch = true,
+                ShowCounter = false,
+                Placeholder = placeholder,
+                Available = available,
+
+                // What the game says the action does, on hover — in the open list and on the
+                // row once it is chosen. Read at the moment it is wanted and kept.
+                Describe = static action => ActionList.Describe(action.Id),
+
+                // No arrows and no box. Stepping through a job's whole action list one at a
+                // time is not a way anybody would use it, and a field drawn round the name
+                // would make the row read as two settings rather than one binding (Florian,
+                // 2026-09-12).
+                HideArrows = true,
+                Flat = true,
+
+                // The action's own icon, which is how a spell is recognised before its name is
+                // read. Icons.Handle caches the lookup and hands back a null handle for
+                // anything not loaded, which the selector simply does not draw.
+                // Square, because an action icon is. The default preview strip is wide and
+                // short for bar fills, and an icon stretched into it comes out smeared.
+                PreviewSize = Tokens.Px(22f, 22f),
+
+                DrawPreview = static (dl, action, min, max) =>
+                {
+                    ImTextureID icon = Icons.Handle(action.Icon);
+
+                    if (!icon.IsNull)
+                    {
+                        dl.AddImage(icon, min, max);
+                    }
+                },
+            });
+
+    /// <summary>
+    /// Whether an action is still worth offering in the mouseover list: one nobody has taken,
+    /// or the one the row being drawn already holds.
+    /// <para>
+    /// The second half is not a nicety. Without it a row would hide its own spell from its
+    /// own list, so opening it would show a list that does not contain what the row says.
+    /// </para>
+    /// </summary>
+    private bool SpellOnOffer(ActionEntry action)
+    {
+        if (action.Id == m_spellHeld)
+        {
+            return true;
+        }
+
+        System.Collections.Generic.List<MouseoverSpell>? rows = m_spellRows;
+
+        if (rows is null)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < rows.Count; i++)
+        {
+            if (rows[i].ActionId == action.Id)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Where an action sits in the picker's list, or -1 for a row that has not been filled
+    /// in — a fresh one, or one whose action this job does not have.
+    /// <para>
+    /// It used to answer zero for both, which put the job's first action in front of somebody
+    /// who had picked nothing (Florian, 2026-09-19). The second case is the same mistake
+    /// quietly: a row that has lost its action is better off saying so than showing whatever
+    /// happens to be at the top of the list.
+    /// </para>
+    /// </summary>
     private int ActionIndex(uint actionId)
     {
+        if (actionId == 0u)
+        {
+            return -1;
+        }
+
         for (int i = 0; i < m_actionChoices.Count; i++)
         {
             if (m_actionChoices[i].Id == actionId)
@@ -1761,7 +2193,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             }
         }
 
-        return 0;
+        return -1;
     }
 
     /// <summary>
@@ -1819,6 +2251,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdLeaderGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.Leader,
                 Title = Strings.GroupLeader,
                 Description = Strings.GroupLeaderHint,
                 Toggle = m_config.PartyFrames.ShowLeaderIcon,
@@ -1871,6 +2304,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdNumberGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.PartyNumber,
                 Title = Strings.GroupPartyNumber,
                 Description = Strings.GroupPartyNumberHint,
                 Toggle = m_config.PartyFrames.ShowPartyNumber,
@@ -1924,19 +2358,16 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         Vector2 origin = ImGui.GetCursorScreenPos();
         float column = Chrome.ColumnWidth(width);
 
+        // The three icon rows and nothing else. What to DO about an effect moved to Marks —
+        // this tab is only about the pictures of what is lying on somebody.
         Chrome.BeginGroupRow();
         Chrome.GroupScope auras = this.DrawAuraIcons(Chrome.ColumnX(origin.X, width, 0), origin.Y, column, out float auraHeight);
-        Chrome.GroupScope rescue = this.DrawRescue(Chrome.ColumnX(origin.X, width, 1), origin.Y, column, out float rescueHeight);
-        float y = origin.Y + FrameRow(auras, auraHeight, rescue, rescueHeight);
+        Chrome.GroupScope buffs = this.DrawBuffIcons(Chrome.ColumnX(origin.X, width, 1), origin.Y, column, out float buffHeight);
+        float y = origin.Y + FrameRow(auras, auraHeight, buffs, buffHeight);
 
         Chrome.BeginGroupRow();
-        Chrome.GroupScope buffs = this.DrawBuffIcons(Chrome.ColumnX(origin.X, width, 0), y, column, out float buffHeight);
-        Chrome.GroupScope others = this.DrawOtherIcons(Chrome.ColumnX(origin.X, width, 1), y, column, out float otherHeight);
-        y += FrameRow(buffs, buffHeight, others, otherHeight);
-
-        Chrome.BeginGroupRow();
-        Chrome.GroupScope cleanse = this.DrawCleanse(Chrome.ColumnX(origin.X, width, 0), y, column, out float cleanseHeight);
-        y += Chrome.GroupFrame(cleanse, cleanseHeight) + Tokens.Metric.ColumnGutter;
+        Chrome.GroupScope others = this.DrawOtherIcons(Chrome.ColumnX(origin.X, width, 0), y, column, out float otherHeight);
+        y += Chrome.GroupFrame(others, otherHeight) + Tokens.Metric.ColumnGutter;
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
@@ -1948,51 +2379,30 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdAuraGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.Debuffs,
                 Title = Strings.GroupAuras,
                 Description = Strings.GroupAurasHint,
+                Toggle = m_config.PartyFrames.ShowAuras,
             },
             x,
             y,
             width);
 
-        float pitch = Chrome.RowPitch();
-        float rowY = group.ContentY;
-
-        if (Chrome.OptionRow(
-                IdShowAuras,
-                Strings.ShowAuras,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.ShowAuras,
-                Chrome.OptionControl.Tick,
-                Strings.ShowAurasTooltip))
+        if (group.ToggleClicked)
         {
             m_config.PartyFrames.ShowAuras = !m_config.PartyFrames.ShowAuras;
             m_config.MarkDirty();
         }
 
-        // Right under the switch it belongs to, and not saved: everything below this row
-        // places something that is only on a frame some of the time, and placing it blind is
-        // placing it twice (Florian, 2026-09-13).
-        rowY += pitch;
-        if (Chrome.OptionRow(
-                IdPreviewAuras,
-                Strings.PreviewAuras,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                AuraPreview.Active,
-                Chrome.OptionControl.Tick,
-                Strings.PreviewAurasTooltip,
-                true,
-                true))
-        {
-            AuraPreview.Toggle();
-        }
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
 
-        rowY += pitch;
-        this.PixelSlider(IdAuraMax, Strings.AuraCount, SlotAuraMax, group, rowY, 1f, PartySnapshot.MaxAuras, true, Strings.AuraCountTooltip);
+        // 🔴 Two rows used to sit above this one: "Show icons", which is the switch in the
+        // head now, and "Preview auras", which the preview band answers properly. Both are
+        // gone and so is the advance that made room for them — a removed row that leaves its
+        // rowY += pitch behind is an empty line nobody can see the cause of, with the next
+        // row's divider stranded in the middle of it (Florian, 2026-09-19).
+        this.PixelSlider(IdAuraMax, Strings.AuraCount, SlotAuraMax, group, rowY, 1f, PartySnapshot.MaxAuras, false, Strings.AuraCountTooltip);
 
         rowY += pitch;
         this.PixelSlider(IdAuraSize, Strings.IconSize, SlotAuraSize, group, rowY, MinAuraSize, MaxAuraSize, true, null);
@@ -2049,6 +2459,25 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
+        // One switch for all three icon rows. "What is this picture" is the same question
+        // whether the picture is a debuff, your own regen or somebody else's work.
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdAuraTooltips,
+                Strings.AuraTooltips,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.ShowAuraTooltips,
+                Chrome.OptionControl.Tick,
+                Strings.AuraTooltipsTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.ShowAuraTooltips = !m_config.PartyFrames.ShowAuraTooltips;
+            m_config.MarkDirty();
+        }
+
         float used = rowY - group.ContentY + Chrome.RowHeight();
         Chrome.EndGroupContent(group, used);
         contentHeight = used;
@@ -2065,31 +2494,23 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdBuffGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.OwnBuffs,
                 Title = Strings.GroupBuffs,
                 Description = Strings.GroupBuffsHint,
+                Toggle = m_config.PartyFrames.ShowBuffs,
             },
             x,
             y,
             width);
 
-        float pitch = Chrome.RowPitch();
-        float rowY = group.ContentY;
-
-        if (Chrome.OptionRow(
-                IdShowBuffs,
-                Strings.ShowBuffs,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.ShowBuffs,
-                Chrome.OptionControl.Tick,
-                Strings.ShowBuffsTooltip))
+        if (group.ToggleClicked)
         {
             m_config.PartyFrames.ShowBuffs = !m_config.PartyFrames.ShowBuffs;
             m_config.MarkDirty();
         }
 
-        rowY += pitch;
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
         if (Chrome.OptionRow(
                 IdOwnBuffs,
                 Strings.OwnBuffsOnly,
@@ -2100,7 +2521,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 Chrome.OptionControl.Tick,
                 Strings.OwnBuffsOnlyTooltip,
                 true,
-                true))
+
+                // First row of the group now that "Show icons" has become the head switch.
+                false))
         {
             m_config.PartyFrames.OwnBuffsOnly = !m_config.PartyFrames.OwnBuffsOnly;
             m_config.MarkDirty();
@@ -2146,32 +2569,26 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdOtherGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.OtherBuffs,
                 Title = Strings.GroupOthers,
                 Description = Strings.GroupOthersHint,
+                Toggle = m_config.PartyFrames.ShowOtherBuffs,
             },
             x,
             y,
             width);
 
-        float pitch = Chrome.RowPitch();
-        float rowY = group.ContentY;
-
-        if (Chrome.OptionRow(
-                IdShowOther,
-                Strings.ShowOthers,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.ShowOtherBuffs,
-                Chrome.OptionControl.Tick,
-                Strings.ShowOthersTooltip))
+        if (group.ToggleClicked)
         {
             m_config.PartyFrames.ShowOtherBuffs = !m_config.PartyFrames.ShowOtherBuffs;
             m_config.MarkDirty();
         }
 
-        rowY += pitch;
-        this.PixelSlider(IdOtherMax, Strings.AuraCount, SlotOtherMax, group, rowY, 1f, PartySnapshot.MaxAuras, true, Strings.AuraCountTooltip);
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
+        // First row of the group, so no divider: there is nothing above it to be divided
+        // from but the head's own rule.
+        this.PixelSlider(IdOtherMax, Strings.AuraCount, SlotOtherMax, group, rowY, 1f, PartySnapshot.MaxAuras, false, Strings.AuraCountTooltip);
 
         rowY += pitch;
         this.PixelSlider(IdOtherSize, Strings.IconSize, SlotOtherSize, group, rowY, MinAuraSize, MaxAuraSize, true, null);
@@ -2206,16 +2623,24 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdCleanseGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.CleanseMark,
                 Title = Strings.GroupCleanse,
                 Description = Strings.GroupCleanseHint,
+                Toggle = m_config.PartyFrames.ShowCleanseMark,
             },
             x,
             y,
             width);
 
+        if (group.ToggleClicked)
+        {
+            m_config.PartyFrames.ShowCleanseMark = !m_config.PartyFrames.ShowCleanseMark;
+            m_config.MarkDirty();
+        }
+
         float rowY = group.ContentY;
 
-        int mark = Array.IndexOf(CleanseMarks, (CleanseMark)m_config.PartyFrames.CleanseMark);
+        int mark = Array.IndexOf(MarkStyles, FrameMark.At(m_config.PartyFrames.CleanseMark));
         mark = mark < 0 ? 0 : mark;
 
         if (m_cleanse.Draw(
@@ -2224,7 +2649,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 rowY,
                 Chrome.ControlWidth()))
         {
-            m_config.PartyFrames.CleanseMark = (int)CleanseMarks[mark];
+            m_config.PartyFrames.CleanseMark = (int)MarkStyles[mark];
             m_config.MarkDirty();
         }
 
@@ -2257,6 +2682,30 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             Strings.CleanseThicknessTooltip);
 
         rowY += Chrome.RowPitch();
+        float cleanseOpacity = m_config.PartyFrames.CleanseOpacity;
+        Chrome.SliderResult cleanseFill = Chrome.Slider(
+            IdCleanseOpacity,
+            Strings.MarkOpacity,
+            this.CleanseOpacityCaption(cleanseOpacity),
+            group.ContentX,
+            rowY,
+            group.ContentWidth,
+            cleanseOpacity,
+            0f,
+            1f,
+            null,
+            Strings.MarkOpacityTooltip,
+            true,
+            OpacityStep,
+            OpacityEditScale);
+
+        if (cleanseFill.Changed)
+        {
+            m_config.PartyFrames.CleanseOpacity = cleanseFill.Value;
+            m_config.MarkDirty();
+        }
+
+        rowY += Chrome.RowPitch();
         if (Chrome.OptionRow(
                 IdCleanseWhenAble,
                 Strings.CleanseWhenAble,
@@ -2279,33 +2728,163 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         return group;
     }
 
+    /// <summary>
+    /// The mark that says somebody is already being picked up — the same four shapes the
+    /// cleanse mark uses, saying the opposite thing.
+    /// <para>
+    /// Its own group rather than four more rows under the rescue icon: the icon answers "what
+    /// is on them", the mark answers "can I stop looking at this frame", and a healer turns
+    /// them on for different reasons (Florian, 2026-09-18).
+    /// </para>
+    /// </summary>
+    private Chrome.GroupScope DrawRaiseMark(float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdRaiseMarkGroup,
+            new Chrome.GroupHead
+            {
+                Eye = PreviewPart.RaiseMark,
+                Title = Strings.GroupRaiseMark,
+                Description = Strings.GroupRaiseMarkHint,
+                Toggle = m_config.PartyFrames.ShowRaiseMark,
+            },
+            x,
+            y,
+            width);
+
+        if (group.ToggleClicked)
+        {
+            m_config.PartyFrames.ShowRaiseMark = !m_config.PartyFrames.ShowRaiseMark;
+            m_config.MarkDirty();
+        }
+
+        float rowY = group.ContentY;
+
+        int mark = Array.IndexOf(MarkStyles, FrameMark.At(m_config.PartyFrames.RaiseMark));
+        mark = mark < 0 ? 0 : mark;
+
+        if (m_raiseMark.Draw(
+                ref mark,
+                Chrome.Row(Strings.RaiseHow, group.ContentX, rowY, group.ContentWidth, false, Strings.RaiseHowTooltip),
+                rowY,
+                Chrome.ControlWidth()))
+        {
+            m_config.PartyFrames.RaiseMark = (int)MarkStyles[mark];
+            m_config.MarkDirty();
+        }
+
+        rowY += Chrome.RowPitch();
+        uint colour = m_config.PartyFrames.RaiseColour;
+        if (Chrome.ColourRow(
+                IdRaiseColour,
+                Strings.RaiseColour,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                ref colour,
+                true,
+                null))
+        {
+            m_config.PartyFrames.RaiseColour = colour;
+            m_config.MarkDirty();
+        }
+
+        rowY += Chrome.RowPitch();
+        this.PixelSlider(
+            IdRaiseThickness,
+            Strings.RaiseThickness,
+            SlotRaiseThickness,
+            group,
+            rowY,
+            MinCleanseThickness,
+            MaxCleanseThickness,
+            true,
+            Strings.CleanseThicknessTooltip);
+
+        rowY += Chrome.RowPitch();
+        float raiseOpacity = m_config.PartyFrames.RaiseOpacity;
+        Chrome.SliderResult raiseFill = Chrome.Slider(
+            IdRaiseOpacity,
+            Strings.MarkOpacity,
+            this.RaiseOpacityCaption(raiseOpacity),
+            group.ContentX,
+            rowY,
+            group.ContentWidth,
+            raiseOpacity,
+            0f,
+            1f,
+            null,
+            Strings.MarkOpacityTooltip,
+            true,
+            OpacityStep,
+            OpacityEditScale);
+
+        if (raiseFill.Changed)
+        {
+            m_config.PartyFrames.RaiseOpacity = raiseFill.Value;
+            m_config.MarkDirty();
+        }
+
+        float used = rowY - group.ContentY + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
+        return group;
+    }
+
     private Chrome.GroupScope DrawRescue(float x, float y, float width, out float contentHeight)
     {
         Chrome.GroupScope group = Chrome.BeginGroup(
             IdRescueGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.RescueIcon,
                 Title = Strings.GroupRescue,
                 Description = Strings.GroupRescueHint,
+                Toggle = m_config.PartyFrames.ShowRescueIcon,
             },
             x,
             y,
             width);
 
+        if (group.ToggleClicked)
+        {
+            m_config.PartyFrames.ShowRescueIcon = !m_config.PartyFrames.ShowRescueIcon;
+            m_config.MarkDirty();
+        }
+
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
 
+        // Two switches for one place on the frame. They never show at once — invulnerability
+        // wins where both apply — but they answer different questions, so one of them being
+        // off is a real thing to want (Florian, 2026-09-18).
         if (Chrome.OptionRow(
-                IdShowRescue,
-                Strings.ShowRescue,
+                IdShowRaise,
+                Strings.ShowRaise,
                 group.ContentX,
                 rowY,
                 group.ContentWidth,
-                m_config.PartyFrames.ShowRescueIcon,
+                m_config.PartyFrames.ShowRaiseIcon,
                 Chrome.OptionControl.Tick,
-                Strings.ShowRescueTooltip))
+                Strings.ShowRaiseTooltip))
         {
-            m_config.PartyFrames.ShowRescueIcon = !m_config.PartyFrames.ShowRescueIcon;
+            m_config.PartyFrames.ShowRaiseIcon = !m_config.PartyFrames.ShowRaiseIcon;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+
+        if (Chrome.OptionRow(
+                IdShowInvuln,
+                Strings.ShowInvuln,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.ShowInvulnIcon,
+                Chrome.OptionControl.Tick,
+                Strings.ShowInvulnTooltip))
+        {
+            m_config.PartyFrames.ShowInvulnIcon = !m_config.PartyFrames.ShowInvulnIcon;
             m_config.MarkDirty();
         }
 
@@ -2594,6 +3173,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         SlotOtherY => m_config.PartyFrames.OtherY,
         SlotOtherMax => m_config.PartyFrames.OtherMaxCount,
         SlotCleanseThickness => m_config.PartyFrames.CleanseThickness,
+        SlotRaiseThickness => m_config.PartyFrames.RaiseThickness,
         _ => m_config.PartyFrames.ManaHeight,
     };
 
@@ -2635,6 +3215,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             case SlotOtherY: m_config.PartyFrames.OtherY = value; break;
             case SlotOtherMax: m_config.PartyFrames.OtherMaxCount = (int)value; break;
             case SlotCleanseThickness: m_config.PartyFrames.CleanseThickness = value; break;
+            case SlotRaiseThickness: m_config.PartyFrames.RaiseThickness = value; break;
             default: m_config.PartyFrames.ManaHeight = value; break;
         }
     }
@@ -2680,28 +3261,38 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         return m_arrangementText;
     }
 
-    private string OpacityCaption(float opacity)
+    /// <summary>
+    /// A percentage for a slider's own caption, built only when the number changes.
+    /// <para>
+    /// The cache is the point, not the formatting: this runs every frame for every opacity
+    /// slider on the screen, and <c>ToString</c> allocates every time it is called (CLAUDE.md
+    /// §7.1). Each caller keeps its own pair of fields, because two sliders at different values
+    /// sharing one cache would rebuild the string on every frame — the exact thing the cache
+    /// exists to prevent.
+    /// </para>
+    /// </summary>
+    private static string PercentCaption(float value, ref int cachedFor, ref string cached)
     {
-        int percent = (int)MathF.Round(opacity * 100f);
-        if (percent != m_opacityTextFor)
+        int percent = (int)MathF.Round(value * 100f);
+
+        if (percent != cachedFor)
         {
-            m_opacityTextFor = percent;
-            m_opacityText = percent.ToString(CultureInfo.InvariantCulture) + " %";
+            cachedFor = percent;
+            cached = percent.ToString(CultureInfo.InvariantCulture) + " %";
         }
 
-        return m_opacityText;
+        return cached;
     }
 
-    /// <summary>The same for the shield, with a cache of its own — see the fields.</summary>
-    private string ShieldOpacityCaption(float opacity)
-    {
-        int percent = (int)MathF.Round(opacity * 100f);
-        if (percent != m_shieldOpacityTextFor)
-        {
-            m_shieldOpacityTextFor = percent;
-            m_shieldOpacityText = percent.ToString(CultureInfo.InvariantCulture) + " %";
-        }
+    private string OpacityCaption(float opacity) =>
+        PercentCaption(opacity, ref m_opacityTextFor, ref m_opacityText);
 
-        return m_shieldOpacityText;
-    }
+    private string CleanseOpacityCaption(float opacity) =>
+        PercentCaption(opacity, ref m_cleanseOpacityTextFor, ref m_cleanseOpacityText);
+
+    private string RaiseOpacityCaption(float opacity) =>
+        PercentCaption(opacity, ref m_raiseOpacityTextFor, ref m_raiseOpacityText);
+
+    private string ShieldOpacityCaption(float opacity) =>
+        PercentCaption(opacity, ref m_shieldOpacityTextFor, ref m_shieldOpacityText);
 }

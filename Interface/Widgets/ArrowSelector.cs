@@ -79,6 +79,42 @@ internal sealed class ArrowSelectorOptions<T>
     /// </para>
     /// </summary>
     public Vector2? PreviewSize { get; init; }
+
+    /// <summary>
+    /// What the face says while nothing has been chosen, or null if this control always has
+    /// an answer.
+    /// <para>
+    /// Most selectors do always have one — a bar style, a font, an anchor. A row added to a
+    /// list does not: it is added precisely in order to choose, and starting it on the first
+    /// entry of the list puts a real spell in front of somebody who has not picked one yet
+    /// (Florian, 2026-09-19). Setting this makes index -1 a legal state rather than an error
+    /// to be corrected.
+    /// </para>
+    /// </summary>
+    public string? Placeholder { get; init; }
+
+    /// <summary>
+    /// Whether an item is still on offer, or null to offer all of them.
+    /// <para>
+    /// For a list of rows that each pick one thing: a choice already made by another row is
+    /// no longer worth showing, and a list that keeps shrinking as it fills is easier to read
+    /// than one that never changes (Florian, 2026-09-19). Only the open list is affected —
+    /// the face still draws whatever the row holds, because a row must be able to show a
+    /// choice this predicate would now hide.
+    /// </para>
+    /// </summary>
+    public Func<T, bool>? Available { get; init; }
+
+    /// <summary>
+    /// What an item does, shown under its name while the pointer rests on it in the open
+    /// list, or null for a list whose names say everything.
+    /// <para>
+    /// Asked only for the row under the pointer, so the text may be fetched on the first ask
+    /// and kept — which is how the callers do it, rather than reading a sheet for a list
+    /// nobody has opened.
+    /// </para>
+    /// </summary>
+    public Func<T, string>? Describe { get; init; }
 }
 
 /// <summary>
@@ -109,7 +145,28 @@ internal sealed class ArrowSelector<T>
     private string m_counter = string.Empty;
     private int m_counterFor = -1;
 
-    private bool m_open;
+    /// <summary>
+    /// Which drawing of this selector has its list open, as ImGui's own resolved id, or zero
+    /// for none.
+    /// <para>
+    /// 🔴 Not a boolean, because one selector object is drawn many times in a frame: every
+    /// row of a list shares the instance and is told apart only by the id pushed around it.
+    /// A boolean said "a list is open" without saying whose, so the next row down asked ImGui
+    /// for a popup under a different id, was told there was none, and wrote the flag back to
+    /// false — the list opened and shut inside one frame. It held together only while exactly
+    /// one row in the window used a picker, which was true of the bindings list and stopped
+    /// being true the moment a second list of spells arrived (2026-09-19).
+    /// </para>
+    /// </summary>
+    private uint m_openId;
+
+    /// <summary>
+    /// Set by <see cref="RequestOpen"/> and consumed by the next drawing, which is what makes
+    /// "open the list for the row that is about to appear" expressible: the row does not
+    /// exist yet when the button that made it was pressed.
+    /// </summary>
+    private bool m_openRequested;
+
     private bool m_focusSearch;
     private string m_query = string.Empty;
 
@@ -133,6 +190,13 @@ internal sealed class ArrowSelector<T>
     public static float Height => Tokens.Metric.FieldControlHeight;
 
     /// <summary>
+    /// Opens the list on the next drawing of this selector, as though its face had been
+    /// clicked. For a row added by a button: the row it belongs to is drawn the frame after
+    /// the press, so there is nothing to click yet when the press happens.
+    /// </summary>
+    public void RequestOpen() => m_openRequested = true;
+
+    /// <summary>
     /// Draws the control and reports whether the selection changed this frame. A change is
     /// live at once; writing it to disk is the caller's job, and is debounced.
     /// </summary>
@@ -149,17 +213,24 @@ internal sealed class ArrowSelector<T>
             return false;
         }
 
+        // Nothing chosen yet, where that is a state this control has. Left alone: -1 is what
+        // the caller stored and what it expects back until somebody picks something.
+        bool unset = m_options.Placeholder is not null && index < 0;
+
         // A stored index can outlive the list it pointed into — a texture removed, a list
         // shortened by an update. Fall back to the first entry and say so, rather than throw
         // in the draw path.
-        if (index < 0 || index >= count)
+        if (!unset && (index < 0 || index >= count))
         {
             Services.Log.Warning($"Selector {m_idFace} had index {index} for {count} items; fell back to the first.");
             index = 0;
         }
 
         bool wrap = m_options.WrapAround;
-        bool atStart = !wrap && index == 0;
+
+        // Unset sits before the first entry, so the left arrow has nowhere to go and the
+        // right one steps onto entry zero — the same reading as anywhere else in the list.
+        bool atStart = !wrap && index <= 0;
         bool atEnd = !wrap && index == count - 1;
 
         bool bare = m_options.HideArrows;
@@ -217,15 +288,24 @@ internal sealed class ArrowSelector<T>
             }
         }
 
-        if (faceClicked && m_options.EnablePopupList)
+        // The id this drawing of the selector resolves to, which is the popup's own id under
+        // whatever the caller has pushed around it.
+        uint popupId = ImGui.GetID(m_idPopup);
+
+        // Asked for from outside, and taken by whichever drawing comes first — which is the
+        // caller's job to arrange, by asking immediately before the row it means.
+        bool opening = m_openRequested;
+        m_openRequested = false;
+
+        if ((faceClicked || opening) && m_options.EnablePopupList)
         {
-            m_open = true;
+            m_openId = popupId;
             m_focusSearch = m_options.EnableSearch;
             m_query = string.Empty;
             ImGui.OpenPopup(m_idPopup);
         }
 
-        if (m_open)
+        if (m_openId == popupId)
         {
             changed |= this.DrawPopup(ref index, x, y + height + Tokens.Metric.PopupGap, width);
         }
@@ -355,7 +435,8 @@ internal sealed class ArrowSelector<T>
             dl.AddRectFilled(min, max, hovered && openable ? Tokens.Col.Panel : Tokens.Col.Input);
         }
 
-        T item = m_items[index];
+        bool unset = index < 0;
+        T item = unset ? default! : m_items[index];
         float pad = Tokens.Metric.SelectorPaddingX;
         float left = x + pad;
         float right = max.X - pad;
@@ -366,11 +447,22 @@ internal sealed class ArrowSelector<T>
             float swatchTop = MathF.Round(y + ((height - swatch.Y) * 0.5f));
             Vector2 swatchMin = new(left, swatchTop);
             Vector2 swatchMax = new(left + swatch.X, swatchTop + swatch.Y);
-            m_options.DrawPreview(dl, item, swatchMin, swatchMax);
+
+            if (unset)
+            {
+                // An empty square where the picture will be, so a row waiting to be filled
+                // in starts its text on the same column as the rows above it.
+                dl.AddRectFilled(swatchMin, swatchMax, Tokens.Col.Control2, Tokens.Radius.Control);
+            }
+            else
+            {
+                m_options.DrawPreview(dl, item, swatchMin, swatchMax);
+            }
+
             left = swatchMax.X + Tokens.Space.Md;
         }
 
-        if (m_options.ShowCounter)
+        if (m_options.ShowCounter && !unset)
         {
             string counter = this.Counter(index, count);
             float counterWidth = Ink.Measure(Ink.Role.Small, counter).X;
@@ -392,9 +484,17 @@ internal sealed class ArrowSelector<T>
                 dl,
                 Ink.Role.Body,
                 new Vector2(left, Chrome.CenterY(y, height, Ink.Role.Body)),
-                Tokens.Col.Ink,
-                m_options.Label(item));
+                unset ? Tokens.Col.InkFaint : Tokens.Col.Ink,
+                unset ? m_options.Placeholder! : m_options.Label(item));
             dl.PopClipRect();
+        }
+
+        // On the row itself as well as in the open list (Florian, 2026-09-19). A list you
+        // have filled in is the one you come back to, and having to open a picker to be
+        // reminded what the spell in it does would be the wrong way round.
+        if (hovered && !unset)
+        {
+            this.Explain(item);
         }
 
         return clicked;
@@ -482,7 +582,10 @@ internal sealed class ArrowSelector<T>
                     ImGui.SetCursorPos(new Vector2(Tokens.Space.Sm, Tokens.Space.Sm));
                     Ink.Push(Ink.Role.Small);
                     ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.InkFaint);
-                    ImGui.TextUnformatted(Strings.SearchNoMatch);
+
+                    // Two different nothings. Nothing typed and nothing shown means the
+                    // caller has taken every item off offer, which is not a failed search.
+                    ImGui.TextUnformatted(m_query.Length == 0 ? Strings.SelectorEmpty : Strings.SearchNoMatch);
                     ImGui.PopStyleColor();
                     Ink.Pop(Ink.Role.Small);
                 }
@@ -499,7 +602,7 @@ internal sealed class ArrowSelector<T>
                         {
                             index = i;
                             changed = true;
-                            m_open = false;
+                            m_openId = 0u;
                             ImGui.CloseCurrentPopup();
                         }
                     }
@@ -512,7 +615,7 @@ internal sealed class ArrowSelector<T>
         else
         {
             // Clicked away or dismissed with escape — ImGui has already closed it.
-            m_open = false;
+            m_openId = 0u;
         }
 
         Ink.Pop(Ink.Role.Body);
@@ -563,12 +666,37 @@ internal sealed class ArrowSelector<T>
             ink,
             m_options.Label(item));
 
+        if (hovered)
+        {
+            this.Explain(item);
+        }
+
         return clicked;
+    }
+
+    /// <summary>
+    /// The tooltip for whatever the pointer is on: what the item is called, and what it does
+    /// underneath. Nothing at all when the list has no descriptions or this item has no text,
+    /// rather than a box with a heading and a blank.
+    /// </summary>
+    private void Explain(T item)
+    {
+        if (m_options.Describe is null)
+        {
+            return;
+        }
+
+        string text = m_options.Describe(item);
+
+        if (text.Length > 0)
+        {
+            Chrome.Tooltip(m_options.Label(item), text);
+        }
     }
 
     private int CountMatches()
     {
-        if (m_query.Length == 0)
+        if (m_query.Length == 0 && m_options.Available is null)
         {
             return m_items.Count;
         }
@@ -585,7 +713,12 @@ internal sealed class ArrowSelector<T>
         return matches;
     }
 
+    /// <summary>
+    /// Whether an item is shown in the open list: what the caller still offers, narrowed by
+    /// what has been typed.
+    /// </summary>
     private bool Matches(T item) =>
-        m_query.Length == 0
-        || m_options.Label(item).Contains(m_query, StringComparison.OrdinalIgnoreCase);
+        (m_options.Available is null || m_options.Available(item))
+        && (m_query.Length == 0
+            || m_options.Label(item).Contains(m_query, StringComparison.OrdinalIgnoreCase));
 }

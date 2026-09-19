@@ -55,6 +55,63 @@ internal static class Icons
     private const float StatusInsetBottom = 12f;
 
     /// <summary>
+    /// One of our own pictures, shipped beside the assembly under <c>Textures\</c>.
+    /// <para>
+    /// Same shape as the game-icon lookup below and for the same reason: Dalamud owns the
+    /// pixels and caches them, so what is kept here is the <em>lookup</em>, which never
+    /// changes. A file that is missing is remembered as a miss, so a typo in a name costs one
+    /// failed lookup rather than one per frame for the life of the plugin.
+    /// </para>
+    /// </summary>
+    /// <param name="path">Relative to the plugin folder, e.g. <c>bars/gradient.png</c>.</param>
+    public static bool Bundled(string path, out ImTextureID handle) =>
+        Bundled(path, out handle, out _);
+
+    /// <summary>
+    /// The same, and the size of the picture in its own pixels.
+    /// <para>
+    /// 🔴 Asked rather than assumed. A pattern that tiles needs to know how many of its own
+    /// pixels it covers, and writing that number down here as a constant is the same trap the
+    /// status-icon crop fell into in session 9 — a measurement is not a ratio until you know
+    /// what it is a ratio of, and the file can be re-exported at another size without anyone
+    /// remembering to come back and edit a number.
+    /// </para>
+    /// </summary>
+    public static bool Bundled(string path, out ImTextureID handle, out System.Numerics.Vector2 size)
+    {
+        handle = default;
+        size = System.Numerics.Vector2.One;
+
+        if (!Ours.TryGetValue(path, out ISharedImmediateTexture? texture))
+        {
+            string? dir = Services.PluginInterface.AssemblyLocation.DirectoryName;
+
+            // No folder to look in is not an error worth throwing over — it is a plugin loaded
+            // in a way we did not expect, and a bar without its texture still draws.
+            texture = dir is null
+                ? null
+                : Services.Textures.GetFromFile(
+                    System.IO.Path.Combine(dir, "Textures", path.Replace('/', System.IO.Path.DirectorySeparatorChar)));
+
+            Ours[path] = texture;
+        }
+
+        if (texture is null || !texture.TryGetWrap(out IDalamudTextureWrap? wrap, out _))
+        {
+            return false;
+        }
+
+        handle = wrap.Handle;
+
+        // Guarded against zero, because the size ends up as a divisor.
+        size = new System.Numerics.Vector2(
+            wrap.Width > 0 ? wrap.Width : 1f,
+            wrap.Height > 0 ? wrap.Height : 1f);
+
+        return true;
+    }
+
+    /// <summary>
     /// A status effect's picture, cropped to the art. False when there is nothing to draw yet.
     /// </summary>
     public static bool StatusIcon(
@@ -122,6 +179,9 @@ internal static class Icons
 
     /// <summary>Resolved lookups by icon id. A null value is an id the game does not have.</summary>
     private static readonly Dictionary<uint, ISharedImmediateTexture?> Sheets = new();
+
+    /// <summary>The same, for our own files. Keyed by the path given to <see cref="Bundled"/>.</summary>
+    private static readonly Dictionary<string, ISharedImmediateTexture?> Ours = new();
 
     /// <summary>
     /// The texture to draw for an icon id, or a null handle while it is not available — not
