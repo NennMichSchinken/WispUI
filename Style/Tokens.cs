@@ -139,8 +139,18 @@ internal static class Tokens
         // --- nav (derived) ---
         public static readonly uint NavHover = Rgb(0x2A282A);
 
-        /// <summary>A hovered row in a list that is read rather than set (the release notes).</summary>
-        public static readonly uint RowHover = Rgb(0x2A282A);
+        /// <summary>
+        /// A row in a list that is read rather than set — the release notes. The group
+        /// surface, because a note is one thing on the page the same way a settings card is.
+        /// </summary>
+        public static readonly uint RowRest = Rgb(0x282728);
+
+        /// <summary>
+        /// The same row under the pointer. 🔴 Measured against RowRest and not against the
+        /// page: the old hover colour was one step off the page behind it, which is
+        /// invisible once the row has a surface of its own.
+        /// </summary>
+        public static readonly uint RowHover = Rgb(0x322F32);
 
         /// <summary>Body text one step quieter than Ink, for a sentence nobody is hovering.</summary>
         public static readonly uint InkSoft = Rgb(0xA9A9A9);
@@ -595,11 +605,23 @@ internal static class Tokens
         /// <summary>The radius of the dot that marks the chosen row.</summary>
         public static float RadioDot => Px(5f);
 
-        /// <summary>How much room the word in front of a release-note line takes.</summary>
-        public static float NewsKindColumn => Px(72f);
-
         /// <summary>The arrow at the end of a note that leads somewhere.</summary>
         public static float NewsChevron => Px(10f);
+
+        /// <summary>
+        /// The air between two release notes. Small on purpose: they are a stack of related
+        /// lines, and a wide gap would read as separate cards rather than as a list.
+        /// </summary>
+        public static float NewsRowGap => Px(3f);
+
+        public static float NewsRowPaddingX => Px(10f);
+        public static float NewsRowPaddingY => Px(7f);
+
+        /// <summary>Above a section heading, which is where a release actually breathes.</summary>
+        public static float NewsSectionGap => Px(22f);
+
+        /// <summary>Either side of the rule between two releases.</summary>
+        public static float NewsReleaseGap => Px(26f);
 
         public static float NavWidth => Px(205f);
         public static float NavItemHeight => Px(35f);

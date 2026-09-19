@@ -86,8 +86,14 @@ internal readonly struct NewsRelease
 /// <list type="bullet">
 /// <item>Newest release first. Nothing sorts this; the order it is written in is the order
 /// it is shown in.</item>
-/// <item>One plain sentence per entry, in the past tense of what changed. A line that needs
-/// two sentences is two entries, or it is a thing nobody needed to be told.</item>
+/// <item>🔴 <b>An entry says what the PLAYER can now do, never what we built.</b> No file
+/// name, no "renderer", no "allocation", no "draw path". Somebody reads this screen once,
+/// quickly, while wanting to get back into the game — a sentence they have to decode is a
+/// sentence they skip, and then the release might as well not have said anything (Florian,
+/// 2026-09-20). <c>Changed</c> and <c>Fixed</c> describe what used to be annoying, not what
+/// was wrong in the code.</item>
+/// <item>One plain sentence per entry. A line that needs two sentences is two entries, or
+/// it is a thing nobody needed to be told.</item>
 /// <item>A jump target only where there is a setting behind the line. Bug fixes usually
 /// carry none.</item>
 /// <item>English, like every other string. The locale layer picks them up with the rest.</item>
@@ -117,70 +123,70 @@ internal static class News
             {
                 new(
                     NewsKind.New,
-                    "Party frames: real rectangles with a width, a height and a spacing you set, in place of the game's narrow bars.",
+                    "Party frames you can size yourself, instead of the game's thin bars.",
                     Screen.PartyFrames,
                     PartyLayout,
                     "##wisp-pf-size"),
                 new(
                     NewsKind.New,
-                    "Profiles: one set of settings per job or role, switched automatically and never during a fight.",
+                    "Different settings for every job, switched over when you change job.",
                     Screen.Profile,
                     0,
                     "##wisp-profile-list"),
                 new(
                     NewsKind.New,
-                    "A profile travels as one line of text, and pasting one asks what to take of it.",
+                    "Send your whole setup to a friend as one line of text.",
                     Screen.Profile,
                     0,
                     "##wisp-profile-share"),
                 new(
                     NewsKind.New,
-                    "A preview band under the module header shows one, four or eight frames drawn by the real drawing code.",
+                    "See your frames while you change them, without needing a party.",
                     Screen.PartyFrames,
                     PartyBase,
                     "##wisp-pf-health"),
                 new(
                     NewsKind.New,
-                    "Nine bar textures and five shield textures, all drawn for this plugin.",
+                    "Nine looks for the health bar and five for shields.",
                     Screen.PartyFrames,
                     PartyBase,
                     "##wisp-pf-health"),
                 new(
                     NewsKind.New,
-                    "Mouseover casting is a list of spells you pick per job, so a regen can follow the pointer while a raise does not.",
+                    "Choose which spells go to whoever you point at, one spell at a time.",
                     Screen.PartyFrames,
                     PartyBindings,
                     "##wisp-pf-mogroup"),
                 new(
                     NewsKind.New,
-                    "Cleanse and raise marks share four shapes and a fill strength each, and can be switched off separately.",
+                    "A mark on anyone who needs cleansing, and on anyone being raised.",
                     Screen.PartyFrames,
                     PartyMarks,
                     "##wisp-pf-cleansegroup"),
                 new(
                     NewsKind.New,
-                    "Three rows of effect icons: afflictions, what you put on somebody, and what everybody else did.",
+                    "Effect icons in three rows: debuffs, yours, and everyone else's.",
                     Screen.PartyFrames,
                     PartyAuras,
                     "##wisp-pf-auras"),
                 new(
                     NewsKind.New,
-                    "The frames follow the game's own party order, so every sorting setting you already have keeps working.",
+                    "The frames use the party order you already set in the game.",
                     Screen.PartyFrames,
                     PartyLayout,
                     "##wisp-pf-arrange"),
                 new(
                     NewsKind.New,
-                    "Six faces to choose from, your own font folder, and three weights that work on all of them.",
+                    "Six fonts, three weights, and a folder for your own.",
                     Screen.PartyFrames,
                     PartyText,
                     "##wisp-pf-textstyle"),
                 new(
                     NewsKind.Changed,
-                    "The party is read straight out of the game's own structure now, which takes several hundred allocations a second out of the draw path."),
+                    "The frames are lighter on your frame rate."),
                 new(
                     NewsKind.Fixed,
-                    "Mouseover casting kept a pointer to a party member between frames; a member who left in between could take the game down with them."),
+                    "A rare crash when somebody left the party while you pointed at them."),
             }),
     };
 
