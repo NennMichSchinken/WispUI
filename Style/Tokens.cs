@@ -607,6 +607,12 @@ internal static class Tokens
         public static float PreviewCaret => Px(9f);
         public static float EyeGlyph => Px(18f);
 
+        /// <summary>
+        /// One line of a checklist in a popup. Tighter than a settings row on purpose: a menu
+        /// is read down in one go, where a settings row is a decision with air around it.
+        /// </summary>
+        public static float MenuRowHeight => Px(26f);
+
         public static float ButtonHeight => Px(29f);
         public static float ButtonPaddingX => Px(12f);
 

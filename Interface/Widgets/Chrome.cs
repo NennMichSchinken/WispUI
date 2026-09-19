@@ -660,6 +660,60 @@ internal static class Chrome
     }
 
     /// <summary>
+    /// One line of a checklist in a popup: a name, a tick against the right edge, and the
+    /// whole line as the target.
+    /// <para>
+    /// 🔴 Not <see cref="OptionRow"/>, which was tried first and read wrong (Florian,
+    /// 2026-09-19: "vom Spacing her"). A settings row is a paragraph — it is tall, it carries
+    /// a divider, it expects air around it, because there are four of them on a card and each
+    /// one is a decision. A menu is a list you read down in one go, so it is tight, has no
+    /// dividers, and marks where the pointer is instead. Same tick, same colours, different
+    /// rhythm, and the rhythm is the whole difference.
+    /// </para>
+    /// </summary>
+    public static bool MenuTickRow(string id, string label, float x, float y, float width, bool ticked)
+    {
+        float height = Tokens.Metric.MenuRowHeight;
+        float pad = Tokens.Space.Sm;
+
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.InvisibleButton(id, new Vector2(width, height));
+        bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
+        bool clicked = ImGui.IsItemClicked();
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        if (hovered)
+        {
+            // The band runs the full width of the row including its padding, so the pointer
+            // marks a line of the list rather than a box inside it.
+            dl.AddRectFilled(
+                new Vector2(x - pad, y),
+                new Vector2(x + width + pad, y + height),
+                Tokens.Col.NavHover,
+                Tokens.Radius.Small);
+        }
+
+        Ink.Draw(
+            dl,
+            Ink.Role.Body,
+            new Vector2(x, CenterY(y, height, Ink.Role.Body)),
+            hovered ? Tokens.Col.Ink : (ticked ? Tokens.Col.Ink : Tokens.Col.InkDim),
+            label);
+
+        float box = Tokens.Metric.CheckBox;
+        PaintTick(
+            dl,
+            new Vector2(MathF.Round(x + width - box), MathF.Round(y + ((height - box) * 0.5f))),
+            ticked,
+            hovered,
+            1f);
+
+        return clicked;
+    }
+
+    /// <summary>
     /// A row whose control is a strip of two or three choices, all of them visible at once.
     /// <para>
     /// The selector answers "which one of many"; this answers "this one or that one", where

@@ -883,16 +883,21 @@ internal sealed class ConfigWindow : Window
             label);
 
         float pad = Tokens.Metric.PopupPadding;
-        float pitch = Chrome.RowPitch();
 
-        // 🔴 Two columns. Thirteen rows in one ran off the bottom of the window (Florian,
-        // 2026-09-19) — and a list that long is hard to read even where it fits, because
-        // nothing in it is grouped. Seven and six is one glance.
-        float column = Tokens.Px(190f);
-        float width = (column * 2f) + Tokens.Space.Lg;
+        // 🔴 Menu rows, not settings rows, and two columns. Thirteen settings rows in one
+        // column ran off the bottom of the window and still read as a form rather than as a
+        // list (Florian, 2026-09-19, twice). A checklist is read down in one go.
+        float pitch = Tokens.Metric.MenuRowHeight;
+        float column = Tokens.Px(160f);
+        float gutter = Tokens.Space.Xl;
+        float width = (column * 2f) + gutter;
         int perColumn = (PreviewMask.All.Length + 1) / 2;
 
-        ImGui.SetNextWindowPos(new Vector2(MathF.Round(eyeX + size - width - pad), y + barHeight + Tokens.Metric.PopupGap));
+        // Right edge under the right edge of the eye, so the menu hangs off the button that
+        // opened it. The window is the content plus its padding on both sides.
+        ImGui.SetNextWindowPos(new Vector2(
+            MathF.Round(eyeX + size - width - (pad * 2f)),
+            y + barHeight + Tokens.Metric.PopupGap));
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(pad, pad));
         ImGui.PushStyleVar(ImGuiStyleVar.PopupRounding, Tokens.Radius.Control);
         ImGui.PushStyleVar(ImGuiStyleVar.PopupBorderSize, Tokens.Line(1f));
@@ -913,35 +918,34 @@ internal sealed class ConfigWindow : Window
                 PreviewPart part = PreviewMask.All[i];
                 int col = i / perColumn;
                 int row = i - (col * perColumn);
-                float rowX = origin.X + (col * (column + Tokens.Space.Lg));
+                float rowX = origin.X + (col * (column + gutter));
                 float rowY = origin.Y + (row * pitch);
 
-                if (Chrome.OptionRow(
-                        PreviewPartIds[i],
-                        PreviewPartLabels[i],
-                        rowX,
-                        rowY,
-                        column,
-                        PreviewMask.Shows(part),
-                        Chrome.OptionControl.Tick,
-                        null,
-                        true,
-                        row > 0))
+                if (Chrome.MenuTickRow(PreviewPartIds[i], PreviewPartLabels[i], rowX, rowY, column, PreviewMask.Shows(part)))
                 {
                     PreviewMask.Toggle(part);
                 }
             }
 
-            float below = origin.Y + (perColumn * pitch);
+            float below = origin.Y + (perColumn * pitch) + Tokens.Space.Sm;
 
             // Ticked means shown, so this is the way back rather than a reset of settings —
-            // nothing here was ever written down.
-            if (PreviewMask.AnyHidden && Chrome.PillButton(IdPreviewShowAll, Strings.PreviewShowAll, origin.X, below))
+            // nothing here was ever written down. It keeps its place whether or not it can be
+            // pressed, so the menu does not change height as things are switched off.
+            if (PreviewMask.AnyHidden
+                && Chrome.PillButton(IdPreviewShowAll, Strings.PreviewShowAll, origin.X, below))
             {
                 PreviewMask.ShowAll();
             }
 
-            ImGui.Dummy(new Vector2(width, below - origin.Y + Chrome.RowHeight()));
+            // 🔴 Back to the corner first. Every row above placed itself with
+            // SetCursorScreenPos, and each of those invisible buttons pushed ImGui's own
+            // cursor further down — so a Dummy from wherever it ended up measured the list
+            // twice over and left the popup half empty (Florian, 2026-09-19: "immer noch zu
+            // lang"). The rows are drawn at absolute positions; the size has to be stated the
+            // same way.
+            ImGui.SetCursorScreenPos(origin);
+            ImGui.Dummy(new Vector2(width, below - origin.Y + Tokens.Metric.ButtonHeight));
             ImGui.EndPopup();
         }
 
