@@ -285,9 +285,6 @@ internal static class Strings
     public const string GroupRescue = "Rescue";
     public const string GroupRescueHint = "A raise on its way, and who cannot die.";
 
-    public const string ShowAuras = "Show icons";
-    public const string ShowAurasTooltip =
-        "The effects on this person, ranked the way the game's own party list ranks them.";
     public const string AuraCount = "How many";
     public const string AuraCountTooltip =
         "Above this the lowest ranked are dropped. The game decides the ranking, not WispUI.";
@@ -316,9 +313,6 @@ internal static class Strings
     public const string GroupBuffs = "Your effects";
     public const string GroupBuffsHint = "What you have already put on them.";
 
-    public const string ShowBuffs = "Show icons";
-    public const string ShowBuffsTooltip =
-        "A second row, for the benefits on this person — regens and the like.";
     public const string OwnBuffsOnly = "Only yours";
     public const string OwnBuffsOnlyTooltip =
         "On, only what you cast yourself. Off, every benefit on them — food, raid buffs and all, which buries the one you are looking for.";
@@ -326,9 +320,6 @@ internal static class Strings
     public const string GroupOthers = "Their effects";
     public const string GroupOthersHint = "What is on them from somebody else.";
 
-    public const string ShowOthers = "Show icons";
-    public const string ShowOthersTooltip =
-        "A third row, for benefits cast by anybody but you — mitigation, another healer's work. Needs \"Only yours\" on above.";
 
     public const string CleanseColour = "Colour";
     public const string CleanseThickness = "Edge thickness";

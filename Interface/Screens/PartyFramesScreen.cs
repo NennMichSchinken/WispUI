@@ -91,7 +91,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdAuraGroup = "##wisp-pf-auras";
     private const string IdCleanseGroup = "##wisp-pf-cleansegroup";
     private const string IdRescueGroup = "##wisp-pf-rescuegroup";
-    private const string IdShowAuras = "##wisp-pf-showauras";
     private const string IdAuraPosition = "##wisp-pf-auraposition";
     private const string IdAuraSize = "##wisp-pf-aurasize";
     private const string IdAuraX = "##wisp-pf-aurax";
@@ -113,7 +112,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const float MinCleanseThickness = 1f;
     private const float MaxCleanseThickness = 8f;
     private const string IdBuffGroup = "##wisp-pf-buffs";
-    private const string IdShowBuffs = "##wisp-pf-showbuffs";
     private const string IdOwnBuffs = "##wisp-pf-ownbuffs";
     private const string IdBuffPosition = "##wisp-pf-buffposition";
     private const string IdBuffSize = "##wisp-pf-buffsize";
@@ -121,7 +119,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdBuffY = "##wisp-pf-buffy";
     private const string IdBuffMax = "##wisp-pf-buffmax";
     private const string IdOtherGroup = "##wisp-pf-others";
-    private const string IdShowOther = "##wisp-pf-showother";
     private const string IdOtherPosition = "##wisp-pf-otherposition";
     private const string IdOtherSize = "##wisp-pf-othersize";
     private const string IdOtherX = "##wisp-pf-otherx";
@@ -141,8 +138,13 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     /// mark there is: the cleanse mark and the raise mark offer exactly the same four, because
     /// they are the same drawing asked to say different things.
     /// </summary>
+    /// <para>
+    /// 🔴 No "None" in it. Whether a mark appears is the switch in the group head; this is
+    /// the list of what it can look like. Mixing the two makes turning something off a
+    /// search through a list of shapes, which is the lesson version 3 was migrated for.
+    /// </para>
     private static readonly FrameMarkStyle[] MarkStyles =
-        { FrameMarkStyle.Border, FrameMarkStyle.Full, FrameMarkStyle.Bar, FrameMarkStyle.None };
+        { FrameMarkStyle.Border, FrameMarkStyle.Full, FrameMarkStyle.Bar };
 
     /// <summary>The name of a shape. Shared, so the two marks can never drift apart in wording.</summary>
     private static string MarkLabel(FrameMarkStyle style) => style switch
@@ -2380,27 +2382,20 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 Eye = PreviewPart.Debuffs,
                 Title = Strings.GroupAuras,
                 Description = Strings.GroupAurasHint,
+                Toggle = m_config.PartyFrames.ShowAuras,
             },
             x,
             y,
             width);
 
-        float pitch = Chrome.RowPitch();
-        float rowY = group.ContentY;
-
-        if (Chrome.OptionRow(
-                IdShowAuras,
-                Strings.ShowAuras,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.ShowAuras,
-                Chrome.OptionControl.Tick,
-                Strings.ShowAurasTooltip))
+        if (group.ToggleClicked)
         {
             m_config.PartyFrames.ShowAuras = !m_config.PartyFrames.ShowAuras;
             m_config.MarkDirty();
         }
+
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
 
         // 🔴 "Preview auras" used to sit here — a tick that put made-up afflictions on the
         // real frames, because everything below this row places something that is only on a
@@ -2504,29 +2499,20 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 Eye = PreviewPart.OwnBuffs,
                 Title = Strings.GroupBuffs,
                 Description = Strings.GroupBuffsHint,
+                Toggle = m_config.PartyFrames.ShowBuffs,
             },
             x,
             y,
             width);
 
-        float pitch = Chrome.RowPitch();
-        float rowY = group.ContentY;
-
-        if (Chrome.OptionRow(
-                IdShowBuffs,
-                Strings.ShowBuffs,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.ShowBuffs,
-                Chrome.OptionControl.Tick,
-                Strings.ShowBuffsTooltip))
+        if (group.ToggleClicked)
         {
             m_config.PartyFrames.ShowBuffs = !m_config.PartyFrames.ShowBuffs;
             m_config.MarkDirty();
         }
 
-        rowY += pitch;
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
         if (Chrome.OptionRow(
                 IdOwnBuffs,
                 Strings.OwnBuffsOnly,
@@ -2586,29 +2572,20 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 Eye = PreviewPart.OtherBuffs,
                 Title = Strings.GroupOthers,
                 Description = Strings.GroupOthersHint,
+                Toggle = m_config.PartyFrames.ShowOtherBuffs,
             },
             x,
             y,
             width);
 
-        float pitch = Chrome.RowPitch();
-        float rowY = group.ContentY;
-
-        if (Chrome.OptionRow(
-                IdShowOther,
-                Strings.ShowOthers,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.ShowOtherBuffs,
-                Chrome.OptionControl.Tick,
-                Strings.ShowOthersTooltip))
+        if (group.ToggleClicked)
         {
             m_config.PartyFrames.ShowOtherBuffs = !m_config.PartyFrames.ShowOtherBuffs;
             m_config.MarkDirty();
         }
 
-        rowY += pitch;
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
         this.PixelSlider(IdOtherMax, Strings.AuraCount, SlotOtherMax, group, rowY, 1f, PartySnapshot.MaxAuras, true, Strings.AuraCountTooltip);
 
         rowY += pitch;
@@ -2647,10 +2624,17 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 Eye = PreviewPart.CleanseMark,
                 Title = Strings.GroupCleanse,
                 Description = Strings.GroupCleanseHint,
+                Toggle = m_config.PartyFrames.ShowCleanseMark,
             },
             x,
             y,
             width);
+
+        if (group.ToggleClicked)
+        {
+            m_config.PartyFrames.ShowCleanseMark = !m_config.PartyFrames.ShowCleanseMark;
+            m_config.MarkDirty();
+        }
 
         float rowY = group.ContentY;
 
@@ -2760,10 +2744,17 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 Eye = PreviewPart.RaiseMark,
                 Title = Strings.GroupRaiseMark,
                 Description = Strings.GroupRaiseMarkHint,
+                Toggle = m_config.PartyFrames.ShowRaiseMark,
             },
             x,
             y,
             width);
+
+        if (group.ToggleClicked)
+        {
+            m_config.PartyFrames.ShowRaiseMark = !m_config.PartyFrames.ShowRaiseMark;
+            m_config.MarkDirty();
+        }
 
         float rowY = group.ContentY;
 
@@ -2847,10 +2838,17 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 Eye = PreviewPart.RescueIcon,
                 Title = Strings.GroupRescue,
                 Description = Strings.GroupRescueHint,
+                Toggle = m_config.PartyFrames.ShowRescueIcon,
             },
             x,
             y,
             width);
+
+        if (group.ToggleClicked)
+        {
+            m_config.PartyFrames.ShowRescueIcon = !m_config.PartyFrames.ShowRescueIcon;
+            m_config.MarkDirty();
+        }
 
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;

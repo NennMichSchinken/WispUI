@@ -435,8 +435,10 @@ internal sealed class PartyFramesElement : HudElement
         var colourMode = (BarColourMode)cfg.ColourMode;
         var manaStyle = (ManaStyle)cfg.ManaStyle;
         HealthTextMode textMode = HealthText.At(cfg.HpTextMode);
-        FrameMarkStyle cleanseMark = FrameMark.At(cfg.CleanseMark);
-        FrameMarkStyle raiseMark = FrameMark.At(cfg.RaiseMark);
+        // The switch decides whether there is a mark; the style decides what it looks like.
+        // Resolved to None here so the drawing below has one question to ask instead of two.
+        FrameMarkStyle cleanseMark = cfg.ShowCleanseMark ? FrameMark.At(cfg.CleanseMark) : FrameMarkStyle.None;
+        FrameMarkStyle raiseMark = cfg.ShowRaiseMark ? FrameMark.At(cfg.RaiseMark) : FrameMarkStyle.None;
 
         // Settled once for the whole block. Off while the stand-ins are up: there is nothing
         // real to describe, and edit mode wants the cursor for dragging rather than for
@@ -1629,7 +1631,10 @@ internal sealed class PartyFramesElement : HudElement
         // shows the raise rather than nothing. Written as one test on the pair — pick the
         // effect first, then ask whether it may be drawn — that case would go blank, which is
         // the one outcome neither switch was asked for.
-        if (!this.Shows(PreviewPart.RescueIcon))
+        // The group switch, and then the two inside it. The master is what the eye and the
+        // card head both speak for; the pair below says which of the two situations is worth
+        // an icon.
+        if (!cfg.ShowRescueIcon || !this.Shows(PreviewPart.RescueIcon))
         {
             return;
         }

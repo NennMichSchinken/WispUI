@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 10;
+    public const int CurrentVersion = 11;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -571,7 +571,22 @@ public sealed class Configuration : IPluginConfiguration
         /// still say what is on a person either way; this is only about shouting it.
         /// </para>
         /// </summary>
-        public int CleanseMark { get; set; } = (int)Hud.FrameMarkStyle.None;
+        public int CleanseMark { get; set; } = (int)Hud.FrameMarkStyle.Border;
+
+        /// <summary>
+        /// Whether the cleanse mark appears at all. Off out of the box.
+        /// <para>
+        /// 🔴 The marks are the loudest thing a frame can do — a border or a wash across the
+        /// whole of it — and somebody meeting one on their first login has no way to know
+        /// what it is telling them. Loud belongs to whoever asked for it (Florian,
+        /// 2026-09-19). The icons still say what is on a person; this is only about shouting.
+        /// </para>
+        /// <para>
+        /// Separate from the shape above, so switching it off and on again gives back the
+        /// shape that was chosen rather than the first one in the list.
+        /// </para>
+        /// </summary>
+        public bool ShowCleanseMark { get; set; }
 
         /// <summary>
         /// Show the cleanse mark only while on a job that can actually cleanse.
@@ -615,7 +630,11 @@ public sealed class Configuration : IPluginConfiguration
 
         /// <summary>One of <see cref="Hud.FrameMarkStyle"/>. None out of the box, with the
         /// cleanse mark and for the same reason.</summary>
-        public int RaiseMark { get; set; } = (int)Hud.FrameMarkStyle.None;
+        public int RaiseMark { get; set; } = (int)Hud.FrameMarkStyle.Border;
+
+        /// <summary>Whether the raise mark appears, with the cleanse mark and for the same
+        /// reason.</summary>
+        public bool ShowRaiseMark { get; set; }
 
         /// <summary>
         /// A spring green, and deliberately NOT the healer role colour <c>#6EF54D</c>: the mark
@@ -972,6 +991,30 @@ public sealed class Configuration : IPluginConfiguration
                 Services.Log.Information(
                     "Mouseover casting is now chosen per spell. The old switch was on; the new list starts empty — "
                     + "pick the spells you want on the pointer under Party frames, Bindings.");
+            }
+        }
+
+        if (config.Version < 11)
+        {
+            // The two marks had "None" in their list of shapes, which made turning one off a
+            // search through a list of what it can look like. They have a switch of their own
+            // now, and the shape list is only shapes (CLAUDE.md, version 3: whether something
+            // is shown does not belong in the list of what it can show).
+            //
+            // None meant off, so that is what it becomes — and the shape goes back to the
+            // default, so switching it on afterwards gives a mark rather than nothing. Any
+            // other shape was somebody choosing to have the mark, switch on and shape kept.
+            config.PartyFrames.ShowCleanseMark = config.PartyFrames.CleanseMark != (int)Hud.FrameMarkStyle.None;
+            config.PartyFrames.ShowRaiseMark = config.PartyFrames.RaiseMark != (int)Hud.FrameMarkStyle.None;
+
+            if (!config.PartyFrames.ShowCleanseMark)
+            {
+                config.PartyFrames.CleanseMark = (int)Hud.FrameMarkStyle.Border;
+            }
+
+            if (!config.PartyFrames.ShowRaiseMark)
+            {
+                config.PartyFrames.RaiseMark = (int)Hud.FrameMarkStyle.Border;
             }
         }
     }
