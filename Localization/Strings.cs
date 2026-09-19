@@ -27,6 +27,10 @@ internal static class Strings
     public const string PreviewSolo = "1";
     public const string PreviewLight = "4";
     public const string PreviewFull = "8";
+    public const string PreviewHide = "Hide in preview";
+    public const string PreviewEyeTooltip = "Leaves this out of the preview. It changes nothing in the game, and comes back when this window closes.";
+    public const string PreviewShowAll = "Show everything again";
+    public const string PreviewHideTooltip = "Leave parts out of the preview while you work. Nothing here changes the game, and it all comes back when this window closes.";
     public const string EditMode = "Edit Mode";
     public const string EditModeKeys = "Drag or use the arrows  ·  Shift for 10  ·  Ctrl ignores the guides";
     public const string EditModeDone = "Done";

@@ -38,7 +38,7 @@ public sealed class Plugin : IDalamudPlugin
 
         // The status sheet, flattened once. Every frame asks it about every effect on every
         // member, and a sheet read never belongs in that path (CLAUDE.md §7.3).
-        Data.StatusData.Prime();
+        Data.StatusData.Prime(Hud.PartyFrames.PartySnapshot.MaxAuras);
 
         Scaling.Commit(m_config.Scale);
         Scaling.LogGameScaleReadings();

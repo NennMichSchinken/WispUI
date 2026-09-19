@@ -140,6 +140,15 @@ internal sealed class PartyFramesElement : HudElement
     private readonly FrameGeometry m_previewGeo = new();
 
     /// <summary>
+    /// What this block is leaving out. Always nothing for the live block: the eye switches
+    /// are a way of looking at the preview, never a setting (see <see cref="PreviewMask"/>).
+    /// </summary>
+    private PreviewPart m_hidden;
+
+    /// <summary>Whether this part is being drawn in the block currently being drawn.</summary>
+    private bool Shows(PreviewPart part) => (m_hidden & part) == 0;
+
+    /// <summary>
     /// Whether we were the ones who last said what the mouse is over. The game fills that
     /// field from its own hit test every frame, so ours only has to be taken back on the
     /// frame the mouse leaves.
@@ -413,6 +422,9 @@ internal sealed class PartyFramesElement : HudElement
         float y = origin.Y;
         float delta = ImGui.GetIO().DeltaTime;
 
+        // Settled once for the whole block, before anything is drawn from it.
+        m_hidden = live ? PreviewPart.None : PreviewMask.Hidden;
+
         BarStyle style = BarStyles.At(BarStyles.ForBar, cfg.BarStyleName);
 
         // Resolved here beside the bar's, once for the whole block rather than once per frame
@@ -498,7 +510,7 @@ internal sealed class PartyFramesElement : HudElement
             dl.AddRectFilled(min, max, this.Dim(Tokens.Col.FrameBg));
 
             float healthBottom = innerMax.Y;
-            bool mana = ShowsMana(cfg, ref member);
+            bool mana = ShowsMana(cfg, ref member) && this.Shows(PreviewPart.Mana);
             float manaHeight = Tokens.Px(cfg.ManaHeight);
             float manaGap = manaStyle == ManaStyle.Bar ? border : 0f;
 
@@ -539,7 +551,7 @@ internal sealed class PartyFramesElement : HudElement
 
             // Over the health, under everything else. A shield is part of what the bar says
             // about staying alive, so it belongs in the bar rather than on top of the icons.
-            if (cfg.ShowShield && member.HasData && member.Shield > 0)
+            if (cfg.ShowShield && this.Shows(PreviewPart.Shield) && member.HasData && member.Shield > 0)
             {
                 // The game keeps a percentage, so a hundredth of it is the share of the bar.
                 ShieldBand band = Shield.Band(fraction, member.Shield / 100f);
@@ -664,7 +676,7 @@ internal sealed class PartyFramesElement : HudElement
             // Cleanse first, raise over it. They can both be true — somebody being picked up
             // may well have something cleansable on them — and of the two, "you personally
             // have to do something" outranks "this one is already being handled".
-            if (member.HasDispellable)
+            if (member.HasDispellable && this.Shows(PreviewPart.CleanseMark))
             {
                 FrameMark.Draw(
                     dl,
@@ -680,7 +692,7 @@ internal sealed class PartyFramesElement : HudElement
             // the eight seconds of casting are exactly when a second healer needs to know
             // somebody is already on this one, and that is what the mark says from across the
             // screen (Florian, 2026-09-18).
-            if (member.RaiseRemaining > 0f)
+            if (member.RaiseRemaining > 0f && this.Shows(PreviewPart.RaiseMark))
             {
                 FrameMark.Draw(
                     dl,
@@ -1240,7 +1252,7 @@ internal sealed class PartyFramesElement : HudElement
         Vector2 innerMin,
         Vector2 innerMax)
     {
-        if (!cfg.ShowJobIcon || (cfg.JobIconHideDps && member.Role == JobRole.Dps))
+        if (!cfg.ShowJobIcon || !this.Shows(PreviewPart.JobIcon) || (cfg.JobIconHideDps && member.Role == JobRole.Dps))
         {
             return;
         }
@@ -1256,7 +1268,7 @@ internal sealed class PartyFramesElement : HudElement
         Vector2 innerMin,
         Vector2 innerMax)
     {
-        if (!cfg.ShowLeaderIcon || !member.IsLeader)
+        if (!cfg.ShowLeaderIcon || !this.Shows(PreviewPart.Leader) || !member.IsLeader)
         {
             return;
         }
@@ -1291,7 +1303,7 @@ internal sealed class PartyFramesElement : HudElement
         Vector2 innerMin,
         Vector2 innerMax)
     {
-        if (cfg.ShowAuras)
+        if (cfg.ShowAuras && this.Shows(PreviewPart.Debuffs))
         {
             this.DrawIconRow(
                 dl,
@@ -1307,7 +1319,7 @@ internal sealed class PartyFramesElement : HudElement
                 innerMax);
         }
 
-        if (cfg.ShowBuffs)
+        if (cfg.ShowBuffs && this.Shows(PreviewPart.OwnBuffs))
         {
             this.DrawIconRow(
                 dl,
@@ -1323,7 +1335,7 @@ internal sealed class PartyFramesElement : HudElement
                 innerMax);
         }
 
-        if (cfg.ShowOtherBuffs)
+        if (cfg.ShowOtherBuffs && this.Shows(PreviewPart.OtherBuffs))
         {
             this.DrawIconRow(
                 dl,
@@ -1609,6 +1621,11 @@ internal sealed class PartyFramesElement : HudElement
         // shows the raise rather than nothing. Written as one test on the pair — pick the
         // effect first, then ask whether it may be drawn — that case would go blank, which is
         // the one outcome neither switch was asked for.
+        if (!this.Shows(PreviewPart.RescueIcon))
+        {
+            return;
+        }
+
         uint status =
             member.InvulnerableStatus != 0 && cfg.ShowInvulnIcon ? member.InvulnerableStatus
             : member.RaiseRemaining > 0f && cfg.ShowRaiseIcon ? StatusData.Raise
@@ -1690,7 +1707,7 @@ internal sealed class PartyFramesElement : HudElement
     {
         float padding = Tokens.Metric.FramePadding;
 
-        if (cfg.ShowName)
+        if (cfg.ShowName && this.Shows(PreviewPart.Name))
         {
             string name = this.DrawnName(slot, ref member, PlayerName.At(cfg.NameShortening));
             float size = Tokens.Px(cfg.NameSize);
@@ -1713,7 +1730,7 @@ internal sealed class PartyFramesElement : HudElement
             Ink.DrawScaledEdged(dl, size, at, colour, name, cfg.Edge);
         }
 
-        if (cfg.ShowPartyNumber && member.PartyNumber >= 1 && member.PartyNumber <= NumberText.Length)
+        if (cfg.ShowPartyNumber && this.Shows(PreviewPart.PartyNumber) && member.PartyNumber >= 1 && member.PartyNumber <= NumberText.Length)
         {
             // On a rounded plate with a black edge, the way the game's own party list puts a
             // position. A bare digit over a health bar has no shape of its own to be
@@ -1763,7 +1780,7 @@ internal sealed class PartyFramesElement : HudElement
                 number);
         }
 
-        if (!cfg.ShowHealthText)
+        if (!cfg.ShowHealthText || !this.Shows(PreviewPart.HealthText))
         {
             return;
         }

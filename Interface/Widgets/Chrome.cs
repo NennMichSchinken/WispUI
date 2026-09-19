@@ -25,6 +25,7 @@ internal static class Chrome
     private const string IdGroupToggle = "##wisp-group-toggle";
     private const string IdGroupAction = "##wisp-group-action";
     private const string IdGroupCollapse = "##wisp-group-collapse";
+    private const string IdGroupEye = "##wisp-group-eye";
 
     /// <summary>Only ever mixed towards, never painted: the step a control takes under the hand.</summary>
     private const uint White = 0xFFFFFFFFu;
@@ -783,6 +784,61 @@ internal static class Chrome
         return used + Ink.LineHeight(Ink.Role.Small) + Tokens.Metric.SectionHeadGap;
     }
 
+    /// <summary>
+    /// The eye that takes one part out of the preview for a moment, or puts it back.
+    /// <para>
+    /// Drawn rather than written: it sits in a group's head beside a switch and a badge, and
+    /// a word there would read as another setting. An eye says "look", which is the whole
+    /// difference between this and everything else on the card.
+    /// </para>
+    /// <para>
+    /// Shut — a line through it — is the state worth noticing, so that is the one drawn in
+    /// gold. An open eye is the resting state and stays quiet.
+    /// </para>
+    /// </summary>
+    public static bool EyeButton(string id, float x, float y, float size, bool shown)
+    {
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.InvisibleButton(id, new Vector2(size, size));
+        bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
+        bool clicked = ImGui.IsItemClicked();
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        uint ink = shown
+            ? (hovered ? Tokens.Col.Ink : Tokens.Col.InkDim)
+            : (hovered ? Tokens.Col.GoldHi : Tokens.Col.Gold);
+
+        float line = Tokens.Line(1f);
+        Vector2 centre = new(MathF.Round(x + (size * 0.5f)), MathF.Round(y + (size * 0.5f)));
+        float halfWidth = size * 0.45f;
+        float lid = size * 0.3f;
+
+        // Two arcs meeting at the corners — the almond every eye glyph is. Built as one path
+        // so the join at each corner is a point rather than two overlapping line ends.
+        dl.PathClear();
+        dl.PathLineTo(new Vector2(centre.X - halfWidth, centre.Y));
+        dl.PathBezierQuadraticCurveTo(new Vector2(centre.X, centre.Y - lid), new Vector2(centre.X + halfWidth, centre.Y));
+        dl.PathBezierQuadraticCurveTo(new Vector2(centre.X, centre.Y + lid), new Vector2(centre.X - halfWidth, centre.Y));
+        dl.PathStroke(ink, ImDrawFlags.None, line);
+
+        dl.AddCircleFilled(centre, MathF.Max(1f, size * 0.13f), ink);
+
+        if (!shown)
+        {
+            // Corner to corner, and a touch past the lens on both ends: a slash that stops at
+            // the outline reads as part of the eye rather than as something over it.
+            float reach = size * 0.42f;
+            dl.AddLine(
+                new Vector2(centre.X - reach, centre.Y + reach),
+                new Vector2(centre.X + reach, centre.Y - reach),
+                ink,
+                Tokens.Line(1.5f));
+        }
+
+        return clicked;
+    }
+
     /// <summary>What goes in the head of a group, beyond its name.</summary>
     internal readonly struct GroupHead
     {
@@ -803,6 +859,13 @@ internal static class Chrome
         public bool Collapsible { get; init; }
 
         public bool Collapsed { get; init; }
+
+        /// <summary>
+        /// The part of the preview this card governs, or null for a card that governs
+        /// nothing drawable. Set, it puts an eye in the head that takes that part out of the
+        /// preview while you look at the rest.
+        /// </summary>
+        public Hud.PreviewPart? Eye { get; init; }
     }
 
     /// <summary>What a group reports back, and where its rows go.</summary>
@@ -890,6 +953,20 @@ internal static class Chrome
         {
             cursor -= Tokens.Metric.SwitchWidth;
             toggleClicked = Switch(IdGroupToggle, cursor, top, head.Toggle.Value, true);
+            cursor -= Tokens.Space.Md;
+        }
+
+        if (head.Eye is not null)
+        {
+            float size = Tokens.Metric.EyeGlyph;
+            cursor -= size;
+
+            if (EyeButton(IdGroupEye, cursor, MathF.Round(top + ((Ink.LineHeight(Ink.Role.Title) - size) * 0.5f)), size, Hud.PreviewMask.Shows(head.Eye.Value)))
+            {
+                Hud.PreviewMask.Toggle(head.Eye.Value);
+            }
+
+            TooltipOnHover(Strings.PreviewEyeTooltip);
             cursor -= Tokens.Space.Md;
         }
 

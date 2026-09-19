@@ -6,6 +6,7 @@ using Dalamud.Game.ClientState.Keys;
 using Dalamud.Interface.Windowing;
 using WispUI.Appearance;
 using WispUI.Core;
+using WispUI.Hud;
 using WispUI.Interface.Screens;
 using WispUI.Interface.Widgets;
 using WispUI.Localization;
@@ -30,6 +31,9 @@ internal sealed class ConfigWindow : Window
     private const string IdContent = "##wisp-content";
     private const string IdPreview = "##wisp-preview";
     private const string IdPreviewToggle = "##wisp-previewtoggle";
+    private const string IdPreviewEye = "##wisp-previeweye";
+    private const string IdPreviewEyeMenu = "##wisp-previeweyemenu";
+    private const string IdPreviewShowAll = "##wisp-previewshowall";
     private const string IdNews = "##wisp-news";
     private const string IdEditMode = "##wisp-editmode";
     private const string IdModuleSwitch = "##wisp-module-switch";
@@ -74,6 +78,35 @@ internal sealed class ConfigWindow : Window
     };
 
     private static readonly string[] PreviewCountIds = { "##wisp-pv1", "##wisp-pv4", "##wisp-pv8" };
+
+    /// <summary>
+    /// What each part of the preview is called in the menu, in the same order as
+    /// <see cref="PreviewMask.All"/>. Two lists rather than one of pairs, because the enum
+    /// lives beside the drawing and the words live in the strings file.
+    /// </summary>
+    private static readonly string[] PreviewPartLabels =
+    {
+        Strings.GroupNameText,
+        Strings.GroupHealthText,
+        Strings.GroupMana,
+        Strings.GroupShield,
+        Strings.GroupJobIcon,
+        Strings.GroupLeader,
+        Strings.GroupPartyNumber,
+        Strings.GroupAuras,
+        Strings.GroupBuffs,
+        Strings.GroupOthers,
+        Strings.GroupCleanse,
+        Strings.GroupRaiseMark,
+        Strings.GroupRescue,
+    };
+
+    private static readonly string[] PreviewPartIds =
+    {
+        "##wisp-eye0", "##wisp-eye1", "##wisp-eye2", "##wisp-eye3", "##wisp-eye4",
+        "##wisp-eye5", "##wisp-eye6", "##wisp-eye7", "##wisp-eye8", "##wisp-eye9",
+        "##wisp-eye10", "##wisp-eye11", "##wisp-eye12",
+    };
 
     private static readonly string[] TabsGlobal = { Strings.TabBase };
     private static readonly string[] TabsProfile = { Strings.TabBase };
@@ -197,6 +230,11 @@ internal sealed class ConfigWindow : Window
     {
         m_clipboard.ForgetUndo();
         Chrome.CancelValueEdit();
+
+        // The eye switches are a way of looking at the preview, not settings. Everything is
+        // back on the next time the window opens, which is the whole reason they are allowed
+        // to be as many as they are.
+        PreviewMask.ShowAll();
 
         this.ReleaseCursor();
     }
@@ -795,6 +833,8 @@ internal sealed class ConfigWindow : Window
             chipX += width + Tokens.Metric.TabGap;
         }
 
+        this.DrawPreviewEyeMenu(dl, x + wide, y, barHeight);
+
         y += barHeight + Tokens.Space.Sm;
 
         if (!open)
@@ -806,6 +846,98 @@ internal sealed class ConfigWindow : Window
         this.DrawPreviewViewport(dl, x, y, wide, height);
 
         return y + height + Tokens.Space.Md;
+    }
+
+    /// <summary>
+    /// The eye at the right of the band, and the list of everything the preview can be asked
+    /// to leave out.
+    /// <para>
+    /// The same switches as the eyes on the cards, in one place. The eye on a card is the
+    /// quick way while you are already there; this is the way to take four things out at once
+    /// without hunting across seven tabs for them.
+    /// </para>
+    /// </summary>
+    private void DrawPreviewEyeMenu(ImDrawListPtr dl, float rightEdge, float y, float barHeight)
+    {
+        float size = Tokens.Metric.EyeGlyph;
+        float eyeX = MathF.Round(rightEdge - size);
+        float eyeY = MathF.Round(y + ((barHeight - size) * 0.5f));
+
+        // The button says whether anything is hidden at all, which is the one thing somebody
+        // needs to know without opening it — a preview missing a name for no visible reason
+        // is a bug report waiting to happen.
+        if (Chrome.EyeButton(IdPreviewEye, eyeX, eyeY, size, !PreviewMask.AnyHidden))
+        {
+            ImGui.OpenPopup(IdPreviewEyeMenu);
+        }
+
+        Chrome.TooltipOnHover(Strings.PreviewHideTooltip);
+
+        string label = Strings.PreviewHide;
+        float labelWidth = MathF.Round(Ink.Measure(Ink.Role.Small, label).X);
+        Ink.Draw(
+            dl,
+            Ink.Role.Small,
+            new Vector2(eyeX - Tokens.Space.Sm - labelWidth, Chrome.CenterY(y, barHeight, Ink.Role.Small)),
+            Tokens.Col.InkFaint,
+            label);
+
+        float pad = Tokens.Metric.PopupPadding;
+        float width = Tokens.Px(230f);
+        float pitch = Chrome.RowPitch();
+
+        ImGui.SetNextWindowPos(new Vector2(MathF.Round(eyeX + size - width), y + barHeight + Tokens.Metric.PopupGap));
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(pad, pad));
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupRounding, Tokens.Radius.Control);
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupBorderSize, Tokens.Line(1f));
+        ImGui.PushStyleColor(ImGuiCol.PopupBg, Tokens.Col.PopupBg);
+        ImGui.PushStyleColor(ImGuiCol.Border, Tokens.Col.PopupEdge);
+
+        if (ImGui.BeginPopup(IdPreviewEyeMenu))
+        {
+            if (Chrome.ClosePopupRequested)
+            {
+                ImGui.CloseCurrentPopup();
+            }
+
+            Vector2 origin = ImGui.GetCursorScreenPos();
+            float rowY = origin.Y;
+
+            for (int i = 0; i < PreviewMask.All.Length; i++)
+            {
+                PreviewPart part = PreviewMask.All[i];
+
+                if (Chrome.OptionRow(
+                        PreviewPartIds[i],
+                        PreviewPartLabels[i],
+                        origin.X,
+                        rowY,
+                        width,
+                        PreviewMask.Shows(part),
+                        Chrome.OptionControl.Tick,
+                        null,
+                        true,
+                        i > 0))
+                {
+                    PreviewMask.Toggle(part);
+                }
+
+                rowY += pitch;
+            }
+
+            // Ticked means shown, so this row is the way back rather than a reset of
+            // settings — nothing here was ever written down.
+            if (PreviewMask.AnyHidden && Chrome.PillButton(IdPreviewShowAll, Strings.PreviewShowAll, origin.X, rowY))
+            {
+                PreviewMask.ShowAll();
+            }
+
+            ImGui.Dummy(new Vector2(width, rowY - origin.Y + Chrome.RowHeight()));
+            ImGui.EndPopup();
+        }
+
+        ImGui.PopStyleColor(2);
+        ImGui.PopStyleVar(3);
     }
 
     /// <summary>

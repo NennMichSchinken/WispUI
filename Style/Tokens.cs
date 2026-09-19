@@ -605,6 +605,7 @@ internal static class Tokens
         public static float PreviewHeight => Px(200f);
         public static float PreviewPadding => Px(12f);
         public static float PreviewCaret => Px(9f);
+        public static float EyeGlyph => Px(18f);
 
         public static float ButtonHeight => Px(29f);
         public static float ButtonPaddingX => Px(12f);

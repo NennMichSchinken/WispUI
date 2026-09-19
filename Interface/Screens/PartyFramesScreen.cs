@@ -1050,6 +1050,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdShieldGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.Shield,
                 Title = Strings.GroupShield,
                 Description = Strings.GroupShieldHint,
                 Toggle = m_config.PartyFrames.ShowShield,
@@ -1136,6 +1137,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdTextGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.Name,
                 Title = Strings.GroupNameText,
                 Description = Strings.GroupNameTextHint,
                 Toggle = m_config.PartyFrames.ShowName,
@@ -1225,6 +1227,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdHealthTextGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.HealthText,
                 Title = Strings.GroupHealthText,
                 Description = Strings.GroupHealthTextHint,
                 Toggle = m_config.PartyFrames.ShowHealthText,
@@ -1290,6 +1293,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdManaGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.Mana,
                 Title = Strings.GroupMana,
                 Description = Strings.GroupManaHint,
                 Toggle = m_config.PartyFrames.ShowMana,
@@ -1398,6 +1402,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdIconGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.JobIcon,
                 Title = Strings.GroupJobIcon,
                 Description = Strings.GroupJobIconHint,
                 Toggle = m_config.PartyFrames.ShowJobIcon,
@@ -2244,6 +2249,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdLeaderGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.Leader,
                 Title = Strings.GroupLeader,
                 Description = Strings.GroupLeaderHint,
                 Toggle = m_config.PartyFrames.ShowLeaderIcon,
@@ -2296,6 +2302,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdNumberGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.PartyNumber,
                 Title = Strings.GroupPartyNumber,
                 Description = Strings.GroupPartyNumberHint,
                 Toggle = m_config.PartyFrames.ShowPartyNumber,
@@ -2370,6 +2377,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdAuraGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.Debuffs,
                 Title = Strings.GroupAuras,
                 Description = Strings.GroupAurasHint,
             },
@@ -2493,6 +2501,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdBuffGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.OwnBuffs,
                 Title = Strings.GroupBuffs,
                 Description = Strings.GroupBuffsHint,
             },
@@ -2574,6 +2583,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdOtherGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.OtherBuffs,
                 Title = Strings.GroupOthers,
                 Description = Strings.GroupOthersHint,
             },
@@ -2634,6 +2644,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdCleanseGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.CleanseMark,
                 Title = Strings.GroupCleanse,
                 Description = Strings.GroupCleanseHint,
             },
@@ -2746,6 +2757,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdRaiseMarkGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.RaiseMark,
                 Title = Strings.GroupRaiseMark,
                 Description = Strings.GroupRaiseMarkHint,
             },
@@ -2832,6 +2844,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             IdRescueGroup,
             new Chrome.GroupHead
             {
+                Eye = PreviewPart.RescueIcon,
                 Title = Strings.GroupRescue,
                 Description = Strings.GroupRescueHint,
             },

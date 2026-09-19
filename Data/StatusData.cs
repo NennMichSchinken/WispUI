@@ -1,3 +1,4 @@
+using System;
 using WispUI.Core;
 
 namespace WispUI.Data;
@@ -198,7 +199,7 @@ internal static class StatusData
     /// broken one.
     /// </para>
     /// </summary>
-    public static void Prime()
+    public static void Prime(int previewSlots)
     {
         Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.Status>? sheet =
             Services.Data.GetExcelSheet<Lumina.Excel.Sheets.Status>();
@@ -263,7 +264,7 @@ internal static class StatusData
 
         s_facts = facts;
         s_invulnerable = invulnerable;
-        BuildPreview(sheet);
+        BuildPreview(sheet, previewSlots);
     }
 
     /// <summary>
@@ -284,17 +285,23 @@ internal static class StatusData
     /// <summary>An invulnerability the preview can show, or zero if none resolved.</summary>
     public static uint PreviewInvulnerability { get; private set; }
 
-    private static void BuildPreview(Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.Status> sheet)
+    private static void BuildPreview(Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.Status> sheet, int slots)
     {
+        // 🔴 As many as a frame can show, asked for by the caller rather than written down
+        // here. It was four while a frame could show eight, so turning the count up past four
+        // did nothing and read as a broken slider (Florian, 2026-09-19). A number that stands
+        // for "as many as fit" has to come from whoever knows how many fit.
+        slots = Math.Max(1, slots);
         // 🔴 The highest ranked, not the first found. The sheet's early rows are leftovers and
         // oddities, and a preview built from them showed four effects nobody recognises — the
         // point of a preview is that it looks like a frame in a real fight (Florian,
         // 2026-09-13). PartyListPriority is the game saying which effects it would actually
         // put on a party list, which is exactly the question.
-        var picked = new uint[4];
-        var benefits = new uint[4];
+        var picked = new uint[slots];
+        var benefits = new uint[slots];
         var pickedRank = new byte[picked.Length];
         var benefitRank = new byte[benefits.Length];
+        int half = Math.Max(1, picked.Length / 2);
 
         foreach (Lumina.Excel.Sheets.Status row in sheet)
         {
@@ -311,14 +318,14 @@ internal static class StatusData
 
                 case 2:
                     // Half the row cleansable and half not, so both looks are on screen: the
-                    // first two slots are kept for effects Esuna takes off.
+                    // front half is kept for effects Esuna takes off.
                     if (row.CanDispel)
                     {
-                        Rank(picked, pickedRank, 0, 2, row.RowId, row.PartyListPriority);
+                        Rank(picked, pickedRank, 0, half, row.RowId, row.PartyListPriority);
                     }
                     else
                     {
-                        Rank(picked, pickedRank, 2, 4, row.RowId, row.PartyListPriority);
+                        Rank(picked, pickedRank, half, picked.Length, row.RowId, row.PartyListPriority);
                     }
 
                     break;
