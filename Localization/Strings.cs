@@ -379,4 +379,62 @@ internal static class Strings
     public const string EditModeOn = "Edit Mode is on";
     public const string EditModeHint = "Shows eight placeholder frames so the layout can be set without a party.";
     public const string PreviewName = "Placeholder";
+
+    // Role names, said the way a player says them. Used where a profile names a role.
+    public const string RoleTank = "Tanks";
+    public const string RoleHealer = "Healers";
+    public const string RoleDps = "Damage";
+
+    // --- Profiles ------------------------------------------------------------
+    public const string GroupProfiles = "Profiles";
+    public const string GroupProfilesHint = "One set of settings per job, and the one at the top for everything else.";
+    public const string ProfileDefaultName = "Default";
+    public const string ProfileUnnamed = "Unnamed";
+    public const string ProfileAdd = "Add a profile";
+    public const string ProfileNewName = "New profile";
+    public const string ProfileRename = "Rename";
+    public const string ProfileRemove = "Remove";
+    public const string ProfileDuplicate = "Duplicate";
+    public const string ProfileFallbackScope = "everything not spoken for";
+    public const string ProfileFallbackKeep = "The top profile catches every job no other one claims, so it stays.";
+    public const string ProfileFull = "Twenty profiles is the most there is room for.";
+    public const string ProfileActiveTooltip = "Put this profile on.";
+    public const string ProfileManualOnly = "only by hand";
+
+    public const string GroupProfileScope = "Where it applies";
+    public const string ProfileAutomatic = "Switch automatically";
+    public const string ProfileAutomaticTooltip =
+        "Changing to a job this profile covers puts it on. Never during a fight — the switch waits until the fight is over.";
+    public const string ProfileAppliesTo = "Applies to";
+    public const string ProfileScopeRole = "A role";
+    public const string ProfileScopeJobs = "Named jobs";
+    public const string ProfileRole = "Role";
+    public const string ProfileJobs = "Jobs";
+    public const string ProfileJobsNone = "No job picked yet.";
+    public const string ProfileJobAdd = "Add a job";
+    public const string ProfileScopeBeaten = "A profile naming this job on its own wins over one naming its role.";
+
+    public const string GroupProfileShare = "Share";
+    public const string ProfileThisOne = "This profile";
+    public const string ProfileCopyCode = "Copy code";
+    public const string ProfileCopied = "Copied. Paste it wherever you like.";
+    public const string ProfileFromCode = "From a code";
+    public const string ProfilePaste = "Paste";
+    public const string ProfilePasteHint = "Pasting asks what to take.";
+
+    public const string ProfilePasteTitle = "A profile from a code";
+    public const string ProfilePasteTake = "What to take";
+    public const string ProfilePasteInto = "Put it";
+    public const string ProfilePasteAsNew = "In a new profile";
+    public const string ProfilePasteOverCurrent = "Over the one on screen";
+    public const string ProfilePasteApply = "Take it";
+    public const string ProfilePasteCancel = "Leave it";
+    public const string ProfilePasteNothing = "Nothing ticked.";
+    public const string ProfilePartPartyFrames = "Party frames";
+    public const string ProfilePartScope = "Which jobs it is for";
+
+    public const string ProfileCodeEmpty = "There is nothing on the clipboard.";
+    public const string ProfileCodeNotOurs = "That is not a WispUI profile code.";
+    public const string ProfileCodeNewer = "That code is from a newer version of WispUI.";
+    public const string ProfileCodeUnreadable = "That code is damaged. Ask for it again — chat windows sometimes cut them.";
 }

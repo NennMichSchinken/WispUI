@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 11;
+    public const int CurrentVersion = 12;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -104,6 +104,16 @@ public sealed class Configuration : IPluginConfiguration
     public bool PartyFramesEnabled { get; set; } = true;
 
     public PartyFramesConfig PartyFrames { get; set; } = new();
+
+    /// <summary>
+    /// The saved profiles and which one is on.
+    /// <para>
+    /// 🔴 The blocks above are still what everything reads. A profile is written into them
+    /// when it is put on and read back out before it is replaced — see <see cref="ProfileSet"/>
+    /// for why the renderer never goes through a profile to find its own settings.
+    /// </para>
+    /// </summary>
+    public ProfileSet Profiles { get; set; } = new();
 
     /// <summary>
     /// The party frames' own settings. Split the way the whole suite is split: what you see
@@ -897,7 +907,56 @@ public sealed class Configuration : IPluginConfiguration
     {
         this.Scale = float.IsFinite(this.Scale) ? Math.Clamp(this.Scale, MinScale, MaxScale) : 1f;
         this.PreviewCount = this.PreviewCount is 1 or 4 or 8 ? this.PreviewCount : 4;
+        this.PartyFrames ??= new PartyFramesConfig();
         this.PartyFrames.Sanitise();
+        this.Profiles ??= new ProfileSet();
+        this.Profiles.Sanitise();
+    }
+
+    /// <summary>
+    /// Writes what is on screen back into the profile it came from. Called before another
+    /// profile is put on, and on the way out — otherwise everything since the last switch
+    /// belongs to nobody.
+    /// </summary>
+    internal void StoreIntoActiveProfile()
+    {
+        Profile active = this.Profiles.Current;
+        active.PartyFramesEnabled = this.PartyFramesEnabled;
+        Profile.Copy(this.PartyFrames, active.PartyFrames);
+    }
+
+    /// <summary>
+    /// Puts a profile on: its settings become the live ones. What was on screen is stored
+    /// first, so switching never loses the last thing somebody changed.
+    /// </summary>
+    internal void UseProfile(int index)
+    {
+        if (index < 0 || index >= this.Profiles.Items.Count || index == this.Profiles.Active)
+        {
+            return;
+        }
+
+        this.StoreIntoActiveProfile();
+        this.Profiles.Active = index;
+        this.ApplyActiveProfile();
+    }
+
+    /// <summary>
+    /// Makes the profile at <see cref="ProfileSet.Active"/> the live settings, WITHOUT
+    /// storing what was there first.
+    /// <para>
+    /// 🔴 Its own method because of one case: the profile that was on has just been
+    /// removed. Going through <see cref="UseProfile"/> there would store the removed
+    /// profile's settings into whichever profile takes over — deleting one profile would
+    /// quietly overwrite another, which is the worst thing a delete button can do.
+    /// </para>
+    /// </summary>
+    internal void ApplyActiveProfile()
+    {
+        Profile now = this.Profiles.Current;
+        this.PartyFramesEnabled = now.PartyFramesEnabled;
+        Profile.Copy(now.PartyFrames, this.PartyFrames);
+        this.MarkDirty();
     }
 
     internal static Configuration Load()
@@ -908,9 +967,16 @@ public sealed class Configuration : IPluginConfiguration
         {
             Migrate(config);
             config.Version = CurrentVersion;
+
+            // Before the write, not after: a migrated file is written once here and then
+            // not again until something changes, so a value put right afterwards would
+            // stay wrong on disk for as long as nobody touched a setting.
+            config.Sanitise();
             config.Write();
+            return config;
         }
-        else if (config.Version > CurrentVersion)
+
+        if (config.Version > CurrentVersion)
         {
             // Written by a build newer than this one. There is no migrating backwards, and
             // the version is NOT corrected: saying it is version 11 when it holds whatever
@@ -973,6 +1039,15 @@ public sealed class Configuration : IPluginConfiguration
     internal void Write()
     {
         m_dirtySince = DateTime.MaxValue;
+
+        // 🔴 Every write, not only when a profile is switched. The live blocks are the truth
+        // while the game runs and the profile is a copy, so a file written between those two
+        // moments holds a profile that disagrees with the settings beside it — and the
+        // disagreement only shows up later, as a switch away and back quietly undoing an
+        // afternoon's work. The copy is a few dozen assignments after a second and a half of
+        // quiet; being certain is worth more than that.
+        this.StoreIntoActiveProfile();
+
         Services.PluginInterface.SavePluginConfig(this);
     }
 
@@ -1202,6 +1277,23 @@ public sealed class Configuration : IPluginConfiguration
             {
                 config.PartyFrames.RaiseMark = (int)Hud.FrameMarkStyle.Border;
             }
+        }
+
+        if (config.Version < 12)
+        {
+            // Everything somebody already had becomes the profile that catches every job.
+            // Nothing they see changes: the fallback holds exactly what was live, it is
+            // what is on, and a player who never opens the Profile screen carries on with
+            // one profile they were never asked about.
+            config.Profiles ??= new ProfileSet();
+
+            if (config.Profiles.Items.Count == 0)
+            {
+                config.Profiles.Items.Add(ProfileSet.NewFallback());
+            }
+
+            config.Profiles.Active = 0;
+            config.StoreIntoActiveProfile();
         }
     }
 

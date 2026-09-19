@@ -1953,6 +1953,107 @@ internal static class Chrome
     }
 
 
+    /// <summary>
+    /// The mark that says "this one of several", at the left of a row.
+    /// <para>
+    /// A dot rather than a tick, because the two say different things: a tick is a setting
+    /// that is on, and several can be on at once. This is a choice among rows where exactly
+    /// one holds, and a filled circle is what that has looked like since before anybody
+    /// wrote a style guide.
+    /// </para>
+    /// </summary>
+    public static bool RadioDot(string id, float x, float y, bool on, string? tooltip = null)
+    {
+        float box = RowHeight();
+        float radius = Tokens.Metric.RadioDot;
+        Vector2 centre = new(MathF.Round(x + (radius * 1.5f)), MathF.Round(y + (box * 0.5f)));
+
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.InvisibleButton(id, new Vector2(radius * 3f, box));
+        bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        uint edge = on ? Tokens.Col.Gold : (hovered ? Tokens.Col.GoldDim : Tokens.Col.ControlEdge);
+
+        dl.AddCircle(centre, radius, edge, 0, Tokens.Line(1f));
+
+        if (on)
+        {
+            dl.AddCircleFilled(centre, MathF.Max(1f, radius - Tokens.Px(3f)), Tokens.Col.Gold);
+        }
+
+        if (tooltip is not null && hovered)
+        {
+            TooltipOnHover(tooltip);
+        }
+
+        return ImGui.IsItemClicked();
+    }
+
+    /// <summary>
+    /// A name being typed: an inline field where a piece of text normally sits.
+    /// <para>
+    /// The same shape as the number cell a slider carries, and for the same reason — the
+    /// thing you are editing stays where it was rather than moving into a dialogue. Which
+    /// row is being renamed is the caller's business, not a static field here: a widget in
+    /// an immediate-mode interface has no state of its own to keep (CLAUDE.md §7.9).
+    /// </para>
+    /// </summary>
+    /// <param name="focus">
+    /// True on the first frame of an edit, to put the caret in the field. The caller clears
+    /// it; asking for focus every frame would make the field impossible to click out of.
+    /// </param>
+    /// <returns>True on the frame the edit finished, whether by Enter or by clicking away.</returns>
+    public static bool NameField(
+        string id,
+        float x,
+        float y,
+        float width,
+        int limit,
+        ref string text,
+        ref bool focus)
+    {
+        float height = RowHeight();
+        float fieldHeight = Tokens.Metric.ValueEditHeight;
+        float pad = MathF.Round((fieldHeight - Ink.LineHeight(Ink.Role.Body)) * 0.5f);
+
+        ImGui.PushID(id);
+
+        if (focus)
+        {
+            ImGui.SetKeyboardFocusHere();
+            focus = false;
+        }
+
+        ImGui.SetCursorScreenPos(new Vector2(x, MathF.Round(y + ((height - fieldHeight) * 0.5f))));
+        ImGui.SetNextItemWidth(width);
+        ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, Tokens.Radius.Small);
+        ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, Tokens.Line(1f));
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(Tokens.Space.Sm, pad));
+        ImGui.PushStyleColor(ImGuiCol.FrameBg, Tokens.Col.Input);
+        ImGui.PushStyleColor(ImGuiCol.Border, Tokens.Col.ControlEdge);
+        ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.GoldHi);
+        Ink.Push(Ink.Role.Body);
+
+        bool submitted = ImGui.InputText(
+            IdNameField,
+            ref text,
+            limit,
+            ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll);
+
+        bool finished = submitted || ImGui.IsItemDeactivated();
+
+        Ink.Pop(Ink.Role.Body);
+        ImGui.PopStyleColor(3);
+        ImGui.PopStyleVar(3);
+        ImGui.PopID();
+
+        return finished;
+    }
+
+    private const string IdNameField = "##wisp-name-field";
+
     /// <summary>The divider a row draws above itself, at the full width of its group.</summary>
     public static void RowDivider(float left, float right, float y) =>
         Hairline(

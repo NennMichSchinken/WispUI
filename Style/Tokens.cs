@@ -581,6 +581,14 @@ internal static class Tokens
 
         public static float TitleButton => Px(20f);
 
+        /// <summary>
+        /// How far a profile row indents its name, to leave the active dot its own column.
+        /// </summary>
+        public static float ProfileDotColumn => Px(22f);
+
+        /// <summary>The radius of the dot that marks the chosen row.</summary>
+        public static float RadioDot => Px(5f);
+
         public static float NavWidth => Px(205f);
         public static float NavItemHeight => Px(35f);
         public static float NavIndent => Px(16f);
