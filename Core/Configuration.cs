@@ -240,8 +240,15 @@ public sealed class Configuration : IPluginConfiguration
 
         // --- mana ---------------------------------------------------------------
 
-        /// <summary>The master switch. The three role switches decide who it then applies to.</summary>
-        public bool ShowMana { get; set; } = true;
+        /// <summary>
+        /// The master switch. The three role switches decide who it then applies to.
+        /// <para>
+        /// Off out of the box (Florian, 2026-09-19). A second bar on every frame is a lot of
+        /// height and a lot of ink for something most people never look at, and the ones who
+        /// do — a healer watching their own, a Summoner — know they want it.
+        /// </para>
+        /// </summary>
+        public bool ShowMana { get; set; }
 
         /// <summary>0 a thin strip along the bottom edge, 1 a bar of its own.</summary>
         public int ManaStyle { get; set; }
@@ -555,8 +562,16 @@ public sealed class Configuration : IPluginConfiguration
 
         public int OtherMaxCount { get; set; } = 3;
 
-        /// <summary>One of <see cref="Hud.FrameMarkStyle"/>.</summary>
-        public int CleanseMark { get; set; } = (int)Hud.FrameMarkStyle.Border;
+        /// <summary>
+        /// One of <see cref="Hud.FrameMarkStyle"/>. None out of the box.
+        /// <para>
+        /// 🔴 The marks are the loudest thing a frame can do — a border or a wash across the
+        /// whole of it — and a newcomer meeting one has no way to know what it is telling
+        /// them. Loud belongs to somebody who asked for it (Florian, 2026-09-19). The icons
+        /// still say what is on a person either way; this is only about shouting it.
+        /// </para>
+        /// </summary>
+        public int CleanseMark { get; set; } = (int)Hud.FrameMarkStyle.None;
 
         /// <summary>
         /// Show the cleanse mark only while on a job that can actually cleanse.
@@ -598,8 +613,9 @@ public sealed class Configuration : IPluginConfiguration
         // Cleanse says "you have to do something". This says "somebody already is" — which is
         // why it is worth a mark of its own rather than a second meaning for the first one.
 
-        /// <summary>One of <see cref="Hud.FrameMarkStyle"/>.</summary>
-        public int RaiseMark { get; set; } = (int)Hud.FrameMarkStyle.Border;
+        /// <summary>One of <see cref="Hud.FrameMarkStyle"/>. None out of the box, with the
+        /// cleanse mark and for the same reason.</summary>
+        public int RaiseMark { get; set; } = (int)Hud.FrameMarkStyle.None;
 
         /// <summary>
         /// A spring green, and deliberately NOT the healer role colour <c>#6EF54D</c>: the mark
