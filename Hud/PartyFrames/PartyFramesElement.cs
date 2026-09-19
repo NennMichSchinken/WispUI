@@ -903,7 +903,7 @@ internal sealed class PartyFramesElement : HudElement
 
                 // Said whether or not the game is told as well: the two are separate features
                 // and the hook is only in place when the player asked for it.
-                MouseoverCasting.PointAt(target.GameObjectId, target.Address);
+                MouseoverCasting.PointAt(target.GameObjectId);
                 m_pointedAt = true;
 
                 if (cfg.MouseoverTarget)
@@ -1212,7 +1212,7 @@ internal sealed class PartyFramesElement : HudElement
         if (m_pointedAt)
         {
             m_pointedAt = false;
-            MouseoverCasting.PointAt(0ul, 0);
+            MouseoverCasting.PointAt(0ul);
         }
 
         if (!m_heldMouseOver)

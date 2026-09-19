@@ -2216,34 +2216,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         m_actionChoices.AddRange(ActionList.For(jobId));
     }
 
-    /// <summary>
-    /// What a binding is called in its row: the action's own name, or what the two built-in
-    /// kinds do. An action the job no longer has falls back to its number rather than to an
-    /// empty row, so it can still be seen and removed.
-    /// </summary>
-    private string BindingLabel(MouseBinding binding, ActionEntry[] actions)
-    {
-        switch (binding.Kind)
-        {
-            case BindingKind.Target:
-                return Strings.BindingTarget;
-
-            case BindingKind.ContextMenu:
-                return Strings.BindingContextMenu;
-
-            default:
-                for (int i = 0; i < actions.Length; i++)
-                {
-                    if (actions[i].Id == binding.ActionId)
-                    {
-                        return actions[i].Name;
-                    }
-                }
-
-                return Strings.BindingAction;
-        }
-    }
-
     /// <summary>The leader's mark. The same four rows every badge on a frame gets.</summary>
     private Chrome.GroupScope DrawLeaderIcon(float x, float y, float width, out float contentHeight)
     {

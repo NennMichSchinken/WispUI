@@ -337,8 +337,13 @@ internal sealed class PartySnapshot
 
         for (int i = 0; i < party.Length && count < Capacity; i++)
         {
-            var member = party[i];
-            if (member is null)
+            // 🔴 The address, not party[i]. Dalamud's indexer wraps the member in a new
+            // object on every single access — eight of them a frame, for numbers that are
+            // sitting in a flat structure the whole time. NativeUi.ReadMember takes the same
+            // pointer the indexer would have wrapped and reads the fields out of it.
+            nint address = party.GetPartyMemberAddress(i);
+
+            if (!NativeUi.ReadMember(address, out NativeUi.MemberFacts member))
             {
                 continue;
             }
@@ -363,7 +368,7 @@ internal sealed class PartySnapshot
             if (slot.NameKey != nameKey || slot.Name is null)
             {
                 slot.NameKey = nameKey;
-                slot.Name = member.Name.ToString();
+                slot.Name = NativeUi.MemberName(address);
             }
 
             slot.EntityId = entityId;
@@ -386,7 +391,7 @@ internal sealed class PartySnapshot
             // The first is empty for anybody not loaded, which is exactly when the other two
             // matter — and a frame that forgets what somebody does is the one that needed to
             // say it most.
-            uint job = member.ClassJob.RowId;
+            uint job = member.ClassJob;
 
             if (job == 0)
             {
@@ -395,19 +400,22 @@ internal sealed class PartySnapshot
 
             slot.JobId = m_jobs.Resolve(nameKey, job);
             slot.Role = Jobs.Role(slot.JobId);
-            slot.Hp = member.CurrentHP;
-            slot.MaxHp = member.MaxHP;
-            slot.Mp = member.CurrentMP;
-            slot.MaxMp = member.MaxMP;
-            slot.Shield = NativeUi.MemberShield(member.Address);
-            slot.IsLocalPlayer = entityId == Services.Objects.LocalPlayer?.EntityId;
+            slot.Hp = member.Hp;
+            slot.MaxHp = member.MaxHp;
+            slot.Mp = member.Mp;
+            slot.MaxMp = member.MaxMp;
+            slot.Shield = member.Shield;
+            // The one already read above, not a fresh ask. Reading it here walked the object
+            // table and type-tested the result once per member, for an answer that cannot
+            // change inside the loop — a list already walked is not walked again (§5.2).
+            slot.IsLocalPlayer = entityId != 0u && entityId == m_localEntityId;
             slot.IsLeader = i == leader;
 
             // Zero maximum health is the party list saying it has nothing for this slot.
             // Current health can legitimately be zero, so it is the maximum that is asked.
-            slot.HasData = member.MaxHP > 0;
-            slot.Presence = this.Presence(member, here, nameKey);
-            slot.Address = member.Address;
+            slot.HasData = member.MaxHp > 0;
+            slot.Presence = this.Presence(in member, here, nameKey);
+            slot.Address = address;
 
             count++;
         }
@@ -889,9 +897,9 @@ internal sealed class PartySnapshot
     /// different one, and somebody who has logged out has none at all.
     /// </para>
     /// </summary>
-    private PartyPresence Presence(IPartyMember member, uint here, ulong who)
+    private PartyPresence Presence(in NativeUi.MemberFacts member, uint here, ulong who)
     {
-        uint territory = member.Territory.RowId;
+        uint territory = member.Territory;
 
         if (territory == 0)
         {
