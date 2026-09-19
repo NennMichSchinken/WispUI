@@ -92,6 +92,18 @@ internal sealed class ArrowSelectorOptions<T>
     /// </para>
     /// </summary>
     public string? Placeholder { get; init; }
+
+    /// <summary>
+    /// Whether an item is still on offer, or null to offer all of them.
+    /// <para>
+    /// For a list of rows that each pick one thing: a choice already made by another row is
+    /// no longer worth showing, and a list that keeps shrinking as it fills is easier to read
+    /// than one that never changes (Florian, 2026-09-19). Only the open list is affected —
+    /// the face still draws whatever the row holds, because a row must be able to show a
+    /// choice this predicate would now hide.
+    /// </para>
+    /// </summary>
+    public Func<T, bool>? Available { get; init; }
 }
 
 /// <summary>
@@ -137,6 +149,13 @@ internal sealed class ArrowSelector<T>
     /// </summary>
     private uint m_openId;
 
+    /// <summary>
+    /// Set by <see cref="RequestOpen"/> and consumed by the next drawing, which is what makes
+    /// "open the list for the row that is about to appear" expressible: the row does not
+    /// exist yet when the button that made it was pressed.
+    /// </summary>
+    private bool m_openRequested;
+
     private bool m_focusSearch;
     private string m_query = string.Empty;
 
@@ -158,6 +177,13 @@ internal sealed class ArrowSelector<T>
 
     /// <summary>How tall the control is. The caller advances by this plus a rhythm token.</summary>
     public static float Height => Tokens.Metric.FieldControlHeight;
+
+    /// <summary>
+    /// Opens the list on the next drawing of this selector, as though its face had been
+    /// clicked. For a row added by a button: the row it belongs to is drawn the frame after
+    /// the press, so there is nothing to click yet when the press happens.
+    /// </summary>
+    public void RequestOpen() => m_openRequested = true;
 
     /// <summary>
     /// Draws the control and reports whether the selection changed this frame. A change is
@@ -255,7 +281,12 @@ internal sealed class ArrowSelector<T>
         // whatever the caller has pushed around it.
         uint popupId = ImGui.GetID(m_idPopup);
 
-        if (faceClicked && m_options.EnablePopupList)
+        // Asked for from outside, and taken by whichever drawing comes first — which is the
+        // caller's job to arrange, by asking immediately before the row it means.
+        bool opening = m_openRequested;
+        m_openRequested = false;
+
+        if ((faceClicked || opening) && m_options.EnablePopupList)
         {
             m_openId = popupId;
             m_focusSearch = m_options.EnableSearch;
@@ -532,7 +563,10 @@ internal sealed class ArrowSelector<T>
                     ImGui.SetCursorPos(new Vector2(Tokens.Space.Sm, Tokens.Space.Sm));
                     Ink.Push(Ink.Role.Small);
                     ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.InkFaint);
-                    ImGui.TextUnformatted(Strings.SearchNoMatch);
+
+                    // Two different nothings. Nothing typed and nothing shown means the
+                    // caller has taken every item off offer, which is not a failed search.
+                    ImGui.TextUnformatted(m_query.Length == 0 ? Strings.SelectorEmpty : Strings.SearchNoMatch);
                     ImGui.PopStyleColor();
                     Ink.Pop(Ink.Role.Small);
                 }
@@ -618,7 +652,7 @@ internal sealed class ArrowSelector<T>
 
     private int CountMatches()
     {
-        if (m_query.Length == 0)
+        if (m_query.Length == 0 && m_options.Available is null)
         {
             return m_items.Count;
         }
@@ -635,7 +669,12 @@ internal sealed class ArrowSelector<T>
         return matches;
     }
 
+    /// <summary>
+    /// Whether an item is shown in the open list: what the caller still offers, narrowed by
+    /// what has been typed.
+    /// </summary>
     private bool Matches(T item) =>
-        m_query.Length == 0
-        || m_options.Label(item).Contains(m_query, StringComparison.OrdinalIgnoreCase);
+        (m_options.Available is null || m_options.Available(item))
+        && (m_query.Length == 0
+            || m_options.Label(item).Contains(m_query, StringComparison.OrdinalIgnoreCase));
 }

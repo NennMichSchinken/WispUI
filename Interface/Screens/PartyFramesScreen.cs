@@ -334,6 +334,15 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private readonly ArrowSelector<ActionEntry> m_actionPicker;
     private readonly ArrowSelector<ActionEntry> m_spellPicker;
 
+    /// <summary>The spell the row being drawn holds, so the picker can keep offering it.</summary>
+    private uint m_spellHeld;
+
+    /// <summary>The row whose list should open on its first drawing, or -1 for none.</summary>
+    private int m_spellOpenRow = -1;
+
+    /// <summary>The mouseover rows being drawn, which is what "already taken" is measured against.</summary>
+    private System.Collections.Generic.List<MouseoverSpell>? m_spellRows;
+
     /// <summary>Which job the bindings tab is showing, and which row is waiting for a press.</summary>
     private int m_bindingJob = -1;
     private int m_listening = -1;
@@ -499,8 +508,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         // Two pickers over one list of choices. Same control, same behaviour, different words
         // on an empty row — a binding row is waiting for an action and a mouseover row for a
         // spell, and each list should say what it is asking for.
-        m_actionPicker = ActionPicker(IdBindingAction, m_actionChoices, Strings.BindingPick);
-        m_spellPicker = ActionPicker(IdSpellAction, m_actionChoices, Strings.MouseoverPick);
+        m_actionPicker = ActionPicker(IdBindingAction, m_actionChoices, Strings.BindingPick, null);
+
+        // The spell list hides what it already holds. Only that list: a second row casting
+        // the same spell is nothing but a mistake, while the bindings list has two rows that
+        // are not actions at all and no such rule to apply.
+        m_spellPicker = ActionPicker(IdSpellAction, m_actionChoices, Strings.MouseoverPick, this.SpellOnOffer);
 
         m_iconPosition = new ArrowSelector<Anchor>(
             IdIconPosition,
@@ -1934,6 +1947,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     {
         ActionEntry[] actions = ActionList.For(job.Id);
 
+        // What the picker measures "already taken" against, for as long as this list is the
+        // one being drawn.
+        m_spellRows = spells;
+
         float toggleWidth = Tokens.Px(30f);
         float trash = Tokens.Metric.TitleButton;
         float gap = Tokens.Space.Md;
@@ -1944,9 +1961,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         int remove = -1;
 
-        // 🔴 Its own id scope, and not only for tidiness: the action picker is one object
-        // shared by both lists, and without this the second list's rows would resolve to the
-        // same ids as the first's.
+        // 🔴 Its own id scope, and not only for tidiness: every row of every list is the same
+        // few controls, and the id is the only thing telling one row's popup from another's.
         ImGui.PushID(IdMouseoverRow);
 
         for (int i = 0; i < spells.Count; i++)
@@ -1955,6 +1971,20 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
             ImGui.PushID(i);
             Chrome.RowDivider(group.ContentX, group.ContentX + group.ContentWidth, rowY);
+
+            // What this row holds, for the length of its own drawing. The picker asks it
+            // while the list is open, so that a row keeps offering its own spell while the
+            // others are hidden — otherwise a row could not show what it already is.
+            m_spellHeld = spell.ActionId;
+
+            // The row a press of "Add spell" made, which did not exist yet when the press
+            // happened. Opening it here saves the click that only says "yes, the row I just
+            // asked for" (Florian, 2026-09-19).
+            if (i == m_spellOpenRow)
+            {
+                m_spellOpenRow = -1;
+                m_spellPicker.RequestOpen();
+            }
 
             int pick = this.ActionIndex(spell.ActionId);
 
@@ -1983,6 +2013,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         }
 
         ImGui.PopID();
+
+        // Whatever is left has gone stale — a row taken away before it was ever drawn. Only
+        // ever cleared here, which is before the button below can ask for a new one.
+        m_spellOpenRow = -1;
 
         // After the loop, never inside it: taking a row out while walking the list is how a
         // row gets skipped and an index ends up pointing at the wrong spell.
@@ -2030,7 +2064,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             // Empty, and the row says so. A new row started on the job's first action, which
             // read as a choice somebody had made and had to be undone before it could be made
             // (Florian, 2026-09-19).
-            m_config.PartyFrames.Mouseover.Edit(job.Id).Add(new MouseoverSpell());
+            System.Collections.Generic.List<MouseoverSpell> rows = m_config.PartyFrames.Mouseover.Edit(job.Id);
+
+            // Noted before the row is added, so it is the index the new row will have.
+            m_spellOpenRow = rows.Count;
+            rows.Add(new MouseoverSpell());
             m_config.MarkDirty();
         }
 
@@ -2048,7 +2086,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private static ArrowSelector<ActionEntry> ActionPicker(
         string id,
         System.Collections.Generic.IReadOnlyList<ActionEntry> choices,
-        string placeholder) =>
+        string placeholder,
+        Func<ActionEntry, bool>? available) =>
         new(
             id,
             choices,
@@ -2059,6 +2098,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 EnableSearch = true,
                 ShowCounter = false,
                 Placeholder = placeholder,
+                Available = available,
 
                 // No arrows and no box. Stepping through a job's whole action list one at a
                 // time is not a way anybody would use it, and a field drawn round the name
@@ -2084,6 +2124,39 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                     }
                 },
             });
+
+    /// <summary>
+    /// Whether an action is still worth offering in the mouseover list: one nobody has taken,
+    /// or the one the row being drawn already holds.
+    /// <para>
+    /// The second half is not a nicety. Without it a row would hide its own spell from its
+    /// own list, so opening it would show a list that does not contain what the row says.
+    /// </para>
+    /// </summary>
+    private bool SpellOnOffer(ActionEntry action)
+    {
+        if (action.Id == m_spellHeld)
+        {
+            return true;
+        }
+
+        System.Collections.Generic.List<MouseoverSpell>? rows = m_spellRows;
+
+        if (rows is null)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < rows.Count; i++)
+        {
+            if (rows[i].ActionId == action.Id)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     /// <summary>
     /// Where an action sits in the picker's list, or -1 for a row that has not been filled
