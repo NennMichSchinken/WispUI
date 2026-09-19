@@ -61,8 +61,12 @@ public sealed class Plugin : IDalamudPlugin
 
         // Made now, put in place only if the player has asked for it. The hook it owns is the
         // suite's one reach into what a key press does, so it is never installed on spec.
+        // 🔴 Made, and left alone. Asking which job is being played reads the object table,
+        // and the object table may only be read on the main thread — which the constructor is
+        // not (verified the hard way: the plugin failed to load, 2026-09-19). Nothing is lost
+        // by waiting: the hook starts out uninstalled, which is the right state until a tick
+        // says otherwise, and the first tick is a few milliseconds away.
         m_mouseover = new MouseoverCasting();
-        this.SyncMouseover();
 
         // The pointer switch is shared by everything running in the game, so its state is put
         // back to the game's at load rather than assumed. From here on it has one writer and
