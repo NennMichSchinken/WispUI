@@ -104,6 +104,17 @@ internal sealed class ArrowSelectorOptions<T>
     /// </para>
     /// </summary>
     public Func<T, bool>? Available { get; init; }
+
+    /// <summary>
+    /// What an item does, shown under its name while the pointer rests on it in the open
+    /// list, or null for a list whose names say everything.
+    /// <para>
+    /// Asked only for the row under the pointer, so the text may be fetched on the first ask
+    /// and kept — which is how the callers do it, rather than reading a sheet for a list
+    /// nobody has opened.
+    /// </para>
+    /// </summary>
+    public Func<T, string>? Describe { get; init; }
 }
 
 /// <summary>
@@ -478,6 +489,14 @@ internal sealed class ArrowSelector<T>
             dl.PopClipRect();
         }
 
+        // On the row itself as well as in the open list (Florian, 2026-09-19). A list you
+        // have filled in is the one you come back to, and having to open a picker to be
+        // reminded what the spell in it does would be the wrong way round.
+        if (hovered && !unset)
+        {
+            this.Explain(item);
+        }
+
         return clicked;
     }
 
@@ -647,7 +666,32 @@ internal sealed class ArrowSelector<T>
             ink,
             m_options.Label(item));
 
+        if (hovered)
+        {
+            this.Explain(item);
+        }
+
         return clicked;
+    }
+
+    /// <summary>
+    /// The tooltip for whatever the pointer is on: what the item is called, and what it does
+    /// underneath. Nothing at all when the list has no descriptions or this item has no text,
+    /// rather than a box with a heading and a blank.
+    /// </summary>
+    private void Explain(T item)
+    {
+        if (m_options.Describe is null)
+        {
+            return;
+        }
+
+        string text = m_options.Describe(item);
+
+        if (text.Length > 0)
+        {
+            Chrome.Tooltip(m_options.Label(item), text);
+        }
     }
 
     private int CountMatches()

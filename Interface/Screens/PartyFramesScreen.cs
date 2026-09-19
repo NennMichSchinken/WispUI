@@ -2100,6 +2100,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 Placeholder = placeholder,
                 Available = available,
 
+                // What the game says the action does, on hover — in the open list and on the
+                // row once it is chosen. Read at the moment it is wanted and kept.
+                Describe = static action => ActionList.Describe(action.Id),
+
                 // No arrows and no box. Stepping through a job's whole action list one at a
                 // time is not a way anybody would use it, and a field drawn round the name
                 // would make the row read as two settings rather than one binding (Florian,
