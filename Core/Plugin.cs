@@ -25,6 +25,9 @@ public sealed class Plugin : IDalamudPlugin
     /// <summary>The one feature that hooks the game. Owned here so it is always disposed.</summary>
     private readonly MouseoverCasting m_mouseover;
 
+    /// <summary>Watches the job and puts the matching profile on. Two numbers when idle.</summary>
+    private readonly ProfileWatch m_profiles;
+
     public Plugin(IDalamudPluginInterface pluginInterface)
     {
         Services.Initialize(pluginInterface);
@@ -72,6 +75,10 @@ public sealed class Plugin : IDalamudPlugin
         // says otherwise, and the first tick is a few milliseconds away.
         m_mouseover = new MouseoverCasting();
 
+        // Same reason as the hook above: it wants to know which job is being played, and
+        // the constructor is not the main thread. It works that out on its first tick.
+        m_profiles = new ProfileWatch(m_config);
+
         // The pointer switch is shared by everything running in the game, so its state is put
         // back to the game's at load rather than assumed. From here on it has one writer and
         // is settled once per frame.
@@ -103,7 +110,8 @@ public sealed class Plugin : IDalamudPlugin
         m_commands.Dispose();
         m_windows.RemoveAllWindows();
 
-        // A pending change must not be lost just because the plugin is going away.
+        // A pending change must not be lost just because the plugin is going away. The
+        // write puts the live settings back into the profile they belong to on its own.
         m_config.FlushPending();
         Fonts.Dispose();
     }
@@ -135,6 +143,10 @@ public sealed class Plugin : IDalamudPlugin
     private void OnUpdate(IFramework framework)
     {
         m_config.Tick();
+
+        // Before anything reads a setting this frame: a job change means the settings the
+        // rest of the tick is about may be the wrong ones.
+        m_profiles.Tick();
 
         // The hook goes in and comes out with the list rather than sitting installed and
         // inert, so a player who has never named a spell never carries it.

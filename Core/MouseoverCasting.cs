@@ -43,11 +43,23 @@ internal sealed unsafe class MouseoverCasting : IDisposable
     private static ulong s_target;
 
     /// <summary>
-    /// The same member as a pointer, which is what the game's own "can this be used on them"
-    /// wants. Kept beside the id rather than looked up again: finding an object walks the
-    /// table, and this runs inside the call that uses an action.
+    /// 🔴 Only the id is kept, never the address.
+    /// <para>
+    /// The address used to be cached here beside it, to save walking the object table inside
+    /// the call that uses an action. That walk is not what it costs. The detour does not run
+    /// in the frame that wrote the address — it runs on a key press, which can land after the
+    /// member has despawned (a zone change, a party dissolving, a body cleaned up). The game
+    /// has freed that object by then, and handing the pointer to CanUseActionOnTarget is a
+    /// read of freed memory: not a plugin fault the log catches, a crash of the game.
+    /// </para>
+    /// <para>
+    /// So the address is resolved from the id at the moment it is used, where the object
+    /// table is the authority on whether that member still exists. The walk happens once per
+    /// action used, not once per frame, which is why it was never worth caching.
+    /// </para>
     /// </summary>
-    private static nint s_targetAddress;
+    private static nint AddressOf(ulong gameObjectId) =>
+        gameObjectId == 0ul ? 0 : Services.Objects.SearchById(gameObjectId)?.Address ?? 0;
 
     /// <summary>
     /// The action ids the player has asked to be redirected, for the job being played. A flat
@@ -101,11 +113,7 @@ internal sealed unsafe class MouseoverCasting : IDisposable
     /// — including the frames where nobody is hovered, because a stale answer here would send
     /// an action to somebody the player stopped pointing at.
     /// </summary>
-    public static void PointAt(ulong gameObjectId, nint address)
-    {
-        s_target = gameObjectId;
-        s_targetAddress = address;
-    }
+    public static void PointAt(ulong gameObjectId) => s_target = gameObjectId;
 
     /// <summary>
     /// Takes the spells this job redirects and puts the hook in or out to match. Called on the
@@ -171,13 +179,13 @@ internal sealed unsafe class MouseoverCasting : IDisposable
         else
         {
             m_hook.Disable();
-            PointAt(0ul, 0);
+            PointAt(0ul);
         }
     }
 
     public void Dispose()
     {
-        PointAt(0ul, 0);
+        PointAt(0ul);
         m_hook?.Dispose();
     }
 
@@ -209,11 +217,10 @@ internal sealed unsafe class MouseoverCasting : IDisposable
     private static ulong Redirect(ActionManager* manager, ActionType actionType, uint actionId, ulong targetId)
     {
         ulong over = s_target;
-        nint address = s_targetAddress;
 
         // Only real actions. Items, mounts, general actions and the rest are either not aimed
         // at anybody or are aimed by something other than a target id.
-        if (over == 0 || address == 0 || over == targetId || actionType != ActionType.Action || manager is null)
+        if (over == 0 || over == targetId || actionType != ActionType.Action || manager is null)
         {
             return targetId;
         }
@@ -227,6 +234,16 @@ internal sealed unsafe class MouseoverCasting : IDisposable
         // holds what somebody picked off a menu and the key may carry either — the pressed
         // action when nothing has replaced it, the adjusted one when something has.
         if (!Allowed(actionId, adjusted))
+        {
+            return targetId;
+        }
+
+        // Asked for now, not remembered from the frame that drew the frame — see AddressOf.
+        // A member the table no longer has is a member who is gone, and the action goes where
+        // the player's selected target is instead.
+        nint address = AddressOf(over);
+
+        if (address == 0)
         {
             return targetId;
         }

@@ -248,6 +248,88 @@ internal static class NativeUi
     }
 
     /// <summary>
+    /// Everything a frame needs about one party member, read straight out of the game's own
+    /// structure. Everything but the name, which is only wanted when a slot changes hands.
+    /// </summary>
+    internal struct MemberFacts
+    {
+        public ulong ContentId;
+        public uint EntityId;
+        public uint Hp;
+        public uint MaxHp;
+        public uint Mp;
+        public uint MaxMp;
+        public uint Territory;
+        public uint ClassJob;
+        public byte Shield;
+    }
+
+    /// <summary>
+    /// One party member's numbers, without allocating anything.
+    /// <para>
+    /// 🔴 The reason this exists rather than <c>IPartyList[i]</c>. Dalamud's indexer answers
+    /// with <c>new PartyMember(...)</c> — a fresh object on <em>every</em> access. A party of
+    /// eight read once a frame is eight objects a frame, several hundred a second, for
+    /// numbers the game already has lying in a flat structure. It is the same trap as
+    /// <c>IPartyMember.Statuses</c> above, and it is invisible at the call site, which is
+    /// what makes it worth naming here.
+    /// </para>
+    /// <para>
+    /// The address comes from <c>IPartyList.GetPartyMemberAddress</c>, which is the same
+    /// pointer the indexer would have wrapped, handed over without the wrapper.
+    /// </para>
+    /// </summary>
+    /// <returns>False for an empty slot, in which case nothing is written.</returns>
+    public static unsafe bool ReadMember(nint address, out MemberFacts facts)
+    {
+        facts = default;
+
+        if (address == 0)
+        {
+            return false;
+        }
+
+        var member = (FFXIVClientStructs.FFXIV.Client.Game.Group.PartyMember*)address;
+
+        facts.ContentId = member->ContentId;
+        facts.EntityId = member->EntityId;
+        facts.Hp = member->CurrentHP;
+        facts.MaxHp = member->MaxHP;
+        facts.Mp = member->CurrentMP;
+        facts.MaxMp = member->MaxMP;
+        facts.Territory = member->TerritoryType;
+        facts.ClassJob = member->ClassJob;
+        facts.Shield = member->DamageShield;
+
+        return true;
+    }
+
+    /// <summary>
+    /// A party member's name. Its own call, because building a string allocates and the
+    /// caller only wants one when the slot has changed hands.
+    /// <para>
+    /// The override is asked first: the game puts one there for a player whose real name it
+    /// will not show, and the native list draws that instead.
+    /// </para>
+    /// </summary>
+    public static unsafe string MemberName(nint address)
+    {
+        if (address == 0)
+        {
+            return string.Empty;
+        }
+
+        var member = (FFXIVClientStructs.FFXIV.Client.Game.Group.PartyMember*)address;
+
+        if (member->NameOverride is not null)
+        {
+            return member->NameOverride->ToString();
+        }
+
+        return member->NameString;
+    }
+
+    /// <summary>
     /// How much of a shield sits on a party member, as a percentage of their maximum health.
     /// <para>
     /// A single byte the game keeps beside their job and level, and the same number its own

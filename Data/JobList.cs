@@ -137,6 +137,9 @@ internal static class JobList
         return -1;
     }
 
+    /// <summary>How many jobs there are. Asked of the array, never written down beside it.</summary>
+    public static int Count => s_all.Length;
+
     /// <summary>The job at this position, or the first one when the position is stale.</summary>
     public static JobEntry At(int index) =>
         index >= 0 && index < s_all.Length

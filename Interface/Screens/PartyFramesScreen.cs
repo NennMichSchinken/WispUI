@@ -168,11 +168,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     // The ranges from the spec, §4. The useful height is 30-70; the rest is there so a small
     // party can have tall frames.
-    private const float MinWidth = 90f;
-    private const float MaxWidth = 400f;
-    private const float MinHeight = 18f;
-    private const float MaxHeight = 150f;
-    private const float MaxSpacing = 24f;
+    private const float MinWidth = Configuration.MinFrameWidth;
+    private const float MaxWidth = Configuration.MaxFrameWidth;
+    private const float MinHeight = Configuration.MinFrameHeight;
+    private const float MaxHeight = Configuration.MaxFrameHeight;
+    private const float MaxSpacing = Configuration.MaxFrameSpacing;
 
     /// <summary>
     /// How far a text or an icon may be nudged off its anchor, either way. The number lives
@@ -182,16 +182,16 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const float MaxOffset = Configuration.MaxTextOffset;
 
     /// <summary>Mana strip thickness, in pixels and nothing else (spec §3).</summary>
-    private const float MinManaHeight = 2f;
-    private const float MaxManaHeight = 16f;
+    private const float MinManaHeight = Configuration.MinManaHeight;
+    private const float MaxManaHeight = Configuration.MaxManaHeight;
 
     /// <summary>
     /// Job icon size, square and in pixels. The top end is set by the tallest frame rather
     /// than by the icon: at 150 px a 48 px icon is still a badge on a frame and not the frame
     /// itself.
     /// </summary>
-    private const float MinIconSize = 8f;
-    private const float MaxIconSize = 48f;
+    private const float MinIconSize = Configuration.MinIconSize;
+    private const float MaxIconSize = Configuration.MaxIconSize;
 
     /// <summary>
     /// Every pixel slider steps by a whole pixel. There is no half a pixel to draw, and every
@@ -2214,34 +2214,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         m_choicesFor = jobId;
         m_actionChoices.Clear();
         m_actionChoices.AddRange(ActionList.For(jobId));
-    }
-
-    /// <summary>
-    /// What a binding is called in its row: the action's own name, or what the two built-in
-    /// kinds do. An action the job no longer has falls back to its number rather than to an
-    /// empty row, so it can still be seen and removed.
-    /// </summary>
-    private string BindingLabel(MouseBinding binding, ActionEntry[] actions)
-    {
-        switch (binding.Kind)
-        {
-            case BindingKind.Target:
-                return Strings.BindingTarget;
-
-            case BindingKind.ContextMenu:
-                return Strings.BindingContextMenu;
-
-            default:
-                for (int i = 0; i < actions.Length; i++)
-                {
-                    if (actions[i].Id == binding.ActionId)
-                    {
-                        return actions[i].Name;
-                    }
-                }
-
-                return Strings.BindingAction;
-        }
     }
 
     /// <summary>The leader's mark. The same four rows every badge on a frame gets.</summary>

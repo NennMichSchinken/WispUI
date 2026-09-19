@@ -171,6 +171,7 @@ internal sealed class ConfigWindow : Window
     /// </summary>
     private readonly Hud.HudElement? m_previewOf;
     private readonly GlobalScreen m_global;
+    private readonly ProfileScreen m_profiles;
     private readonly PartyFramesScreen m_partyFrames;
 
     /// <summary>
@@ -209,6 +210,7 @@ internal sealed class ConfigWindow : Window
         m_config = config;
         m_previewOf = previewOf;
         m_global = new GlobalScreen(config);
+        m_profiles = new ProfileScreen(config);
         m_global.InfoBarPreferenceChanged += () => this.InfoBarPreferenceChanged?.Invoke();
 
         m_partyFrames = new PartyFramesScreen(config);
@@ -1151,6 +1153,10 @@ internal sealed class ConfigWindow : Window
             if (m_screen == Screen.Global)
             {
                 m_global.Draw(inner);
+            }
+            else if (m_screen == Screen.Profile)
+            {
+                m_profiles.Draw(inner);
             }
             else if (m_screen == Screen.PartyFrames && tab == 0)
             {
