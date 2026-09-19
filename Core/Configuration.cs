@@ -72,6 +72,35 @@ public sealed class Configuration : IPluginConfiguration
     /// </summary>
     public const float MaxTextOffset = 60f;
 
+    // --- what a number may be -----------------------------------------------
+    // 🔴 These live with the data, not with the slider that shows them.
+    //
+    // They used to live as private constants in the settings screen, which was fine for
+    // exactly as long as the settings screen was the only way a number could get in here.
+    // A profile arriving from somebody else is the other way, and a bound that only the
+    // slider knows is a bound an import walks straight past. Sanitise is what reads them,
+    // and it runs on load and on every import.
+    //
+    // The ranges themselves are unchanged, and the screen now takes them from here so the
+    // two cannot drift.
+    public const float MinFrameWidth = 90f;
+    public const float MaxFrameWidth = 400f;
+    public const float MinFrameHeight = 18f;
+    public const float MaxFrameHeight = 150f;
+    public const float MaxFrameSpacing = 24f;
+    public const float MinManaHeight = 2f;
+    public const float MaxManaHeight = 16f;
+    public const float MinIconSize = 8f;
+    public const float MaxIconSize = 48f;
+
+    /// <summary>
+    /// How far off screen an element may be put. Generous on purpose — a second monitor and
+    /// a resolution change both leave things at coordinates that look wrong and are not —
+    /// but not unbounded, because a position no screen contains is an element nobody can
+    /// find again.
+    /// </summary>
+    public const float MaxPosition = 10000f;
+
     public bool PartyFramesEnabled { get; set; } = true;
 
     public PartyFramesConfig PartyFrames { get; set; } = new();
@@ -730,6 +759,145 @@ public sealed class Configuration : IPluginConfiguration
         /// </para>
         /// </summary>
         public bool HideNativePartyList { get; set; }
+
+        /// <summary>
+        /// Puts every number back inside the range it is allowed to hold.
+        /// <para>
+        /// 🔴 On the module rather than on the suite, because an import can bring one module
+        /// on its own and a check that only exists for the whole thing would not run for it.
+        /// </para>
+        /// <para>
+        /// Silent on purpose. A value out of range is not something the player did — it is a
+        /// file edited by hand, a profile from somebody running a different version, or a
+        /// field this build has never heard of. Telling them about it would be reporting our
+        /// own housekeeping; putting it right and drawing something sensible is the answer.
+        /// </para>
+        /// </summary>
+        internal void Sanitise()
+        {
+            this.BarOpacity = Bounded(this.BarOpacity, MinBarOpacity, 1f, 1f);
+            this.ShieldOpacity = Bounded(this.ShieldOpacity, 0f, 1f, 0.8f);
+            this.CleanseOpacity = Bounded(this.CleanseOpacity, 0f, 1f, 0.55f);
+            this.RaiseOpacity = Bounded(this.RaiseOpacity, 0f, 1f, 0.55f);
+
+            this.FrameWidth = Bounded(this.FrameWidth, MinFrameWidth, MaxFrameWidth, 170f);
+            this.FrameHeight = Bounded(this.FrameHeight, MinFrameHeight, MaxFrameHeight, 38f);
+            this.Spacing = Bounded(this.Spacing, 0f, MaxFrameSpacing, 4f);
+            this.ManaHeight = Bounded(this.ManaHeight, MinManaHeight, MaxManaHeight, 3f);
+
+            this.PositionX = Bounded(this.PositionX, -MaxPosition, MaxPosition, 100f);
+            this.PositionY = Bounded(this.PositionY, -MaxPosition, MaxPosition, 300f);
+
+            this.NameSize = Bounded(this.NameSize, MinTextSize, MaxTextSize, DefaultTextSize);
+            this.HpTextSize = Bounded(this.HpTextSize, MinTextSize, MaxTextSize, DefaultTextSize);
+            this.PartyNumberSize = Bounded(this.PartyNumberSize, MinTextSize, MaxTextSize, 19f);
+
+            this.JobIconSize = Bounded(this.JobIconSize, MinIconSize, MaxIconSize, 20f);
+            this.LeaderIconSize = Bounded(this.LeaderIconSize, MinIconSize, MaxIconSize, 16f);
+            this.RescueIconSize = Bounded(this.RescueIconSize, MinIconSize, MaxIconSize, 24f);
+            this.AuraSize = Bounded(this.AuraSize, MinIconSize, MaxIconSize, 20f);
+            this.BuffSize = Bounded(this.BuffSize, MinIconSize, MaxIconSize, 18f);
+            this.OtherSize = Bounded(this.OtherSize, MinIconSize, MaxIconSize, 18f);
+
+            this.NameX = Offset(this.NameX, 22f);
+            this.NameY = Offset(this.NameY, 0f);
+            this.HpTextX = Offset(this.HpTextX, 0f);
+            this.HpTextY = Offset(this.HpTextY, 0f);
+            this.JobIconX = Offset(this.JobIconX, 0f);
+            this.JobIconY = Offset(this.JobIconY, 0f);
+            this.LeaderIconX = Offset(this.LeaderIconX, 0f);
+            this.LeaderIconY = Offset(this.LeaderIconY, 0f);
+            this.PartyNumberX = Offset(this.PartyNumberX, 0f);
+            this.PartyNumberY = Offset(this.PartyNumberY, 0f);
+            this.RescueIconX = Offset(this.RescueIconX, 0f);
+            this.RescueIconY = Offset(this.RescueIconY, 0f);
+            this.AuraX = Offset(this.AuraX, 0f);
+            this.AuraY = Offset(this.AuraY, 0f);
+            this.BuffX = Offset(this.BuffX, 0f);
+            this.BuffY = Offset(this.BuffY, 0f);
+            this.OtherX = Offset(this.OtherX, 0f);
+            this.OtherY = Offset(this.OtherY, 0f);
+
+            this.AuraMaxCount = Math.Clamp(this.AuraMaxCount, 1, MaxAurasPerRow);
+            this.BuffMaxCount = Math.Clamp(this.BuffMaxCount, 1, MaxAurasPerRow);
+            this.OtherMaxCount = Math.Clamp(this.OtherMaxCount, 1, MaxAurasPerRow);
+
+            // The ones standing in for a list. Anything the build does not know goes back to
+            // the first entry rather than to whatever that number would have indexed.
+            this.ColourMode = Known<Appearance.BarColourMode>(this.ColourMode);
+            this.TextEdge = Known<Style.TextEdge>(this.TextEdge);
+            this.ManaStyle = Known<Hud.PartyFrames.ManaStyle>(this.ManaStyle);
+            this.NameShortening = Known<Hud.NameShortening>(this.NameShortening);
+            this.HpTextMode = Known<Hud.HealthTextMode>(this.HpTextMode);
+            this.JobIconStyle = Known<Data.JobIconStyle>(this.JobIconStyle);
+            this.Direction = Known<Hud.PartyFrames.FrameDirection>(this.Direction);
+            this.CleanseMark = Known<Hud.FrameMarkStyle>(this.CleanseMark);
+            this.RaiseMark = Known<Hud.FrameMarkStyle>(this.RaiseMark);
+
+            this.NamePosition = Known<Hud.Anchor>(this.NamePosition);
+            this.HpTextPosition = Known<Hud.Anchor>(this.HpTextPosition);
+            this.JobIconPosition = Known<Hud.Anchor>(this.JobIconPosition);
+            this.LeaderIconPosition = Known<Hud.Anchor>(this.LeaderIconPosition);
+            this.PartyNumberPosition = Known<Hud.Anchor>(this.PartyNumberPosition);
+            this.RescueIconPosition = Known<Hud.Anchor>(this.RescueIconPosition);
+            this.AuraPosition = Known<Hud.Anchor>(this.AuraPosition);
+            this.BuffPosition = Known<Hud.Anchor>(this.BuffPosition);
+            this.OtherPosition = Known<Hud.Anchor>(this.OtherPosition);
+
+            // A count of lines, not a list: it has to be one the layout actually lays out.
+            if (Array.IndexOf(Hud.PartyFrames.FrameLayout.LineChoices, this.Lines) < 0)
+            {
+                this.Lines = 1;
+            }
+
+            this.TextWeight = Math.Clamp(this.TextWeight, 0, 2);
+
+            // A style is stored by name and resolved against a list, so an unknown one
+            // already falls back on its own. What cannot be allowed through is null, which
+            // would be a name nothing can even be compared against.
+            this.BarStyleName ??= Data.BarStyles.DefaultName;
+            this.ShieldStyleName ??= Data.BarStyles.ShieldDefaultName;
+            this.FontName ??= Style.FontLibrary.DefaultName;
+            this.Bindings ??= new BindingSet();
+            this.Mouseover ??= new MouseoverSet();
+        }
+
+        /// <summary>
+        /// The most icons a row will draw, asked of the snapshot that holds them rather than
+        /// written down again. A number larger than the array behind it is the SlotCount trap
+        /// from session 11, and it is worth exactly one reference to avoid.
+        /// </summary>
+        private const int MaxAurasPerRow = Hud.PartyFrames.PartySnapshot.MaxAuras;
+
+        /// <summary>
+        /// A number inside its range, or the default when it is not a number at all. The
+        /// second case is the one that matters: NaN fails every comparison, so it slips
+        /// through a clamp untouched and then quietly poisons every size computed from it.
+        /// </summary>
+        private static float Bounded(float value, float low, float high, float fallback) =>
+            float.IsFinite(value) ? Math.Clamp(value, low, high) : fallback;
+
+        private static float Offset(float value, float fallback) =>
+            Bounded(value, -MaxTextOffset, MaxTextOffset, fallback);
+
+        /// <summary>
+        /// A stored number that stands for one of a list. Asked of the enum itself rather
+        /// than counted here, so adding an entry never leaves a bound behind.
+        /// </summary>
+        private static int Known<TEnum>(int value)
+            where TEnum : struct, Enum =>
+            Enum.IsDefined((TEnum)(object)value) ? value : 0;
+    }
+
+    /// <summary>
+    /// Puts every number in the whole suite back inside its range. See the module's own
+    /// <see cref="PartyFramesConfig.Sanitise"/> for why this exists at all.
+    /// </summary>
+    internal void Sanitise()
+    {
+        this.Scale = float.IsFinite(this.Scale) ? Math.Clamp(this.Scale, MinScale, MaxScale) : 1f;
+        this.PreviewCount = this.PreviewCount is 1 or 4 or 8 ? this.PreviewCount : 4;
+        this.PartyFrames.Sanitise();
     }
 
     internal static Configuration Load()
@@ -742,6 +910,24 @@ public sealed class Configuration : IPluginConfiguration
             config.Version = CurrentVersion;
             config.Write();
         }
+        else if (config.Version > CurrentVersion)
+        {
+            // Written by a build newer than this one. There is no migrating backwards, and
+            // the version is NOT corrected: saying it is version 11 when it holds whatever
+            // 12 wrote would hide the problem from the step that will one day read it
+            // properly. Sanitise below is what makes it safe to draw meanwhile — a field
+            // this build has never heard of falls back rather than indexing something.
+            Services.Log.Warning(
+                "The saved configuration is version {Found}, newer than this build's {Known}. "
+                + "Anything it does not recognise will fall back to a default.",
+                config.Version,
+                CurrentVersion);
+        }
+
+        // Whatever was in the file, whoever wrote it. Bounds used to live only in the
+        // sliders, which held for as long as the sliders were the only way a number could
+        // get in — and stopped holding the moment a profile could arrive from somebody else.
+        config.Sanitise();
 
         return config;
     }

@@ -168,11 +168,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     // The ranges from the spec, §4. The useful height is 30-70; the rest is there so a small
     // party can have tall frames.
-    private const float MinWidth = 90f;
-    private const float MaxWidth = 400f;
-    private const float MinHeight = 18f;
-    private const float MaxHeight = 150f;
-    private const float MaxSpacing = 24f;
+    private const float MinWidth = Configuration.MinFrameWidth;
+    private const float MaxWidth = Configuration.MaxFrameWidth;
+    private const float MinHeight = Configuration.MinFrameHeight;
+    private const float MaxHeight = Configuration.MaxFrameHeight;
+    private const float MaxSpacing = Configuration.MaxFrameSpacing;
 
     /// <summary>
     /// How far a text or an icon may be nudged off its anchor, either way. The number lives
@@ -182,16 +182,16 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const float MaxOffset = Configuration.MaxTextOffset;
 
     /// <summary>Mana strip thickness, in pixels and nothing else (spec §3).</summary>
-    private const float MinManaHeight = 2f;
-    private const float MaxManaHeight = 16f;
+    private const float MinManaHeight = Configuration.MinManaHeight;
+    private const float MaxManaHeight = Configuration.MaxManaHeight;
 
     /// <summary>
     /// Job icon size, square and in pixels. The top end is set by the tallest frame rather
     /// than by the icon: at 150 px a 48 px icon is still a badge on a frame and not the frame
     /// itself.
     /// </summary>
-    private const float MinIconSize = 8f;
-    private const float MaxIconSize = 48f;
+    private const float MinIconSize = Configuration.MinIconSize;
+    private const float MaxIconSize = Configuration.MaxIconSize;
 
     /// <summary>
     /// Every pixel slider steps by a whole pixel. There is no half a pixel to draw, and every
