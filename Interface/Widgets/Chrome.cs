@@ -27,9 +27,6 @@ internal static class Chrome
     private const string IdGroupCollapse = "##wisp-group-collapse";
     private const string IdGroupEye = "##wisp-group-eye";
 
-    /// <summary>Font Awesome's eye and crossed-out eye, as Dalamud's icon face carries them.</summary>
-    private const string EyeOpenGlyph = "F06E";
-    private const string EyeShutGlyph = "F070";
 
     /// <summary>Only ever mixed towards, never painted: the step a control takes under the hand.</summary>
     private const uint White = 0xFFFFFFFFu;
@@ -819,15 +816,12 @@ internal static class Chrome
             ? (hovered ? Tokens.Col.Ink : Tokens.Col.InkDim)
             : (hovered ? Tokens.Col.GoldHi : Tokens.Col.Gold);
 
-        string glyph = shown ? EyeOpenGlyph : EyeShutGlyph;
-        Vector2 measured = Ink.MeasureScaled(Ink.Role.Icon, size, glyph);
-
-        Ink.DrawGlyph(
+        LineIcons.Draw(
             ImGui.GetWindowDrawList(),
+            shown ? LineIcons.Eye : LineIcons.EyeOff,
+            new Vector2(MathF.Round(x), MathF.Round(y)),
             size,
-            new Vector2(MathF.Round(x + ((size - measured.X) * 0.5f)), MathF.Round(y + ((size - measured.Y) * 0.5f))),
-            ink,
-            glyph);
+            ink);
 
         return clicked;
     }
