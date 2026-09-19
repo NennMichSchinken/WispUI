@@ -265,6 +265,27 @@ internal static class Chrome
     /// </summary>
     public static void Tooltip(string? heading, string text)
     {
+        // 🔴 Its own look, pushed here rather than inherited. A tooltip is a popup window as
+        // far as ImGui is concerned, so it reads whatever popup padding, rounding, border and
+        // colours happen to be pushed where it is raised — which made the same tooltip come
+        // out framed and padded inside an open selector list and bare and cramped over a row
+        // in the settings window (Florian, 2026-09-19). These are the selector list's values,
+        // because that is the one that looked right.
+        //
+        // Before BeginTooltip, never after: a window reads its padding and border when it
+        // begins, not while it is filled.
+        float pad = Tokens.Metric.PopupPadding;
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(pad, pad));
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupRounding, Tokens.Radius.Control);
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupBorderSize, Tokens.Line(1f));
+
+        // The gap between the heading and the text under it, pinned for the same reason as
+        // the padding: it is the window's spacing otherwise, and that differs by where the
+        // tooltip was raised.
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(0f, Tokens.Space.Sm));
+        ImGui.PushStyleColor(ImGuiCol.PopupBg, Tokens.Col.PopupBg);
+        ImGui.PushStyleColor(ImGuiCol.Border, Tokens.Col.PopupEdge);
+
         ImGui.BeginTooltip();
         ImGui.PushTextWrapPos(Tokens.Metric.TooltipWrap);
 
@@ -288,6 +309,9 @@ internal static class Chrome
 
         ImGui.PopTextWrapPos();
         ImGui.EndTooltip();
+
+        ImGui.PopStyleColor(2);
+        ImGui.PopStyleVar(4);
     }
 
     /// <summary>
