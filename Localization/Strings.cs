@@ -278,7 +278,10 @@ internal static class Strings
     public const string GroupSizeHint = "How big each frame is, and how far apart.";
 
     // --- Auras: everything lying on a person ---------------------------------
-    public const string GroupAuras = "Afflictions";
+    // "Debuffs", not "Afflictions". The second was ours and read as a translation of
+    // something; the first is the word the people using this already say (Florian,
+    // 2026-09-19). The code keeps saying auras, which is its own business.
+    public const string GroupAuras = "Debuffs";
     public const string GroupAurasHint = "What is on them, worst first.";
     public const string GroupCleanse = "Cleansable";
     public const string GroupCleanseHint = "How a frame says Esuna would help.";
