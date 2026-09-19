@@ -667,7 +667,7 @@ internal sealed class PartyFramesElement : HudElement
             // The status pictures go OVER the writing. They are the newest thing on the frame
             // and the thing being looked for; a name is read once and then known, so a name
             // crossing them is the one that gives way (Florian, 2026-09-13).
-            this.DrawAuras(dl, cfg, i, innerMin, innerMax);
+            this.DrawAuras(dl, cfg, snapshot, i, innerMin, innerMax);
 
             // Over everything, and outside the frame rather than on its edge. On the edge a
             // thick mark eats into the bar it is meant to be framing, and under the second
@@ -1287,6 +1287,13 @@ internal sealed class PartyFramesElement : HudElement
     /// <summary>
     /// The row of afflictions, highest ranked first.
     /// <para>
+    /// 🔴 Reads the snapshot it was handed, not the live one. It read m_snapshot directly
+    /// until 2026-09-19, which meant the preview drew the real party's effects onto stand-in
+    /// people — that is to say none at all, since the settings window is usually open out of
+    /// combat. Everything else on a frame came through the member struct and was right by
+    /// accident; the icon rows are the one thing that goes back to the snapshot for a slice.
+    /// </para>
+    /// <para>
     /// The row is hung on one of the nine points as a whole, so it stays put as effects come
     /// and go: laying it out icon by icon would make the first one move every time a second
     /// appeared, which is the opposite of somewhere to look.
@@ -1299,6 +1306,7 @@ internal sealed class PartyFramesElement : HudElement
     private void DrawAuras(
         ImDrawListPtr dl,
         Configuration.PartyFramesConfig cfg,
+        PartySnapshot snapshot,
         int slot,
         Vector2 innerMin,
         Vector2 innerMax)
@@ -1307,7 +1315,7 @@ internal sealed class PartyFramesElement : HudElement
         {
             this.DrawIconRow(
                 dl,
-                m_snapshot.Auras(slot),
+                snapshot.Auras(slot),
                 cfg.AuraMaxCount,
                 cfg.AuraSize,
                 cfg.AuraPosition,
@@ -1323,7 +1331,7 @@ internal sealed class PartyFramesElement : HudElement
         {
             this.DrawIconRow(
                 dl,
-                m_snapshot.Buffs(slot),
+                snapshot.Buffs(slot),
                 cfg.BuffMaxCount,
                 cfg.BuffSize,
                 cfg.BuffPosition,
@@ -1339,7 +1347,7 @@ internal sealed class PartyFramesElement : HudElement
         {
             this.DrawIconRow(
                 dl,
-                m_snapshot.Others(slot),
+                snapshot.Others(slot),
                 cfg.OtherMaxCount,
                 cfg.OtherSize,
                 cfg.OtherPosition,
