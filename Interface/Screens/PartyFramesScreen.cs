@@ -1502,7 +1502,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         int face = FontLibrary.IndexOf(m_config.PartyFrames.FontName);
         if (m_font.Draw(
                 ref face,
-                Chrome.Row(Strings.TextFont, group.ContentX, rowY, group.ContentWidth, true, Strings.TextFontTooltip),
+                Chrome.Row(Strings.TextFont, group.ContentX, rowY, group.ContentWidth, false, Strings.TextFontTooltip),
                 rowY,
                 Chrome.ControlWidth()))
         {
@@ -2397,14 +2397,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
 
-        // 🔴 "Preview auras" used to sit here — a tick that put made-up afflictions on the
-        // real frames, because everything below this row places something that is only on a
-        // frame some of the time and placing it blind is placing it twice (Florian,
-        // 2026-09-13). The preview band answers that properly and always carries them, so the
-        // tick is gone rather than kept as a second way to ask the same question (Florian,
-        // 2026-09-19).
-        rowY += pitch;
-        this.PixelSlider(IdAuraMax, Strings.AuraCount, SlotAuraMax, group, rowY, 1f, PartySnapshot.MaxAuras, true, Strings.AuraCountTooltip);
+        // 🔴 Two rows used to sit above this one: "Show icons", which is the switch in the
+        // head now, and "Preview auras", which the preview band answers properly. Both are
+        // gone and so is the advance that made room for them — a removed row that leaves its
+        // rowY += pitch behind is an empty line nobody can see the cause of, with the next
+        // row's divider stranded in the middle of it (Florian, 2026-09-19).
+        this.PixelSlider(IdAuraMax, Strings.AuraCount, SlotAuraMax, group, rowY, 1f, PartySnapshot.MaxAuras, false, Strings.AuraCountTooltip);
 
         rowY += pitch;
         this.PixelSlider(IdAuraSize, Strings.IconSize, SlotAuraSize, group, rowY, MinAuraSize, MaxAuraSize, true, null);
@@ -2523,7 +2521,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 Chrome.OptionControl.Tick,
                 Strings.OwnBuffsOnlyTooltip,
                 true,
-                true))
+
+                // First row of the group now that "Show icons" has become the head switch.
+                false))
         {
             m_config.PartyFrames.OwnBuffsOnly = !m_config.PartyFrames.OwnBuffsOnly;
             m_config.MarkDirty();
@@ -2586,7 +2586,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
-        this.PixelSlider(IdOtherMax, Strings.AuraCount, SlotOtherMax, group, rowY, 1f, PartySnapshot.MaxAuras, true, Strings.AuraCountTooltip);
+        // First row of the group, so no divider: there is nothing above it to be divided
+        // from but the head's own rule.
+        this.PixelSlider(IdOtherMax, Strings.AuraCount, SlotOtherMax, group, rowY, 1f, PartySnapshot.MaxAuras, false, Strings.AuraCountTooltip);
 
         rowY += pitch;
         this.PixelSlider(IdOtherSize, Strings.IconSize, SlotOtherSize, group, rowY, MinAuraSize, MaxAuraSize, true, null);
