@@ -152,6 +152,12 @@ internal static class Tokens
         /// </summary>
         public static readonly uint RowHover = Rgb(0x322F32);
 
+        /// <summary>The pill on a release note: one step above the row it sits on.</summary>
+        public static readonly uint PillRest = Rgb(0x332F33);
+
+        /// <summary>The same pill while its row is hovered, so the whole row lifts together.</summary>
+        public static readonly uint PillHover = Rgb(0x3D383D);
+
         /// <summary>Body text one step quieter than Ink, for a sentence nobody is hovering.</summary>
         public static readonly uint InkSoft = Rgb(0xA9A9A9);
         public static readonly uint NavSelected = Rgb(0x2E2C2E);
@@ -616,6 +622,11 @@ internal static class Tokens
 
         public static float NewsRowPaddingX => Px(10f);
         public static float NewsRowPaddingY => Px(7f);
+
+        /// <summary>The pill at the start of a release note, saying where the line leads.</summary>
+        public static float NewsPillHeight => Px(18f);
+
+        public static float NewsPillPaddingX => Px(9f);
 
         /// <summary>Above a section heading, which is where a release actually breathes.</summary>
         public static float NewsSectionGap => Px(22f);

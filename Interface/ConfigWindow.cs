@@ -534,7 +534,7 @@ internal sealed class ConfigWindow : Window
         }
     }
 
-    private static string ScreenLabel(Screen screen) => screen switch
+    internal static string ScreenLabel(Screen screen) => screen switch
     {
         Screen.Global => Strings.NavGlobal,
         Screen.Profile => Strings.NavProfile,
@@ -542,7 +542,7 @@ internal sealed class ConfigWindow : Window
         _ => Strings.NavPartyFrames,
     };
 
-    private static string[] TabsFor(Screen screen) => screen switch
+    internal static string[] TabsFor(Screen screen) => screen switch
     {
         Screen.Global => TabsGlobal,
         Screen.Profile => TabsProfile,

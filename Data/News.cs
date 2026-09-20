@@ -190,6 +190,74 @@ internal static class News
             }),
     };
 
+    /// <summary>
+    /// Sorts every release's lines so that, inside one kind, the lines about the same
+    /// module and tab stand together.
+    /// <para>
+    /// 🔴 Once, at load, never per frame — and by sorting rather than by asking whoever
+    /// writes the notes to keep them in order. A note is written at release time by
+    /// somebody thinking about the release, not about the sort order, and a rule nobody
+    /// is reminded of is a rule that lasts one release (Florian, 2026-09-20, wanting all
+    /// the party frame lines together).
+    /// </para>
+    /// <para>
+    /// Written out rather than handed to Array.Sort: that one is not stable, so two lines
+    /// about the same tab would swap places for no reason anybody could see. At a dozen
+    /// entries an insertion sort is both shorter and correct.
+    /// </para>
+    /// </summary>
+    static News()
+    {
+        for (int r = 0; r < Releases.Length; r++)
+        {
+            NewsEntry[] entries = Releases[r].Entries;
+
+            for (int i = 1; i < entries.Length; i++)
+            {
+                NewsEntry moving = entries[i];
+                int at = i;
+
+                while (at > 0 && Before(moving, entries[at - 1]))
+                {
+                    entries[at] = entries[at - 1];
+                    at--;
+                }
+
+                entries[at] = moving;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether one line sorts ahead of another. Kind first, because that is the heading it
+    /// lands under; then the module, then the tab. Equal on all three means neither is
+    /// before the other, and the order they were written in stands.
+    /// </summary>
+    private static bool Before(NewsEntry a, NewsEntry b)
+    {
+        if (a.Kind != b.Kind)
+        {
+            return a.Kind < b.Kind;
+        }
+
+        // A line that goes nowhere sorts last within its kind: it has no module to stand
+        // with, and leading with one would break up the runs that have.
+        if (a.Jumps != b.Jumps)
+        {
+            return a.Jumps;
+        }
+
+        // By the screen's own order, which is the order of the navigation rail. A reader who
+        // has the window open already knows that order, and a second one invented here would
+        // only be a second thing to learn.
+        if (a.Screen != b.Screen)
+        {
+            return a.Screen < b.Screen;
+        }
+
+        return a.Tab < b.Tab;
+    }
+
     /// <summary>The release at the top of the list, which is the one the card talks about.</summary>
     public static NewsRelease Latest => Releases[0];
 
