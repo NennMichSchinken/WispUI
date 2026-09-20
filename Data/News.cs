@@ -103,7 +103,7 @@ internal static class News
 {
     /// <summary>Tab numbers on the party frames screen, named so a note is readable.</summary>
     private const int PartyBase = 0;
-    private const int PartyText = 1;
+    private const int PartyText = 1; // No note leads here yet; the tab numbers are kept whole so one can.
     private const int PartyIcons = 2;
     private const int PartyLayout = 3;
     private const int PartyAuras = 4;
@@ -175,12 +175,19 @@ internal static class News
                     Screen.PartyFrames,
                     PartyLayout,
                     "##wisp-pf-arrange"),
+                // 🔴 This line pointed at a group on the party frames until the lettering
+                // moved to Global, and then it pointed at nothing — the jump just did
+                // nothing, silently, because a target that is never drawn is
+                // indistinguishable from one that has not been drawn YET (the wait has a
+                // frame budget and then gives up). Caught by reading the notes before a
+                // pull request, not by the build. **Moving a group means checking whether
+                // a note leads to it.**
                 new(
                     NewsKind.New,
                     "Six fonts, three weights, and a folder for your own.",
-                    Screen.PartyFrames,
-                    PartyText,
-                    "##wisp-pf-textstyle"),
+                    Screen.Global,
+                    -1,
+                    "##wisp-global-lettering"),
                 new(
                     NewsKind.Changed,
                     "The frames are lighter on your frame rate."),
