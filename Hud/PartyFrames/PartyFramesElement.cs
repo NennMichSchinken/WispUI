@@ -1541,11 +1541,6 @@ internal sealed class PartyFramesElement : HudElement
     /// A share of the icon, like the stack count, and for the same reason: a number with a
     /// size of its own runs out of its icon the moment somebody moves the icon slider.
     /// </para>
-    /// <para>
-    /// ⚠️ With stacks on as well, the two are close at small icon sizes — the stack count
-    /// sits in the corner this number reaches toward. That is the honest price of putting
-    /// two numbers on a twenty-pixel square, and it comes apart again above thirty.
-    /// </para>
     /// </summary>
     private void DrawDuration(ImDrawListPtr dl, Vector2 min, Vector2 max, float remaining)
     {
@@ -1556,7 +1551,7 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        float size = MathF.Max(Tokens.WorldPx(AuraStackMinSize), MathF.Round((max.Y - min.Y) * 0.5f));
+        float size = MathF.Max(Tokens.WorldPx(AuraStackMinSize), MathF.Round((max.Y - min.Y) * AuraDurationShare));
         float width = Ink.MeasureWidth(size, text);
 
         Vector2 at = new(
@@ -1565,7 +1560,14 @@ internal sealed class PartyFramesElement : HudElement
 
         // Outlined whatever the frame's text edge is, like the stack count: this one sits on
         // a picture, and a picture can be any colour underneath.
-        Ink.DrawScaledEdged(dl, size, at, this.DimInk(Tokens.Col.HudInk), text, TextEdge.Outline);
+        Ink.DrawScaledEdged(
+            dl,
+            size,
+            at,
+            this.DimInk(Tokens.Col.HudInk),
+            text,
+            TextEdge.Outline,
+            Tokens.WorldLine(AuraNumberEdge));
     }
 
     /// <summary>
@@ -1693,21 +1695,45 @@ internal sealed class PartyFramesElement : HudElement
         return scale <= 0f ? centre : new Vector2(centre.X + (dx / scale), centre.Y + (dy / scale));
     }
 
-    /// <summary>How many of it there are, in the bottom right of its icon.</summary>
+    /// <summary>
+    /// How many of it there are, astride the bottom edge of its icon.
+    /// <para>
+    /// 🔴 It used to sit in the bottom right corner, inside the icon — which is the corner
+    /// the duration reaches toward, so with both numbers on the two collided and neither
+    /// could be read (Florian, 2026-09-21, at a twenty pixel icon). Two numbers do not fit
+    /// on a twenty pixel square side by side; one of them has to leave, and this is the one
+    /// that can. It is a small number that rarely changes, while the duration is the one
+    /// being watched — so the duration keeps the icon and the count moves to the edge.
+    /// </para>
+    /// <para>
+    /// ⚠️ Half of it therefore hangs BELOW the icon, over whatever is underneath: the frame
+    /// on the bottom row, and nothing at all past the frame's edge. That is why it carries
+    /// its own outline width rather than the one the text size would give it.
+    /// </para>
+    /// </summary>
     private void DrawStacks(ImDrawListPtr dl, Vector2 min, Vector2 max, ushort stacks)
     {
         string text = StackText[Math.Min((int)stacks, StackText.Length) - 1];
 
-        // Half the icon, so the number scales with whatever size the icons are set to rather
-        // than staying put and swallowing a small one.
-        float size = MathF.Max(Tokens.WorldPx(AuraStackMinSize), MathF.Round((max.Y - min.Y) * 0.5f));
+        // A share of the icon, so the number scales with whatever size the icons are set to
+        // rather than staying put and swallowing a small one.
+        float size = MathF.Max(Tokens.WorldPx(AuraStackMinSize), MathF.Round((max.Y - min.Y) * AuraStackShare));
         float width = Ink.MeasureWidth(size, text);
 
-        Vector2 at = new(MathF.Round(max.X - width - 1f), MathF.Round(max.Y - size));
+        Vector2 at = new(
+            MathF.Round(((min.X + max.X) * 0.5f) - (width * 0.5f)),
+            MathF.Round(max.Y - (size * 0.5f)));
 
         // Always outlined, whatever the frame's own text edge is set to. This one sits on a
         // picture rather than on a bar, and a picture can be any colour underneath.
-        Ink.DrawScaledEdged(dl, size, at, this.DimInk(Tokens.Col.HudInk), text, TextEdge.Outline);
+        Ink.DrawScaledEdged(
+            dl,
+            size,
+            at,
+            this.DimInk(Tokens.Col.HudInk),
+            text,
+            TextEdge.Outline,
+            Tokens.WorldLine(AuraNumberEdge));
     }
 
     /// <summary>Stack counts, built once. Past the end the number is simply not drawn.</summary>
@@ -1728,6 +1754,27 @@ internal sealed class PartyFramesElement : HudElement
     }
 
     private const float AuraStackMinSize = 10f;
+
+    /// <summary>How much of the icon's height the seconds take.</summary>
+    private const float AuraDurationShare = 0.6f;
+
+    /// <summary>
+    /// How much of it the stack count takes. A shade under the duration: it is the lesser of
+    /// the two numbers, and half of it is out in the open where a tall glyph reads bigger
+    /// than it measures.
+    /// </summary>
+    private const float AuraStackShare = 0.55f;
+
+    /// <summary>
+    /// The outline around both numbers on an icon, in pixels.
+    /// <para>
+    /// Its own value rather than the size-based one in <c>Ink.EdgeWidth</c>, which gives a
+    /// single pixel at anything under twenty-eight and was tuned for names and health
+    /// numbers on a bar. These two lie over artwork, and one of them lies half off the icon
+    /// (Florian, 2026-09-21: the numbers are hard to pick out).
+    /// </para>
+    /// </summary>
+    private const float AuraNumberEdge = 2f;
 
     /// <summary>
     /// A raise on its way, or somebody who cannot be killed.

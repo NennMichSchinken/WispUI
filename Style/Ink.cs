@@ -189,8 +189,28 @@ internal static class Ink
         uint colour,
         string text,
         TextEdge edge)
+        => DrawScaledEdged(dl, pixels, pos, colour, text, edge, EdgeWidth(pixels));
+
+    /// <summary>
+    /// The same, with the edge set by the caller rather than by the size of the text.
+    /// <para>
+    /// For the few numbers that do not sit on a bar: the ones on an effect icon lie over
+    /// artwork of any colour, and the stack count lies half off its icon entirely, so it
+    /// needs more of an edge than its size alone would give it. The size-based rule in
+    /// <see cref="EdgeWidth"/> stays exactly as it is for everything else — it was tuned
+    /// against names and health numbers and must not move for these two.
+    /// </para>
+    /// </summary>
+    public static void DrawScaledEdged(
+        ImDrawListPtr dl,
+        float pixels,
+        Vector2 pos,
+        uint colour,
+        string text,
+        TextEdge edge,
+        float edgeWidth)
     {
-        float offset = EdgeWidth(pixels);
+        float offset = edgeWidth;
 
         switch (edge)
         {
