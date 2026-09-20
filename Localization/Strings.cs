@@ -52,7 +52,7 @@ internal static class Strings
     public const string TabText = "Text";
     public const string TabMarks = "Marks";
 
-    // --- Subheadings inside a card. Rare on purpose 2014 see Chrome.Subhead.
+    // --- Subheadings inside a card. Rare on purpose — see Chrome.Subhead.
     public const string SubheadTheRow = "The row";
     public const string SubheadOnEachIcon = "On each icon";
 
