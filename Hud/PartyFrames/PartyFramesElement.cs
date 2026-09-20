@@ -1560,14 +1560,7 @@ internal sealed class PartyFramesElement : HudElement
 
         // Outlined whatever the frame's text edge is, like the stack count: this one sits on
         // a picture, and a picture can be any colour underneath.
-        Ink.DrawScaledEdged(
-            dl,
-            size,
-            at,
-            this.DimInk(Tokens.Col.HudInk),
-            text,
-            TextEdge.Outline,
-            Tokens.WorldLine(AuraNumberEdge));
+        Ink.DrawScaledEdged(dl, size, at, this.DimInk(Tokens.Col.HudInk), text, TextEdge.Outline);
     }
 
     /// <summary>
@@ -1707,8 +1700,9 @@ internal sealed class PartyFramesElement : HudElement
     /// </para>
     /// <para>
     /// ⚠️ Half of it therefore hangs BELOW the icon, over whatever is underneath: the frame
-    /// on the bottom row, and nothing at all past the frame's edge. That is why it carries
-    /// its own outline width rather than the one the text size would give it.
+    /// on the bottom row, and nothing at all past the frame's edge. The ordinary outline
+    /// carries it — a thicker one was tried and taken straight back out (see
+    /// <see cref="AuraStackShare"/>).
     /// </para>
     /// </summary>
     private void DrawStacks(ImDrawListPtr dl, Vector2 min, Vector2 max, ushort stacks)
@@ -1726,14 +1720,7 @@ internal sealed class PartyFramesElement : HudElement
 
         // Always outlined, whatever the frame's own text edge is set to. This one sits on a
         // picture rather than on a bar, and a picture can be any colour underneath.
-        Ink.DrawScaledEdged(
-            dl,
-            size,
-            at,
-            this.DimInk(Tokens.Col.HudInk),
-            text,
-            TextEdge.Outline,
-            Tokens.WorldLine(AuraNumberEdge));
+        Ink.DrawScaledEdged(dl, size, at, this.DimInk(Tokens.Col.HudInk), text, TextEdge.Outline);
     }
 
     /// <summary>Stack counts, built once. Past the end the number is simply not drawn.</summary>
@@ -1762,19 +1749,18 @@ internal sealed class PartyFramesElement : HudElement
     /// How much of it the stack count takes. A shade under the duration: it is the lesser of
     /// the two numbers, and half of it is out in the open where a tall glyph reads bigger
     /// than it measures.
-    /// </summary>
-    private const float AuraStackShare = 0.55f;
-
-    /// <summary>
-    /// The outline around both numbers on an icon, in pixels.
     /// <para>
-    /// Its own value rather than the size-based one in <c>Ink.EdgeWidth</c>, which gives a
-    /// single pixel at anything under twenty-eight and was tuned for names and health
-    /// numbers on a bar. These two lie over artwork, and one of them lies half off the icon
-    /// (Florian, 2026-09-21: the numbers are hard to pick out).
+    /// 🔴 Size was the whole answer. Both numbers were given a two pixel outline at the same
+    /// time, on the thought that a number lying over artwork needs more of an edge — and at
+    /// twelve pixels of text a two pixel edge is nearly as thick as the strokes themselves,
+    /// so it closed up the eye of a 9 and the bowls of a 3 and the numbers came out worse
+    /// than before (Florian, 2026-09-21, one round after asking for it). The size-based rule
+    /// in <c>Ink.EdgeWidth</c> already thickens on its own past twenty-eight pixels, which
+    /// is where these numbers land at a large icon and exactly where a second pixel helps.
+    /// <b>An edge is a share of the stroke it surrounds, not a constant.</b>
     /// </para>
     /// </summary>
-    private const float AuraNumberEdge = 2f;
+    private const float AuraStackShare = 0.55f;
 
     /// <summary>
     /// A raise on its way, or somebody who cannot be killed.
