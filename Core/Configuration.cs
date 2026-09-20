@@ -111,6 +111,19 @@ public sealed class Configuration : IPluginConfiguration
     /// <summary>The thickest the edge on a removable affliction may be drawn.</summary>
     public const float MaxDispelThickness = 4f;
 
+    /// <summary>
+    /// How small and how large the numbers on an effect icon may be set, as a share of the
+    /// icon's height.
+    /// <para>
+    /// Not up to a whole icon: a number the full height of its square has its outline
+    /// hanging off every side, and past that the icon is a number with a picture behind it.
+    /// </para>
+    /// </summary>
+    public const float MinAuraNumberSize = 0.35f;
+
+    /// <inheritdoc cref="MinAuraNumberSize"/>
+    public const float MaxAuraNumberSize = 0.95f;
+
     public bool PartyFramesEnabled { get; set; } = true;
 
     public PartyFramesConfig PartyFrames { get; set; } = new();
@@ -565,6 +578,32 @@ public sealed class Configuration : IPluginConfiguration
         public float AuraDispelThickness { get; set; } = 2f;
 
         /// <summary>
+        /// How much of an icon's height the numbers on it take — the seconds left, and the
+        /// stack count, which keeps a fixed ratio below this one.
+        /// <para>
+        /// 🔴 There was deliberately no setting for this, on the reasoning that a number
+        /// with a size of its own runs out of its icon the moment somebody moves the icon
+        /// slider, while a SHARE of the icon never can. The reasoning was sound and the
+        /// conclusion was still wrong: the share is of the font's em box, not of the icon,
+        /// and how much of that box a digit actually fills is a property of the typeface.
+        /// Axis leaves room above and below; a condensed face fills it to the edges, and the
+        /// same 0.7 came out enormous the moment Florian switched to one (2026-09-21).
+        /// <b>It was one of the four fonts the game itself ships and we already offer</b> —
+        /// so this is not an edge case reached by loading something exotic, and on top of
+        /// that we hand out a folder for the player's own fonts. No single share can be
+        /// right for all of them, and a number that cannot be sized is one a player has to
+        /// solve by giving up their font.
+        /// </para>
+        /// <para>
+        /// One slider for both numbers rather than one each: they are two readings of the
+        /// same typeface at the same place, and nobody wants the seconds large while the
+        /// stack count stays small. It is <b>not</b> a pixel value, so the interface-scale
+        /// migration must leave it alone.
+        /// </para>
+        /// </summary>
+        public float AuraNumberSize { get; set; } = 0.7f;
+
+        /// <summary>
         /// Point at an affliction and the game's own name and description for it come up.
         /// <para>
         /// 🔴 OFF by default, and it is the one setting here where the default is the opposite
@@ -894,6 +933,7 @@ public sealed class Configuration : IPluginConfiguration
             this.OtherY = Offset(this.OtherY, 0f);
 
             this.AuraDispelThickness = Bounded(this.AuraDispelThickness, 1f, MaxDispelThickness, 2f);
+            this.AuraNumberSize = Bounded(this.AuraNumberSize, MinAuraNumberSize, MaxAuraNumberSize, 0.7f);
 
             this.AuraMaxCount = Math.Clamp(this.AuraMaxCount, 1, MaxAurasPerRow);
             this.BuffMaxCount = Math.Clamp(this.BuffMaxCount, 1, MaxAurasPerRow);

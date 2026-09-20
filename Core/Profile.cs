@@ -261,6 +261,7 @@ public sealed class Profile
         to.AuraShowDuration = from.AuraShowDuration;
         to.AuraDispelBorder = from.AuraDispelBorder;
         to.AuraDispelThickness = from.AuraDispelThickness;
+        to.AuraNumberSize = from.AuraNumberSize;
         to.ShowAuraTooltips = from.ShowAuraTooltips;
         to.ShowBuffTooltips = from.ShowBuffTooltips;
         to.ShowOtherTooltips = from.ShowOtherTooltips;

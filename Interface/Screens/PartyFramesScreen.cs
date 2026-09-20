@@ -100,6 +100,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdAuraSwipe = "##wisp-pf-auraswipe";
     private const string IdAuraTooltips = "##wisp-pf-auratips";
     private const string IdAuraDuration = "##wisp-pf-auraduration";
+    private const string IdAuraNumberSize = "##wisp-pf-auranumsize";
     private const string IdAuraDispel = "##wisp-pf-auradispel";
     private const string IdAuraDispelThickness = "##wisp-pf-auradispelthick";
     private const string IdBuffDuration = "##wisp-pf-buffduration";
@@ -387,6 +388,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     // allocation per frame in the draw path for a caption nobody asked to change (§7.1).
     private string m_shieldOpacityText = string.Empty;
     private int m_shieldOpacityTextFor = -1;
+
+    private string m_auraNumberText = string.Empty;
+    private int m_auraNumberTextFor = -1;
 
     private string m_cleanseOpacityText = string.Empty;
     private int m_cleanseOpacityTextFor = -1;
@@ -2459,6 +2463,34 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
+        // Both numbers off one slider, and it sits under the two switches that put them
+        // there. It is a share of the icon rather than a pixel size — see the configuration
+        // for why the share has to be settable at all.
+        rowY += pitch;
+
+        float numberSize = m_config.PartyFrames.AuraNumberSize;
+        Chrome.SliderResult numberResult = Chrome.Slider(
+            IdAuraNumberSize,
+            Strings.AuraNumberSize,
+            this.AuraNumberCaption(numberSize),
+            group.ContentX,
+            rowY,
+            group.ContentWidth,
+            numberSize,
+            Configuration.MinAuraNumberSize,
+            Configuration.MaxAuraNumberSize,
+            Strings.AuraNumberSizeTooltip,
+            null,
+            true,
+            OpacityStep,
+            OpacityEditScale);
+
+        if (numberResult.Changed)
+        {
+            m_config.PartyFrames.AuraNumberSize = numberResult.Value;
+            m_config.MarkDirty();
+        }
+
         // The cleanse mark, brought down onto the single icon. No colour of its own — see
         // the configuration for why one statement gets one colour.
         rowY += pitch;
@@ -3374,6 +3406,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     private string OpacityCaption(float opacity) =>
         PercentCaption(opacity, ref m_opacityTextFor, ref m_opacityText);
+
+    private string AuraNumberCaption(float share) =>
+        PercentCaption(share, ref m_auraNumberTextFor, ref m_auraNumberText);
 
     private string CleanseOpacityCaption(float opacity) =>
         PercentCaption(opacity, ref m_cleanseOpacityTextFor, ref m_cleanseOpacityText);

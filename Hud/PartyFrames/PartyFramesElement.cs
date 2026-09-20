@@ -1551,7 +1551,7 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        float size = MathF.Max(Tokens.WorldPx(AuraStackMinSize), MathF.Round((max.Y - min.Y) * AuraDurationShare));
+        float size = this.AuraNumberHeight(max.Y - min.Y, 1f);
         float width = Ink.MeasureWidth(size, text);
 
         Vector2 at = new(
@@ -1702,7 +1702,7 @@ internal sealed class PartyFramesElement : HudElement
     /// ⚠️ Half of it therefore hangs BELOW the icon, over whatever is underneath: the frame
     /// on the bottom row, and nothing at all past the frame's edge. The ordinary outline
     /// carries it — a thicker one was tried and taken straight back out (see
-    /// <see cref="AuraStackShare"/>).
+    /// <see cref="AuraStackRatio"/>).
     /// </para>
     /// </summary>
     private void DrawStacks(ImDrawListPtr dl, Vector2 min, Vector2 max, ushort stacks)
@@ -1711,7 +1711,7 @@ internal sealed class PartyFramesElement : HudElement
 
         // A share of the icon, so the number scales with whatever size the icons are set to
         // rather than staying put and swallowing a small one.
-        float size = MathF.Max(Tokens.WorldPx(AuraStackMinSize), MathF.Round((max.Y - min.Y) * AuraStackShare));
+        float size = this.AuraNumberHeight(max.Y - min.Y, AuraStackRatio);
         float width = Ink.MeasureWidth(size, text);
 
         Vector2 at = new(
@@ -1743,19 +1743,25 @@ internal sealed class PartyFramesElement : HudElement
     private const float AuraStackMinSize = 10f;
 
     /// <summary>
-    /// How much of the icon's height the seconds take.
+    /// How tall a number on an effect icon comes out: the player's share of the icon, times
+    /// whatever this particular number's ratio to it is, never below the floor.
     /// <para>
-    /// ⚠️ About as far as this goes. At seven tenths a two digit number is already nearly
-    /// as wide as the icon it sits on, so the next step up would push "21" out of its own
-    /// square — and a number that is cut off is worse than a small one.
+    /// One place, because the two numbers have to agree — they sit on the same icon in the
+    /// same typeface, and a rule applied twice is a rule that drifts apart once.
     /// </para>
     /// </summary>
-    private const float AuraDurationShare = 0.7f;
+    private float AuraNumberHeight(float iconHeight, float ratio) => MathF.Max(
+        Tokens.WorldPx(AuraStackMinSize),
+        MathF.Round(iconHeight * m_config.PartyFrames.AuraNumberSize * ratio));
 
     /// <summary>
-    /// How much of it the stack count takes. A shade under the duration: it is the lesser of
+    /// How the stack count relates to the duration. A shade under it: it is the lesser of
     /// the two numbers, and half of it is out in the open where a tall glyph reads bigger
     /// than it measures.
+    /// <para>
+    /// Fixed, while the size itself is the player's. Nobody wants the seconds large and the
+    /// stack count small — one slider moves both and this holds them in step.
+    /// </para>
     /// <para>
     /// 🔴 Size was the whole answer. Both numbers were given a two pixel outline at the same
     /// time, on the thought that a number lying over artwork needs more of an edge — and at
@@ -1767,7 +1773,7 @@ internal sealed class PartyFramesElement : HudElement
     /// <b>An edge is a share of the stroke it surrounds, not a constant.</b>
     /// </para>
     /// </summary>
-    private const float AuraStackShare = 0.65f;
+    private const float AuraStackRatio = 0.93f;
 
     /// <summary>
     /// A raise on its way, or somebody who cannot be killed.
