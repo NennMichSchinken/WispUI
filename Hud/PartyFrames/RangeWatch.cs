@@ -69,7 +69,14 @@ internal sealed class RangeWatch
             // ⚠️ This searches the object table, which is why it is here and not in a frame.
             // A null object is not a failure — it is the game saying it has not loaded this
             // person, which is the whole answer we came for.
-            IGameObject? obj = member.GameObject;
+            //
+            // 🔴 Asked by ENTITY id, not through IPartyMember.GameObject. That property hands
+            // the member's entity id to SearchById, which compares it against each object's
+            // GameObjectId — a different field. SearchByEntityId compares the field the
+            // number actually came from. A lookup that answers "not loaded" for somebody
+            // standing next to you makes the whole party look out of range, which is what it
+            // did (Florian, 2026-09-21: everybody dimmed except himself).
+            IGameObject? obj = Services.Objects.SearchByEntityId(member.EntityId);
 
             m_who[m_count] = who;
             m_distance[m_count] = obj is null ? Unreachable : obj.CurrentDistance;
