@@ -1551,12 +1551,13 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        float size = this.AuraNumberHeight(max.Y - min.Y, 1f);
+        float size = Tokens.WorldPx(m_config.PartyFrames.AuraDurationSize);
         float width = Ink.MeasureWidth(size, text);
 
+        // Centred on the digits, not on the line they are written in — see Ink.DigitTop.
         Vector2 at = new(
             MathF.Round(((min.X + max.X) * 0.5f) - (width * 0.5f)),
-            MathF.Round(((min.Y + max.Y) * 0.5f) - (size * 0.5f)));
+            MathF.Round(Ink.DigitTop(size, (min.Y + max.Y) * 0.5f)));
 
         // Outlined whatever the frame's text edge is, like the stack count: this one sits on
         // a picture, and a picture can be any colour underneath.
@@ -1701,22 +1702,29 @@ internal sealed class PartyFramesElement : HudElement
     /// <para>
     /// ⚠️ Half of it therefore hangs BELOW the icon, over whatever is underneath: the frame
     /// on the bottom row, and nothing at all past the frame's edge. The ordinary outline
-    /// carries it — a thicker one was tried and taken straight back out (see
-    /// <see cref="AuraStackRatio"/>).
+    /// carries it.
+    /// </para>
+    /// <para>
+    /// 🔴 A thicker one was tried for exactly that reason and taken straight back out. At
+    /// twelve pixels of text a two pixel edge is nearly as thick as the strokes themselves:
+    /// it closed up the eye of a 9 and the bowls of a 3, and both numbers came out worse
+    /// than before (Florian, 2026-09-21, one round after asking for it). Size was the whole
+    /// answer. <b>An edge is a share of the stroke it surrounds, not a constant</b> — which
+    /// is what <c>Ink.EdgeWidth</c> already does, thickening past twenty-eight pixels,
+    /// exactly where a second pixel starts to help.
     /// </para>
     /// </summary>
     private void DrawStacks(ImDrawListPtr dl, Vector2 min, Vector2 max, ushort stacks)
     {
         string text = StackText[Math.Min((int)stacks, StackText.Length) - 1];
 
-        // A share of the icon, so the number scales with whatever size the icons are set to
-        // rather than staying put and swallowing a small one.
-        float size = this.AuraNumberHeight(max.Y - min.Y, AuraStackRatio);
+        float size = Tokens.WorldPx(m_config.PartyFrames.AuraStackSize);
         float width = Ink.MeasureWidth(size, text);
 
+        // Its digits straddle the icon's bottom edge, so the edge is what they centre on.
         Vector2 at = new(
             MathF.Round(((min.X + max.X) * 0.5f) - (width * 0.5f)),
-            MathF.Round(max.Y - (size * 0.5f)));
+            MathF.Round(Ink.DigitTop(size, max.Y)));
 
         // Always outlined, whatever the frame's own text edge is set to. This one sits on a
         // picture rather than on a bar, and a picture can be any colour underneath.
@@ -1739,41 +1747,6 @@ internal sealed class PartyFramesElement : HudElement
 
         return text;
     }
-
-    private const float AuraStackMinSize = 10f;
-
-    /// <summary>
-    /// How tall a number on an effect icon comes out: the player's share of the icon, times
-    /// whatever this particular number's ratio to it is, never below the floor.
-    /// <para>
-    /// One place, because the two numbers have to agree — they sit on the same icon in the
-    /// same typeface, and a rule applied twice is a rule that drifts apart once.
-    /// </para>
-    /// </summary>
-    private float AuraNumberHeight(float iconHeight, float ratio) => MathF.Max(
-        Tokens.WorldPx(AuraStackMinSize),
-        MathF.Round(iconHeight * m_config.PartyFrames.AuraNumberSize * ratio));
-
-    /// <summary>
-    /// How the stack count relates to the duration. A shade under it: it is the lesser of
-    /// the two numbers, and half of it is out in the open where a tall glyph reads bigger
-    /// than it measures.
-    /// <para>
-    /// Fixed, while the size itself is the player's. Nobody wants the seconds large and the
-    /// stack count small — one slider moves both and this holds them in step.
-    /// </para>
-    /// <para>
-    /// 🔴 Size was the whole answer. Both numbers were given a two pixel outline at the same
-    /// time, on the thought that a number lying over artwork needs more of an edge — and at
-    /// twelve pixels of text a two pixel edge is nearly as thick as the strokes themselves,
-    /// so it closed up the eye of a 9 and the bowls of a 3 and the numbers came out worse
-    /// than before (Florian, 2026-09-21, one round after asking for it). The size-based rule
-    /// in <c>Ink.EdgeWidth</c> already thickens on its own past twenty-eight pixels, which
-    /// is where these numbers land at a large icon and exactly where a second pixel helps.
-    /// <b>An edge is a share of the stroke it surrounds, not a constant.</b>
-    /// </para>
-    /// </summary>
-    private const float AuraStackRatio = 0.93f;
 
     /// <summary>
     /// A raise on its way, or somebody who cannot be killed.

@@ -1175,6 +1175,41 @@ internal static class Chrome
     public static float RowPitch() => RowHeight() + Tokens.Metric.RowGap;
 
     /// <summary>
+    /// A heading inside a group, for a card long enough that its rows fall into parts.
+    /// Returns how much height it took, so the caller advances by what happened rather than
+    /// by a number it remembered.
+    /// <para>
+    /// 🔴 A fourth level, and it was argued against before it was built: tab, card, row are
+    /// three already, and splitting the card in two is what the card is FOR. It is here
+    /// because the split has a price the argument did not weigh — the two benefit rows have
+    /// the same anatomy on purpose, so they would have to split too, and six cards on this
+    /// tab buys an eighth tab, which §3.1 counts as its own cost (Florian, 2026-09-21,
+    /// after seeing both laid out). <b>Keep it rare.</b> A card that needs three of these
+    /// is a card that should have been two cards.
+    /// </para>
+    /// <para>
+    /// The word plus a hairline out to the right edge, same as a release section: the line
+    /// is what makes it read as a heading rather than as a shorter row above the others.
+    /// </para>
+    /// </summary>
+    public static float Subhead(ImDrawListPtr dl, string label, float x, float y, float width, bool first)
+    {
+        float top = first ? 0f : Tokens.Space.Lg;
+        float labelWidth = MathF.Round(Ink.Measure(Ink.Role.Small, label).X);
+        float line = Ink.LineHeight(Ink.Role.Small);
+
+        Ink.Draw(dl, Ink.Role.Small, new Vector2(x, y + top), Tokens.Col.Heading, label);
+        Hairline(
+            dl,
+            x + labelWidth + Tokens.Space.Md,
+            x + width,
+            MathF.Round(y + top + (line * 0.5f)),
+            Tokens.Col.RowDivider);
+
+        return top + line + Tokens.Space.Md;
+    }
+
+    /// <summary>
     /// How wide every control is, whatever it is. Taken as a fixed column off the right edge
     /// rather than as a share of the row, so controls line up down the screen AND across the
     /// two columns; the label takes what is left.

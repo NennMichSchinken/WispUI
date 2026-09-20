@@ -181,6 +181,47 @@ internal static class Ink
         return width * (pixels / native);
     }
 
+    /// <summary>
+    /// Where to start drawing a number so that the DIGITS sit centred on a given line,
+    /// rather than the line box they are written in.
+    /// <para>
+    /// 🔴 The two are not the same, and how far apart they are is a property of the
+    /// typeface. A line box reaches from the tallest ascender to the lowest descender; a
+    /// digit occupies some band inside that, and where that band sits is the font
+    /// designer's choice. Axis puts it near the middle, so centring the box centred the
+    /// digits by accident. Jupiter keeps more room above, so the same arithmetic dropped
+    /// every number visibly low (Florian, 2026-09-21) — and every font we do not ship gets
+    /// its own version of that error.
+    /// </para>
+    /// <para>
+    /// Measured off the glyph itself, in the face the text will actually be drawn in, and
+    /// falling back to half the line when a face cannot answer. Allocation free: the font
+    /// lock was taken at the top of the frame, so this is pointer arithmetic.
+    /// </para>
+    /// </summary>
+    public static unsafe float DigitTop(float pixels, float centreY)
+    {
+        int i = HudIndex(pixels);
+        ImFontPtr font = i >= 0 ? HudFonts[i] : Fonts[(int)RoleFor(pixels)];
+        float native = i >= 0 ? HudPx[i] : Sizes[(int)RoleFor(pixels)];
+
+        if (native > 0f && !font.IsNull)
+        {
+            ImFontGlyphPtr glyph = font.FindGlyph('0');
+
+            if (!glyph.IsNull)
+            {
+                // Y0 and Y1 are the digit's top and bottom measured from where the line
+                // starts, in the face's own size — so they scale with everything else.
+                float middle = (glyph.Y0 + glyph.Y1) * 0.5f * (pixels / native);
+
+                return centreY - middle;
+            }
+        }
+
+        return centreY - (pixels * 0.5f);
+    }
+
     /// <summary>Writes a string at a chosen pixel size, with whatever was chosen to carry it.</summary>
     public static void DrawScaledEdged(
         ImDrawListPtr dl,

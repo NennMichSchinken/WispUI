@@ -194,9 +194,10 @@ public sealed class Profile
     /// <para>
     /// <c>skip.txt</c> holds what a profile must NOT carry, one name per line:
     /// <c>BarStyle</c>, <c>Font</c>, <c>ShortenNames</c>, <c>ClickToTarget</c>,
-    /// <c>ContextMenu</c>, <c>MouseoverCasting</c> — migration relics, kept only so an old
-    /// file can be read once — and <c>Bindings</c>, <c>Mouseover</c>, which belong to the
-    /// hands at the keyboard rather than to the look of a frame.
+    /// <c>ContextMenu</c>, <c>MouseoverCasting</c>, <c>AuraNumberSize</c> — migration
+    /// relics, kept only so an old file can be read once — and <c>Bindings</c>,
+    /// <c>Mouseover</c>, which belong to the hands at the keyboard rather than to the look
+    /// of a frame.
     /// </para>
     /// </summary>
     internal static void Copy(Configuration.PartyFramesConfig from, Configuration.PartyFramesConfig to)
@@ -261,7 +262,8 @@ public sealed class Profile
         to.AuraShowDuration = from.AuraShowDuration;
         to.AuraDispelBorder = from.AuraDispelBorder;
         to.AuraDispelThickness = from.AuraDispelThickness;
-        to.AuraNumberSize = from.AuraNumberSize;
+        to.AuraDurationSize = from.AuraDurationSize;
+        to.AuraStackSize = from.AuraStackSize;
         to.ShowAuraTooltips = from.ShowAuraTooltips;
         to.ShowBuffTooltips = from.ShowBuffTooltips;
         to.ShowOtherTooltips = from.ShowOtherTooltips;

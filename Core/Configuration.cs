@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 14;
+    public const int CurrentVersion = 15;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -578,30 +578,47 @@ public sealed class Configuration : IPluginConfiguration
         public float AuraDispelThickness { get; set; } = 2f;
 
         /// <summary>
-        /// How much of an icon's height the numbers on it take — the seconds left, and the
-        /// stack count, which keeps a fixed ratio below this one.
-        /// <para>
-        /// 🔴 There was deliberately no setting for this, on the reasoning that a number
-        /// with a size of its own runs out of its icon the moment somebody moves the icon
-        /// slider, while a SHARE of the icon never can. The reasoning was sound and the
-        /// conclusion was still wrong: the share is of the font's em box, not of the icon,
-        /// and how much of that box a digit actually fills is a property of the typeface.
-        /// Axis leaves room above and below; a condensed face fills it to the edges, and the
-        /// same 0.7 came out enormous the moment Florian switched to one (2026-09-21).
-        /// <b>It was one of the four fonts the game itself ships and we already offer</b> —
-        /// so this is not an edge case reached by loading something exotic, and on top of
-        /// that we hand out a folder for the player's own fonts. No single share can be
-        /// right for all of them, and a number that cannot be sized is one a player has to
-        /// solve by giving up their font.
-        /// </para>
-        /// <para>
-        /// One slider for both numbers rather than one each: they are two readings of the
-        /// same typeface at the same place, and nobody wants the seconds large while the
-        /// stack count stays small. It is <b>not</b> a pixel value, so the interface-scale
-        /// migration must leave it alone.
-        /// </para>
+        /// ⚠️ A migration relic. It held the numbers' size as a share of their icon; the
+        /// two pixel sizes below replaced it at version 15, which reads this once to work
+        /// out what the player had. Nothing draws from it.
         /// </summary>
         public float AuraNumberSize { get; set; } = 0.7f;
+
+        /// <summary>
+        /// How tall the seconds on an effect icon are, in pixels — the same kind of number
+        /// as <see cref="NameSize"/> and <see cref="HpTextSize"/>, and read the same way:
+        /// the size of the line, not the height of a digit.
+        /// <para>
+        /// 🔴 This went through two wrong answers before it got here. First there was no
+        /// setting at all, on the reasoning that a number with a size of its own runs out
+        /// of its icon the moment somebody moves the icon slider, while a SHARE of the icon
+        /// never can. Then it was a share the player could set. Both missed the same thing:
+        /// <b>the share is of the font's em box, not of the icon</b>, and how much of that
+        /// box a digit fills is a property of the typeface. A share of 0.7 is small in Axis
+        /// and enormous in a condensed face — and that face was one of the four the game
+        /// itself ships, not something exotic somebody loaded.
+        /// </para>
+        /// <para>
+        /// A pixel size also does what a share cannot: <b>the game's fonts are bitmaps and
+        /// are only sharp at their real steps</b> (16 / 18.7 / 24), and a percentage of an
+        /// icon lands on one of those about never. Florian saw both at once — soft edges at
+        /// 95%, and Jupiter sitting low (2026-09-21).
+        /// </para>
+        /// <para>
+        /// ⚠️ The trade, which is real: one pixel size serves all three icon rows, where a
+        /// share scaled with each row's own icons. Rows set to very different sizes will
+        /// want different numbers and cannot have them.
+        /// </para>
+        /// </summary>
+        public float AuraDurationSize { get; set; } = 14f;
+
+        /// <summary>
+        /// The same for the stack count. Its own value rather than a ratio of the one
+        /// above: once the size is in pixels there is nothing left for a ratio to protect,
+        /// and the count is the number that sits half off its icon — whoever wants it a
+        /// pixel smaller should be able to say so.
+        /// </summary>
+        public float AuraStackSize { get; set; } = 13f;
 
         /// <summary>
         /// Point at an affliction and the game's own name and description for it come up.
@@ -934,6 +951,8 @@ public sealed class Configuration : IPluginConfiguration
 
             this.AuraDispelThickness = Bounded(this.AuraDispelThickness, 1f, MaxDispelThickness, 2f);
             this.AuraNumberSize = Bounded(this.AuraNumberSize, MinAuraNumberSize, MaxAuraNumberSize, 0.7f);
+            this.AuraDurationSize = Bounded(this.AuraDurationSize, MinTextSize, MaxTextSize, 14f);
+            this.AuraStackSize = Bounded(this.AuraStackSize, MinTextSize, MaxTextSize, 13f);
 
             this.AuraMaxCount = Math.Clamp(this.AuraMaxCount, 1, MaxAurasPerRow);
             this.BuffMaxCount = Math.Clamp(this.BuffMaxCount, 1, MaxAurasPerRow);
@@ -1441,6 +1460,39 @@ public sealed class Configuration : IPluginConfiguration
                 SplitTooltips(config.Profiles.Items[i].PartyFrames);
             }
         }
+
+        if (config.Version < 15)
+        {
+            // The numbers on an effect icon went from a share of the icon to a size of
+            // their own. Worked out from what the share came to on the afflictions row, so
+            // whoever had tuned it keeps the size they were looking at.
+            SizeAuraNumbers(config.PartyFrames);
+
+            for (int i = 0; i < config.Profiles.Items.Count; i++)
+            {
+                SizeAuraNumbers(config.Profiles.Items[i].PartyFrames);
+            }
+        }
+    }
+
+    /// <summary>
+    /// What the old share came to in pixels. The afflictions row decides, because it is the
+    /// row the share was being judged on — the other two follow whatever it gives, exactly
+    /// as they did when one share served all three.
+    /// <para>
+    /// It overwrites rather than fills in, so it does not matter that the new fields already
+    /// carry a default by the time this runs — or that an older step may have scaled that
+    /// default on its way past.
+    /// </para>
+    /// </summary>
+    private static void SizeAuraNumbers(PartyFramesConfig cfg)
+    {
+        float share = cfg.AuraNumberSize > 0f ? cfg.AuraNumberSize : 0.7f;
+
+        cfg.AuraDurationSize = MathF.Round(cfg.AuraSize * share);
+
+        // The ratio the stack count used to be held at, below the duration.
+        cfg.AuraStackSize = MathF.Round(cfg.AuraSize * share * 0.93f);
     }
 
     private static void SplitTooltips(PartyFramesConfig cfg)

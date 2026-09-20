@@ -52,6 +52,10 @@ internal static class Strings
     public const string TabText = "Text";
     public const string TabMarks = "Marks";
 
+    // --- Subheadings inside a card. Rare on purpose 2014 see Chrome.Subhead.
+    public const string SubheadTheRow = "The row";
+    public const string SubheadOnEachIcon = "On each icon";
+
     // --- Module header ------------------------------------------------------
     public const string CopyAppearance = "Copy appearance";
     public const string PasteAppearance = "Paste\u2026";
@@ -292,9 +296,10 @@ internal static class Strings
     public const string AuraDuration = "Time left";
     public const string AuraDurationTooltip = "The seconds left, across the icon. The sweep already says it without a number; this is for when you need to know four from two.";
     public const string BuffDurationTooltip = "The seconds left, across the icon. One switch for both benefit rows.";
-    public const string AuraNumberSize = "Number size";
+    public const string AuraDurationSize = "Time left size";
+    public const string AuraStackSize = "Stack size";
     public const string AuraNumberSizeTooltip =
-        "How much of an icon the seconds and the stack count take. Set it to suit your font — a narrow face fills its line height further than a wide one does.";
+        "How tall the numbers on an icon are. Set it to suit your font — the game's own faces are sharpest at 16, 19 and 24.";
     public const string AuraDispelBorder = "Mark removable";
     public const string AuraDispelThickness = "Edge thickness";
     public const string AuraDispelBorderTooltip = "An edge in the cleanse colour on the afflictions you can take off, so the row says which one once the frame has said there is one.";

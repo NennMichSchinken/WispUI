@@ -100,7 +100,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdAuraSwipe = "##wisp-pf-auraswipe";
     private const string IdAuraTooltips = "##wisp-pf-auratips";
     private const string IdAuraDuration = "##wisp-pf-auraduration";
-    private const string IdAuraNumberSize = "##wisp-pf-auranumsize";
+    private const string IdAuraDurationSize = "##wisp-pf-auradursize";
+    private const string IdAuraStackSize = "##wisp-pf-aurastacksize";
     private const string IdAuraDispel = "##wisp-pf-auradispel";
     private const string IdAuraDispelThickness = "##wisp-pf-auradispelthick";
     private const string IdBuffDuration = "##wisp-pf-buffduration";
@@ -266,8 +267,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     private const int SlotRaiseThickness = 35;
 
-    /// <summary>🔴 The last slot. Adding one below this means moving the line under it too.</summary>
     private const int SlotDispelThickness = 36;
+
+    private const int SlotAuraDurationSize = 37;
+
+    /// <summary>🔴 The last slot. Adding one below this means moving the line under it too.</summary>
+    private const int SlotAuraStackSize = 38;
 
     /// <summary>
     /// How many slots there are, derived from the last one rather than written down.
@@ -280,7 +285,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     /// array grows with it.
     /// </para>
     /// </summary>
-    private const int SlotCount = SlotDispelThickness + 1;
+    private const int SlotCount = SlotAuraStackSize + 1;
 
     /// <summary>The three weights, in the order the segments sit. Built once, not per frame.</summary>
     private static readonly string[] WeightNames =
@@ -389,8 +394,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private string m_shieldOpacityText = string.Empty;
     private int m_shieldOpacityTextFor = -1;
 
-    private string m_auraNumberText = string.Empty;
-    private int m_auraNumberTextFor = -1;
 
     private string m_cleanseOpacityText = string.Empty;
     private int m_cleanseOpacityTextFor = -1;
@@ -2347,14 +2350,22 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         // The three icon rows and nothing else. What to DO about an effect moved to Marks —
         // this tab is only about the pictures of what is lying on somebody.
+        //
+        // 🔴 The two benefit rows go first, side by side, and the afflictions row sits
+        // underneath on its own. Not because afflictions matter less — the order here is
+        // arithmetic. Two cards in a row end on ONE bottom edge, so the shorter is stretched
+        // to the taller; with the long afflictions card up top that meant a card of eight
+        // rows padded out to twelve, which is the empty space Florian saw (2026-09-21). The
+        // two benefit rows are near enough the same length to stretch each other by nothing,
+        // and the long one, alone on its row, stretches nobody.
         Chrome.BeginGroupRow();
-        Chrome.GroupScope auras = this.DrawAuraIcons(Chrome.ColumnX(origin.X, width, 0), origin.Y, column, out float auraHeight);
-        Chrome.GroupScope buffs = this.DrawBuffIcons(Chrome.ColumnX(origin.X, width, 1), origin.Y, column, out float buffHeight);
-        float y = origin.Y + FrameRow(auras, auraHeight, buffs, buffHeight);
+        Chrome.GroupScope buffs = this.DrawBuffIcons(Chrome.ColumnX(origin.X, width, 0), origin.Y, column, out float buffHeight);
+        Chrome.GroupScope others = this.DrawOtherIcons(Chrome.ColumnX(origin.X, width, 1), origin.Y, column, out float otherHeight);
+        float y = origin.Y + FrameRow(buffs, buffHeight, others, otherHeight);
 
         Chrome.BeginGroupRow();
-        Chrome.GroupScope others = this.DrawOtherIcons(Chrome.ColumnX(origin.X, width, 0), y, column, out float otherHeight);
-        y += Chrome.GroupFrame(others, otherHeight) + Tokens.Metric.ColumnGutter;
+        Chrome.GroupScope auras = this.DrawAuraIcons(Chrome.ColumnX(origin.X, width, 0), y, column, out float auraHeight);
+        y += Chrome.GroupFrame(auras, auraHeight) + Tokens.Metric.ColumnGutter;
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
@@ -2384,6 +2395,13 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
 
+        // 🔴 The one card on this screen with headings inside it — see Chrome.Subhead for
+        // why it earns the exception and why nothing else should copy it. Twelve rows fall
+        // into two plain halves: how the row of icons is laid out, and what is drawn on one
+        // of them.
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        rowY += Chrome.Subhead(dl, Strings.SubheadTheRow, group.ContentX, rowY, group.ContentWidth, true);
+
         // 🔴 Two rows used to sit above this one: "Show icons", which is the switch in the
         // head now, and "Preview auras", which the preview band answers properly. Both are
         // gone and so is the advance that made room for them — a removed row that leaves its
@@ -2410,9 +2428,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         this.PixelSlider(IdAuraX, Strings.OffsetX, SlotAuraX, group, rowY, -MaxOffset, MaxOffset, true, null);
 
         rowY += pitch;
-        this.PixelSlider(IdAuraY, Strings.OffsetY, SlotAuraY, group, rowY, -MaxOffset, MaxOffset, true, null);
+        this.PixelSlider(IdAuraY, Strings.OffsetY, SlotAuraY, group, rowY, -MaxOffset, MaxOffset, false, null);
 
         rowY += pitch;
+        rowY += Chrome.Subhead(dl, Strings.SubheadOnEachIcon, group.ContentX, rowY, group.ContentWidth, false);
+
+        // No divider: it would land right under the subheading's own hairline.
         if (Chrome.OptionRow(
                 IdAuraStacks,
                 Strings.AuraStacks,
@@ -2423,7 +2444,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 Chrome.OptionControl.Tick,
                 Strings.AuraStacksTooltip,
                 true,
-                true))
+                false))
         {
             m_config.PartyFrames.AuraShowStacks = !m_config.PartyFrames.AuraShowStacks;
             m_config.MarkDirty();
@@ -2463,33 +2484,31 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        // Both numbers off one slider, and it sits under the two switches that put them
-        // there. It is a share of the icon rather than a pixel size — see the configuration
-        // for why the share has to be settable at all.
+        // One size each, in pixels, under the switches that put the two numbers there. See
+        // the configuration for why these are pixels and not a share of the icon.
         rowY += pitch;
-
-        float numberSize = m_config.PartyFrames.AuraNumberSize;
-        Chrome.SliderResult numberResult = Chrome.Slider(
-            IdAuraNumberSize,
-            Strings.AuraNumberSize,
-            this.AuraNumberCaption(numberSize),
-            group.ContentX,
+        this.PixelSlider(
+            IdAuraDurationSize,
+            Strings.AuraDurationSize,
+            SlotAuraDurationSize,
+            group,
             rowY,
-            group.ContentWidth,
-            numberSize,
-            Configuration.MinAuraNumberSize,
-            Configuration.MaxAuraNumberSize,
-            Strings.AuraNumberSizeTooltip,
-            null,
+            Configuration.MinTextSize,
+            Configuration.MaxTextSize,
             true,
-            OpacityStep,
-            OpacityEditScale);
+            Strings.AuraNumberSizeTooltip);
 
-        if (numberResult.Changed)
-        {
-            m_config.PartyFrames.AuraNumberSize = numberResult.Value;
-            m_config.MarkDirty();
-        }
+        rowY += pitch;
+        this.PixelSlider(
+            IdAuraStackSize,
+            Strings.AuraStackSize,
+            SlotAuraStackSize,
+            group,
+            rowY,
+            Configuration.MinTextSize,
+            Configuration.MaxTextSize,
+            true,
+            null);
 
         // The cleanse mark, brought down onto the single icon. No colour of its own — see
         // the configuration for why one statement gets one colour.
@@ -3293,6 +3312,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         SlotCleanseThickness => m_config.PartyFrames.CleanseThickness,
         SlotRaiseThickness => m_config.PartyFrames.RaiseThickness,
         SlotDispelThickness => m_config.PartyFrames.AuraDispelThickness,
+        SlotAuraDurationSize => m_config.PartyFrames.AuraDurationSize,
+        SlotAuraStackSize => m_config.PartyFrames.AuraStackSize,
         _ => m_config.PartyFrames.ManaHeight,
     };
 
@@ -3336,6 +3357,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             case SlotCleanseThickness: m_config.PartyFrames.CleanseThickness = value; break;
             case SlotRaiseThickness: m_config.PartyFrames.RaiseThickness = value; break;
             case SlotDispelThickness: m_config.PartyFrames.AuraDispelThickness = value; break;
+            case SlotAuraDurationSize: m_config.PartyFrames.AuraDurationSize = value; break;
+            case SlotAuraStackSize: m_config.PartyFrames.AuraStackSize = value; break;
             default: m_config.PartyFrames.ManaHeight = value; break;
         }
     }
@@ -3407,8 +3430,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private string OpacityCaption(float opacity) =>
         PercentCaption(opacity, ref m_opacityTextFor, ref m_opacityText);
 
-    private string AuraNumberCaption(float share) =>
-        PercentCaption(share, ref m_auraNumberTextFor, ref m_auraNumberText);
 
     private string CleanseOpacityCaption(float opacity) =>
         PercentCaption(opacity, ref m_cleanseOpacityTextFor, ref m_cleanseOpacityText);
