@@ -1742,8 +1742,15 @@ internal sealed class PartyFramesElement : HudElement
 
     private const float AuraStackMinSize = 10f;
 
-    /// <summary>How much of the icon's height the seconds take.</summary>
-    private const float AuraDurationShare = 0.6f;
+    /// <summary>
+    /// How much of the icon's height the seconds take.
+    /// <para>
+    /// ⚠️ About as far as this goes. At seven tenths a two digit number is already nearly
+    /// as wide as the icon it sits on, so the next step up would push "21" out of its own
+    /// square — and a number that is cut off is worse than a small one.
+    /// </para>
+    /// </summary>
+    private const float AuraDurationShare = 0.7f;
 
     /// <summary>
     /// How much of it the stack count takes. A shade under the duration: it is the lesser of
@@ -1760,7 +1767,7 @@ internal sealed class PartyFramesElement : HudElement
     /// <b>An edge is a share of the stroke it surrounds, not a constant.</b>
     /// </para>
     /// </summary>
-    private const float AuraStackShare = 0.55f;
+    private const float AuraStackShare = 0.65f;
 
     /// <summary>
     /// A raise on its way, or somebody who cannot be killed.
