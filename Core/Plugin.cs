@@ -43,7 +43,7 @@ public sealed class Plugin : IDalamudPlugin
         // member, and a sheet read never belongs in that path (CLAUDE.md §7.3).
         Data.StatusData.Prime(Hud.PartyFrames.PartySnapshot.MaxAuras);
 
-        Scaling.Commit(m_config.Scale);
+        Scaling.CommitAtLoad(m_config.Scale);
         Scaling.LogGameScaleReadings();
 
         // Kept in a local, because the settings window draws this same element as its
@@ -144,6 +144,11 @@ public sealed class Plugin : IDalamudPlugin
     {
         m_config.Tick();
 
+        // 🔴 Before anything else on the tick, and never from a drawing path: applying a
+        // scale rebuilds the font atlas, and doing that mid-frame leaves every piece of
+        // text already drawn pointing into a freed one. See Scaling.Request.
+        Scaling.Settle();
+
         // Before anything reads a setting this frame: a job change means the settings the
         // rest of the tick is about may be the wrong ones.
         m_profiles.Tick();
@@ -198,14 +203,17 @@ public sealed class Plugin : IDalamudPlugin
     {
         Configuration.PartyFramesConfig cfg = m_config.PartyFrames;
 
+        // 🔴 WorldPx, matching what the draw path asks for. These two have to agree: the
+        // handles are built for exactly the sizes in use, and a size built at one scale and
+        // asked for at another falls back to a stretched glyph nobody chose.
         // On the stack, so the tick allocates nothing. These are the three texts a frame can
         // carry; two of them are usually the same size, and SyncHud drops the duplicate.
         Span<float> sizes = stackalloc float[3];
-        sizes[0] = Tokens.Px(cfg.NameSize);
-        sizes[1] = Tokens.Px(cfg.HpTextSize);
-        sizes[2] = Tokens.Px(cfg.PartyNumberSize);
+        sizes[0] = Tokens.WorldPx(cfg.NameSize);
+        sizes[1] = Tokens.WorldPx(cfg.HpTextSize);
+        sizes[2] = Tokens.WorldPx(cfg.PartyNumberSize);
 
-        Fonts.SyncHud(!m_config.HasPendingChanges, cfg.FontName, HudText.WeightAt(cfg.TextWeight), sizes);
+        Fonts.SyncHud(!m_config.HasPendingChanges, m_config.FontName, HudText.WeightAt(m_config.TextWeight), sizes);
     }
 
     /// <summary>Puts the settings window back when arranging ends, however it ended.</summary>

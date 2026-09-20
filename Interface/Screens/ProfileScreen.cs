@@ -545,16 +545,26 @@ internal sealed class ProfileScreen
 
         rowY += pitch;
 
-        // One line under the two buttons: what the last thing done said, or what pasting
-        // will ask. It never shouts — a copy that worked is not news, it is a receipt.
-        Ink.Draw(
-            ImGui.GetWindowDrawList(),
+        // A line or two under the two buttons: what the last thing done said, or what
+        // pasting will ask. It never shouts — a copy that worked is not news, it is a
+        // receipt.
+        //
+        // 🔴 Wrapped and measured, not drawn flat. The longest of these sentences explains
+        // how a code gets damaged, and a sentence that long ran straight out of the suite
+        // (Florian, 2026-09-21). A message that only fits while it is short is a message
+        // that breaks the moment it has something to say.
+        string note = m_note.Length > 0 ? m_note : Strings.ProfilePasteHint;
+        float noteHeight = Ink.MeasureWrapped(Ink.Role.Small, note, group.ContentWidth).Y;
+
+        Ink.DrawWrapped(
             Ink.Role.Small,
             new Vector2(group.ContentX, rowY + Tokens.Space.Sm),
+            group.ContentWidth,
             m_note.Length > 0 ? Tokens.Col.Heading : Tokens.Col.InkFaint,
-            m_note.Length > 0 ? m_note : Strings.ProfilePasteHint);
+            note);
 
-        rowY += Chrome.RowHeight();
+        // The card grows with the sentence rather than the sentence being trusted to fit.
+        rowY += MathF.Max(Chrome.RowHeight(), Tokens.Space.Sm + noteHeight + Tokens.Space.Sm);
 
         float used = rowY - group.ContentY;
         Chrome.EndGroupContent(group, used);

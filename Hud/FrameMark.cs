@@ -141,5 +141,5 @@ internal static class FrameMark
 
     /// <summary>The thickness of a mark's edge in screen pixels, never thinner than a line.</summary>
     public static float Thickness(float configured) =>
-        MathF.Max(Tokens.Line(1f), Tokens.Px(configured));
+        MathF.Max(Tokens.WorldLine(1f), Tokens.WorldPx(configured));
 }

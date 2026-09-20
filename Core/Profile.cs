@@ -179,7 +179,7 @@ public sealed class Profile
     /// <summary>
     /// Every setting a profile carries, from one block to another.
     /// <para>
-    /// 🔴 This list is GENERATED, not typed. Ninety-nine lines written by hand is a list
+    /// 🔴 This list is GENERATED, not typed. A hundred lines written by hand is a list
     /// with a setting missing in it, and a missing line here is the worst kind of bug: the
     /// profile simply does not carry that one setting, silently, and nobody finds out until
     /// they wonder why their friend's frames look slightly different. Regenerate it from
@@ -194,9 +194,10 @@ public sealed class Profile
     /// <para>
     /// <c>skip.txt</c> holds what a profile must NOT carry, one name per line:
     /// <c>BarStyle</c>, <c>Font</c>, <c>ShortenNames</c>, <c>ClickToTarget</c>,
-    /// <c>ContextMenu</c>, <c>MouseoverCasting</c> — migration relics, kept only so an old
-    /// file can be read once — and <c>Bindings</c>, <c>Mouseover</c>, which belong to the
-    /// hands at the keyboard rather than to the look of a frame.
+    /// <c>ContextMenu</c>, <c>MouseoverCasting</c>, <c>AuraNumberSize</c>, <c>FontName</c>,
+    /// <c>TextWeight</c>, <c>TextEdge</c> — migration relics, kept only so an old file can
+    /// be read once — and <c>Bindings</c>, <c>Mouseover</c>, which belong to the hands at
+    /// the keyboard rather than to the look of a frame.
     /// </para>
     /// </summary>
     internal static void Copy(Configuration.PartyFramesConfig from, Configuration.PartyFramesConfig to)
@@ -206,9 +207,6 @@ public sealed class Profile
         to.BarOpacity = from.BarOpacity;
         to.SmoothBars = from.SmoothBars;
         to.ShowName = from.ShowName;
-        to.TextEdge = from.TextEdge;
-        to.FontName = from.FontName;
-        to.TextWeight = from.TextWeight;
         to.NamePosition = from.NamePosition;
         to.NameSize = from.NameSize;
         to.NameX = from.NameX;
@@ -258,7 +256,14 @@ public sealed class Profile
         to.AuraMaxCount = from.AuraMaxCount;
         to.AuraShowStacks = from.AuraShowStacks;
         to.AuraSwipe = from.AuraSwipe;
+        to.AuraShowDuration = from.AuraShowDuration;
+        to.AuraDispelBorder = from.AuraDispelBorder;
+        to.AuraDispelThickness = from.AuraDispelThickness;
+        to.AuraDurationSize = from.AuraDurationSize;
+        to.AuraStackSize = from.AuraStackSize;
         to.ShowAuraTooltips = from.ShowAuraTooltips;
+        to.ShowBuffTooltips = from.ShowBuffTooltips;
+        to.ShowOtherTooltips = from.ShowOtherTooltips;
         to.ShowBuffs = from.ShowBuffs;
         to.OwnBuffsOnly = from.OwnBuffsOnly;
         to.BuffSize = from.BuffSize;
@@ -268,12 +273,18 @@ public sealed class Profile
         to.BuffMaxCount = from.BuffMaxCount;
         to.BuffShowStacks = from.BuffShowStacks;
         to.BuffSwipe = from.BuffSwipe;
+        to.BuffShowDuration = from.BuffShowDuration;
+        to.BuffDurationSize = from.BuffDurationSize;
+        to.BuffStackSize = from.BuffStackSize;
         to.ShowOtherBuffs = from.ShowOtherBuffs;
         to.OtherSize = from.OtherSize;
         to.OtherPosition = from.OtherPosition;
         to.OtherX = from.OtherX;
         to.OtherY = from.OtherY;
         to.OtherMaxCount = from.OtherMaxCount;
+        to.OtherShowDuration = from.OtherShowDuration;
+        to.OtherDurationSize = from.OtherDurationSize;
+        to.OtherStackSize = from.OtherStackSize;
         to.CleanseMark = from.CleanseMark;
         to.ShowCleanseMark = from.ShowCleanseMark;
         to.CleanseOnlyWhenAble = from.CleanseOnlyWhenAble;

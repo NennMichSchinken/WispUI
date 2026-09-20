@@ -15,6 +15,24 @@ using WispUI.Style;
 namespace WispUI.Interface;
 
 /// <summary>
+/// The screens the settings window can show.
+/// <para>
+/// Its own type rather than one nested inside the window, because a release note names
+/// one: a line that says "this lives under Party Frames" has to be able to say so in the
+/// data, and the data is not the window (2026-09-20).
+/// </para>
+/// </summary>
+internal enum Screen
+{
+    Global,
+    Profile,
+    PartyFrames,
+
+    /// <summary>The release notes. Reached from the card in the navigation footer, not from a nav row.</summary>
+    News,
+}
+
+/// <summary>
 /// The settings window: title bar, navigation tree, tab chips and a per-screen header.
 /// The screens themselves are mostly empty — this is the frame they will hang in.
 /// <para>
@@ -172,6 +190,7 @@ internal sealed class ConfigWindow : Window
     private readonly Hud.HudElement? m_previewOf;
     private readonly GlobalScreen m_global;
     private readonly ProfileScreen m_profiles;
+    private readonly NewsScreen m_news = new();
     private readonly PartyFramesScreen m_partyFrames;
 
     /// <summary>
@@ -219,13 +238,6 @@ internal sealed class ConfigWindow : Window
         string version = ReadVersion();
         m_versionChip = Strings.PluginName + " " + version;
         m_versionBadge = "v" + version;
-    }
-
-    private enum Screen
-    {
-        Global,
-        Profile,
-        PartyFrames,
     }
 
     /// <summary>Raised when the user turns the server info bar entry on or off.</summary>
@@ -522,19 +534,27 @@ internal sealed class ConfigWindow : Window
         }
     }
 
-    private static string ScreenLabel(Screen screen) => screen switch
+    internal static string ScreenLabel(Screen screen) => screen switch
     {
         Screen.Global => Strings.NavGlobal,
         Screen.Profile => Strings.NavProfile,
+        Screen.News => Strings.NewsTitle,
         _ => Strings.NavPartyFrames,
     };
 
-    private static string[] TabsFor(Screen screen) => screen switch
+    internal static string[] TabsFor(Screen screen) => screen switch
     {
         Screen.Global => TabsGlobal,
         Screen.Profile => TabsProfile,
+
+        // 🔴 No tabs at all. Every other screen has one chip even when it has one tab, so
+        // the header keeps its shape — but the notes are not a module, and a chip reading
+        // "Base" over a list of sentences would say this is something to configure.
+        Screen.News => TabsNone,
         _ => TabsPartyFrames,
     };
+
+    private static readonly string[] TabsNone = System.Array.Empty<string>();
 
     /// <summary>
     /// The title bar. Its fill runs from the very top of the window rather than from inside
@@ -632,7 +652,7 @@ internal sealed class ConfigWindow : Window
         y -= Tokens.Metric.NavButtonHeight + pad;
         this.DrawEditModeButton(dl, innerLeft, y, innerRight - innerLeft);
 
-        y -= Tokens.Metric.NavCardHeight + pad;
+        y -= NewsCardHeight() + pad;
         this.DrawNewsCard(dl, innerLeft, y, innerRight - innerLeft);
     }
 
@@ -691,9 +711,30 @@ internal sealed class ConfigWindow : Window
         Chrome.TooltipOnHover(Strings.EditModeHint);
     }
 
+    /// <summary>
+    /// How tall the card is: its padding, the badge row, and room for exactly two lines of
+    /// summary.
+    /// <para>
+    /// 🔴 Worked out from the parts rather than written down as a number. A fixed height
+    /// beside a wrapping text is a pair that has to be kept in step by hand, and the way it
+    /// fails is the text quietly leaving the card.
+    /// </para>
+    /// </summary>
+    private static float NewsCardHeight() =>
+        (Tokens.Space.Md * 2f)
+        + Tokens.Metric.BadgeHeight
+        + Tokens.Space.Xs
+        + (Ink.LineHeight(Ink.Role.Small) * NewsCardLines);
+
+    /// <summary>
+    /// Two, and the summary is written to fit. More would make the card a paragraph in the
+    /// navigation rail; fewer cannot say what a release was about.
+    /// </summary>
+    private const int NewsCardLines = 2;
+
     private void DrawNewsCard(ImDrawListPtr dl, float x, float y, float width)
     {
-        float height = Tokens.Metric.NavCardHeight;
+        float height = NewsCardHeight();
         Vector2 min = new(x, y);
         Vector2 max = new(x + width, y + height);
 
@@ -701,6 +742,12 @@ internal sealed class ConfigWindow : Window
         ImGui.InvisibleButton(IdNews, new Vector2(width, height));
         bool hovered = ImGui.IsItemHovered();
         Chrome.ShowHand(hovered);
+
+        // 🔴 Asked here and nowhere later. Everything below draws, and drawing a text is an
+        // ImGui item too — by the end of this method IsItemClicked would be asking about the
+        // summary rather than about the card, which is why the card did nothing at all
+        // (Florian, 2026-09-20).
+        bool clicked = ImGui.IsItemClicked();
 
         dl.AddRectFilled(min, max, Tokens.Col.NavCard, Tokens.Radius.Control);
         dl.AddRect(
@@ -721,21 +768,72 @@ internal sealed class ConfigWindow : Window
         Vector2 badgeMax = new(innerX + badgeWidth, rowY + badgeHeight);
         float badgeTextY = MathF.Round(badgeMin.Y + ((badgeHeight - badgeText.Y) * 0.5f));
 
-        dl.AddRectFilled(badgeMin, badgeMax, Tokens.Col.Gold, Tokens.Radius.Small);
-        Ink.Draw(
-            dl,
-            Ink.Role.Small,
-            new Vector2(badgeMin.X + Tokens.Metric.BadgePaddingX, badgeTextY),
-            Tokens.Col.InkOnGold,
-            Strings.NewBadge);
-        Ink.Draw(dl, Ink.Role.Small, new Vector2(badgeMax.X + Tokens.Space.Sm, badgeTextY), Tokens.Col.Ink, m_versionBadge);
+        // The pill only while there is something unread. Once the notes have been opened it
+        // goes and the version stands alone — a badge that says "New" forever says nothing.
+        float versionX = innerX;
 
-        float line = Ink.LineHeight(Ink.Role.Small);
+        if (Data.News.HasUnseen(m_config.NewsSeenVersion))
+        {
+            dl.AddRectFilled(badgeMin, badgeMax, Tokens.Col.Gold, Tokens.Radius.Small);
+            Ink.Draw(
+                dl,
+                Ink.Role.Small,
+                new Vector2(badgeMin.X + Tokens.Metric.BadgePaddingX, badgeTextY),
+                Tokens.Col.InkOnGold,
+                Strings.NewBadge);
+
+            versionX = badgeMax.X + Tokens.Space.Sm;
+        }
+
+        Ink.Draw(dl, Ink.Role.Small, new Vector2(versionX, badgeTextY), Tokens.Col.Ink, m_versionBadge);
+
+        // 🔴 The summary of the newest release, wrapped to the card rather than written as
+        // two lines. Two hand-cut lines is a caption that has to be re-cut every release and
+        // ends mid-word when somebody forgets — which is exactly what the sister project's
+        // note warns about (its card truncates instead).
         float textY = MathF.Round(rowY + badgeHeight + Tokens.Space.Xs);
-        Ink.Draw(dl, Ink.Role.Small, new Vector2(innerX, textY), Tokens.Col.InkFaint, Strings.PatchNotesLine1);
-        Ink.Draw(dl, Ink.Role.Small, new Vector2(innerX, MathF.Round(textY + line)), Tokens.Col.InkFaint, Strings.PatchNotesLine2);
+        float textWidth = width - (Tokens.Space.Md * 2f);
+        float textRoom = Ink.LineHeight(Ink.Role.Small) * NewsCardLines;
 
-        Chrome.TooltipOnHover(Strings.PatchNotesUnavailable);
+        // Clipped to the two lines it was given. The summary is written to fit, but a
+        // summary is prose somebody types at release time, and the card must not be the
+        // thing that goes wrong when one comes out a word too long.
+        dl.PushClipRect(new Vector2(innerX, textY), new Vector2(innerX + textWidth, textY + textRoom), true);
+        Ink.DrawWrapped(
+            Ink.Role.Small,
+            new Vector2(innerX, textY),
+            textWidth,
+            Tokens.Col.InkFaint,
+            Data.News.Latest.Summary);
+        dl.PopClipRect();
+
+        if (hovered)
+        {
+            Chrome.Tooltip(null, Strings.NewsOpenHint);
+        }
+
+        if (clicked)
+        {
+            this.OpenNews();
+        }
+    }
+
+    /// <summary>
+    /// Shows the release notes and marks them read.
+    /// <para>
+    /// Marked on opening rather than on closing: the question the pill answers is "is there
+    /// something here you have not looked at", and opening the screen is looking.
+    /// </para>
+    /// </summary>
+    private void OpenNews()
+    {
+        m_screen = Screen.News;
+
+        if (Data.News.HasUnseen(m_config.NewsSeenVersion))
+        {
+            m_config.NewsSeenVersion = Data.News.Latest.Version;
+            m_config.MarkDirty();
+        }
     }
 
     private void DrawModuleArea(ImDrawListPtr dl, float left, float right, float top, float bottom)
@@ -1028,6 +1126,112 @@ internal sealed class ConfigWindow : Window
         ImGui.PopStyleColor(5);
     }
 
+    // --- jumping from a release note ----------------------------------------
+
+    /// <summary>Which group a note asked for, until it has been found and shown.</summary>
+    private string? m_jumpTo;
+
+    /// <summary>
+    /// How many frames the jump may still wait for its target to be drawn. A jump switches
+    /// the screen, so the group does not exist on the frame the note was clicked; a budget
+    /// rather than an open wait, because a note pointing at a group that no longer exists
+    /// must give up rather than keep looking forever.
+    /// </summary>
+    private int m_jumpBudget;
+
+    /// <summary>Which group is lit up, and how long it has been.</summary>
+    private string? m_flashGroup;
+    private float m_flashLeft;
+
+    /// <summary>How long a group stays lit after a jump lands on it.</summary>
+    private const float FlashSeconds = 1.4f;
+
+    /// <summary>How many frames a jump waits for its target before giving up.</summary>
+    private const int JumpBudget = 8;
+
+    /// <summary>
+    /// Goes where a release note points: the screen, the tab, and then the group itself.
+    /// <para>
+    /// The group is not found here — it has not been drawn yet, because the screen only
+    /// just changed. <see cref="SettleJump"/> picks it up once it appears.
+    /// </para>
+    /// </summary>
+    private void JumpTo(Data.NewsEntry note)
+    {
+        m_screen = note.Screen;
+
+        string[] tabs = TabsFor(note.Screen);
+
+        if (note.Tab >= 0 && note.Tab < tabs.Length)
+        {
+            m_tabIndex[(int)note.Screen] = note.Tab;
+        }
+
+        m_jumpTo = note.Group;
+        m_jumpBudget = JumpBudget;
+    }
+
+    /// <summary>
+    /// Scrolls to the group a jump is waiting for, once it has drawn, and lights it up.
+    /// Also runs the flash down. Called from inside the content child every frame.
+    /// </summary>
+    private void SettleJump()
+    {
+        if (m_jumpTo is not null)
+        {
+            if (Chrome.GroupRectThisFrame(m_jumpTo, out Vector2 min, out Vector2 max))
+            {
+                ScrollTo(min, max);
+                m_flashGroup = m_jumpTo;
+                m_flashLeft = FlashSeconds;
+                m_jumpTo = null;
+            }
+            else if (--m_jumpBudget <= 0)
+            {
+                // The group never appeared. A note pointing at something this build no
+                // longer has still got the player to the right tab, which is most of it.
+                m_jumpTo = null;
+            }
+        }
+
+        if (m_flashLeft > 0f)
+        {
+            m_flashLeft -= ImGui.GetIO().DeltaTime;
+
+            if (m_flashLeft <= 0f)
+            {
+                m_flashGroup = null;
+            }
+        }
+
+        // Pushed every frame, cleared included: Chrome keeps no timer of its own.
+        Chrome.SetGroupFlash(m_flashGroup, m_flashLeft / FlashSeconds);
+    }
+
+    /// <summary>
+    /// Brings a group into view — and only when it is not already there.
+    /// <para>
+    /// 🔴 Scrolling to something already on screen reads as the page twitching. The sister
+    /// project hit this twice and both times the fix was the same check, so it is here from
+    /// the start rather than after somebody notices.
+    /// </para>
+    /// </summary>
+    private static void ScrollTo(Vector2 min, Vector2 max)
+    {
+        float viewTop = ImGui.GetWindowPos().Y;
+        float viewBottom = viewTop + ImGui.GetWindowSize().Y;
+
+        if (min.Y >= viewTop && max.Y <= viewBottom)
+        {
+            return;
+        }
+
+        // A hand's width above the group rather than flush with the top edge: a card
+        // pinned to the very top reads as cut off.
+        float offset = min.Y - viewTop - Tokens.Metric.SectionPaddingY;
+        ImGui.SetScrollY(MathF.Max(0f, ImGui.GetScrollY() + offset));
+    }
+
     /// <summary>
     /// The tab row: free-standing chips on the surface, with no line tying them to anything.
     /// The rule beneath is drawn by the caller and is what separates them from the content.
@@ -1043,6 +1247,14 @@ internal sealed class ConfigWindow : Window
         if (m_tabIndex[screenIndex] >= tabs.Length)
         {
             m_tabIndex[screenIndex] = 0;
+        }
+
+        // A screen with no tabs takes no room for them. Reserving the strip anyway would
+        // leave a band of nothing above the divider, which reads as a row that failed to
+        // draw rather than as a screen that has no tabs.
+        if (tabs.Length == 0)
+        {
+            return top;
         }
 
         float tabTop = top + Tokens.Space.Md;
@@ -1108,7 +1320,13 @@ internal sealed class ConfigWindow : Window
         // screen whether or not a clipboard is present.
         float buttonY = MathF.Round(top + ((height - Tokens.Metric.ButtonHeight) * 0.5f));
         float cursor = right - Tokens.Metric.SectionPaddingX - Chrome.MeasureButton(Strings.Defaults);
-        Chrome.Button(IdDefaults, Strings.Defaults, cursor, buttonY, false, Strings.DefaultsDisabled);
+
+        // Not on the release notes: there is nothing there to put back to a default, and a
+        // button greyed out for that reason is furniture.
+        if (m_screen != Screen.News)
+        {
+            Chrome.Button(IdDefaults, Strings.Defaults, cursor, buttonY, false, Strings.DefaultsDisabled);
+        }
 
         if (isModule)
         {
@@ -1158,6 +1376,15 @@ internal sealed class ConfigWindow : Window
             {
                 m_profiles.Draw(inner);
             }
+            else if (m_screen == Screen.News)
+            {
+                m_news.Draw(inner);
+
+                if (m_news.Clicked is { } note)
+                {
+                    this.JumpTo(note);
+                }
+            }
             else if (m_screen == Screen.PartyFrames && tab == 0)
             {
                 m_partyFrames.Draw(inner);
@@ -1190,6 +1417,10 @@ internal sealed class ConfigWindow : Window
             {
                 this.DrawScreenPlaceholder(inner);
             }
+
+            // Inside the child, because scrolling is the child's and the target's position
+            // is only known once it has drawn itself.
+            this.SettleJump();
         }
 
         ImGui.EndChild();

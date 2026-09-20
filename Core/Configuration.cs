@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 12;
+    public const int CurrentVersion = 17;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -43,6 +43,13 @@ public sealed class Configuration : IPluginConfiguration
 
     /// <summary>How many stand-ins the preview shows: one, four or a full party.</summary>
     public int PreviewCount { get; set; } = 4;
+
+    /// <summary>
+    /// The newest release whose notes have been opened, or empty for somebody who has never
+    /// looked. Compared as a name rather than parsed as a number: a version is what it is
+    /// called, and a release that never went out cannot be "greater" than one that did.
+    /// </summary>
+    public string NewsSeenVersion { get; set; } = string.Empty;
 
     // --- Modules ------------------------------------------------------------
 
@@ -101,6 +108,64 @@ public sealed class Configuration : IPluginConfiguration
     /// </summary>
     public const float MaxPosition = 10000f;
 
+    /// <summary>The thickest the edge on a removable affliction may be drawn.</summary>
+    public const float MaxDispelThickness = 4f;
+
+    /// <summary>
+    /// How small and how large the numbers on an effect icon may be set, as a share of the
+    /// icon's height.
+    /// <para>
+    /// Not up to a whole icon: a number the full height of its square has its outline
+    /// hanging off every side, and past that the icon is a number with a picture behind it.
+    /// </para>
+    /// </summary>
+    public const float MinAuraNumberSize = 0.35f;
+
+    /// <inheritdoc cref="MinAuraNumberSize"/>
+    public const float MaxAuraNumberSize = 0.95f;
+
+    // --- how HUD text is lettered, for the whole suite ------------------------
+    // 🔴 These three lived on the party frames until version 16, and the comment on the face
+    // said what to do the day a second element arrived: move them to Global rather than copy
+    // them. Florian moved them a module early (2026-09-21) and it belongs here for the same
+    // reason the interface scale does — a face is a property of the screen being read, not of
+    // the job being played, so it is also one of the few things a profile must NOT carry.
+    //
+    // There is a hard reason as well as a tidy one: a face is a font atlas entry and a lock
+    // per frame, so a second element asking for a second face would cost real work every
+    // frame (§7). One face for the HUD is a performance decision as much as a design one.
+
+    /// <summary>
+    /// Which face the HUD is lettered in. Axis is the game's interface face and the suite's
+    /// own; it is also light, which is what prompted the choice (Florian, 2026-09-12).
+    /// </summary>
+    public string FontName { get; set; } = Style.FontLibrary.DefaultName;
+
+    /// <summary>
+    /// How heavily the face is laid down. Medium by default, not Normal: against a black
+    /// edge every face reads thinner than it is, and the first build shipped at Normal was
+    /// called thin for every face including the one brought in to compare against
+    /// (Florian, 2026-09-12).
+    /// </summary>
+    public int TextWeight { get; set; } = 1;
+
+    /// <summary>
+    /// What is drawn behind HUD text so it reads over the world.
+    /// <para>
+    /// Shadow by default, which is what the frames shipped with. Outline is the game's own
+    /// floating-text look, and what a bright background needs; None is for anyone who finds
+    /// both noisy (Florian, 2026-09-12).
+    /// </para>
+    /// </summary>
+    public int TextEdge { get; set; } = 1;
+
+    /// <summary>
+    /// The chosen edge, as the value the drawing code wants. Internal, which is also what
+    /// keeps it out of the saved file: the stored shape is the index above, and a second
+    /// spelling of the same setting in the JSON would be one to keep in step for nothing.
+    /// </summary>
+    internal Style.TextEdge Edge => Style.HudText.EdgeAt(this.TextEdge);
+
     public bool PartyFramesEnabled { get; set; } = true;
 
     public PartyFramesConfig PartyFrames { get; set; } = new();
@@ -156,49 +221,6 @@ public sealed class Configuration : IPluginConfiguration
         /// <summary>Draw the player name on the frame at all — the switch in the group head.</summary>
         public bool ShowName { get; set; } = true;
 
-        // --- how every text on a frame is carried ---------------------------------
-        // Two settings for all of them rather than two per text. Which face and what is
-        // behind it are questions about reading a frame, not about the name or the numbers
-        // separately, and answering them once is what keeps the tab to four groups (§3.1).
-
-        /// <summary>
-        /// What is drawn behind every text on a frame so it reads over the world.
-        /// <para>
-        /// Shadow by default, which is what the frames shipped with. Outline is the game's own
-        /// floating-text look, and what a bright background needs; None is for anyone who
-        /// finds both noisy (Florian, 2026-09-12).
-        /// </para>
-        /// </summary>
-        public int TextEdge { get; set; } = 1;
-
-        /// <summary>
-        /// The chosen edge, as the value the drawing code wants. Internal, which is also what
-        /// keeps it out of the saved file: the stored shape is the index above, and a second
-        /// spelling of the same setting in the JSON would be one to keep in step for nothing.
-        /// </summary>
-        internal Style.TextEdge Edge => Style.HudText.EdgeAt(this.TextEdge);
-
-        /// <summary>
-        /// Which of the game's own faces the frames are lettered in. Axis is the game's
-        /// interface face and the suite's own; it is also light, which is what prompted the
-        /// choice (Florian, 2026-09-12).
-        /// <para>
-        /// ⚠️ One face for the whole HUD, not one per element: a face is a font atlas entry
-        /// and a lock per frame, so a second element asking for a second face would cost real
-        /// work every frame. It lives here because the frames are the only HUD element there
-        /// is; a second one means moving this to Global rather than copying it.
-        /// </para>
-        /// </summary>
-        public string FontName { get; set; } = Style.FontLibrary.DefaultName;
-
-        /// <summary>
-        /// How heavily the face is laid down. Medium by default, not Normal: against a black
-        /// edge every face reads thinner than it is, and the first build shipped at Normal was
-        /// called thin for every face including the one brought in to compare against
-        /// (Florian, 2026-09-12).
-        /// </summary>
-        public int TextWeight { get; set; } = 1;
-
         /// <summary>
         /// What each mouse button does on a frame, per job. See <see cref="BindingSet"/> for
         /// why it is per job and what a job answers to before anybody has set it up.
@@ -217,6 +239,19 @@ public sealed class Configuration : IPluginConfiguration
         /// stored configuration is older than that.
         /// </summary>
         public int Font { get; set; }
+
+        // ⚠️ Three more relics, same deal. The lettering belonged to the frames until
+        // version 16 and belongs to the suite now (see Configuration.FontName). Nothing
+        // reads these to draw with — the migration reads them once and that is all.
+
+        /// <inheritdoc cref="Configuration.FontName"/>
+        public string FontName { get; set; } = Style.FontLibrary.DefaultName;
+
+        /// <inheritdoc cref="Configuration.TextWeight"/>
+        public int TextWeight { get; set; } = 1;
+
+        /// <inheritdoc cref="Configuration.TextEdge"/>
+        public int TextEdge { get; set; } = 1;
 
         // --- name text ----------------------------------------------------------
         // Every text on a frame is described the same way: whether it shows, how big it is,
@@ -515,7 +550,90 @@ public sealed class Configuration : IPluginConfiguration
         public bool AuraSwipe { get; set; } = true;
 
         /// <summary>
-        /// Point at any effect icon and the game's own name and description for it come up.
+        /// The seconds left, written across the icon.
+        /// <para>
+        /// Off by default. The sweep already says how much is left without asking anybody to
+        /// read anything, and it does it at every icon size; a number is for somebody who
+        /// wants to know whether it is four seconds or two.
+        /// </para>
+        /// <para>
+        /// 🔴 No size of its own, the way the stack count has none: it is a share of the icon
+        /// it sits on. A number sized independently is a number that runs out of its icon the
+        /// moment somebody moves the icon slider (Florian asked, 2026-09-21; the answer is
+        /// the same one the stack count already gives).
+        /// </para>
+        /// </summary>
+        public bool AuraShowDuration { get; set; }
+
+        /// <summary>
+        /// A coloured edge on the afflictions that can be taken off.
+        /// <para>
+        /// 🔴 The cleanse mark, brought down from the frame onto the single icon. The mark
+        /// says this person has something removable; with four afflictions on them it does
+        /// not say WHICH, and that is the question somebody is asking while they look
+        /// (Florian, 2026-09-21: the debuffs are hard to tell apart).
+        /// </para>
+        /// <para>
+        /// 🔴 It takes the CLEANSE COLOUR and has no picker of its own. The mark on the frame
+        /// and the edge on the icon are one statement made twice — "this can be taken off" —
+        /// and two colours for one statement is two things to keep in step by hand, plus a
+        /// row on a group that is already long. Whoever wants it red sets the cleanse colour
+        /// red and both follow (Florian asked about red, 2026-09-21).
+        /// </para>
+        /// </summary>
+        public bool AuraDispelBorder { get; set; } = true;
+
+        /// <summary>
+        /// Its own thickness, though — three pixels around a twenty-pixel icon and three
+        /// pixels around a whole frame are not the same weight at all.
+        /// </summary>
+        public float AuraDispelThickness { get; set; } = 2f;
+
+        /// <summary>
+        /// ⚠️ A migration relic. It held the numbers' size as a share of their icon; the
+        /// two pixel sizes below replaced it at version 15, which reads this once to work
+        /// out what the player had. Nothing draws from it.
+        /// </summary>
+        public float AuraNumberSize { get; set; } = 0.7f;
+
+        /// <summary>
+        /// How tall the seconds on an effect icon are, in pixels — the same kind of number
+        /// as <see cref="NameSize"/> and <see cref="HpTextSize"/>, and read the same way:
+        /// the size of the line, not the height of a digit.
+        /// <para>
+        /// 🔴 This went through two wrong answers before it got here. First there was no
+        /// setting at all, on the reasoning that a number with a size of its own runs out
+        /// of its icon the moment somebody moves the icon slider, while a SHARE of the icon
+        /// never can. Then it was a share the player could set. Both missed the same thing:
+        /// <b>the share is of the font's em box, not of the icon</b>, and how much of that
+        /// box a digit fills is a property of the typeface. A share of 0.7 is small in Axis
+        /// and enormous in a condensed face — and that face was one of the four the game
+        /// itself ships, not something exotic somebody loaded.
+        /// </para>
+        /// <para>
+        /// A pixel size also does what a share cannot: <b>the game's fonts are bitmaps and
+        /// are only sharp at their real steps</b> (16 / 18.7 / 24), and a percentage of an
+        /// icon lands on one of those about never. Florian saw both at once — soft edges at
+        /// 95%, and Jupiter sitting low (2026-09-21).
+        /// </para>
+        /// <para>
+        /// ⚠️ The trade, which is real: one pixel size serves all three icon rows, where a
+        /// share scaled with each row's own icons. Rows set to very different sizes will
+        /// want different numbers and cannot have them.
+        /// </para>
+        /// </summary>
+        public float AuraDurationSize { get; set; } = 14f;
+
+        /// <summary>
+        /// The same for the stack count. Its own value rather than a ratio of the one
+        /// above: once the size is in pixels there is nothing left for a ratio to protect,
+        /// and the count is the number that sits half off its icon — whoever wants it a
+        /// pixel smaller should be able to say so.
+        /// </summary>
+        public float AuraStackSize { get; set; } = 13f;
+
+        /// <summary>
+        /// Point at an affliction and the game's own name and description for it come up.
         /// <para>
         /// 🔴 OFF by default, and it is the one setting here where the default is the opposite
         /// of the feature being good. The cursor is over these frames constantly and on
@@ -525,12 +643,20 @@ public sealed class Configuration : IPluginConfiguration
         /// find the switch (Florian asked for it as an option, 2026-09-18).
         /// </para>
         /// <para>
-        /// One switch for all three icon rows rather than one each: "what is this picture" is
-        /// the same question whether the picture is a debuff, your own regen or somebody
-        /// else's work.
+        /// 🔴 One switch per row, where stacks and the sweep have one for the afflictions and
+        /// one for both benefit rows. The two are different questions: how an icon is DRAWN
+        /// is the same question for both benefit rows, but "what is this picture" is not —
+        /// a stranger's affliction is the one nobody recognises, and your own regen is the
+        /// one everybody does (Florian, 2026-09-21).
         /// </para>
         /// </summary>
         public bool ShowAuraTooltips { get; set; }
+
+        /// <summary>The same, for the row of effects you put on somebody.</summary>
+        public bool ShowBuffTooltips { get; set; }
+
+        /// <summary>The same, for the row of effects somebody else put on them.</summary>
+        public bool ShowOtherTooltips { get; set; }
 
         // --- benefits: a second row, in the other corner ------------------------
         // Its own row rather than a mix with the afflictions, because the two answer
@@ -570,6 +696,33 @@ public sealed class Configuration : IPluginConfiguration
 
         public bool BuffSwipe { get; set; } = true;
 
+        /// <summary>
+        /// The seconds left on one of your own benefit icons.
+        /// <para>
+        /// 🔴 Per row since version 17, where it used to be one switch for both benefit rows
+        /// on the reasoning that "how an icon is drawn" is one question. It is not: the
+        /// distinction is real and Florian makes it — his own regens are the ones he times,
+        /// and a stranger's buffs are the ones he only wants to see are there (2026-09-21).
+        /// Stacks and the sweep stay shared, which is the line: those two say how to READ an
+        /// icon, and this one says whether a row is being timed at all.
+        /// </para>
+        /// </summary>
+        public bool BuffShowDuration { get; set; }
+
+        /// <summary>
+        /// How tall the seconds on one of your own benefit icons are, in pixels.
+        /// <para>
+        /// ⚠️ Per row for a plain reason: the rows do not have to be the same size. Bigger
+        /// afflictions and smaller regens is an ordinary setup, and one pixel size across
+        /// all three meant the number that fitted the big row overhung the small one
+        /// (Florian, 2026-09-21). A size is only ever right relative to what it sits on.
+        /// </para>
+        /// </summary>
+        public float BuffDurationSize { get; set; } = 14f;
+
+        /// <inheritdoc cref="BuffDurationSize"/>
+        public float BuffStackSize { get; set; } = 13f;
+
         // --- everybody else's: the third row -------------------------------------
         // What is already keeping this person up without you — mitigation, somebody else's
         // regen, a shield. Its own row so it can never take a place from the row above it.
@@ -600,6 +753,16 @@ public sealed class Configuration : IPluginConfiguration
         public float OtherY { get; set; }
 
         public int OtherMaxCount { get; set; } = 3;
+
+        /// <summary>The seconds left on somebody else's benefit icon.</summary>
+        /// <inheritdoc cref="BuffShowDuration" path="/para"/>
+        public bool OtherShowDuration { get; set; }
+
+        /// <inheritdoc cref="BuffDurationSize"/>
+        public float OtherDurationSize { get; set; } = 14f;
+
+        /// <inheritdoc cref="BuffDurationSize"/>
+        public float OtherStackSize { get; set; } = 13f;
 
         /// <summary>
         /// One of <see cref="Hud.FrameMarkStyle"/>. None out of the box.
@@ -828,6 +991,15 @@ public sealed class Configuration : IPluginConfiguration
             this.OtherX = Offset(this.OtherX, 0f);
             this.OtherY = Offset(this.OtherY, 0f);
 
+            this.AuraDispelThickness = Bounded(this.AuraDispelThickness, 1f, MaxDispelThickness, 2f);
+            this.AuraNumberSize = Bounded(this.AuraNumberSize, MinAuraNumberSize, MaxAuraNumberSize, 0.7f);
+            this.AuraDurationSize = Bounded(this.AuraDurationSize, MinTextSize, MaxTextSize, 14f);
+            this.AuraStackSize = Bounded(this.AuraStackSize, MinTextSize, MaxTextSize, 13f);
+            this.BuffDurationSize = Bounded(this.BuffDurationSize, MinTextSize, MaxTextSize, 14f);
+            this.BuffStackSize = Bounded(this.BuffStackSize, MinTextSize, MaxTextSize, 13f);
+            this.OtherDurationSize = Bounded(this.OtherDurationSize, MinTextSize, MaxTextSize, 14f);
+            this.OtherStackSize = Bounded(this.OtherStackSize, MinTextSize, MaxTextSize, 13f);
+
             this.AuraMaxCount = Math.Clamp(this.AuraMaxCount, 1, MaxAurasPerRow);
             this.BuffMaxCount = Math.Clamp(this.BuffMaxCount, 1, MaxAurasPerRow);
             this.OtherMaxCount = Math.Clamp(this.OtherMaxCount, 1, MaxAurasPerRow);
@@ -835,7 +1007,6 @@ public sealed class Configuration : IPluginConfiguration
             // The ones standing in for a list. Anything the build does not know goes back to
             // the first entry rather than to whatever that number would have indexed.
             this.ColourMode = Known<Appearance.BarColourMode>(this.ColourMode);
-            this.TextEdge = Known<Style.TextEdge>(this.TextEdge);
             this.ManaStyle = Known<Hud.PartyFrames.ManaStyle>(this.ManaStyle);
             this.NameShortening = Known<Hud.NameShortening>(this.NameShortening);
             this.HpTextMode = Known<Hud.HealthTextMode>(this.HpTextMode);
@@ -860,14 +1031,12 @@ public sealed class Configuration : IPluginConfiguration
                 this.Lines = 1;
             }
 
-            this.TextWeight = Math.Clamp(this.TextWeight, 0, 2);
 
             // A style is stored by name and resolved against a list, so an unknown one
             // already falls back on its own. What cannot be allowed through is null, which
             // would be a name nothing can even be compared against.
             this.BarStyleName ??= Data.BarStyles.DefaultName;
             this.ShieldStyleName ??= Data.BarStyles.ShieldDefaultName;
-            this.FontName ??= Style.FontLibrary.DefaultName;
             this.Bindings ??= new BindingSet();
             this.Mouseover ??= new MouseoverSet();
         }
@@ -889,15 +1058,19 @@ public sealed class Configuration : IPluginConfiguration
 
         private static float Offset(float value, float fallback) =>
             Bounded(value, -MaxTextOffset, MaxTextOffset, fallback);
-
-        /// <summary>
-        /// A stored number that stands for one of a list. Asked of the enum itself rather
-        /// than counted here, so adding an entry never leaves a bound behind.
-        /// </summary>
-        private static int Known<TEnum>(int value)
-            where TEnum : struct, Enum =>
-            Enum.IsDefined((TEnum)(object)value) ? value : 0;
     }
+
+    /// <summary>
+    /// A stored number that stands for one of a list. Asked of the enum itself rather than
+    /// counted here, so adding an entry never leaves a bound behind.
+    /// <para>
+    /// On the outer class because both levels sanitise now — the lettering moved up to the
+    /// suite at version 16 and took its bounds with it.
+    /// </para>
+    /// </summary>
+    private static int Known<TEnum>(int value)
+        where TEnum : struct, Enum =>
+        Enum.IsDefined((TEnum)(object)value) ? value : 0;
 
     /// <summary>
     /// Puts every number in the whole suite back inside its range. See the module's own
@@ -907,6 +1080,14 @@ public sealed class Configuration : IPluginConfiguration
     {
         this.Scale = float.IsFinite(this.Scale) ? Math.Clamp(this.Scale, MinScale, MaxScale) : 1f;
         this.PreviewCount = this.PreviewCount is 1 or 4 or 8 ? this.PreviewCount : 4;
+
+        // A face is stored by name and resolved against a list, so an unknown one already
+        // falls back on its own. What cannot be allowed through is null, which would be a
+        // name nothing can even be compared against.
+        this.FontName ??= Style.FontLibrary.DefaultName;
+        this.TextWeight = Math.Clamp(this.TextWeight, 0, 2);
+        this.TextEdge = Known<Style.TextEdge>(this.TextEdge);
+
         this.PartyFrames ??= new PartyFramesConfig();
         this.PartyFrames.Sanitise();
         this.Profiles ??= new ProfileSet();
@@ -1295,6 +1476,175 @@ public sealed class Configuration : IPluginConfiguration
             config.Profiles.Active = 0;
             config.StoreIntoActiveProfile();
         }
+
+        if (config.Version < 13)
+        {
+            // 🔴 The interface scale used to reach the party frames as well as the window.
+            // Every pixel a player set was multiplied on its way to the screen and divided
+            // on its way back, so the two halves agreed with each other while disagreeing
+            // with the slider label: "170 px" drew 212 wide at 125 %.
+            //
+            // The drawing is fixed (see Tokens.WorldPx). This converts what is stored, so
+            // nobody's frames change size or move because of an update — the numbers now
+            // mean what they always claimed to. At 100 % it does nothing at all, which is
+            // every player who never touched the slider.
+            float was = config.Scale;
+
+            if (was > 0f && MathF.Abs(was - 1f) > 0.001f)
+            {
+                Rescale(config.PartyFrames, was);
+
+                for (int i = 0; i < config.Profiles.Items.Count; i++)
+                {
+                    // Every profile, not only the one that is on. A profile nobody has
+                    // switched to yet still holds pixels written under the old arithmetic.
+                    Rescale(config.Profiles.Items[i].PartyFrames, was);
+                }
+            }
+        }
+
+        if (config.Version < 14)
+        {
+            // The tooltip was one switch for all three icon rows and is three now. Whoever
+            // had it on keeps it on everywhere: the point of splitting it is that they can
+            // now switch two OFF, not that we switch two off for them.
+            SplitTooltips(config.PartyFrames);
+
+            for (int i = 0; i < config.Profiles.Items.Count; i++)
+            {
+                SplitTooltips(config.Profiles.Items[i].PartyFrames);
+            }
+        }
+
+        if (config.Version < 15)
+        {
+            // The numbers on an effect icon went from a share of the icon to a size of
+            // their own. Worked out from what the share came to on the afflictions row, so
+            // whoever had tuned it keeps the size they were looking at.
+            SizeAuraNumbers(config.PartyFrames);
+
+            for (int i = 0; i < config.Profiles.Items.Count; i++)
+            {
+                SizeAuraNumbers(config.Profiles.Items[i].PartyFrames);
+            }
+        }
+
+        if (config.Version < 16)
+        {
+            // The lettering moved from the party frames up to the suite. What was on the
+            // frames is what the player chose, so it becomes the suite's — and the profiles
+            // simply stop carrying it, which is the point of the move.
+            //
+            // Read straight off the old fields, which are still on the block as relics. A
+            // profile is NOT consulted: they all held a copy of the same three values, and
+            // picking one of several equal answers is a coin toss dressed as a migration.
+            config.FontName = config.PartyFrames.FontName ?? Style.FontLibrary.DefaultName;
+            config.TextWeight = config.PartyFrames.TextWeight;
+            config.TextEdge = config.PartyFrames.TextEdge;
+        }
+
+        if (config.Version < 17)
+        {
+            // The numbers on an icon went per row: one switch became two, and one pair of
+            // sizes became three. Everybody keeps what they had on all three rows, so the
+            // day this runs nothing looks different — the point is that they can now be
+            // pulled apart.
+            SplitRowNumbers(config.PartyFrames);
+
+            for (int i = 0; i < config.Profiles.Items.Count; i++)
+            {
+                SplitRowNumbers(config.Profiles.Items[i].PartyFrames);
+            }
+        }
+    }
+
+    /// <inheritdoc cref="PartyFramesConfig.BuffShowDuration"/>
+    private static void SplitRowNumbers(PartyFramesConfig cfg)
+    {
+        cfg.OtherShowDuration = cfg.BuffShowDuration;
+
+        cfg.BuffDurationSize = cfg.AuraDurationSize;
+        cfg.BuffStackSize = cfg.AuraStackSize;
+        cfg.OtherDurationSize = cfg.AuraDurationSize;
+        cfg.OtherStackSize = cfg.AuraStackSize;
+    }
+
+    /// <summary>
+    /// What the old share came to in pixels. The afflictions row decides, because it is the
+    /// row the share was being judged on — the other two follow whatever it gives, exactly
+    /// as they did when one share served all three.
+    /// <para>
+    /// It overwrites rather than fills in, so it does not matter that the new fields already
+    /// carry a default by the time this runs — or that an older step may have scaled that
+    /// default on its way past.
+    /// </para>
+    /// </summary>
+    private static void SizeAuraNumbers(PartyFramesConfig cfg)
+    {
+        float share = cfg.AuraNumberSize > 0f ? cfg.AuraNumberSize : 0.7f;
+
+        cfg.AuraDurationSize = MathF.Round(cfg.AuraSize * share);
+
+        // The ratio the stack count used to be held at, below the duration.
+        cfg.AuraStackSize = MathF.Round(cfg.AuraSize * share * 0.93f);
+    }
+
+    private static void SplitTooltips(PartyFramesConfig cfg)
+    {
+        cfg.ShowBuffTooltips = cfg.ShowAuraTooltips;
+        cfg.ShowOtherTooltips = cfg.ShowAuraTooltips;
+    }
+
+    /// <summary>
+    /// Multiplies every stored pixel in one party frames block. Used once, by the migration
+    /// to version 13; see there for why.
+    /// <para>
+    /// Opacities, colours, counts and anything naming a choice are left alone — only the
+    /// values that were going through the scale on their way to the screen.
+    /// </para>
+    /// </summary>
+    private static void Rescale(PartyFramesConfig cfg, float by)
+    {
+        cfg.PositionX *= by;
+        cfg.PositionY *= by;
+        cfg.FrameWidth *= by;
+        cfg.FrameHeight *= by;
+        cfg.Spacing *= by;
+        cfg.ManaHeight *= by;
+
+        cfg.NameSize *= by;
+        cfg.NameX *= by;
+        cfg.NameY *= by;
+        cfg.HpTextSize *= by;
+        cfg.HpTextX *= by;
+        cfg.HpTextY *= by;
+        cfg.PartyNumberSize *= by;
+        cfg.PartyNumberX *= by;
+        cfg.PartyNumberY *= by;
+
+        cfg.JobIconSize *= by;
+        cfg.JobIconX *= by;
+        cfg.JobIconY *= by;
+        cfg.LeaderIconSize *= by;
+        cfg.LeaderIconX *= by;
+        cfg.LeaderIconY *= by;
+        cfg.RescueIconSize *= by;
+        cfg.RescueIconX *= by;
+        cfg.RescueIconY *= by;
+
+        cfg.AuraSize *= by;
+        cfg.AuraX *= by;
+        cfg.AuraY *= by;
+        cfg.BuffSize *= by;
+        cfg.BuffX *= by;
+        cfg.BuffY *= by;
+        cfg.OtherSize *= by;
+        cfg.OtherX *= by;
+        cfg.OtherY *= by;
+
+        cfg.AuraDispelThickness *= by;
+        cfg.CleanseThickness *= by;
+        cfg.RaiseThickness *= by;
     }
 
     /// <summary>A fresh copy per job, so editing one job's bindings never moves another's.</summary>

@@ -238,15 +238,19 @@ internal sealed class PartyFramesElement : HudElement
     }
 
     /// <summary>
-    /// Takes a screen position and stores it the way the layout does — unscaled, so the
-    /// arrangement is the same shape at any interface scale.
+    /// Takes a screen position and stores it.
+    /// <para>
+    /// 🔴 Stored as it arrives, with no scale in the arithmetic. It used to be divided by
+    /// the interface scale, which was the matching half of the bug where the frames grew
+    /// with the settings window — the drawing multiplied and this divided, so the two
+    /// agreed with each other and disagreed with the slider. A HUD position is a screen
+    /// position (2026-09-21, see <see cref="Tokens.WorldPx"/>).
+    /// </para>
     /// </summary>
     public override void MoveTo(Vector2 topLeft)
     {
-        float scale = Tokens.Scale <= 0f ? 1f : Tokens.Scale;
-
-        m_config.PartyFrames.PositionX = MathF.Round(topLeft.X / scale);
-        m_config.PartyFrames.PositionY = MathF.Round(topLeft.Y / scale);
+        m_config.PartyFrames.PositionX = MathF.Round(topLeft.X);
+        m_config.PartyFrames.PositionY = MathF.Round(topLeft.Y);
         m_config.MarkDirty();
     }
 
@@ -357,9 +361,9 @@ internal sealed class PartyFramesElement : HudElement
             count,
             (FrameDirection)m_config.PartyFrames.Direction,
             m_config.PartyFrames.Lines,
-            Tokens.Px(m_config.PartyFrames.FrameWidth),
-            Tokens.Px(m_config.PartyFrames.FrameHeight),
-            Tokens.Px(m_config.PartyFrames.Spacing));
+            Tokens.WorldPx(m_config.PartyFrames.FrameWidth),
+            Tokens.WorldPx(m_config.PartyFrames.FrameHeight),
+            Tokens.WorldPx(m_config.PartyFrames.Spacing));
 
     /// <summary>
     /// The frames as they will look, drawn into the settings window.
@@ -385,7 +389,7 @@ internal sealed class PartyFramesElement : HudElement
     private void DrawLive(ImDrawListPtr dl) =>
         this.DrawContent(
             dl,
-            new Vector2(Tokens.Px(m_config.PartyFrames.PositionX), Tokens.Px(m_config.PartyFrames.PositionY)),
+            new Vector2(Tokens.WorldPx(m_config.PartyFrames.PositionX), Tokens.WorldPx(m_config.PartyFrames.PositionY)),
             m_snapshot,
             m_liveGeo,
             true);
@@ -414,9 +418,9 @@ internal sealed class PartyFramesElement : HudElement
     {
         Configuration.PartyFramesConfig cfg = m_config.PartyFrames;
 
-        float width = Tokens.Px(cfg.FrameWidth);
-        float height = Tokens.Px(cfg.FrameHeight);
-        float spacing = Tokens.Px(cfg.Spacing);
+        float width = Tokens.WorldPx(cfg.FrameWidth);
+        float height = Tokens.WorldPx(cfg.FrameHeight);
+        float spacing = Tokens.WorldPx(cfg.Spacing);
         float border = Tokens.Metric.FrameBorder;
         float x = origin.X;
         float y = origin.Y;
@@ -445,7 +449,9 @@ internal sealed class PartyFramesElement : HudElement
         // pointing at things.
         // Never for the preview: there is nothing real to describe, and the pointer is over a
         // settings window whose own tooltips would fight with these.
-        m_wantTooltips = live && cfg.ShowAuraTooltips && !EditMode.IsActive;
+        // Whether a tooltip may go up at all. Which ROW it may go up over is asked per row,
+        // where the icons are drawn — the three ask different questions (see the config).
+        m_wantTooltips = live && !EditMode.IsActive;
 
         // The mark is an instruction. On a job that cannot carry it out it is noise, so it is
         // off there by default — the icons still show the effect either way. The preview
@@ -513,7 +519,7 @@ internal sealed class PartyFramesElement : HudElement
 
             float healthBottom = innerMax.Y;
             bool mana = ShowsMana(cfg, ref member) && this.Shows(PreviewPart.Mana);
-            float manaHeight = Tokens.Px(cfg.ManaHeight);
+            float manaHeight = Tokens.WorldPx(cfg.ManaHeight);
             float manaGap = manaStyle == ManaStyle.Bar ? border : 0f;
 
             if (mana)
@@ -586,7 +592,7 @@ internal sealed class PartyFramesElement : HudElement
                 if (band.HasMark)
                 {
                     float markX = BarX(barMin.X, barWidth, band.MarkAt);
-                    float thickness = MathF.Max(1f, Tokens.Px(Tokens.Metric.ShieldMark));
+                    float thickness = MathF.Max(1f, Tokens.WorldPx(Tokens.Metric.ShieldMark));
 
                     dl.AddRectFilled(
                         new Vector2(markX, barMin.Y),
@@ -635,7 +641,7 @@ internal sealed class PartyFramesElement : HudElement
         // beside it — and that is a layout people build on purpose, not a mistake to guard
         // against. Drawn in the same loop as the bars, anything hanging below a frame would
         // be painted over by the next frame's ground a moment later.
-        float reach = Tokens.Px(Configuration.MaxTextOffset);
+        float reach = Tokens.WorldPx(Configuration.MaxTextOffset);
 
         for (int i = 0; i < count; i++)
         {
@@ -713,7 +719,7 @@ internal sealed class PartyFramesElement : HudElement
             // icon is the thing read when you look, so the icon is the one that has to survive.
             this.DrawRescue(dl, cfg, ref member, innerMin, innerMax);
 
-            DrawPresenceNote(dl, cfg, ref member, innerMin, innerMax);
+            this.DrawPresenceNote(dl, cfg, ref member, innerMin, innerMax);
             dl.PopClipRect();
         }
 
@@ -1088,7 +1094,7 @@ internal sealed class PartyFramesElement : HudElement
     /// all of them, and only the word tells them apart.
     /// </para>
     /// </summary>
-    private static void DrawPresenceNote(
+    private void DrawPresenceNote(
         ImDrawListPtr dl,
         Configuration.PartyFramesConfig cfg,
         ref PartyMemberSnapshot member,
@@ -1130,7 +1136,7 @@ internal sealed class PartyFramesElement : HudElement
             }
         }
 
-        float size = Tokens.Px(cfg.HpTextSize);
+        float size = Tokens.WorldPx(cfg.HpTextSize);
         float width = Ink.MeasureNote(size, note);
 
         Vector2 at = new(
@@ -1146,7 +1152,7 @@ internal sealed class PartyFramesElement : HudElement
         // never the chosen one — a name belongs to the frame and follows the player's taste, a
         // status the plugin reports does not, and in a serif face it would read as part of the
         // design rather than as a message (Florian, 2026-09-12).
-        TextEdge edge = cfg.Edge == TextEdge.None ? TextEdge.None : TextEdge.Shadow;
+        TextEdge edge = m_config.Edge == TextEdge.None ? TextEdge.None : TextEdge.Shadow;
         Ink.DrawNote(dl, size, at, Tokens.Col.HudInkQuiet, note, edge);
     }
 
@@ -1179,9 +1185,26 @@ internal sealed class PartyFramesElement : HudElement
     /// A name has to be read, and text taken as far down as the fill it sits on stops being
     /// text. So the frame steps back and its writing steps back with it, but only half as far.
     /// </para>
+    /// <para>
+    /// 🔴 It used to read <see cref="m_dim"/> and ignore <see cref="m_alpha"/> entirely, and
+    /// that is the one presence where the two come apart: out of range fades WITHOUT
+    /// darkening, so the frame and its icons went see-through while the name stayed at full
+    /// strength. Florian saw it as "the job icons are not at 100%" and the preview looking
+    /// right, which fits — in the preview everybody is present (2026-09-21). <b>Half of both,
+    /// or the rule that one factor steps the whole frame back is only half a rule.</b>
+    /// </para>
     /// </summary>
-    private uint DimInk(uint colour) =>
-        m_dim >= 1f ? colour : Tokens.Col.Darker(colour, 0.5f + (m_dim * 0.5f));
+    private uint DimInk(uint colour)
+    {
+        if (m_dim >= 1f && m_alpha >= 1f)
+        {
+            return colour;
+        }
+
+        uint darkened = m_dim >= 1f ? colour : Tokens.Col.Darker(colour, 0.5f + (m_dim * 0.5f));
+
+        return m_alpha >= 1f ? darkened : Tokens.Col.Softer(darkened, 0.5f + (m_alpha * 0.5f));
+    }
 
     /// <summary>
     /// A rectangle drawn as four filled bars rather than as a stroke. ImGui centres a stroke
@@ -1325,6 +1348,11 @@ internal sealed class PartyFramesElement : HudElement
                 cfg.AuraY,
                 cfg.AuraShowStacks,
                 cfg.AuraSwipe,
+                cfg.AuraShowDuration,
+                cfg.AuraDurationSize,
+                cfg.AuraStackSize,
+                cfg.AuraDispelBorder,
+                m_wantTooltips && cfg.ShowAuraTooltips,
                 innerMin,
                 innerMax);
         }
@@ -1341,6 +1369,11 @@ internal sealed class PartyFramesElement : HudElement
                 cfg.BuffY,
                 cfg.BuffShowStacks,
                 cfg.BuffSwipe,
+                cfg.BuffShowDuration,
+                cfg.BuffDurationSize,
+                cfg.BuffStackSize,
+                false,
+                m_wantTooltips && cfg.ShowBuffTooltips,
                 innerMin,
                 innerMax);
         }
@@ -1357,6 +1390,11 @@ internal sealed class PartyFramesElement : HudElement
                 cfg.OtherY,
                 cfg.BuffShowStacks,
                 cfg.BuffSwipe,
+                cfg.OtherShowDuration,
+                cfg.OtherDurationSize,
+                cfg.OtherStackSize,
+                false,
+                m_wantTooltips && cfg.ShowOtherTooltips,
                 innerMin,
                 innerMax);
         }
@@ -1427,6 +1465,11 @@ internal sealed class PartyFramesElement : HudElement
         float offsetY,
         bool showStacks,
         bool swipe,
+        bool showDuration,
+        float durationSize,
+        float stackSize,
+        bool dispelBorder,
+        bool tooltips,
         Vector2 innerMin,
         Vector2 innerMax)
     {
@@ -1437,8 +1480,8 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        float side = Tokens.Px(iconSize);
-        float gap = Tokens.Px(AuraGap);
+        float side = Tokens.WorldPx(iconSize);
+        float gap = Tokens.WorldPx(AuraGap);
         float width = (side * count) + (gap * (count - 1));
 
         Anchor anchor = Anchors.At(position);
@@ -1449,8 +1492,8 @@ internal sealed class PartyFramesElement : HudElement
             new Vector2(width, side),
             Tokens.Metric.FramePadding);
 
-        at.X += Tokens.Px(offsetX);
-        at.Y += Tokens.Px(offsetY);
+        at.X += Tokens.WorldPx(offsetX);
+        at.Y += Tokens.WorldPx(offsetY);
 
         // Hung on the right, the first icon belongs at the right end and the row fills
         // leftwards. The block is already placed, so this is only which end to start from.
@@ -1477,7 +1520,7 @@ internal sealed class PartyFramesElement : HudElement
             // one, and the rows are painted frame by frame — writing it here would put it
             // under whatever is drawn next. So the last one the mouse was inside wins and the
             // panel goes up once, after the loop.
-            if (m_wantTooltips && Inside(min, max))
+            if (tooltips && Inside(min, max))
             {
                 m_tooltipStatus = aura.StatusId;
             }
@@ -1487,18 +1530,118 @@ internal sealed class PartyFramesElement : HudElement
                 this.DrawSwipe(dl, min, max, aura.Remaining, aura.Duration);
             }
 
-            // A bright edge on what can be taken off, so the row answers "which one" once the
-            // frame's own edge has answered "is there one".
-            if (aura.CanDispel)
+            // A coloured edge on what can be taken off, so the row answers "which one" once
+            // the frame's own mark has answered "is there one".
+            //
+            // 🔴 It was a one-pixel line, always on, in the cleanse colour — which at a
+            // twenty-pixel icon is a line nobody sees, and a mark nobody sees is a missing
+            // mark, not a quiet one (Florian, 2026-09-21: the debuffs are hard to tell
+            // apart; the same lesson the cleanse mark itself learned in session 9).
+            if (dispelBorder && aura.CanDispel)
             {
-                dl.AddRect(min, max, this.Dim(m_config.PartyFrames.CleanseColour), 0f, ImDrawFlags.None, Tokens.Px(1f));
+                dl.AddRect(
+                    min,
+                    max,
+                    this.Dim(m_config.PartyFrames.CleanseColour),
+                    0f,
+                    ImDrawFlags.None,
+                    Tokens.WorldLine(m_config.PartyFrames.AuraDispelThickness));
+            }
+
+            if (showDuration)
+            {
+                this.DrawDuration(dl, min, max, aura.Remaining, durationSize);
             }
 
             if (showStacks && aura.Stacks > 1)
             {
-                this.DrawStacks(dl, min, max, aura.Stacks);
+                this.DrawStacks(dl, min, max, aura.Stacks, stackSize);
             }
         }
+    }
+
+    /// <summary>
+    /// How long is left, across the middle of the icon.
+    /// <para>
+    /// A share of the icon, like the stack count, and for the same reason: a number with a
+    /// size of its own runs out of its icon the moment somebody moves the icon slider.
+    /// </para>
+    /// </summary>
+    private void DrawDuration(ImDrawListPtr dl, Vector2 min, Vector2 max, float remaining, float pixels)
+    {
+        string? text = DurationText(remaining);
+
+        if (text is null)
+        {
+            return;
+        }
+
+        float size = Tokens.WorldPx(pixels);
+        float width = Ink.MeasureWidth(size, text);
+
+        // Centred on the digits, not on the line they are written in — see Ink.DigitTop.
+        Vector2 at = new(
+            MathF.Round(((min.X + max.X) * 0.5f) - (width * 0.5f)),
+            MathF.Round(Ink.DigitTop(size, (min.Y + max.Y) * 0.5f)));
+
+        // Outlined whatever the frame's text edge is, like the stack count: this one sits on
+        // a picture, and a picture can be any colour underneath.
+        Ink.DrawScaledEdged(dl, size, at, this.DimInk(Tokens.Col.HudInk), text, TextEdge.Outline);
+    }
+
+    /// <summary>
+    /// The seconds, or the minutes once there are too many seconds to read.
+    /// <para>
+    /// Out of two tables built once, because this runs per icon per frame and building
+    /// "37" would allocate every one of them (CLAUDE.md §7.1). Null for an effect that does
+    /// not run out — there is no number to write for something that is simply there.
+    /// </para>
+    /// </summary>
+    private static string? DurationText(float remaining)
+    {
+        if (remaining <= 0f)
+        {
+            return null;
+        }
+
+        if (remaining < 60f)
+        {
+            int seconds = (int)MathF.Ceiling(remaining);
+            return seconds >= 1 && seconds <= SecondsText.Length ? SecondsText[seconds - 1] : null;
+        }
+
+        int minutes = (int)MathF.Ceiling(remaining / 60f);
+        return minutes >= 1 && minutes <= MinutesText.Length ? MinutesText[minutes - 1] : null;
+    }
+
+    private static readonly string[] SecondsText = BuildSecondsText();
+
+    private static readonly string[] MinutesText = BuildMinutesText();
+
+    private static string[] BuildSecondsText()
+    {
+        var text = new string[60];
+
+        for (int i = 0; i < text.Length; i++)
+        {
+            text[i] = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        return text;
+    }
+
+    private static string[] BuildMinutesText()
+    {
+        // Half an hour is past anything a party frame shows; the long ones are the upkeep
+        // effects that never reach these rows in the first place.
+        var text = new string[30];
+
+        for (int i = 0; i < text.Length; i++)
+        {
+            text[i] = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture) + "m";
+        }
+
+        return text;
     }
 
     /// <summary>Air between two affliction icons. Small on purpose: the row reads as a row.</summary>
@@ -1571,17 +1714,42 @@ internal sealed class PartyFramesElement : HudElement
         return scale <= 0f ? centre : new Vector2(centre.X + (dx / scale), centre.Y + (dy / scale));
     }
 
-    /// <summary>How many of it there are, in the bottom right of its icon.</summary>
-    private void DrawStacks(ImDrawListPtr dl, Vector2 min, Vector2 max, ushort stacks)
+    /// <summary>
+    /// How many of it there are, astride the bottom edge of its icon.
+    /// <para>
+    /// 🔴 It used to sit in the bottom right corner, inside the icon — which is the corner
+    /// the duration reaches toward, so with both numbers on the two collided and neither
+    /// could be read (Florian, 2026-09-21, at a twenty pixel icon). Two numbers do not fit
+    /// on a twenty pixel square side by side; one of them has to leave, and this is the one
+    /// that can. It is a small number that rarely changes, while the duration is the one
+    /// being watched — so the duration keeps the icon and the count moves to the edge.
+    /// </para>
+    /// <para>
+    /// ⚠️ Half of it therefore hangs BELOW the icon, over whatever is underneath: the frame
+    /// on the bottom row, and nothing at all past the frame's edge. The ordinary outline
+    /// carries it.
+    /// </para>
+    /// <para>
+    /// 🔴 A thicker one was tried for exactly that reason and taken straight back out. At
+    /// twelve pixels of text a two pixel edge is nearly as thick as the strokes themselves:
+    /// it closed up the eye of a 9 and the bowls of a 3, and both numbers came out worse
+    /// than before (Florian, 2026-09-21, one round after asking for it). Size was the whole
+    /// answer. <b>An edge is a share of the stroke it surrounds, not a constant</b> — which
+    /// is what <c>Ink.EdgeWidth</c> already does, thickening past twenty-eight pixels,
+    /// exactly where a second pixel starts to help.
+    /// </para>
+    /// </summary>
+    private void DrawStacks(ImDrawListPtr dl, Vector2 min, Vector2 max, ushort stacks, float pixels)
     {
         string text = StackText[Math.Min((int)stacks, StackText.Length) - 1];
 
-        // Half the icon, so the number scales with whatever size the icons are set to rather
-        // than staying put and swallowing a small one.
-        float size = MathF.Max(Tokens.Px(AuraStackMinSize), MathF.Round((max.Y - min.Y) * 0.5f));
+        float size = Tokens.WorldPx(pixels);
         float width = Ink.MeasureWidth(size, text);
 
-        Vector2 at = new(MathF.Round(max.X - width - 1f), MathF.Round(max.Y - size));
+        // Its digits straddle the icon's bottom edge, so the edge is what they centre on.
+        Vector2 at = new(
+            MathF.Round(((min.X + max.X) * 0.5f) - (width * 0.5f)),
+            MathF.Round(Ink.DigitTop(size, max.Y)));
 
         // Always outlined, whatever the frame's own text edge is set to. This one sits on a
         // picture rather than on a bar, and a picture can be any colour underneath.
@@ -1604,8 +1772,6 @@ internal sealed class PartyFramesElement : HudElement
 
         return text;
     }
-
-    private const float AuraStackMinSize = 10f;
 
     /// <summary>
     /// A raise on its way, or somebody who cannot be killed.
@@ -1657,7 +1823,7 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        float side = Tokens.Px(cfg.RescueIconSize);
+        float side = Tokens.WorldPx(cfg.RescueIconSize);
         Vector2 at = Anchors.Place(
             Anchors.At(cfg.RescueIconPosition),
             innerMin,
@@ -1665,8 +1831,8 @@ internal sealed class PartyFramesElement : HudElement
             new Vector2(side, side),
             Tokens.Metric.FramePadding);
 
-        at.X += Tokens.Px(cfg.RescueIconX);
-        at.Y += Tokens.Px(cfg.RescueIconY);
+        at.X += Tokens.WorldPx(cfg.RescueIconX);
+        at.Y += Tokens.WorldPx(cfg.RescueIconY);
 
         dl.AddImage(icon, at, new Vector2(at.X + side, at.Y + side), uv0, uv1, this.Dim(0xFFFFFFFFu));
     }
@@ -1693,7 +1859,7 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        float side = Tokens.Px(size);
+        float side = Tokens.WorldPx(size);
         Vector2 at = Anchors.Place(
             Anchors.At(anchor),
             innerMin,
@@ -1701,8 +1867,8 @@ internal sealed class PartyFramesElement : HudElement
             new Vector2(side, side),
             Tokens.Metric.FramePadding);
 
-        at.X += Tokens.Px(offsetX);
-        at.Y += Tokens.Px(offsetY);
+        at.X += Tokens.WorldPx(offsetX);
+        at.Y += Tokens.WorldPx(offsetY);
 
         // Tinted white at the frame's own fade, so an icon steps back with the rest of it
         // rather than staying the one bright thing on a frame that has gone quiet.
@@ -1723,12 +1889,12 @@ internal sealed class PartyFramesElement : HudElement
         if (cfg.ShowName && this.Shows(PreviewPart.Name))
         {
             string name = this.DrawnName(slot, ref member, PlayerName.At(cfg.NameShortening));
-            float size = Tokens.Px(cfg.NameSize);
+            float size = Tokens.WorldPx(cfg.NameSize);
             Vector2 measured = new(Ink.MeasureWidth(size, name), size);
             Vector2 at = Anchors.Place(Anchors.At(cfg.NamePosition), innerMin, innerMax, measured, padding);
 
-            at.X += Tokens.Px(cfg.NameX);
-            at.Y += Tokens.Px(cfg.NameY);
+            at.X += Tokens.WorldPx(cfg.NameX);
+            at.Y += Tokens.WorldPx(cfg.NameY);
 
             // Your own name is drawn like everyone else's. It used to come out gold, which
             // looked like a state rather than a whose-name-is-this, and the one frame you
@@ -1740,7 +1906,7 @@ internal sealed class PartyFramesElement : HudElement
                 ? Jobs.Colour(member.JobId)
                 : (member.HasData ? Tokens.Col.HudInk : Tokens.Col.HudInkQuiet));
 
-            Ink.DrawScaledEdged(dl, size, at, colour, name, cfg.Edge);
+            Ink.DrawScaledEdged(dl, size, at, colour, name, m_config.Edge);
         }
 
         if (cfg.ShowPartyNumber && this.Shows(PreviewPart.PartyNumber) && member.PartyNumber >= 1 && member.PartyNumber <= NumberText.Length)
@@ -1749,7 +1915,7 @@ internal sealed class PartyFramesElement : HudElement
             // position. A bare digit over a health bar has no shape of its own to be
             // recognised by and reads as a stray number (Florian).
             string number = NumberText[member.PartyNumber - 1];
-            float glyph = Tokens.Px(cfg.PartyNumberSize);
+            float glyph = Tokens.WorldPx(cfg.PartyNumberSize);
             float plate = MathF.Round(glyph * NumberPlateScale);
             Vector2 plateAt = Anchors.Place(
                 Anchors.At(cfg.PartyNumberPosition),
@@ -1758,15 +1924,15 @@ internal sealed class PartyFramesElement : HudElement
                 new Vector2(plate, plate),
                 padding);
 
-            plateAt.X += Tokens.Px(cfg.PartyNumberX);
-            plateAt.Y += Tokens.Px(cfg.PartyNumberY);
+            plateAt.X += Tokens.WorldPx(cfg.PartyNumberX);
+            plateAt.Y += Tokens.WorldPx(cfg.PartyNumberY);
 
             // The edge is a filled shape with the plate laid inside it, NOT a stroke. ImGui
             // centres a stroke on its path, so half of every edge pixel falls outside the
             // rectangle and gets antialiased — which is exactly why the window's own rings are
             // filled rectangles too (design bible §2.1, learned the same way in session 5).
             Vector2 plateEnd = new(plateAt.X + plate, plateAt.Y + plate);
-            float edge = MathF.Max(Tokens.Line(1f), MathF.Round(plate * NumberPlateEdge));
+            float edge = MathF.Max(Tokens.WorldLine(1f), MathF.Round(plate * NumberPlateEdge));
             float radius = MathF.Max(Tokens.Radius.Small, MathF.Round(plate * NumberPlateRadius));
 
             dl.AddRectFilled(plateAt, plateEnd, Tokens.Col.NumberEdge, radius, ImDrawFlags.RoundCornersAll);
@@ -1804,14 +1970,14 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        float healthSize = Tokens.Px(cfg.HpTextSize);
+        float healthSize = Tokens.WorldPx(cfg.HpTextSize);
         Vector2 healthMeasured = new(Ink.MeasureWidth(healthSize, health), healthSize);
         Vector2 healthAt = Anchors.Place(Anchors.At(cfg.HpTextPosition), innerMin, innerMax, healthMeasured, padding);
 
-        healthAt.X += Tokens.Px(cfg.HpTextX);
-        healthAt.Y += Tokens.Px(cfg.HpTextY);
+        healthAt.X += Tokens.WorldPx(cfg.HpTextX);
+        healthAt.Y += Tokens.WorldPx(cfg.HpTextY);
 
-        Ink.DrawScaledEdged(dl, healthSize, healthAt, this.DimInk(Tokens.Col.HudInk), health, cfg.Edge);
+        Ink.DrawScaledEdged(dl, healthSize, healthAt, this.DimInk(Tokens.Col.HudInk), health, m_config.Edge);
     }
 
     /// <summary>Whether this member is one of the ones mana was switched on for.</summary>

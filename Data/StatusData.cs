@@ -551,8 +551,17 @@ internal static class StatusData
             float dz = at.Z - from.Z;
             double distance = System.Math.Sqrt((dx * dx) + (dy * dy) + (dz * dz));
 
+            // 🔴 Both lookups, side by side. IPartyMember.GameObject searches by GameObjectId
+            // while handing it an entity id; SearchByEntityId compares the field the number
+            // came from. Printing the two is what turns "the frames look dimmed" into a thing
+            // somebody can read off a line (2026-09-21).
+            Dalamud.Game.ClientState.Objects.Types.IGameObject? byEntity =
+                Services.Objects.SearchByEntityId(member.EntityId);
+
             Services.Log.Information(
-                "  [{Slot}] {Name} | job {Job} | territory {Territory} | hp {Hp}/{MaxHp} | shield {Shield}% | entity {Entity} | pos {X:0.0}/{Y:0.0}/{Z:0.0} | distance {Distance:0.0} | object {Object}",
+                "  [{Slot}] {Name} | job {Job} | territory {Territory} | hp {Hp}/{MaxHp} | shield {Shield}% "
+                + "| entity {Entity} | pos {X:0.0}/{Y:0.0}/{Z:0.0} | measured {Distance:0.0} "
+                + "| byEntityId {ByEntity} | yalms {Yalms} | via GameObject {ViaProperty}",
                 i,
                 member.Name.TextValue,
                 member.ClassJob.RowId,
@@ -565,6 +574,8 @@ internal static class StatusData
                 at.Y,
                 at.Z,
                 distance,
+                byEntity is null ? "none" : "loaded",
+                byEntity is null ? "-" : byEntity.CurrentDistance.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 member.GameObject is null ? "none" : "loaded");
         }
     }

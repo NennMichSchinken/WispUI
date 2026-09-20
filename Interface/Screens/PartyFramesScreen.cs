@@ -69,10 +69,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdIconGroup = "##wisp-pf-icon";
     private const string IdIconStyle = "##wisp-pf-iconstyle";
     private const string IdIconSize = "##wisp-pf-iconsize";
-    private const string IdFont = "##wisp-pf-font";
-    private const string IdTextEdge = "##wisp-pf-textedge";
-    private const string IdTextWeight = "##wisp-pf-textweight";
-    private const string IdTextStyleGroup = "##wisp-pf-textstyle";
     private const string IdBindingsGroup = "##wisp-pf-bindings";
     private const string IdBindingKey = "##wisp-pf-bindkey";
     private const string IdBindingJob = "##wisp-pf-bindjob";
@@ -99,6 +95,19 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdAuraStacks = "##wisp-pf-aurastacks";
     private const string IdAuraSwipe = "##wisp-pf-auraswipe";
     private const string IdAuraTooltips = "##wisp-pf-auratips";
+    private const string IdAuraDuration = "##wisp-pf-auraduration";
+    private const string IdAuraDurationSize = "##wisp-pf-auradursize";
+    private const string IdAuraStackSize = "##wisp-pf-aurastacksize";
+    private const string IdBuffDurationSize = "##wisp-pf-buffdursize";
+    private const string IdBuffStackSize = "##wisp-pf-buffstacksize";
+    private const string IdOtherDuration = "##wisp-pf-otherduration";
+    private const string IdOtherDurationSize = "##wisp-pf-otherdursize";
+    private const string IdOtherStackSize = "##wisp-pf-otherstacksize";
+    private const string IdAuraDispel = "##wisp-pf-auradispel";
+    private const string IdAuraDispelThickness = "##wisp-pf-auradispelthick";
+    private const string IdBuffDuration = "##wisp-pf-buffduration";
+    private const string IdBuffTooltips = "##wisp-pf-bufftips";
+    private const string IdOtherTooltips = "##wisp-pf-othertips";
     private const string IdCleanseWhenAble = "##wisp-pf-cleanseable";
     private const string IdCleanseColour = "##wisp-pf-cleansecolour";
     private const string IdCleanseThickness = "##wisp-pf-cleansethick";
@@ -193,6 +202,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const float MinIconSize = Configuration.MinIconSize;
     private const float MaxIconSize = Configuration.MaxIconSize;
 
+    /// <summary>The thickest the edge on a removable affliction may be drawn.</summary>
+    private const float MaxDispelThickness = Configuration.MaxDispelThickness;
+
     /// <summary>
     /// Every pixel slider steps by a whole pixel. There is no half a pixel to draw, and every
     /// one of these ranges is narrower than the track, so pointing reaches all of them.
@@ -254,8 +266,22 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const int SlotOtherMax = 33;
     private const int SlotCleanseThickness = 34;
 
-    /// <summary>🔴 The last slot. Adding one below this means moving the line under it too.</summary>
     private const int SlotRaiseThickness = 35;
+
+    private const int SlotDispelThickness = 36;
+
+    private const int SlotAuraDurationSize = 37;
+
+    private const int SlotAuraStackSize = 38;
+
+    private const int SlotBuffDurationSize = 39;
+
+    private const int SlotBuffStackSize = 40;
+
+    private const int SlotOtherDurationSize = 41;
+
+    /// <summary>🔴 The last slot. Adding one below this means moving the line under it too.</summary>
+    private const int SlotOtherStackSize = 42;
 
     /// <summary>
     /// How many slots there are, derived from the last one rather than written down.
@@ -268,23 +294,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     /// array grows with it.
     /// </para>
     /// </summary>
-    private const int SlotCount = SlotRaiseThickness + 1;
+    private const int SlotCount = SlotOtherStackSize + 1;
 
-    /// <summary>The three weights, in the order the segments sit. Built once, not per frame.</summary>
-    private static readonly string[] WeightNames =
-    {
-        Strings.TextWeightNormal,
-        Strings.TextWeightMedium,
-        Strings.TextWeightBold,
-    };
 
-    /// <summary>The three edges, in the order the segments sit. Built once, not per frame.</summary>
-    private static readonly string[] EdgeNames =
-    {
-        Strings.TextEdgeNone,
-        Strings.TextEdgeShadow,
-        Strings.TextEdgeOutline,
-    };
 
     /// <summary>What a bar takes its colour from. FFXIV's own convention, not one of ours.</summary>
     private static readonly BarColourMode[] ColourModes =
@@ -330,7 +342,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private readonly ArrowSelector<BarColourMode> m_colour;
     private readonly ArrowSelector<Anchor> m_namePosition;
     private readonly ArrowSelector<HealthTextMode> m_healthMode;
-    private readonly ArrowSelector<FontChoice> m_font;
     private readonly ArrowSelector<JobEntry> m_jobSelector;
     private readonly ArrowSelector<ActionEntry> m_actionPicker;
     private readonly ArrowSelector<ActionEntry> m_spellPicker;
@@ -376,6 +387,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     // allocation per frame in the draw path for a caption nobody asked to change (§7.1).
     private string m_shieldOpacityText = string.Empty;
     private int m_shieldOpacityTextFor = -1;
+
 
     private string m_cleanseOpacityText = string.Empty;
     private int m_cleanseOpacityTextFor = -1;
@@ -476,20 +488,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                     HealthTextMode.Deficit => Strings.HealthTextDeficit,
                     _ => Strings.HealthTextPercent,
                 },
-                ShowCounter = false,
-            });
-
-        // The one selector in the suite with a searchable list, because it is the one whose
-        // list the player controls: six faces shipped, and however many they drop in their
-        // font folder. Walking that with two arrows is not a list, it is a queue.
-        m_font = new ArrowSelector<FontChoice>(
-            IdFont,
-            FontLibrary.All,
-            new ArrowSelectorOptions<FontChoice>
-            {
-                Label = static face => face.Name,
-                EnablePopupList = true,
-                EnableSearch = true,
                 ShowCounter = false,
             });
 
@@ -834,14 +832,14 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float column = Chrome.ColumnWidth(width);
         float y = origin.Y;
 
+        // 🔴 Two groups, not three. The face, its weight and its edge used to sit here in a
+        // third; they are the suite's now and live under Global (Florian, 2026-09-21). They
+        // were never really about the party frames: one face is one font atlas entry for the
+        // whole HUD, so a second module could not have had its own anyway.
         Chrome.BeginGroupRow();
         Chrome.GroupScope name = this.DrawNameText(Chrome.ColumnX(origin.X, width, 0), y, column, out float nameHeight);
         Chrome.GroupScope figure = this.DrawHealthText(Chrome.ColumnX(origin.X, width, 1), y, column, out float figureHeight);
         y += FrameRow(name, nameHeight, figure, figureHeight);
-
-        Chrome.BeginGroupRow();
-        Chrome.GroupScope lettering = this.DrawTextStyle(Chrome.ColumnX(origin.X, width, 0), y, column, out float letteringHeight);
-        y += Chrome.GroupFrame(lettering, letteringHeight) + Tokens.Metric.ColumnGutter;
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
@@ -1472,104 +1470,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         return group;
     }
 
-    /// <summary>
-    /// How every text on a frame is lettered: which face, and what carries it over the world.
-    /// <para>
-    /// Two rows for all of them rather than two rows each. Both questions are about reading a
-    /// frame at a glance, not about the name and the figure separately — and a face is one
-    /// font atlas entry for the whole HUD, so it could not honestly be offered per text.
-    /// </para>
-    /// </summary>
-    private Chrome.GroupScope DrawTextStyle(float x, float y, float width, out float contentHeight)
-    {
-        Chrome.GroupScope group = Chrome.BeginGroup(
-            IdTextStyleGroup,
-            new Chrome.GroupHead
-            {
-                Title = Strings.GroupLettering,
-                Description = Strings.GroupLetteringHint,
-            },
-            x,
-            y,
-            width);
-
-        float pitch = Chrome.RowPitch();
-        float rowY = group.ContentY;
-
-        // The list is addressed by name, not by position: it grows and shrinks with the
-        // player's font folder, and a stored position would mean a different face the moment
-        // they added a file.
-        int face = FontLibrary.IndexOf(m_config.PartyFrames.FontName);
-        if (m_font.Draw(
-                ref face,
-                Chrome.Row(Strings.TextFont, group.ContentX, rowY, group.ContentWidth, false, Strings.TextFontTooltip),
-                rowY,
-                Chrome.ControlWidth()))
-        {
-            m_config.PartyFrames.FontName = FontLibrary.NameAt(face);
-            m_config.MarkDirty();
-        }
-
-        rowY += pitch;
-
-        int weight = m_config.PartyFrames.TextWeight;
-        if (Chrome.SegmentRow(
-                IdTextWeight,
-                Strings.TextWeight,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                WeightNames,
-                ref weight,
-                true,
-                Strings.TextWeightTooltip))
-        {
-            m_config.PartyFrames.TextWeight = weight;
-            m_config.MarkDirty();
-        }
-
-        rowY += pitch;
-
-        int edge = m_config.PartyFrames.TextEdge;
-        if (Chrome.SegmentRow(
-                IdTextEdge,
-                Strings.TextEdge,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                EdgeNames,
-                ref edge,
-                false,
-                Strings.TextEdgeTooltip))
-        {
-            m_config.PartyFrames.TextEdge = edge;
-            m_config.MarkDirty();
-        }
-
-        float used = rowY - group.ContentY + Chrome.RowHeight();
-
-        // Only when the face that is set is not the face being drawn. A shipped font that
-        // fails to load falls back to the interface face, and without this line that is
-        // indistinguishable from a font that loaded and simply looks thin — which is exactly
-        // how a whole test round was spent (Florian, 2026-09-12).
-        string? problem = Fonts.FaceProblem;
-        if (problem is not null)
-        {
-            float noteY = rowY + Chrome.RowHeight() + Tokens.Space.Sm;
-            Ink.Draw(
-                ImGui.GetWindowDrawList(),
-                Ink.Role.Small,
-                new Vector2(group.ContentX, noteY),
-                Tokens.Col.Gold,
-                problem);
-
-            used += Tokens.Space.Sm + Ink.LineHeight(Ink.Role.Small);
-        }
-
-        Chrome.EndGroupContent(group, used);
-        contentHeight = used;
-        return group;
-    }
 
     /// <summary>
     /// The Bindings tab: which job is being set up, then the two lists that say where a
@@ -2332,14 +2232,22 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         // The three icon rows and nothing else. What to DO about an effect moved to Marks —
         // this tab is only about the pictures of what is lying on somebody.
+        //
+        // 🔴 The two benefit rows go first, side by side, and the afflictions row sits
+        // underneath on its own. Not because afflictions matter less — the order here is
+        // arithmetic. Two cards in a row end on ONE bottom edge, so the shorter is stretched
+        // to the taller; with the long afflictions card up top that meant a card of eight
+        // rows padded out to twelve, which is the empty space Florian saw (2026-09-21). The
+        // two benefit rows are near enough the same length to stretch each other by nothing,
+        // and the long one, alone on its row, stretches nobody.
         Chrome.BeginGroupRow();
-        Chrome.GroupScope auras = this.DrawAuraIcons(Chrome.ColumnX(origin.X, width, 0), origin.Y, column, out float auraHeight);
-        Chrome.GroupScope buffs = this.DrawBuffIcons(Chrome.ColumnX(origin.X, width, 1), origin.Y, column, out float buffHeight);
-        float y = origin.Y + FrameRow(auras, auraHeight, buffs, buffHeight);
+        Chrome.GroupScope buffs = this.DrawBuffIcons(Chrome.ColumnX(origin.X, width, 0), origin.Y, column, out float buffHeight);
+        Chrome.GroupScope others = this.DrawOtherIcons(Chrome.ColumnX(origin.X, width, 1), origin.Y, column, out float otherHeight);
+        float y = origin.Y + FrameRow(buffs, buffHeight, others, otherHeight);
 
         Chrome.BeginGroupRow();
-        Chrome.GroupScope others = this.DrawOtherIcons(Chrome.ColumnX(origin.X, width, 0), y, column, out float otherHeight);
-        y += Chrome.GroupFrame(others, otherHeight) + Tokens.Metric.ColumnGutter;
+        Chrome.GroupScope auras = this.DrawAuraIcons(Chrome.ColumnX(origin.X, width, 0), y, column, out float auraHeight);
+        y += Chrome.GroupFrame(auras, auraHeight) + Tokens.Metric.ColumnGutter;
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
@@ -2369,6 +2277,13 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float pitch = Chrome.RowPitch();
         float rowY = group.ContentY;
 
+        // 🔴 The one card on this screen with headings inside it — see Chrome.Subhead for
+        // why it earns the exception and why nothing else should copy it. Twelve rows fall
+        // into two plain halves: how the row of icons is laid out, and what is drawn on one
+        // of them.
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        rowY += Chrome.Subhead(dl, Strings.SubheadTheRow, group.ContentX, rowY, group.ContentWidth, true);
+
         // 🔴 Two rows used to sit above this one: "Show icons", which is the switch in the
         // head now, and "Preview auras", which the preview band answers properly. Both are
         // gone and so is the advance that made room for them — a removed row that leaves its
@@ -2395,9 +2310,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         this.PixelSlider(IdAuraX, Strings.OffsetX, SlotAuraX, group, rowY, -MaxOffset, MaxOffset, true, null);
 
         rowY += pitch;
-        this.PixelSlider(IdAuraY, Strings.OffsetY, SlotAuraY, group, rowY, -MaxOffset, MaxOffset, true, null);
+        this.PixelSlider(IdAuraY, Strings.OffsetY, SlotAuraY, group, rowY, -MaxOffset, MaxOffset, false, null);
 
         rowY += pitch;
+        rowY += Chrome.Subhead(dl, Strings.SubheadOnEachIcon, group.ContentX, rowY, group.ContentWidth, false);
+
+        // No divider: it would land right under the subheading's own hairline.
         if (Chrome.OptionRow(
                 IdAuraStacks,
                 Strings.AuraStacks,
@@ -2408,7 +2326,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 Chrome.OptionControl.Tick,
                 Strings.AuraStacksTooltip,
                 true,
-                true))
+                false))
         {
             m_config.PartyFrames.AuraShowStacks = !m_config.PartyFrames.AuraShowStacks;
             m_config.MarkDirty();
@@ -2431,8 +2349,83 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        // One switch for all three icon rows. "What is this picture" is the same question
-        // whether the picture is a debuff, your own regen or somebody else's work.
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdAuraDuration,
+                Strings.AuraDuration,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.AuraShowDuration,
+                Chrome.OptionControl.Tick,
+                Strings.AuraDurationTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.AuraShowDuration = !m_config.PartyFrames.AuraShowDuration;
+            m_config.MarkDirty();
+        }
+
+        // One size each, in pixels, under the switches that put the two numbers there. See
+        // the configuration for why these are pixels and not a share of the icon.
+        rowY += pitch;
+        this.PixelSlider(
+            IdAuraDurationSize,
+            Strings.AuraDurationSize,
+            SlotAuraDurationSize,
+            group,
+            rowY,
+            Configuration.MinTextSize,
+            Configuration.MaxTextSize,
+            true,
+            Strings.AuraNumberSizeTooltip);
+
+        rowY += pitch;
+        this.PixelSlider(
+            IdAuraStackSize,
+            Strings.AuraStackSize,
+            SlotAuraStackSize,
+            group,
+            rowY,
+            Configuration.MinTextSize,
+            Configuration.MaxTextSize,
+            true,
+            null);
+
+        // The cleanse mark, brought down onto the single icon. No colour of its own — see
+        // the configuration for why one statement gets one colour.
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdAuraDispel,
+                Strings.AuraDispelBorder,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.AuraDispelBorder,
+                Chrome.OptionControl.Tick,
+                Strings.AuraDispelBorderTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.AuraDispelBorder = !m_config.PartyFrames.AuraDispelBorder;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+        this.PixelSlider(
+            IdAuraDispelThickness,
+            Strings.AuraDispelThickness,
+            SlotDispelThickness,
+            group,
+            rowY,
+            1f,
+            MaxDispelThickness,
+            true,
+            null);
+
+        // Per row, unlike the two switches above it: how an icon is DRAWN is one question
+        // for both benefit rows, but "what is this picture" is not — a stranger's affliction
+        // is the one nobody recognises (Florian, 2026-09-21).
         rowY += pitch;
         if (Chrome.OptionRow(
                 IdAuraTooltips,
@@ -2525,6 +2518,72 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         rowY += pitch;
         this.PixelSlider(IdBuffY, Strings.OffsetY, SlotBuffY, group, rowY, -MaxOffset, MaxOffset, true, null);
 
+        // 🔴 This row's own, not shared with the row beside it. It was one switch for both
+        // benefit rows until version 17, on the reasoning that "how an icon is drawn" is one
+        // question — but timing your own regens and merely seeing a stranger's buffs are two
+        // different jobs, and Florian does both at once (2026-09-21). Stacks and the sweep
+        // stay shared: those say how to read an icon, this says whether a row is timed.
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdBuffDuration,
+                Strings.AuraDuration,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.BuffShowDuration,
+                Chrome.OptionControl.Tick,
+                Strings.AuraDurationTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.BuffShowDuration = !m_config.PartyFrames.BuffShowDuration;
+            m_config.MarkDirty();
+        }
+
+        // And its own sizes, because the rows do not have to be the same size — bigger
+        // afflictions and smaller regens is an ordinary setup, and one size across all three
+        // overhung the small row.
+        rowY += pitch;
+        this.PixelSlider(
+            IdBuffDurationSize,
+            Strings.AuraDurationSize,
+            SlotBuffDurationSize,
+            group,
+            rowY,
+            Configuration.MinTextSize,
+            Configuration.MaxTextSize,
+            true,
+            Strings.AuraNumberSizeTooltip);
+
+        rowY += pitch;
+        this.PixelSlider(
+            IdBuffStackSize,
+            Strings.AuraStackSize,
+            SlotBuffStackSize,
+            group,
+            rowY,
+            Configuration.MinTextSize,
+            Configuration.MaxTextSize,
+            true,
+            null);
+
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdBuffTooltips,
+                Strings.AuraTooltips,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.ShowBuffTooltips,
+                Chrome.OptionControl.Tick,
+                Strings.AuraTooltipsTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.ShowBuffTooltips = !m_config.PartyFrames.ShowBuffTooltips;
+            m_config.MarkDirty();
+        }
+
         float used = rowY - group.ContentY + Chrome.RowHeight();
         Chrome.EndGroupContent(group, used);
         contentHeight = used;
@@ -2582,6 +2641,66 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         rowY += pitch;
         this.PixelSlider(IdOtherY, Strings.OffsetY, SlotOtherY, group, rowY, -MaxOffset, MaxOffset, true, null);
+
+        // Same three as the row beside it, and its own — see that card for why they came
+        // apart at version 17.
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdOtherDuration,
+                Strings.AuraDuration,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.OtherShowDuration,
+                Chrome.OptionControl.Tick,
+                Strings.AuraDurationTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.OtherShowDuration = !m_config.PartyFrames.OtherShowDuration;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+        this.PixelSlider(
+            IdOtherDurationSize,
+            Strings.AuraDurationSize,
+            SlotOtherDurationSize,
+            group,
+            rowY,
+            Configuration.MinTextSize,
+            Configuration.MaxTextSize,
+            true,
+            Strings.AuraNumberSizeTooltip);
+
+        rowY += pitch;
+        this.PixelSlider(
+            IdOtherStackSize,
+            Strings.AuraStackSize,
+            SlotOtherStackSize,
+            group,
+            rowY,
+            Configuration.MinTextSize,
+            Configuration.MaxTextSize,
+            true,
+            null);
+
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdOtherTooltips,
+                Strings.AuraTooltips,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.ShowOtherTooltips,
+                Chrome.OptionControl.Tick,
+                Strings.AuraTooltipsTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.ShowOtherTooltips = !m_config.PartyFrames.ShowOtherTooltips;
+            m_config.MarkDirty();
+        }
 
         float used = rowY - group.ContentY + Chrome.RowHeight();
         Chrome.EndGroupContent(group, used);
@@ -3146,6 +3265,13 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         SlotOtherMax => m_config.PartyFrames.OtherMaxCount,
         SlotCleanseThickness => m_config.PartyFrames.CleanseThickness,
         SlotRaiseThickness => m_config.PartyFrames.RaiseThickness,
+        SlotDispelThickness => m_config.PartyFrames.AuraDispelThickness,
+        SlotAuraDurationSize => m_config.PartyFrames.AuraDurationSize,
+        SlotAuraStackSize => m_config.PartyFrames.AuraStackSize,
+        SlotBuffDurationSize => m_config.PartyFrames.BuffDurationSize,
+        SlotBuffStackSize => m_config.PartyFrames.BuffStackSize,
+        SlotOtherDurationSize => m_config.PartyFrames.OtherDurationSize,
+        SlotOtherStackSize => m_config.PartyFrames.OtherStackSize,
         _ => m_config.PartyFrames.ManaHeight,
     };
 
@@ -3188,6 +3314,13 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             case SlotOtherMax: m_config.PartyFrames.OtherMaxCount = (int)value; break;
             case SlotCleanseThickness: m_config.PartyFrames.CleanseThickness = value; break;
             case SlotRaiseThickness: m_config.PartyFrames.RaiseThickness = value; break;
+            case SlotDispelThickness: m_config.PartyFrames.AuraDispelThickness = value; break;
+            case SlotAuraDurationSize: m_config.PartyFrames.AuraDurationSize = value; break;
+            case SlotAuraStackSize: m_config.PartyFrames.AuraStackSize = value; break;
+            case SlotBuffDurationSize: m_config.PartyFrames.BuffDurationSize = value; break;
+            case SlotBuffStackSize: m_config.PartyFrames.BuffStackSize = value; break;
+            case SlotOtherDurationSize: m_config.PartyFrames.OtherDurationSize = value; break;
+            case SlotOtherStackSize: m_config.PartyFrames.OtherStackSize = value; break;
             default: m_config.PartyFrames.ManaHeight = value; break;
         }
     }
@@ -3258,6 +3391,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     private string OpacityCaption(float opacity) =>
         PercentCaption(opacity, ref m_opacityTextFor, ref m_opacityText);
+
 
     private string CleanseOpacityCaption(float opacity) =>
         PercentCaption(opacity, ref m_cleanseOpacityTextFor, ref m_cleanseOpacityText);

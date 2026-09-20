@@ -181,6 +181,47 @@ internal static class Ink
         return width * (pixels / native);
     }
 
+    /// <summary>
+    /// Where to start drawing a number so that the DIGITS sit centred on a given line,
+    /// rather than the line box they are written in.
+    /// <para>
+    /// 🔴 The two are not the same, and how far apart they are is a property of the
+    /// typeface. A line box reaches from the tallest ascender to the lowest descender; a
+    /// digit occupies some band inside that, and where that band sits is the font
+    /// designer's choice. Axis puts it near the middle, so centring the box centred the
+    /// digits by accident. Jupiter keeps more room above, so the same arithmetic dropped
+    /// every number visibly low (Florian, 2026-09-21) — and every font we do not ship gets
+    /// its own version of that error.
+    /// </para>
+    /// <para>
+    /// Measured off the glyph itself, in the face the text will actually be drawn in, and
+    /// falling back to half the line when a face cannot answer. Allocation free: the font
+    /// lock was taken at the top of the frame, so this is pointer arithmetic.
+    /// </para>
+    /// </summary>
+    public static unsafe float DigitTop(float pixels, float centreY)
+    {
+        int i = HudIndex(pixels);
+        ImFontPtr font = i >= 0 ? HudFonts[i] : Fonts[(int)RoleFor(pixels)];
+        float native = i >= 0 ? HudPx[i] : Sizes[(int)RoleFor(pixels)];
+
+        if (native > 0f && !font.IsNull)
+        {
+            ImFontGlyphPtr glyph = font.FindGlyph('0');
+
+            if (!glyph.IsNull)
+            {
+                // Y0 and Y1 are the digit's top and bottom measured from where the line
+                // starts, in the face's own size — so they scale with everything else.
+                float middle = (glyph.Y0 + glyph.Y1) * 0.5f * (pixels / native);
+
+                return centreY - middle;
+            }
+        }
+
+        return centreY - (pixels * 0.5f);
+    }
+
     /// <summary>Writes a string at a chosen pixel size, with whatever was chosen to carry it.</summary>
     public static void DrawScaledEdged(
         ImDrawListPtr dl,
@@ -331,6 +372,45 @@ internal static class Ink
     /// </summary>
     private static Vector2 Snap(Vector2 pos, float dx, float dy) =>
         new(pos.X + MathF.Round(dx), pos.Y + MathF.Round(dy));
+
+    /// <summary>
+    /// How tall a string comes out when it is allowed to break at a given width.
+    /// <para>
+    /// Through ImGui's own layout rather than the draw list, because breaking a line is
+    /// exactly what a draw list does not do — the same reason the tooltip had to be built
+    /// by hand in session 3. Everything in the window that is a sentence rather than a
+    /// label goes through these two.
+    /// </para>
+    /// </summary>
+    public static Vector2 MeasureWrapped(Role role, string text, float width)
+    {
+        Push(role);
+        Vector2 size = ImGui.CalcTextSize(text, false, width);
+        Pop(role);
+        return size;
+    }
+
+    /// <summary>
+    /// The same string, drawn where it was measured.
+    /// <para>
+    /// 🔴 <c>PushTextWrapPos</c> takes a WINDOW-LOCAL x, not a screen one. Handed a screen
+    /// coordinate it wraps somewhere off to the right of everything, which looks exactly
+    /// like no wrapping at all — the text simply runs out of whatever it was drawn in
+    /// (Florian, 2026-09-20, the news card). The position is converted here so no caller
+    /// has to know, because every caller works in screen coordinates.
+    /// </para>
+    /// </summary>
+    public static void DrawWrapped(Role role, Vector2 pos, float width, uint colour, string text)
+    {
+        Push(role);
+        ImGui.PushStyleColor(ImGuiCol.Text, colour);
+        ImGui.SetCursorScreenPos(pos);
+        ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + width);
+        ImGui.TextUnformatted(text);
+        ImGui.PopTextWrapPos();
+        ImGui.PopStyleColor();
+        Pop(role);
+    }
 
     /// <summary>
     /// Pushes a role onto the ImGui font stack for code that uses the normal widget flow
