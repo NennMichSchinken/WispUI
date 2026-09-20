@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 13;
+    public const int CurrentVersion = 14;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -107,6 +107,9 @@ public sealed class Configuration : IPluginConfiguration
     /// find again.
     /// </summary>
     public const float MaxPosition = 10000f;
+
+    /// <summary>The thickest the edge on a removable affliction may be drawn.</summary>
+    public const float MaxDispelThickness = 4f;
 
     public bool PartyFramesEnabled { get; set; } = true;
 
@@ -522,7 +525,47 @@ public sealed class Configuration : IPluginConfiguration
         public bool AuraSwipe { get; set; } = true;
 
         /// <summary>
-        /// Point at any effect icon and the game's own name and description for it come up.
+        /// The seconds left, written across the icon.
+        /// <para>
+        /// Off by default. The sweep already says how much is left without asking anybody to
+        /// read anything, and it does it at every icon size; a number is for somebody who
+        /// wants to know whether it is four seconds or two.
+        /// </para>
+        /// <para>
+        /// 🔴 No size of its own, the way the stack count has none: it is a share of the icon
+        /// it sits on. A number sized independently is a number that runs out of its icon the
+        /// moment somebody moves the icon slider (Florian asked, 2026-09-21; the answer is
+        /// the same one the stack count already gives).
+        /// </para>
+        /// </summary>
+        public bool AuraShowDuration { get; set; }
+
+        /// <summary>
+        /// A coloured edge on the afflictions that can be taken off.
+        /// <para>
+        /// 🔴 The cleanse mark, brought down from the frame onto the single icon. The mark
+        /// says this person has something removable; with four afflictions on them it does
+        /// not say WHICH, and that is the question somebody is asking while they look
+        /// (Florian, 2026-09-21: the debuffs are hard to tell apart).
+        /// </para>
+        /// <para>
+        /// 🔴 It takes the CLEANSE COLOUR and has no picker of its own. The mark on the frame
+        /// and the edge on the icon are one statement made twice — "this can be taken off" —
+        /// and two colours for one statement is two things to keep in step by hand, plus a
+        /// row on a group that is already long. Whoever wants it red sets the cleanse colour
+        /// red and both follow (Florian asked about red, 2026-09-21).
+        /// </para>
+        /// </summary>
+        public bool AuraDispelBorder { get; set; } = true;
+
+        /// <summary>
+        /// Its own thickness, though — three pixels around a twenty-pixel icon and three
+        /// pixels around a whole frame are not the same weight at all.
+        /// </summary>
+        public float AuraDispelThickness { get; set; } = 2f;
+
+        /// <summary>
+        /// Point at an affliction and the game's own name and description for it come up.
         /// <para>
         /// 🔴 OFF by default, and it is the one setting here where the default is the opposite
         /// of the feature being good. The cursor is over these frames constantly and on
@@ -532,12 +575,20 @@ public sealed class Configuration : IPluginConfiguration
         /// find the switch (Florian asked for it as an option, 2026-09-18).
         /// </para>
         /// <para>
-        /// One switch for all three icon rows rather than one each: "what is this picture" is
-        /// the same question whether the picture is a debuff, your own regen or somebody
-        /// else's work.
+        /// 🔴 One switch per row, where stacks and the sweep have one for the afflictions and
+        /// one for both benefit rows. The two are different questions: how an icon is DRAWN
+        /// is the same question for both benefit rows, but "what is this picture" is not —
+        /// a stranger's affliction is the one nobody recognises, and your own regen is the
+        /// one everybody does (Florian, 2026-09-21).
         /// </para>
         /// </summary>
         public bool ShowAuraTooltips { get; set; }
+
+        /// <summary>The same, for the row of effects you put on somebody.</summary>
+        public bool ShowBuffTooltips { get; set; }
+
+        /// <summary>The same, for the row of effects somebody else put on them.</summary>
+        public bool ShowOtherTooltips { get; set; }
 
         // --- benefits: a second row, in the other corner ------------------------
         // Its own row rather than a mix with the afflictions, because the two answer
@@ -576,6 +627,13 @@ public sealed class Configuration : IPluginConfiguration
         public bool BuffShowStacks { get; set; } = true;
 
         public bool BuffSwipe { get; set; } = true;
+
+        /// <summary>
+        /// The seconds left on a benefit icon. Shared by both benefit rows, like the two
+        /// above it: how an icon is drawn is one question, and answering it twice would put
+        /// six switches on the tab for a distinction nobody makes.
+        /// </summary>
+        public bool BuffShowDuration { get; set; }
 
         // --- everybody else's: the third row -------------------------------------
         // What is already keeping this person up without you — mitigation, somebody else's
@@ -834,6 +892,8 @@ public sealed class Configuration : IPluginConfiguration
             this.BuffY = Offset(this.BuffY, 0f);
             this.OtherX = Offset(this.OtherX, 0f);
             this.OtherY = Offset(this.OtherY, 0f);
+
+            this.AuraDispelThickness = Bounded(this.AuraDispelThickness, 1f, MaxDispelThickness, 2f);
 
             this.AuraMaxCount = Math.Clamp(this.AuraMaxCount, 1, MaxAurasPerRow);
             this.BuffMaxCount = Math.Clamp(this.BuffMaxCount, 1, MaxAurasPerRow);
@@ -1328,6 +1388,25 @@ public sealed class Configuration : IPluginConfiguration
                 }
             }
         }
+
+        if (config.Version < 14)
+        {
+            // The tooltip was one switch for all three icon rows and is three now. Whoever
+            // had it on keeps it on everywhere: the point of splitting it is that they can
+            // now switch two OFF, not that we switch two off for them.
+            SplitTooltips(config.PartyFrames);
+
+            for (int i = 0; i < config.Profiles.Items.Count; i++)
+            {
+                SplitTooltips(config.Profiles.Items[i].PartyFrames);
+            }
+        }
+    }
+
+    private static void SplitTooltips(PartyFramesConfig cfg)
+    {
+        cfg.ShowBuffTooltips = cfg.ShowAuraTooltips;
+        cfg.ShowOtherTooltips = cfg.ShowAuraTooltips;
     }
 
     /// <summary>
@@ -1377,6 +1456,7 @@ public sealed class Configuration : IPluginConfiguration
         cfg.OtherX *= by;
         cfg.OtherY *= by;
 
+        cfg.AuraDispelThickness *= by;
         cfg.CleanseThickness *= by;
         cfg.RaiseThickness *= by;
     }

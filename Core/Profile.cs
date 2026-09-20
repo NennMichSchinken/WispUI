@@ -179,7 +179,7 @@ public sealed class Profile
     /// <summary>
     /// Every setting a profile carries, from one block to another.
     /// <para>
-    /// 🔴 This list is GENERATED, not typed. Ninety-nine lines written by hand is a list
+    /// 🔴 This list is GENERATED, not typed. A hundred lines written by hand is a list
     /// with a setting missing in it, and a missing line here is the worst kind of bug: the
     /// profile simply does not carry that one setting, silently, and nobody finds out until
     /// they wonder why their friend's frames look slightly different. Regenerate it from
@@ -258,7 +258,12 @@ public sealed class Profile
         to.AuraMaxCount = from.AuraMaxCount;
         to.AuraShowStacks = from.AuraShowStacks;
         to.AuraSwipe = from.AuraSwipe;
+        to.AuraShowDuration = from.AuraShowDuration;
+        to.AuraDispelBorder = from.AuraDispelBorder;
+        to.AuraDispelThickness = from.AuraDispelThickness;
         to.ShowAuraTooltips = from.ShowAuraTooltips;
+        to.ShowBuffTooltips = from.ShowBuffTooltips;
+        to.ShowOtherTooltips = from.ShowOtherTooltips;
         to.ShowBuffs = from.ShowBuffs;
         to.OwnBuffsOnly = from.OwnBuffsOnly;
         to.BuffSize = from.BuffSize;
@@ -268,6 +273,7 @@ public sealed class Profile
         to.BuffMaxCount = from.BuffMaxCount;
         to.BuffShowStacks = from.BuffShowStacks;
         to.BuffSwipe = from.BuffSwipe;
+        to.BuffShowDuration = from.BuffShowDuration;
         to.ShowOtherBuffs = from.ShowOtherBuffs;
         to.OtherSize = from.OtherSize;
         to.OtherPosition = from.OtherPosition;

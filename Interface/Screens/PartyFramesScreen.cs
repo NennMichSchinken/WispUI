@@ -99,6 +99,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdAuraStacks = "##wisp-pf-aurastacks";
     private const string IdAuraSwipe = "##wisp-pf-auraswipe";
     private const string IdAuraTooltips = "##wisp-pf-auratips";
+    private const string IdAuraDuration = "##wisp-pf-auraduration";
+    private const string IdAuraDispel = "##wisp-pf-auradispel";
+    private const string IdAuraDispelThickness = "##wisp-pf-auradispelthick";
+    private const string IdBuffDuration = "##wisp-pf-buffduration";
+    private const string IdBuffTooltips = "##wisp-pf-bufftips";
+    private const string IdOtherTooltips = "##wisp-pf-othertips";
     private const string IdCleanseWhenAble = "##wisp-pf-cleanseable";
     private const string IdCleanseColour = "##wisp-pf-cleansecolour";
     private const string IdCleanseThickness = "##wisp-pf-cleansethick";
@@ -193,6 +199,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const float MinIconSize = Configuration.MinIconSize;
     private const float MaxIconSize = Configuration.MaxIconSize;
 
+    /// <summary>The thickest the edge on a removable affliction may be drawn.</summary>
+    private const float MaxDispelThickness = Configuration.MaxDispelThickness;
+
     /// <summary>
     /// Every pixel slider steps by a whole pixel. There is no half a pixel to draw, and every
     /// one of these ranges is narrower than the track, so pointing reaches all of them.
@@ -254,8 +263,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const int SlotOtherMax = 33;
     private const int SlotCleanseThickness = 34;
 
-    /// <summary>🔴 The last slot. Adding one below this means moving the line under it too.</summary>
     private const int SlotRaiseThickness = 35;
+
+    /// <summary>🔴 The last slot. Adding one below this means moving the line under it too.</summary>
+    private const int SlotDispelThickness = 36;
 
     /// <summary>
     /// How many slots there are, derived from the last one rather than written down.
@@ -268,7 +279,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     /// array grows with it.
     /// </para>
     /// </summary>
-    private const int SlotCount = SlotRaiseThickness + 1;
+    private const int SlotCount = SlotDispelThickness + 1;
 
     /// <summary>The three weights, in the order the segments sit. Built once, not per frame.</summary>
     private static readonly string[] WeightNames =
@@ -2431,8 +2442,57 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        // One switch for all three icon rows. "What is this picture" is the same question
-        // whether the picture is a debuff, your own regen or somebody else's work.
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdAuraDuration,
+                Strings.AuraDuration,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.AuraShowDuration,
+                Chrome.OptionControl.Tick,
+                Strings.AuraDurationTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.AuraShowDuration = !m_config.PartyFrames.AuraShowDuration;
+            m_config.MarkDirty();
+        }
+
+        // The cleanse mark, brought down onto the single icon. No colour of its own — see
+        // the configuration for why one statement gets one colour.
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdAuraDispel,
+                Strings.AuraDispelBorder,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.AuraDispelBorder,
+                Chrome.OptionControl.Tick,
+                Strings.AuraDispelBorderTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.AuraDispelBorder = !m_config.PartyFrames.AuraDispelBorder;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+        this.PixelSlider(
+            IdAuraDispelThickness,
+            Strings.AuraDispelThickness,
+            SlotDispelThickness,
+            group,
+            rowY,
+            1f,
+            MaxDispelThickness,
+            true,
+            null);
+
+        // Per row, unlike the two switches above it: how an icon is DRAWN is one question
+        // for both benefit rows, but "what is this picture" is not — a stranger's affliction
+        // is the one nobody recognises (Florian, 2026-09-21).
         rowY += pitch;
         if (Chrome.OptionRow(
                 IdAuraTooltips,
@@ -2525,6 +2585,43 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         rowY += pitch;
         this.PixelSlider(IdBuffY, Strings.OffsetY, SlotBuffY, group, rowY, -MaxOffset, MaxOffset, true, null);
 
+        // Shared by both benefit rows, like the stacks and the sweep above: how a benefit
+        // icon is drawn is one question, and asking it twice would put six switches on this
+        // tab for a distinction nobody makes.
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdBuffDuration,
+                Strings.AuraDuration,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.BuffShowDuration,
+                Chrome.OptionControl.Tick,
+                Strings.BuffDurationTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.BuffShowDuration = !m_config.PartyFrames.BuffShowDuration;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdBuffTooltips,
+                Strings.AuraTooltips,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.ShowBuffTooltips,
+                Chrome.OptionControl.Tick,
+                Strings.AuraTooltipsTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.ShowBuffTooltips = !m_config.PartyFrames.ShowBuffTooltips;
+            m_config.MarkDirty();
+        }
+
         float used = rowY - group.ContentY + Chrome.RowHeight();
         Chrome.EndGroupContent(group, used);
         contentHeight = used;
@@ -2582,6 +2679,23 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         rowY += pitch;
         this.PixelSlider(IdOtherY, Strings.OffsetY, SlotOtherY, group, rowY, -MaxOffset, MaxOffset, true, null);
+
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdOtherTooltips,
+                Strings.AuraTooltips,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.ShowOtherTooltips,
+                Chrome.OptionControl.Tick,
+                Strings.AuraTooltipsTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.ShowOtherTooltips = !m_config.PartyFrames.ShowOtherTooltips;
+            m_config.MarkDirty();
+        }
 
         float used = rowY - group.ContentY + Chrome.RowHeight();
         Chrome.EndGroupContent(group, used);
@@ -3146,6 +3260,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         SlotOtherMax => m_config.PartyFrames.OtherMaxCount,
         SlotCleanseThickness => m_config.PartyFrames.CleanseThickness,
         SlotRaiseThickness => m_config.PartyFrames.RaiseThickness,
+        SlotDispelThickness => m_config.PartyFrames.AuraDispelThickness,
         _ => m_config.PartyFrames.ManaHeight,
     };
 
@@ -3188,6 +3303,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             case SlotOtherMax: m_config.PartyFrames.OtherMaxCount = (int)value; break;
             case SlotCleanseThickness: m_config.PartyFrames.CleanseThickness = value; break;
             case SlotRaiseThickness: m_config.PartyFrames.RaiseThickness = value; break;
+            case SlotDispelThickness: m_config.PartyFrames.AuraDispelThickness = value; break;
             default: m_config.PartyFrames.ManaHeight = value; break;
         }
     }

@@ -289,6 +289,12 @@ internal static class Strings
     public const string AuraSwipe = "Sweep";
     public const string AuraSwipeTooltip = "A dark wedge that sweeps off the icon as the effect runs out.";
 
+    public const string AuraDuration = "Time left";
+    public const string AuraDurationTooltip = "The seconds left, across the icon. The sweep already says it without a number; this is for when you need to know four from two.";
+    public const string BuffDurationTooltip = "The seconds left, across the icon. One switch for both benefit rows.";
+    public const string AuraDispelBorder = "Mark removable";
+    public const string AuraDispelThickness = "Edge thickness";
+    public const string AuraDispelBorderTooltip = "An edge in the cleanse colour on the afflictions you can take off, so the row says which one once the frame has said there is one.";
     public const string AuraTooltips = "Describe on hover";
     public const string AuraTooltipsTooltip =
         "Point at any effect icon for the game's own name and description. Off by default: the cursor is over these frames while you are healing through them.";

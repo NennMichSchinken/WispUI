@@ -449,7 +449,9 @@ internal sealed class PartyFramesElement : HudElement
         // pointing at things.
         // Never for the preview: there is nothing real to describe, and the pointer is over a
         // settings window whose own tooltips would fight with these.
-        m_wantTooltips = live && cfg.ShowAuraTooltips && !EditMode.IsActive;
+        // Whether a tooltip may go up at all. Which ROW it may go up over is asked per row,
+        // where the icons are drawn — the three ask different questions (see the config).
+        m_wantTooltips = live && !EditMode.IsActive;
 
         // The mark is an instruction. On a job that cannot carry it out it is noise, so it is
         // off there by default — the icons still show the effect either way. The preview
@@ -1329,6 +1331,9 @@ internal sealed class PartyFramesElement : HudElement
                 cfg.AuraY,
                 cfg.AuraShowStacks,
                 cfg.AuraSwipe,
+                cfg.AuraShowDuration,
+                cfg.AuraDispelBorder,
+                m_wantTooltips && cfg.ShowAuraTooltips,
                 innerMin,
                 innerMax);
         }
@@ -1345,6 +1350,9 @@ internal sealed class PartyFramesElement : HudElement
                 cfg.BuffY,
                 cfg.BuffShowStacks,
                 cfg.BuffSwipe,
+                cfg.BuffShowDuration,
+                false,
+                m_wantTooltips && cfg.ShowBuffTooltips,
                 innerMin,
                 innerMax);
         }
@@ -1361,6 +1369,9 @@ internal sealed class PartyFramesElement : HudElement
                 cfg.OtherY,
                 cfg.BuffShowStacks,
                 cfg.BuffSwipe,
+                cfg.BuffShowDuration,
+                false,
+                m_wantTooltips && cfg.ShowOtherTooltips,
                 innerMin,
                 innerMax);
         }
@@ -1431,6 +1442,9 @@ internal sealed class PartyFramesElement : HudElement
         float offsetY,
         bool showStacks,
         bool swipe,
+        bool showDuration,
+        bool dispelBorder,
+        bool tooltips,
         Vector2 innerMin,
         Vector2 innerMax)
     {
@@ -1481,7 +1495,7 @@ internal sealed class PartyFramesElement : HudElement
             // one, and the rows are painted frame by frame — writing it here would put it
             // under whatever is drawn next. So the last one the mouse was inside wins and the
             // panel goes up once, after the loop.
-            if (m_wantTooltips && Inside(min, max))
+            if (tooltips && Inside(min, max))
             {
                 m_tooltipStatus = aura.StatusId;
             }
@@ -1491,11 +1505,27 @@ internal sealed class PartyFramesElement : HudElement
                 this.DrawSwipe(dl, min, max, aura.Remaining, aura.Duration);
             }
 
-            // A bright edge on what can be taken off, so the row answers "which one" once the
-            // frame's own edge has answered "is there one".
-            if (aura.CanDispel)
+            // A coloured edge on what can be taken off, so the row answers "which one" once
+            // the frame's own mark has answered "is there one".
+            //
+            // 🔴 It was a one-pixel line, always on, in the cleanse colour — which at a
+            // twenty-pixel icon is a line nobody sees, and a mark nobody sees is a missing
+            // mark, not a quiet one (Florian, 2026-09-21: the debuffs are hard to tell
+            // apart; the same lesson the cleanse mark itself learned in session 9).
+            if (dispelBorder && aura.CanDispel)
             {
-                dl.AddRect(min, max, this.Dim(m_config.PartyFrames.CleanseColour), 0f, ImDrawFlags.None, 1f);
+                dl.AddRect(
+                    min,
+                    max,
+                    this.Dim(m_config.PartyFrames.CleanseColour),
+                    0f,
+                    ImDrawFlags.None,
+                    Tokens.WorldLine(m_config.PartyFrames.AuraDispelThickness));
+            }
+
+            if (showDuration)
+            {
+                this.DrawDuration(dl, min, max, aura.Remaining);
             }
 
             if (showStacks && aura.Stacks > 1)
@@ -1503,6 +1533,94 @@ internal sealed class PartyFramesElement : HudElement
                 this.DrawStacks(dl, min, max, aura.Stacks);
             }
         }
+    }
+
+    /// <summary>
+    /// How long is left, across the middle of the icon.
+    /// <para>
+    /// A share of the icon, like the stack count, and for the same reason: a number with a
+    /// size of its own runs out of its icon the moment somebody moves the icon slider.
+    /// </para>
+    /// <para>
+    /// ⚠️ With stacks on as well, the two are close at small icon sizes — the stack count
+    /// sits in the corner this number reaches toward. That is the honest price of putting
+    /// two numbers on a twenty-pixel square, and it comes apart again above thirty.
+    /// </para>
+    /// </summary>
+    private void DrawDuration(ImDrawListPtr dl, Vector2 min, Vector2 max, float remaining)
+    {
+        string? text = DurationText(remaining);
+
+        if (text is null)
+        {
+            return;
+        }
+
+        float size = MathF.Max(Tokens.WorldPx(AuraStackMinSize), MathF.Round((max.Y - min.Y) * 0.5f));
+        float width = Ink.MeasureWidth(size, text);
+
+        Vector2 at = new(
+            MathF.Round(((min.X + max.X) * 0.5f) - (width * 0.5f)),
+            MathF.Round(((min.Y + max.Y) * 0.5f) - (size * 0.5f)));
+
+        // Outlined whatever the frame's text edge is, like the stack count: this one sits on
+        // a picture, and a picture can be any colour underneath.
+        Ink.DrawScaledEdged(dl, size, at, this.DimInk(Tokens.Col.HudInk), text, TextEdge.Outline);
+    }
+
+    /// <summary>
+    /// The seconds, or the minutes once there are too many seconds to read.
+    /// <para>
+    /// Out of two tables built once, because this runs per icon per frame and building
+    /// "37" would allocate every one of them (CLAUDE.md §7.1). Null for an effect that does
+    /// not run out — there is no number to write for something that is simply there.
+    /// </para>
+    /// </summary>
+    private static string? DurationText(float remaining)
+    {
+        if (remaining <= 0f)
+        {
+            return null;
+        }
+
+        if (remaining < 60f)
+        {
+            int seconds = (int)MathF.Ceiling(remaining);
+            return seconds >= 1 && seconds <= SecondsText.Length ? SecondsText[seconds - 1] : null;
+        }
+
+        int minutes = (int)MathF.Ceiling(remaining / 60f);
+        return minutes >= 1 && minutes <= MinutesText.Length ? MinutesText[minutes - 1] : null;
+    }
+
+    private static readonly string[] SecondsText = BuildSecondsText();
+
+    private static readonly string[] MinutesText = BuildMinutesText();
+
+    private static string[] BuildSecondsText()
+    {
+        var text = new string[60];
+
+        for (int i = 0; i < text.Length; i++)
+        {
+            text[i] = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        return text;
+    }
+
+    private static string[] BuildMinutesText()
+    {
+        // Half an hour is past anything a party frame shows; the long ones are the upkeep
+        // effects that never reach these rows in the first place.
+        var text = new string[30];
+
+        for (int i = 0; i < text.Length; i++)
+        {
+            text[i] = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture) + "m";
+        }
+
+        return text;
     }
 
     /// <summary>Air between two affliction icons. Small on purpose: the row reads as a row.</summary>

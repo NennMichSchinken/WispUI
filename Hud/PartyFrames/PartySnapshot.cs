@@ -212,6 +212,30 @@ internal sealed class PartySnapshot
     /// <summary>Far above any real entity id, so a stand-in can never be mistaken for a player.</summary>
     private const uint PlaceholderId = 0xF0000000u;
 
+    /// <summary>How long a stand-in effect claims to run. Long enough to watch, short enough to see move.</summary>
+    private const float PlaceholderDuration = 30f;
+
+    /// <summary>
+    /// How much a stand-in effect has left, counted down off a clock instead of written
+    /// down.
+    /// <para>
+    /// 🔴 It used to be a fixed number, so the sweep in the preview band stood perfectly
+    /// still and the whole feature looked like something we had not built — Florian asked
+    /// for a duration display that had been shipped and switched on for days (2026-09-21).
+    /// A preview that does not move is a preview that lies about a moving thing.
+    /// </para>
+    /// <para>
+    /// The offset is what keeps the icons out of step, so one look shows the sweep at
+    /// several points rather than all of them at once.
+    /// </para>
+    /// </summary>
+    private static float PlaceholderRemaining(int offset)
+    {
+        double now = Environment.TickCount64 / 1000d;
+        float along = (float)((now + offset) % PlaceholderDuration);
+        return PlaceholderDuration - along;
+    }
+
     /// <summary>One party's worth of jobs for edit mode: two tanks, two healers, four damage.</summary>
     private static readonly uint[] PlaceholderJobs = { 19u, 32u, 24u, 33u, 22u, 30u, 23u, 25u };
 
@@ -669,8 +693,8 @@ internal sealed class PartySnapshot
 
             // A different point of the sweep on each, so what the sweep is doing can be seen
             // in one look rather than by watching one icon for half a minute.
-            aura.Duration = 30f;
-            aura.Remaining = 30f - (((index * 3) + (i * 7)) % 28);
+            aura.Duration = PlaceholderDuration;
+            aura.Remaining = PlaceholderRemaining((index * 3) + (i * 7));
 
             // A few stacks, and not on all of them, so both cases are on screen.
             aura.Stacks = (ushort)(((i + index) % 3 == 0) ? 0 : (i + 2));
@@ -750,8 +774,8 @@ internal sealed class PartySnapshot
             slot.Icon = facts.Icon;
             slot.CanDispel = false;
             slot.Priority = facts.Priority;
-            slot.Duration = 30f;
-            slot.Remaining = 30f - ((scatter + (i * 11)) % 28);
+            slot.Duration = PlaceholderDuration;
+            slot.Remaining = PlaceholderRemaining(scatter + (i * 11));
             slot.Stacks = 0;
 
             count++;
