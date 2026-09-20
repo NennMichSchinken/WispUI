@@ -319,7 +319,12 @@ internal static class Fonts
     /// <summary>Builds the window handles for the scale currently set in <see cref="Tokens"/>.</summary>
     public static void Rebuild()
     {
-        Dispose();
+        // 🔴 The window's four roles only. The HUD's handles used to go with them, because
+        // the HUD's sizes went through the interface scale — they do not any more, so a
+        // scale change threw away faces that had not changed and the party frames visibly
+        // reloaded their text for no reason (Florian, 2026-09-20). What keeps them right is
+        // Plugin.SyncHudFonts, on the tick, which rebuilds only when a size actually moves.
+        DisposeWindow();
 
         IFontAtlas atlas = Services.PluginInterface.UiBuilder.FontAtlas;
         s_screenTitle = atlas.NewGameFontHandle(Style(Tokens.FontRole.ScreenTitle, Tokens.FontRole.ScreenTitlePx));
@@ -351,7 +356,15 @@ internal static class Fonts
         return style;
     }
 
+    /// <summary>Everything, for unload.</summary>
     public static void Dispose()
+    {
+        DisposeWindow();
+        DisposeHud();
+    }
+
+    /// <summary>The four roles the settings window writes in, and nothing else.</summary>
+    private static void DisposeWindow()
     {
         s_screenTitle?.Dispose();
         s_title?.Dispose();
@@ -361,8 +374,6 @@ internal static class Fonts
         s_title = null;
         s_body = null;
         s_small = null;
-
-        DisposeHud();
     }
 
     private static void DisposeHud()

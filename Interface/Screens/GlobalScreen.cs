@@ -106,7 +106,7 @@ internal sealed class GlobalScreen
             m_dragging = false;
             m_config.Scale = m_livePreview;
             m_config.MarkDirty();
-            Scaling.Commit(m_config.Scale);
+            Scaling.Request(m_config.Scale);
         }
 
         Chrome.EndGroupContent(group, result.Height);

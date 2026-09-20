@@ -43,7 +43,7 @@ public sealed class Plugin : IDalamudPlugin
         // member, and a sheet read never belongs in that path (CLAUDE.md §7.3).
         Data.StatusData.Prime(Hud.PartyFrames.PartySnapshot.MaxAuras);
 
-        Scaling.Commit(m_config.Scale);
+        Scaling.CommitAtLoad(m_config.Scale);
         Scaling.LogGameScaleReadings();
 
         // Kept in a local, because the settings window draws this same element as its
@@ -143,6 +143,11 @@ public sealed class Plugin : IDalamudPlugin
     private void OnUpdate(IFramework framework)
     {
         m_config.Tick();
+
+        // 🔴 Before anything else on the tick, and never from a drawing path: applying a
+        // scale rebuilds the font atlas, and doing that mid-frame leaves every piece of
+        // text already drawn pointing into a freed one. See Scaling.Request.
+        Scaling.Settle();
 
         // Before anything reads a setting this frame: a job change means the settings the
         // rest of the tick is about may be the wrong ones.
