@@ -719,7 +719,7 @@ internal sealed class PartyFramesElement : HudElement
             // icon is the thing read when you look, so the icon is the one that has to survive.
             this.DrawRescue(dl, cfg, ref member, innerMin, innerMax);
 
-            DrawPresenceNote(dl, cfg, ref member, innerMin, innerMax);
+            this.DrawPresenceNote(dl, cfg, ref member, innerMin, innerMax);
             dl.PopClipRect();
         }
 
@@ -1094,7 +1094,7 @@ internal sealed class PartyFramesElement : HudElement
     /// all of them, and only the word tells them apart.
     /// </para>
     /// </summary>
-    private static void DrawPresenceNote(
+    private void DrawPresenceNote(
         ImDrawListPtr dl,
         Configuration.PartyFramesConfig cfg,
         ref PartyMemberSnapshot member,
@@ -1152,7 +1152,7 @@ internal sealed class PartyFramesElement : HudElement
         // never the chosen one — a name belongs to the frame and follows the player's taste, a
         // status the plugin reports does not, and in a serif face it would read as part of the
         // design rather than as a message (Florian, 2026-09-12).
-        TextEdge edge = cfg.Edge == TextEdge.None ? TextEdge.None : TextEdge.Shadow;
+        TextEdge edge = m_config.Edge == TextEdge.None ? TextEdge.None : TextEdge.Shadow;
         Ink.DrawNote(dl, size, at, Tokens.Col.HudInkQuiet, note, edge);
     }
 
@@ -1881,7 +1881,7 @@ internal sealed class PartyFramesElement : HudElement
                 ? Jobs.Colour(member.JobId)
                 : (member.HasData ? Tokens.Col.HudInk : Tokens.Col.HudInkQuiet));
 
-            Ink.DrawScaledEdged(dl, size, at, colour, name, cfg.Edge);
+            Ink.DrawScaledEdged(dl, size, at, colour, name, m_config.Edge);
         }
 
         if (cfg.ShowPartyNumber && this.Shows(PreviewPart.PartyNumber) && member.PartyNumber >= 1 && member.PartyNumber <= NumberText.Length)
@@ -1952,7 +1952,7 @@ internal sealed class PartyFramesElement : HudElement
         healthAt.X += Tokens.WorldPx(cfg.HpTextX);
         healthAt.Y += Tokens.WorldPx(cfg.HpTextY);
 
-        Ink.DrawScaledEdged(dl, healthSize, healthAt, this.DimInk(Tokens.Col.HudInk), health, cfg.Edge);
+        Ink.DrawScaledEdged(dl, healthSize, healthAt, this.DimInk(Tokens.Col.HudInk), health, m_config.Edge);
     }
 
     /// <summary>Whether this member is one of the ones mana was switched on for.</summary>

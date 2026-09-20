@@ -194,10 +194,10 @@ public sealed class Profile
     /// <para>
     /// <c>skip.txt</c> holds what a profile must NOT carry, one name per line:
     /// <c>BarStyle</c>, <c>Font</c>, <c>ShortenNames</c>, <c>ClickToTarget</c>,
-    /// <c>ContextMenu</c>, <c>MouseoverCasting</c>, <c>AuraNumberSize</c> — migration
-    /// relics, kept only so an old file can be read once — and <c>Bindings</c>,
-    /// <c>Mouseover</c>, which belong to the hands at the keyboard rather than to the look
-    /// of a frame.
+    /// <c>ContextMenu</c>, <c>MouseoverCasting</c>, <c>AuraNumberSize</c>, <c>FontName</c>,
+    /// <c>TextWeight</c>, <c>TextEdge</c> — migration relics, kept only so an old file can
+    /// be read once — and <c>Bindings</c>, <c>Mouseover</c>, which belong to the hands at
+    /// the keyboard rather than to the look of a frame.
     /// </para>
     /// </summary>
     internal static void Copy(Configuration.PartyFramesConfig from, Configuration.PartyFramesConfig to)
@@ -207,9 +207,6 @@ public sealed class Profile
         to.BarOpacity = from.BarOpacity;
         to.SmoothBars = from.SmoothBars;
         to.ShowName = from.ShowName;
-        to.TextEdge = from.TextEdge;
-        to.FontName = from.FontName;
-        to.TextWeight = from.TextWeight;
         to.NamePosition = from.NamePosition;
         to.NameSize = from.NameSize;
         to.NameX = from.NameX;

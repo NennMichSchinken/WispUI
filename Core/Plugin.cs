@@ -213,7 +213,7 @@ public sealed class Plugin : IDalamudPlugin
         sizes[1] = Tokens.WorldPx(cfg.HpTextSize);
         sizes[2] = Tokens.WorldPx(cfg.PartyNumberSize);
 
-        Fonts.SyncHud(!m_config.HasPendingChanges, cfg.FontName, HudText.WeightAt(cfg.TextWeight), sizes);
+        Fonts.SyncHud(!m_config.HasPendingChanges, m_config.FontName, HudText.WeightAt(m_config.TextWeight), sizes);
     }
 
     /// <summary>Puts the settings window back when arranging ends, however it ended.</summary>

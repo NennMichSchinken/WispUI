@@ -69,10 +69,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdIconGroup = "##wisp-pf-icon";
     private const string IdIconStyle = "##wisp-pf-iconstyle";
     private const string IdIconSize = "##wisp-pf-iconsize";
-    private const string IdFont = "##wisp-pf-font";
-    private const string IdTextEdge = "##wisp-pf-textedge";
-    private const string IdTextWeight = "##wisp-pf-textweight";
-    private const string IdTextStyleGroup = "##wisp-pf-textstyle";
     private const string IdBindingsGroup = "##wisp-pf-bindings";
     private const string IdBindingKey = "##wisp-pf-bindkey";
     private const string IdBindingJob = "##wisp-pf-bindjob";
@@ -287,21 +283,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     /// </summary>
     private const int SlotCount = SlotAuraStackSize + 1;
 
-    /// <summary>The three weights, in the order the segments sit. Built once, not per frame.</summary>
-    private static readonly string[] WeightNames =
-    {
-        Strings.TextWeightNormal,
-        Strings.TextWeightMedium,
-        Strings.TextWeightBold,
-    };
 
-    /// <summary>The three edges, in the order the segments sit. Built once, not per frame.</summary>
-    private static readonly string[] EdgeNames =
-    {
-        Strings.TextEdgeNone,
-        Strings.TextEdgeShadow,
-        Strings.TextEdgeOutline,
-    };
 
     /// <summary>What a bar takes its colour from. FFXIV's own convention, not one of ours.</summary>
     private static readonly BarColourMode[] ColourModes =
@@ -347,7 +329,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private readonly ArrowSelector<BarColourMode> m_colour;
     private readonly ArrowSelector<Anchor> m_namePosition;
     private readonly ArrowSelector<HealthTextMode> m_healthMode;
-    private readonly ArrowSelector<FontChoice> m_font;
     private readonly ArrowSelector<JobEntry> m_jobSelector;
     private readonly ArrowSelector<ActionEntry> m_actionPicker;
     private readonly ArrowSelector<ActionEntry> m_spellPicker;
@@ -494,20 +475,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                     HealthTextMode.Deficit => Strings.HealthTextDeficit,
                     _ => Strings.HealthTextPercent,
                 },
-                ShowCounter = false,
-            });
-
-        // The one selector in the suite with a searchable list, because it is the one whose
-        // list the player controls: six faces shipped, and however many they drop in their
-        // font folder. Walking that with two arrows is not a list, it is a queue.
-        m_font = new ArrowSelector<FontChoice>(
-            IdFont,
-            FontLibrary.All,
-            new ArrowSelectorOptions<FontChoice>
-            {
-                Label = static face => face.Name,
-                EnablePopupList = true,
-                EnableSearch = true,
                 ShowCounter = false,
             });
 
@@ -852,14 +819,14 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         float column = Chrome.ColumnWidth(width);
         float y = origin.Y;
 
+        // 🔴 Two groups, not three. The face, its weight and its edge used to sit here in a
+        // third; they are the suite's now and live under Global (Florian, 2026-09-21). They
+        // were never really about the party frames: one face is one font atlas entry for the
+        // whole HUD, so a second module could not have had its own anyway.
         Chrome.BeginGroupRow();
         Chrome.GroupScope name = this.DrawNameText(Chrome.ColumnX(origin.X, width, 0), y, column, out float nameHeight);
         Chrome.GroupScope figure = this.DrawHealthText(Chrome.ColumnX(origin.X, width, 1), y, column, out float figureHeight);
         y += FrameRow(name, nameHeight, figure, figureHeight);
-
-        Chrome.BeginGroupRow();
-        Chrome.GroupScope lettering = this.DrawTextStyle(Chrome.ColumnX(origin.X, width, 0), y, column, out float letteringHeight);
-        y += Chrome.GroupFrame(lettering, letteringHeight) + Tokens.Metric.ColumnGutter;
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
@@ -1490,104 +1457,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         return group;
     }
 
-    /// <summary>
-    /// How every text on a frame is lettered: which face, and what carries it over the world.
-    /// <para>
-    /// Two rows for all of them rather than two rows each. Both questions are about reading a
-    /// frame at a glance, not about the name and the figure separately — and a face is one
-    /// font atlas entry for the whole HUD, so it could not honestly be offered per text.
-    /// </para>
-    /// </summary>
-    private Chrome.GroupScope DrawTextStyle(float x, float y, float width, out float contentHeight)
-    {
-        Chrome.GroupScope group = Chrome.BeginGroup(
-            IdTextStyleGroup,
-            new Chrome.GroupHead
-            {
-                Title = Strings.GroupLettering,
-                Description = Strings.GroupLetteringHint,
-            },
-            x,
-            y,
-            width);
-
-        float pitch = Chrome.RowPitch();
-        float rowY = group.ContentY;
-
-        // The list is addressed by name, not by position: it grows and shrinks with the
-        // player's font folder, and a stored position would mean a different face the moment
-        // they added a file.
-        int face = FontLibrary.IndexOf(m_config.PartyFrames.FontName);
-        if (m_font.Draw(
-                ref face,
-                Chrome.Row(Strings.TextFont, group.ContentX, rowY, group.ContentWidth, false, Strings.TextFontTooltip),
-                rowY,
-                Chrome.ControlWidth()))
-        {
-            m_config.PartyFrames.FontName = FontLibrary.NameAt(face);
-            m_config.MarkDirty();
-        }
-
-        rowY += pitch;
-
-        int weight = m_config.PartyFrames.TextWeight;
-        if (Chrome.SegmentRow(
-                IdTextWeight,
-                Strings.TextWeight,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                WeightNames,
-                ref weight,
-                true,
-                Strings.TextWeightTooltip))
-        {
-            m_config.PartyFrames.TextWeight = weight;
-            m_config.MarkDirty();
-        }
-
-        rowY += pitch;
-
-        int edge = m_config.PartyFrames.TextEdge;
-        if (Chrome.SegmentRow(
-                IdTextEdge,
-                Strings.TextEdge,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                EdgeNames,
-                ref edge,
-                false,
-                Strings.TextEdgeTooltip))
-        {
-            m_config.PartyFrames.TextEdge = edge;
-            m_config.MarkDirty();
-        }
-
-        float used = rowY - group.ContentY + Chrome.RowHeight();
-
-        // Only when the face that is set is not the face being drawn. A shipped font that
-        // fails to load falls back to the interface face, and without this line that is
-        // indistinguishable from a font that loaded and simply looks thin — which is exactly
-        // how a whole test round was spent (Florian, 2026-09-12).
-        string? problem = Fonts.FaceProblem;
-        if (problem is not null)
-        {
-            float noteY = rowY + Chrome.RowHeight() + Tokens.Space.Sm;
-            Ink.Draw(
-                ImGui.GetWindowDrawList(),
-                Ink.Role.Small,
-                new Vector2(group.ContentX, noteY),
-                Tokens.Col.Gold,
-                problem);
-
-            used += Tokens.Space.Sm + Ink.LineHeight(Ink.Role.Small);
-        }
-
-        Chrome.EndGroupContent(group, used);
-        contentHeight = used;
-        return group;
-    }
 
     /// <summary>
     /// The Bindings tab: which job is being set up, then the two lists that say where a

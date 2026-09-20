@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 15;
+    public const int CurrentVersion = 16;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -124,6 +124,48 @@ public sealed class Configuration : IPluginConfiguration
     /// <inheritdoc cref="MinAuraNumberSize"/>
     public const float MaxAuraNumberSize = 0.95f;
 
+    // --- how HUD text is lettered, for the whole suite ------------------------
+    // 🔴 These three lived on the party frames until version 16, and the comment on the face
+    // said what to do the day a second element arrived: move them to Global rather than copy
+    // them. Florian moved them a module early (2026-09-21) and it belongs here for the same
+    // reason the interface scale does — a face is a property of the screen being read, not of
+    // the job being played, so it is also one of the few things a profile must NOT carry.
+    //
+    // There is a hard reason as well as a tidy one: a face is a font atlas entry and a lock
+    // per frame, so a second element asking for a second face would cost real work every
+    // frame (§7). One face for the HUD is a performance decision as much as a design one.
+
+    /// <summary>
+    /// Which face the HUD is lettered in. Axis is the game's interface face and the suite's
+    /// own; it is also light, which is what prompted the choice (Florian, 2026-09-12).
+    /// </summary>
+    public string FontName { get; set; } = Style.FontLibrary.DefaultName;
+
+    /// <summary>
+    /// How heavily the face is laid down. Medium by default, not Normal: against a black
+    /// edge every face reads thinner than it is, and the first build shipped at Normal was
+    /// called thin for every face including the one brought in to compare against
+    /// (Florian, 2026-09-12).
+    /// </summary>
+    public int TextWeight { get; set; } = 1;
+
+    /// <summary>
+    /// What is drawn behind HUD text so it reads over the world.
+    /// <para>
+    /// Shadow by default, which is what the frames shipped with. Outline is the game's own
+    /// floating-text look, and what a bright background needs; None is for anyone who finds
+    /// both noisy (Florian, 2026-09-12).
+    /// </para>
+    /// </summary>
+    public int TextEdge { get; set; } = 1;
+
+    /// <summary>
+    /// The chosen edge, as the value the drawing code wants. Internal, which is also what
+    /// keeps it out of the saved file: the stored shape is the index above, and a second
+    /// spelling of the same setting in the JSON would be one to keep in step for nothing.
+    /// </summary>
+    internal Style.TextEdge Edge => Style.HudText.EdgeAt(this.TextEdge);
+
     public bool PartyFramesEnabled { get; set; } = true;
 
     public PartyFramesConfig PartyFrames { get; set; } = new();
@@ -179,49 +221,6 @@ public sealed class Configuration : IPluginConfiguration
         /// <summary>Draw the player name on the frame at all — the switch in the group head.</summary>
         public bool ShowName { get; set; } = true;
 
-        // --- how every text on a frame is carried ---------------------------------
-        // Two settings for all of them rather than two per text. Which face and what is
-        // behind it are questions about reading a frame, not about the name or the numbers
-        // separately, and answering them once is what keeps the tab to four groups (§3.1).
-
-        /// <summary>
-        /// What is drawn behind every text on a frame so it reads over the world.
-        /// <para>
-        /// Shadow by default, which is what the frames shipped with. Outline is the game's own
-        /// floating-text look, and what a bright background needs; None is for anyone who
-        /// finds both noisy (Florian, 2026-09-12).
-        /// </para>
-        /// </summary>
-        public int TextEdge { get; set; } = 1;
-
-        /// <summary>
-        /// The chosen edge, as the value the drawing code wants. Internal, which is also what
-        /// keeps it out of the saved file: the stored shape is the index above, and a second
-        /// spelling of the same setting in the JSON would be one to keep in step for nothing.
-        /// </summary>
-        internal Style.TextEdge Edge => Style.HudText.EdgeAt(this.TextEdge);
-
-        /// <summary>
-        /// Which of the game's own faces the frames are lettered in. Axis is the game's
-        /// interface face and the suite's own; it is also light, which is what prompted the
-        /// choice (Florian, 2026-09-12).
-        /// <para>
-        /// ⚠️ One face for the whole HUD, not one per element: a face is a font atlas entry
-        /// and a lock per frame, so a second element asking for a second face would cost real
-        /// work every frame. It lives here because the frames are the only HUD element there
-        /// is; a second one means moving this to Global rather than copying it.
-        /// </para>
-        /// </summary>
-        public string FontName { get; set; } = Style.FontLibrary.DefaultName;
-
-        /// <summary>
-        /// How heavily the face is laid down. Medium by default, not Normal: against a black
-        /// edge every face reads thinner than it is, and the first build shipped at Normal was
-        /// called thin for every face including the one brought in to compare against
-        /// (Florian, 2026-09-12).
-        /// </summary>
-        public int TextWeight { get; set; } = 1;
-
         /// <summary>
         /// What each mouse button does on a frame, per job. See <see cref="BindingSet"/> for
         /// why it is per job and what a job answers to before anybody has set it up.
@@ -240,6 +239,19 @@ public sealed class Configuration : IPluginConfiguration
         /// stored configuration is older than that.
         /// </summary>
         public int Font { get; set; }
+
+        // ⚠️ Three more relics, same deal. The lettering belonged to the frames until
+        // version 16 and belongs to the suite now (see Configuration.FontName). Nothing
+        // reads these to draw with — the migration reads them once and that is all.
+
+        /// <inheritdoc cref="Configuration.FontName"/>
+        public string FontName { get; set; } = Style.FontLibrary.DefaultName;
+
+        /// <inheritdoc cref="Configuration.TextWeight"/>
+        public int TextWeight { get; set; } = 1;
+
+        /// <inheritdoc cref="Configuration.TextEdge"/>
+        public int TextEdge { get; set; } = 1;
 
         // --- name text ----------------------------------------------------------
         // Every text on a frame is described the same way: whether it shows, how big it is,
@@ -961,7 +973,6 @@ public sealed class Configuration : IPluginConfiguration
             // The ones standing in for a list. Anything the build does not know goes back to
             // the first entry rather than to whatever that number would have indexed.
             this.ColourMode = Known<Appearance.BarColourMode>(this.ColourMode);
-            this.TextEdge = Known<Style.TextEdge>(this.TextEdge);
             this.ManaStyle = Known<Hud.PartyFrames.ManaStyle>(this.ManaStyle);
             this.NameShortening = Known<Hud.NameShortening>(this.NameShortening);
             this.HpTextMode = Known<Hud.HealthTextMode>(this.HpTextMode);
@@ -986,14 +997,12 @@ public sealed class Configuration : IPluginConfiguration
                 this.Lines = 1;
             }
 
-            this.TextWeight = Math.Clamp(this.TextWeight, 0, 2);
 
             // A style is stored by name and resolved against a list, so an unknown one
             // already falls back on its own. What cannot be allowed through is null, which
             // would be a name nothing can even be compared against.
             this.BarStyleName ??= Data.BarStyles.DefaultName;
             this.ShieldStyleName ??= Data.BarStyles.ShieldDefaultName;
-            this.FontName ??= Style.FontLibrary.DefaultName;
             this.Bindings ??= new BindingSet();
             this.Mouseover ??= new MouseoverSet();
         }
@@ -1015,15 +1024,19 @@ public sealed class Configuration : IPluginConfiguration
 
         private static float Offset(float value, float fallback) =>
             Bounded(value, -MaxTextOffset, MaxTextOffset, fallback);
-
-        /// <summary>
-        /// A stored number that stands for one of a list. Asked of the enum itself rather
-        /// than counted here, so adding an entry never leaves a bound behind.
-        /// </summary>
-        private static int Known<TEnum>(int value)
-            where TEnum : struct, Enum =>
-            Enum.IsDefined((TEnum)(object)value) ? value : 0;
     }
+
+    /// <summary>
+    /// A stored number that stands for one of a list. Asked of the enum itself rather than
+    /// counted here, so adding an entry never leaves a bound behind.
+    /// <para>
+    /// On the outer class because both levels sanitise now — the lettering moved up to the
+    /// suite at version 16 and took its bounds with it.
+    /// </para>
+    /// </summary>
+    private static int Known<TEnum>(int value)
+        where TEnum : struct, Enum =>
+        Enum.IsDefined((TEnum)(object)value) ? value : 0;
 
     /// <summary>
     /// Puts every number in the whole suite back inside its range. See the module's own
@@ -1033,6 +1046,14 @@ public sealed class Configuration : IPluginConfiguration
     {
         this.Scale = float.IsFinite(this.Scale) ? Math.Clamp(this.Scale, MinScale, MaxScale) : 1f;
         this.PreviewCount = this.PreviewCount is 1 or 4 or 8 ? this.PreviewCount : 4;
+
+        // A face is stored by name and resolved against a list, so an unknown one already
+        // falls back on its own. What cannot be allowed through is null, which would be a
+        // name nothing can even be compared against.
+        this.FontName ??= Style.FontLibrary.DefaultName;
+        this.TextWeight = Math.Clamp(this.TextWeight, 0, 2);
+        this.TextEdge = Known<Style.TextEdge>(this.TextEdge);
+
         this.PartyFrames ??= new PartyFramesConfig();
         this.PartyFrames.Sanitise();
         this.Profiles ??= new ProfileSet();
@@ -1472,6 +1493,20 @@ public sealed class Configuration : IPluginConfiguration
             {
                 SizeAuraNumbers(config.Profiles.Items[i].PartyFrames);
             }
+        }
+
+        if (config.Version < 16)
+        {
+            // The lettering moved from the party frames up to the suite. What was on the
+            // frames is what the player chose, so it becomes the suite's — and the profiles
+            // simply stop carrying it, which is the point of the move.
+            //
+            // Read straight off the old fields, which are still on the block as relics. A
+            // profile is NOT consulted: they all held a copy of the same three values, and
+            // picking one of several equal answers is a coin toss dressed as a migration.
+            config.FontName = config.PartyFrames.FontName ?? Style.FontLibrary.DefaultName;
+            config.TextWeight = config.PartyFrames.TextWeight;
+            config.TextEdge = config.PartyFrames.TextEdge;
         }
     }
 
