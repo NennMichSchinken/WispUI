@@ -295,7 +295,6 @@ internal static class Strings
 
     public const string AuraDuration = "Time left";
     public const string AuraDurationTooltip = "The seconds left, across the icon. The sweep already says it without a number; this is for when you need to know four from two.";
-    public const string BuffDurationTooltip = "The seconds left, across the icon. One switch for both benefit rows.";
     public const string AuraDurationSize = "Time left size";
     public const string AuraStackSize = "Stack size";
     public const string AuraNumberSizeTooltip =

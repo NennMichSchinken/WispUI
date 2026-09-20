@@ -1185,9 +1185,26 @@ internal sealed class PartyFramesElement : HudElement
     /// A name has to be read, and text taken as far down as the fill it sits on stops being
     /// text. So the frame steps back and its writing steps back with it, but only half as far.
     /// </para>
+    /// <para>
+    /// 🔴 It used to read <see cref="m_dim"/> and ignore <see cref="m_alpha"/> entirely, and
+    /// that is the one presence where the two come apart: out of range fades WITHOUT
+    /// darkening, so the frame and its icons went see-through while the name stayed at full
+    /// strength. Florian saw it as "the job icons are not at 100%" and the preview looking
+    /// right, which fits — in the preview everybody is present (2026-09-21). <b>Half of both,
+    /// or the rule that one factor steps the whole frame back is only half a rule.</b>
+    /// </para>
     /// </summary>
-    private uint DimInk(uint colour) =>
-        m_dim >= 1f ? colour : Tokens.Col.Darker(colour, 0.5f + (m_dim * 0.5f));
+    private uint DimInk(uint colour)
+    {
+        if (m_dim >= 1f && m_alpha >= 1f)
+        {
+            return colour;
+        }
+
+        uint darkened = m_dim >= 1f ? colour : Tokens.Col.Darker(colour, 0.5f + (m_dim * 0.5f));
+
+        return m_alpha >= 1f ? darkened : Tokens.Col.Softer(darkened, 0.5f + (m_alpha * 0.5f));
+    }
 
     /// <summary>
     /// A rectangle drawn as four filled bars rather than as a stroke. ImGui centres a stroke
@@ -1332,6 +1349,8 @@ internal sealed class PartyFramesElement : HudElement
                 cfg.AuraShowStacks,
                 cfg.AuraSwipe,
                 cfg.AuraShowDuration,
+                cfg.AuraDurationSize,
+                cfg.AuraStackSize,
                 cfg.AuraDispelBorder,
                 m_wantTooltips && cfg.ShowAuraTooltips,
                 innerMin,
@@ -1351,6 +1370,8 @@ internal sealed class PartyFramesElement : HudElement
                 cfg.BuffShowStacks,
                 cfg.BuffSwipe,
                 cfg.BuffShowDuration,
+                cfg.BuffDurationSize,
+                cfg.BuffStackSize,
                 false,
                 m_wantTooltips && cfg.ShowBuffTooltips,
                 innerMin,
@@ -1369,7 +1390,9 @@ internal sealed class PartyFramesElement : HudElement
                 cfg.OtherY,
                 cfg.BuffShowStacks,
                 cfg.BuffSwipe,
-                cfg.BuffShowDuration,
+                cfg.OtherShowDuration,
+                cfg.OtherDurationSize,
+                cfg.OtherStackSize,
                 false,
                 m_wantTooltips && cfg.ShowOtherTooltips,
                 innerMin,
@@ -1443,6 +1466,8 @@ internal sealed class PartyFramesElement : HudElement
         bool showStacks,
         bool swipe,
         bool showDuration,
+        float durationSize,
+        float stackSize,
         bool dispelBorder,
         bool tooltips,
         Vector2 innerMin,
@@ -1525,12 +1550,12 @@ internal sealed class PartyFramesElement : HudElement
 
             if (showDuration)
             {
-                this.DrawDuration(dl, min, max, aura.Remaining);
+                this.DrawDuration(dl, min, max, aura.Remaining, durationSize);
             }
 
             if (showStacks && aura.Stacks > 1)
             {
-                this.DrawStacks(dl, min, max, aura.Stacks);
+                this.DrawStacks(dl, min, max, aura.Stacks, stackSize);
             }
         }
     }
@@ -1542,7 +1567,7 @@ internal sealed class PartyFramesElement : HudElement
     /// size of its own runs out of its icon the moment somebody moves the icon slider.
     /// </para>
     /// </summary>
-    private void DrawDuration(ImDrawListPtr dl, Vector2 min, Vector2 max, float remaining)
+    private void DrawDuration(ImDrawListPtr dl, Vector2 min, Vector2 max, float remaining, float pixels)
     {
         string? text = DurationText(remaining);
 
@@ -1551,7 +1576,7 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        float size = Tokens.WorldPx(m_config.PartyFrames.AuraDurationSize);
+        float size = Tokens.WorldPx(pixels);
         float width = Ink.MeasureWidth(size, text);
 
         // Centred on the digits, not on the line they are written in — see Ink.DigitTop.
@@ -1714,11 +1739,11 @@ internal sealed class PartyFramesElement : HudElement
     /// exactly where a second pixel starts to help.
     /// </para>
     /// </summary>
-    private void DrawStacks(ImDrawListPtr dl, Vector2 min, Vector2 max, ushort stacks)
+    private void DrawStacks(ImDrawListPtr dl, Vector2 min, Vector2 max, ushort stacks, float pixels)
     {
         string text = StackText[Math.Min((int)stacks, StackText.Length) - 1];
 
-        float size = Tokens.WorldPx(m_config.PartyFrames.AuraStackSize);
+        float size = Tokens.WorldPx(pixels);
         float width = Ink.MeasureWidth(size, text);
 
         // Its digits straddle the icon's bottom edge, so the edge is what they centre on.

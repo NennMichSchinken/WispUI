@@ -98,6 +98,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdAuraDuration = "##wisp-pf-auraduration";
     private const string IdAuraDurationSize = "##wisp-pf-auradursize";
     private const string IdAuraStackSize = "##wisp-pf-aurastacksize";
+    private const string IdBuffDurationSize = "##wisp-pf-buffdursize";
+    private const string IdBuffStackSize = "##wisp-pf-buffstacksize";
+    private const string IdOtherDuration = "##wisp-pf-otherduration";
+    private const string IdOtherDurationSize = "##wisp-pf-otherdursize";
+    private const string IdOtherStackSize = "##wisp-pf-otherstacksize";
     private const string IdAuraDispel = "##wisp-pf-auradispel";
     private const string IdAuraDispelThickness = "##wisp-pf-auradispelthick";
     private const string IdBuffDuration = "##wisp-pf-buffduration";
@@ -267,8 +272,16 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     private const int SlotAuraDurationSize = 37;
 
-    /// <summary>🔴 The last slot. Adding one below this means moving the line under it too.</summary>
     private const int SlotAuraStackSize = 38;
+
+    private const int SlotBuffDurationSize = 39;
+
+    private const int SlotBuffStackSize = 40;
+
+    private const int SlotOtherDurationSize = 41;
+
+    /// <summary>🔴 The last slot. Adding one below this means moving the line under it too.</summary>
+    private const int SlotOtherStackSize = 42;
 
     /// <summary>
     /// How many slots there are, derived from the last one rather than written down.
@@ -281,7 +294,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     /// array grows with it.
     /// </para>
     /// </summary>
-    private const int SlotCount = SlotAuraStackSize + 1;
+    private const int SlotCount = SlotOtherStackSize + 1;
 
 
 
@@ -2505,9 +2518,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         rowY += pitch;
         this.PixelSlider(IdBuffY, Strings.OffsetY, SlotBuffY, group, rowY, -MaxOffset, MaxOffset, true, null);
 
-        // Shared by both benefit rows, like the stacks and the sweep above: how a benefit
-        // icon is drawn is one question, and asking it twice would put six switches on this
-        // tab for a distinction nobody makes.
+        // 🔴 This row's own, not shared with the row beside it. It was one switch for both
+        // benefit rows until version 17, on the reasoning that "how an icon is drawn" is one
+        // question — but timing your own regens and merely seeing a stranger's buffs are two
+        // different jobs, and Florian does both at once (2026-09-21). Stacks and the sweep
+        // stay shared: those say how to read an icon, this says whether a row is timed.
         rowY += pitch;
         if (Chrome.OptionRow(
                 IdBuffDuration,
@@ -2517,13 +2532,40 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 group.ContentWidth,
                 m_config.PartyFrames.BuffShowDuration,
                 Chrome.OptionControl.Tick,
-                Strings.BuffDurationTooltip,
+                Strings.AuraDurationTooltip,
                 true,
                 true))
         {
             m_config.PartyFrames.BuffShowDuration = !m_config.PartyFrames.BuffShowDuration;
             m_config.MarkDirty();
         }
+
+        // And its own sizes, because the rows do not have to be the same size — bigger
+        // afflictions and smaller regens is an ordinary setup, and one size across all three
+        // overhung the small row.
+        rowY += pitch;
+        this.PixelSlider(
+            IdBuffDurationSize,
+            Strings.AuraDurationSize,
+            SlotBuffDurationSize,
+            group,
+            rowY,
+            Configuration.MinTextSize,
+            Configuration.MaxTextSize,
+            true,
+            Strings.AuraNumberSizeTooltip);
+
+        rowY += pitch;
+        this.PixelSlider(
+            IdBuffStackSize,
+            Strings.AuraStackSize,
+            SlotBuffStackSize,
+            group,
+            rowY,
+            Configuration.MinTextSize,
+            Configuration.MaxTextSize,
+            true,
+            null);
 
         rowY += pitch;
         if (Chrome.OptionRow(
@@ -2599,6 +2641,49 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         rowY += pitch;
         this.PixelSlider(IdOtherY, Strings.OffsetY, SlotOtherY, group, rowY, -MaxOffset, MaxOffset, true, null);
+
+        // Same three as the row beside it, and its own — see that card for why they came
+        // apart at version 17.
+        rowY += pitch;
+        if (Chrome.OptionRow(
+                IdOtherDuration,
+                Strings.AuraDuration,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                m_config.PartyFrames.OtherShowDuration,
+                Chrome.OptionControl.Tick,
+                Strings.AuraDurationTooltip,
+                true,
+                true))
+        {
+            m_config.PartyFrames.OtherShowDuration = !m_config.PartyFrames.OtherShowDuration;
+            m_config.MarkDirty();
+        }
+
+        rowY += pitch;
+        this.PixelSlider(
+            IdOtherDurationSize,
+            Strings.AuraDurationSize,
+            SlotOtherDurationSize,
+            group,
+            rowY,
+            Configuration.MinTextSize,
+            Configuration.MaxTextSize,
+            true,
+            Strings.AuraNumberSizeTooltip);
+
+        rowY += pitch;
+        this.PixelSlider(
+            IdOtherStackSize,
+            Strings.AuraStackSize,
+            SlotOtherStackSize,
+            group,
+            rowY,
+            Configuration.MinTextSize,
+            Configuration.MaxTextSize,
+            true,
+            null);
 
         rowY += pitch;
         if (Chrome.OptionRow(
@@ -3183,6 +3268,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         SlotDispelThickness => m_config.PartyFrames.AuraDispelThickness,
         SlotAuraDurationSize => m_config.PartyFrames.AuraDurationSize,
         SlotAuraStackSize => m_config.PartyFrames.AuraStackSize,
+        SlotBuffDurationSize => m_config.PartyFrames.BuffDurationSize,
+        SlotBuffStackSize => m_config.PartyFrames.BuffStackSize,
+        SlotOtherDurationSize => m_config.PartyFrames.OtherDurationSize,
+        SlotOtherStackSize => m_config.PartyFrames.OtherStackSize,
         _ => m_config.PartyFrames.ManaHeight,
     };
 
@@ -3228,6 +3317,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             case SlotDispelThickness: m_config.PartyFrames.AuraDispelThickness = value; break;
             case SlotAuraDurationSize: m_config.PartyFrames.AuraDurationSize = value; break;
             case SlotAuraStackSize: m_config.PartyFrames.AuraStackSize = value; break;
+            case SlotBuffDurationSize: m_config.PartyFrames.BuffDurationSize = value; break;
+            case SlotBuffStackSize: m_config.PartyFrames.BuffStackSize = value; break;
+            case SlotOtherDurationSize: m_config.PartyFrames.OtherDurationSize = value; break;
+            case SlotOtherStackSize: m_config.PartyFrames.OtherStackSize = value; break;
             default: m_config.PartyFrames.ManaHeight = value; break;
         }
     }

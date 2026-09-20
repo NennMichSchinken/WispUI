@@ -274,12 +274,17 @@ public sealed class Profile
         to.BuffShowStacks = from.BuffShowStacks;
         to.BuffSwipe = from.BuffSwipe;
         to.BuffShowDuration = from.BuffShowDuration;
+        to.BuffDurationSize = from.BuffDurationSize;
+        to.BuffStackSize = from.BuffStackSize;
         to.ShowOtherBuffs = from.ShowOtherBuffs;
         to.OtherSize = from.OtherSize;
         to.OtherPosition = from.OtherPosition;
         to.OtherX = from.OtherX;
         to.OtherY = from.OtherY;
         to.OtherMaxCount = from.OtherMaxCount;
+        to.OtherShowDuration = from.OtherShowDuration;
+        to.OtherDurationSize = from.OtherDurationSize;
+        to.OtherStackSize = from.OtherStackSize;
         to.CleanseMark = from.CleanseMark;
         to.ShowCleanseMark = from.ShowCleanseMark;
         to.CleanseOnlyWhenAble = from.CleanseOnlyWhenAble;

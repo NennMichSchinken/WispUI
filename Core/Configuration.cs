@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 16;
+    public const int CurrentVersion = 17;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -697,11 +697,31 @@ public sealed class Configuration : IPluginConfiguration
         public bool BuffSwipe { get; set; } = true;
 
         /// <summary>
-        /// The seconds left on a benefit icon. Shared by both benefit rows, like the two
-        /// above it: how an icon is drawn is one question, and answering it twice would put
-        /// six switches on the tab for a distinction nobody makes.
+        /// The seconds left on one of your own benefit icons.
+        /// <para>
+        /// 🔴 Per row since version 17, where it used to be one switch for both benefit rows
+        /// on the reasoning that "how an icon is drawn" is one question. It is not: the
+        /// distinction is real and Florian makes it — his own regens are the ones he times,
+        /// and a stranger's buffs are the ones he only wants to see are there (2026-09-21).
+        /// Stacks and the sweep stay shared, which is the line: those two say how to READ an
+        /// icon, and this one says whether a row is being timed at all.
+        /// </para>
         /// </summary>
         public bool BuffShowDuration { get; set; }
+
+        /// <summary>
+        /// How tall the seconds on one of your own benefit icons are, in pixels.
+        /// <para>
+        /// ⚠️ Per row for a plain reason: the rows do not have to be the same size. Bigger
+        /// afflictions and smaller regens is an ordinary setup, and one pixel size across
+        /// all three meant the number that fitted the big row overhung the small one
+        /// (Florian, 2026-09-21). A size is only ever right relative to what it sits on.
+        /// </para>
+        /// </summary>
+        public float BuffDurationSize { get; set; } = 14f;
+
+        /// <inheritdoc cref="BuffDurationSize"/>
+        public float BuffStackSize { get; set; } = 13f;
 
         // --- everybody else's: the third row -------------------------------------
         // What is already keeping this person up without you — mitigation, somebody else's
@@ -733,6 +753,16 @@ public sealed class Configuration : IPluginConfiguration
         public float OtherY { get; set; }
 
         public int OtherMaxCount { get; set; } = 3;
+
+        /// <summary>The seconds left on somebody else's benefit icon.</summary>
+        /// <inheritdoc cref="BuffShowDuration" path="/para"/>
+        public bool OtherShowDuration { get; set; }
+
+        /// <inheritdoc cref="BuffDurationSize"/>
+        public float OtherDurationSize { get; set; } = 14f;
+
+        /// <inheritdoc cref="BuffDurationSize"/>
+        public float OtherStackSize { get; set; } = 13f;
 
         /// <summary>
         /// One of <see cref="Hud.FrameMarkStyle"/>. None out of the box.
@@ -965,6 +995,10 @@ public sealed class Configuration : IPluginConfiguration
             this.AuraNumberSize = Bounded(this.AuraNumberSize, MinAuraNumberSize, MaxAuraNumberSize, 0.7f);
             this.AuraDurationSize = Bounded(this.AuraDurationSize, MinTextSize, MaxTextSize, 14f);
             this.AuraStackSize = Bounded(this.AuraStackSize, MinTextSize, MaxTextSize, 13f);
+            this.BuffDurationSize = Bounded(this.BuffDurationSize, MinTextSize, MaxTextSize, 14f);
+            this.BuffStackSize = Bounded(this.BuffStackSize, MinTextSize, MaxTextSize, 13f);
+            this.OtherDurationSize = Bounded(this.OtherDurationSize, MinTextSize, MaxTextSize, 14f);
+            this.OtherStackSize = Bounded(this.OtherStackSize, MinTextSize, MaxTextSize, 13f);
 
             this.AuraMaxCount = Math.Clamp(this.AuraMaxCount, 1, MaxAurasPerRow);
             this.BuffMaxCount = Math.Clamp(this.BuffMaxCount, 1, MaxAurasPerRow);
@@ -1508,6 +1542,31 @@ public sealed class Configuration : IPluginConfiguration
             config.TextWeight = config.PartyFrames.TextWeight;
             config.TextEdge = config.PartyFrames.TextEdge;
         }
+
+        if (config.Version < 17)
+        {
+            // The numbers on an icon went per row: one switch became two, and one pair of
+            // sizes became three. Everybody keeps what they had on all three rows, so the
+            // day this runs nothing looks different — the point is that they can now be
+            // pulled apart.
+            SplitRowNumbers(config.PartyFrames);
+
+            for (int i = 0; i < config.Profiles.Items.Count; i++)
+            {
+                SplitRowNumbers(config.Profiles.Items[i].PartyFrames);
+            }
+        }
+    }
+
+    /// <inheritdoc cref="PartyFramesConfig.BuffShowDuration"/>
+    private static void SplitRowNumbers(PartyFramesConfig cfg)
+    {
+        cfg.OtherShowDuration = cfg.BuffShowDuration;
+
+        cfg.BuffDurationSize = cfg.AuraDurationSize;
+        cfg.BuffStackSize = cfg.AuraStackSize;
+        cfg.OtherDurationSize = cfg.AuraDurationSize;
+        cfg.OtherStackSize = cfg.AuraStackSize;
     }
 
     /// <summary>
