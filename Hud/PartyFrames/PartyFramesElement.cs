@@ -238,15 +238,19 @@ internal sealed class PartyFramesElement : HudElement
     }
 
     /// <summary>
-    /// Takes a screen position and stores it the way the layout does — unscaled, so the
-    /// arrangement is the same shape at any interface scale.
+    /// Takes a screen position and stores it.
+    /// <para>
+    /// 🔴 Stored as it arrives, with no scale in the arithmetic. It used to be divided by
+    /// the interface scale, which was the matching half of the bug where the frames grew
+    /// with the settings window — the drawing multiplied and this divided, so the two
+    /// agreed with each other and disagreed with the slider. A HUD position is a screen
+    /// position (2026-09-21, see <see cref="Tokens.WorldPx"/>).
+    /// </para>
     /// </summary>
     public override void MoveTo(Vector2 topLeft)
     {
-        float scale = Tokens.Scale <= 0f ? 1f : Tokens.Scale;
-
-        m_config.PartyFrames.PositionX = MathF.Round(topLeft.X / scale);
-        m_config.PartyFrames.PositionY = MathF.Round(topLeft.Y / scale);
+        m_config.PartyFrames.PositionX = MathF.Round(topLeft.X);
+        m_config.PartyFrames.PositionY = MathF.Round(topLeft.Y);
         m_config.MarkDirty();
     }
 
@@ -357,9 +361,9 @@ internal sealed class PartyFramesElement : HudElement
             count,
             (FrameDirection)m_config.PartyFrames.Direction,
             m_config.PartyFrames.Lines,
-            Tokens.Px(m_config.PartyFrames.FrameWidth),
-            Tokens.Px(m_config.PartyFrames.FrameHeight),
-            Tokens.Px(m_config.PartyFrames.Spacing));
+            Tokens.WorldPx(m_config.PartyFrames.FrameWidth),
+            Tokens.WorldPx(m_config.PartyFrames.FrameHeight),
+            Tokens.WorldPx(m_config.PartyFrames.Spacing));
 
     /// <summary>
     /// The frames as they will look, drawn into the settings window.
@@ -385,7 +389,7 @@ internal sealed class PartyFramesElement : HudElement
     private void DrawLive(ImDrawListPtr dl) =>
         this.DrawContent(
             dl,
-            new Vector2(Tokens.Px(m_config.PartyFrames.PositionX), Tokens.Px(m_config.PartyFrames.PositionY)),
+            new Vector2(Tokens.WorldPx(m_config.PartyFrames.PositionX), Tokens.WorldPx(m_config.PartyFrames.PositionY)),
             m_snapshot,
             m_liveGeo,
             true);
@@ -414,9 +418,9 @@ internal sealed class PartyFramesElement : HudElement
     {
         Configuration.PartyFramesConfig cfg = m_config.PartyFrames;
 
-        float width = Tokens.Px(cfg.FrameWidth);
-        float height = Tokens.Px(cfg.FrameHeight);
-        float spacing = Tokens.Px(cfg.Spacing);
+        float width = Tokens.WorldPx(cfg.FrameWidth);
+        float height = Tokens.WorldPx(cfg.FrameHeight);
+        float spacing = Tokens.WorldPx(cfg.Spacing);
         float border = Tokens.Metric.FrameBorder;
         float x = origin.X;
         float y = origin.Y;
@@ -513,7 +517,7 @@ internal sealed class PartyFramesElement : HudElement
 
             float healthBottom = innerMax.Y;
             bool mana = ShowsMana(cfg, ref member) && this.Shows(PreviewPart.Mana);
-            float manaHeight = Tokens.Px(cfg.ManaHeight);
+            float manaHeight = Tokens.WorldPx(cfg.ManaHeight);
             float manaGap = manaStyle == ManaStyle.Bar ? border : 0f;
 
             if (mana)
@@ -586,7 +590,7 @@ internal sealed class PartyFramesElement : HudElement
                 if (band.HasMark)
                 {
                     float markX = BarX(barMin.X, barWidth, band.MarkAt);
-                    float thickness = MathF.Max(1f, Tokens.Px(Tokens.Metric.ShieldMark));
+                    float thickness = MathF.Max(1f, Tokens.WorldPx(Tokens.Metric.ShieldMark));
 
                     dl.AddRectFilled(
                         new Vector2(markX, barMin.Y),
@@ -635,7 +639,7 @@ internal sealed class PartyFramesElement : HudElement
         // beside it — and that is a layout people build on purpose, not a mistake to guard
         // against. Drawn in the same loop as the bars, anything hanging below a frame would
         // be painted over by the next frame's ground a moment later.
-        float reach = Tokens.Px(Configuration.MaxTextOffset);
+        float reach = Tokens.WorldPx(Configuration.MaxTextOffset);
 
         for (int i = 0; i < count; i++)
         {
@@ -1130,7 +1134,7 @@ internal sealed class PartyFramesElement : HudElement
             }
         }
 
-        float size = Tokens.Px(cfg.HpTextSize);
+        float size = Tokens.WorldPx(cfg.HpTextSize);
         float width = Ink.MeasureNote(size, note);
 
         Vector2 at = new(
@@ -1437,8 +1441,8 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        float side = Tokens.Px(iconSize);
-        float gap = Tokens.Px(AuraGap);
+        float side = Tokens.WorldPx(iconSize);
+        float gap = Tokens.WorldPx(AuraGap);
         float width = (side * count) + (gap * (count - 1));
 
         Anchor anchor = Anchors.At(position);
@@ -1449,8 +1453,8 @@ internal sealed class PartyFramesElement : HudElement
             new Vector2(width, side),
             Tokens.Metric.FramePadding);
 
-        at.X += Tokens.Px(offsetX);
-        at.Y += Tokens.Px(offsetY);
+        at.X += Tokens.WorldPx(offsetX);
+        at.Y += Tokens.WorldPx(offsetY);
 
         // Hung on the right, the first icon belongs at the right end and the row fills
         // leftwards. The block is already placed, so this is only which end to start from.
@@ -1491,7 +1495,7 @@ internal sealed class PartyFramesElement : HudElement
             // frame's own edge has answered "is there one".
             if (aura.CanDispel)
             {
-                dl.AddRect(min, max, this.Dim(m_config.PartyFrames.CleanseColour), 0f, ImDrawFlags.None, Tokens.Px(1f));
+                dl.AddRect(min, max, this.Dim(m_config.PartyFrames.CleanseColour), 0f, ImDrawFlags.None, 1f);
             }
 
             if (showStacks && aura.Stacks > 1)
@@ -1578,7 +1582,7 @@ internal sealed class PartyFramesElement : HudElement
 
         // Half the icon, so the number scales with whatever size the icons are set to rather
         // than staying put and swallowing a small one.
-        float size = MathF.Max(Tokens.Px(AuraStackMinSize), MathF.Round((max.Y - min.Y) * 0.5f));
+        float size = MathF.Max(Tokens.WorldPx(AuraStackMinSize), MathF.Round((max.Y - min.Y) * 0.5f));
         float width = Ink.MeasureWidth(size, text);
 
         Vector2 at = new(MathF.Round(max.X - width - 1f), MathF.Round(max.Y - size));
@@ -1657,7 +1661,7 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        float side = Tokens.Px(cfg.RescueIconSize);
+        float side = Tokens.WorldPx(cfg.RescueIconSize);
         Vector2 at = Anchors.Place(
             Anchors.At(cfg.RescueIconPosition),
             innerMin,
@@ -1665,8 +1669,8 @@ internal sealed class PartyFramesElement : HudElement
             new Vector2(side, side),
             Tokens.Metric.FramePadding);
 
-        at.X += Tokens.Px(cfg.RescueIconX);
-        at.Y += Tokens.Px(cfg.RescueIconY);
+        at.X += Tokens.WorldPx(cfg.RescueIconX);
+        at.Y += Tokens.WorldPx(cfg.RescueIconY);
 
         dl.AddImage(icon, at, new Vector2(at.X + side, at.Y + side), uv0, uv1, this.Dim(0xFFFFFFFFu));
     }
@@ -1693,7 +1697,7 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        float side = Tokens.Px(size);
+        float side = Tokens.WorldPx(size);
         Vector2 at = Anchors.Place(
             Anchors.At(anchor),
             innerMin,
@@ -1701,8 +1705,8 @@ internal sealed class PartyFramesElement : HudElement
             new Vector2(side, side),
             Tokens.Metric.FramePadding);
 
-        at.X += Tokens.Px(offsetX);
-        at.Y += Tokens.Px(offsetY);
+        at.X += Tokens.WorldPx(offsetX);
+        at.Y += Tokens.WorldPx(offsetY);
 
         // Tinted white at the frame's own fade, so an icon steps back with the rest of it
         // rather than staying the one bright thing on a frame that has gone quiet.
@@ -1723,12 +1727,12 @@ internal sealed class PartyFramesElement : HudElement
         if (cfg.ShowName && this.Shows(PreviewPart.Name))
         {
             string name = this.DrawnName(slot, ref member, PlayerName.At(cfg.NameShortening));
-            float size = Tokens.Px(cfg.NameSize);
+            float size = Tokens.WorldPx(cfg.NameSize);
             Vector2 measured = new(Ink.MeasureWidth(size, name), size);
             Vector2 at = Anchors.Place(Anchors.At(cfg.NamePosition), innerMin, innerMax, measured, padding);
 
-            at.X += Tokens.Px(cfg.NameX);
-            at.Y += Tokens.Px(cfg.NameY);
+            at.X += Tokens.WorldPx(cfg.NameX);
+            at.Y += Tokens.WorldPx(cfg.NameY);
 
             // Your own name is drawn like everyone else's. It used to come out gold, which
             // looked like a state rather than a whose-name-is-this, and the one frame you
@@ -1749,7 +1753,7 @@ internal sealed class PartyFramesElement : HudElement
             // position. A bare digit over a health bar has no shape of its own to be
             // recognised by and reads as a stray number (Florian).
             string number = NumberText[member.PartyNumber - 1];
-            float glyph = Tokens.Px(cfg.PartyNumberSize);
+            float glyph = Tokens.WorldPx(cfg.PartyNumberSize);
             float plate = MathF.Round(glyph * NumberPlateScale);
             Vector2 plateAt = Anchors.Place(
                 Anchors.At(cfg.PartyNumberPosition),
@@ -1758,15 +1762,15 @@ internal sealed class PartyFramesElement : HudElement
                 new Vector2(plate, plate),
                 padding);
 
-            plateAt.X += Tokens.Px(cfg.PartyNumberX);
-            plateAt.Y += Tokens.Px(cfg.PartyNumberY);
+            plateAt.X += Tokens.WorldPx(cfg.PartyNumberX);
+            plateAt.Y += Tokens.WorldPx(cfg.PartyNumberY);
 
             // The edge is a filled shape with the plate laid inside it, NOT a stroke. ImGui
             // centres a stroke on its path, so half of every edge pixel falls outside the
             // rectangle and gets antialiased — which is exactly why the window's own rings are
             // filled rectangles too (design bible §2.1, learned the same way in session 5).
             Vector2 plateEnd = new(plateAt.X + plate, plateAt.Y + plate);
-            float edge = MathF.Max(Tokens.Line(1f), MathF.Round(plate * NumberPlateEdge));
+            float edge = MathF.Max(Tokens.WorldLine(1f), MathF.Round(plate * NumberPlateEdge));
             float radius = MathF.Max(Tokens.Radius.Small, MathF.Round(plate * NumberPlateRadius));
 
             dl.AddRectFilled(plateAt, plateEnd, Tokens.Col.NumberEdge, radius, ImDrawFlags.RoundCornersAll);
@@ -1804,12 +1808,12 @@ internal sealed class PartyFramesElement : HudElement
             return;
         }
 
-        float healthSize = Tokens.Px(cfg.HpTextSize);
+        float healthSize = Tokens.WorldPx(cfg.HpTextSize);
         Vector2 healthMeasured = new(Ink.MeasureWidth(healthSize, health), healthSize);
         Vector2 healthAt = Anchors.Place(Anchors.At(cfg.HpTextPosition), innerMin, innerMax, healthMeasured, padding);
 
-        healthAt.X += Tokens.Px(cfg.HpTextX);
-        healthAt.Y += Tokens.Px(cfg.HpTextY);
+        healthAt.X += Tokens.WorldPx(cfg.HpTextX);
+        healthAt.Y += Tokens.WorldPx(cfg.HpTextY);
 
         Ink.DrawScaledEdged(dl, healthSize, healthAt, this.DimInk(Tokens.Col.HudInk), health, cfg.Edge);
     }

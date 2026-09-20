@@ -198,12 +198,15 @@ public sealed class Plugin : IDalamudPlugin
     {
         Configuration.PartyFramesConfig cfg = m_config.PartyFrames;
 
+        // 🔴 WorldPx, matching what the draw path asks for. These two have to agree: the
+        // handles are built for exactly the sizes in use, and a size built at one scale and
+        // asked for at another falls back to a stretched glyph nobody chose.
         // On the stack, so the tick allocates nothing. These are the three texts a frame can
         // carry; two of them are usually the same size, and SyncHud drops the duplicate.
         Span<float> sizes = stackalloc float[3];
-        sizes[0] = Tokens.Px(cfg.NameSize);
-        sizes[1] = Tokens.Px(cfg.HpTextSize);
-        sizes[2] = Tokens.Px(cfg.PartyNumberSize);
+        sizes[0] = Tokens.WorldPx(cfg.NameSize);
+        sizes[1] = Tokens.WorldPx(cfg.HpTextSize);
+        sizes[2] = Tokens.WorldPx(cfg.PartyNumberSize);
 
         Fonts.SyncHud(!m_config.HasPendingChanges, cfg.FontName, HudText.WeightAt(cfg.TextWeight), sizes);
     }

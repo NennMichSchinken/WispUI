@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 12;
+    public const int CurrentVersion = 13;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -1302,6 +1302,83 @@ public sealed class Configuration : IPluginConfiguration
             config.Profiles.Active = 0;
             config.StoreIntoActiveProfile();
         }
+
+        if (config.Version < 13)
+        {
+            // 🔴 The interface scale used to reach the party frames as well as the window.
+            // Every pixel a player set was multiplied on its way to the screen and divided
+            // on its way back, so the two halves agreed with each other while disagreeing
+            // with the slider label: "170 px" drew 212 wide at 125 %.
+            //
+            // The drawing is fixed (see Tokens.WorldPx). This converts what is stored, so
+            // nobody's frames change size or move because of an update — the numbers now
+            // mean what they always claimed to. At 100 % it does nothing at all, which is
+            // every player who never touched the slider.
+            float was = config.Scale;
+
+            if (was > 0f && MathF.Abs(was - 1f) > 0.001f)
+            {
+                Rescale(config.PartyFrames, was);
+
+                for (int i = 0; i < config.Profiles.Items.Count; i++)
+                {
+                    // Every profile, not only the one that is on. A profile nobody has
+                    // switched to yet still holds pixels written under the old arithmetic.
+                    Rescale(config.Profiles.Items[i].PartyFrames, was);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Multiplies every stored pixel in one party frames block. Used once, by the migration
+    /// to version 13; see there for why.
+    /// <para>
+    /// Opacities, colours, counts and anything naming a choice are left alone — only the
+    /// values that were going through the scale on their way to the screen.
+    /// </para>
+    /// </summary>
+    private static void Rescale(PartyFramesConfig cfg, float by)
+    {
+        cfg.PositionX *= by;
+        cfg.PositionY *= by;
+        cfg.FrameWidth *= by;
+        cfg.FrameHeight *= by;
+        cfg.Spacing *= by;
+        cfg.ManaHeight *= by;
+
+        cfg.NameSize *= by;
+        cfg.NameX *= by;
+        cfg.NameY *= by;
+        cfg.HpTextSize *= by;
+        cfg.HpTextX *= by;
+        cfg.HpTextY *= by;
+        cfg.PartyNumberSize *= by;
+        cfg.PartyNumberX *= by;
+        cfg.PartyNumberY *= by;
+
+        cfg.JobIconSize *= by;
+        cfg.JobIconX *= by;
+        cfg.JobIconY *= by;
+        cfg.LeaderIconSize *= by;
+        cfg.LeaderIconX *= by;
+        cfg.LeaderIconY *= by;
+        cfg.RescueIconSize *= by;
+        cfg.RescueIconX *= by;
+        cfg.RescueIconY *= by;
+
+        cfg.AuraSize *= by;
+        cfg.AuraX *= by;
+        cfg.AuraY *= by;
+        cfg.BuffSize *= by;
+        cfg.BuffX *= by;
+        cfg.BuffY *= by;
+        cfg.OtherSize *= by;
+        cfg.OtherX *= by;
+        cfg.OtherY *= by;
+
+        cfg.CleanseThickness *= by;
+        cfg.RaiseThickness *= by;
     }
 
     /// <summary>A fresh copy per job, so editing one job's bindings never moves another's.</summary>

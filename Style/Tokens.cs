@@ -34,6 +34,28 @@ internal static class Tokens
     public static float Line(float baseValue) => MathF.Max(1f, MathF.Round(baseValue * Scale));
 
     /// <summary>
+    /// A value drawn on the game world, snapped to a whole pixel and <b>deliberately not
+    /// scaled</b>.
+    /// <para>
+    /// 🔴 The scale under Global is the SUITE's scale — the settings window and nothing else.
+    /// It used to reach the party frames too, and the clearest way to see why that is wrong
+    /// is the slider itself: it says "170 px", and at 125 % the frame came out 212 wide. A
+    /// number a player set in pixels, against a game interface that has its own scale, has to
+    /// be that many pixels (Florian, 2026-09-21).
+    /// </para>
+    /// <para>
+    /// So there are two worlds and one rule: the window uses <see cref="Px"/> and
+    /// <see cref="Line"/>, anything drawn on the world uses this. A HUD element that reaches
+    /// for <see cref="Px"/> is a bug, and it is a quiet one — it only shows up for somebody
+    /// who moved the slider.
+    /// </para>
+    /// </summary>
+    public static float WorldPx(float value) => MathF.Round(value);
+
+    /// <summary>The same for a line on the world: never thinner than one pixel, never scaled.</summary>
+    public static float WorldLine(float value) => MathF.Max(1f, MathF.Round(value));
+
+    /// <summary>
     /// Packs an <c>0xRRGGBB</c> literal into the ABGR word ImGui draws with, fully opaque.
     /// Only this file may call it — every colour is a named token below.
     /// </summary>
@@ -833,10 +855,10 @@ internal static class Tokens
         /// coming as its own setting — a padding slider would be a second way to say it
         /// (Florian, 2026-09-11).
         /// </summary>
-        public static float FramePadding => Px(5f);
+        public static float FramePadding => WorldPx(5f);
 
         /// <summary>The line a party frame is outlined with, and the gap a second bar sits behind.</summary>
-        public static float FrameBorder => Line(1f);
+        public static float FrameBorder => WorldLine(1f);
 
         /// <summary>
         /// The ring on the frame under the mouse. Three pixels rather than the frame's own
@@ -844,10 +866,10 @@ internal static class Tokens
         /// not doing its job (Florian, 2026-09-12). Thicker than the frame edge on purpose —
         /// it has to read as something arriving, not as the edge having changed colour.
         /// </summary>
-        public static float FrameHoverRing => Line(3f);
+        public static float FrameHoverRing => WorldLine(3f);
 
         /// <summary>How far a HUD text's shadow is offset. One pixel, at whatever the scale is.</summary>
-        public static float HudTextShadow => Line(1f);
+        public static float HudTextShadow => WorldLine(1f);
 
         /// <summary>
         /// What a frame's opacity is multiplied by when the game has no numbers for that
