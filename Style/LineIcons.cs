@@ -92,6 +92,39 @@ internal static class LineIcons
         },
         Array.Empty<Vector3>());
 
+    /// <summary>list.svg — the three dots are circles here, because a zero-length stroke draws nothing.</summary>
+    public static LineIcon List => Get(
+        "list",
+        new[] { "M8 5h13", "M8 12h13", "M8 19h13" },
+        new[] { new Vector3(3.5f, 5f, 1f), new Vector3(3.5f, 12f, 1f), new Vector3(3.5f, 19f, 1f) });
+
+    /// <summary>arrow-right-left.svg</summary>
+    public static LineIcon ArrowRightLeft => Get(
+        "arrow-right-left",
+        new[] { "m16 3 4 4-4 4", "M20 7H4", "m8 21-4-4 4-4", "M4 17h16" },
+        Array.Empty<Vector3>());
+
+    /// <summary>settings.svg</summary>
+    public static LineIcon Settings => Get(
+        "settings",
+        new[]
+        {
+            "M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915",
+        },
+        new[] { new Vector3(12f, 12f, 3f) });
+
+    /// <summary>lock.svg — its rect written out as the path it is.</summary>
+    public static LineIcon Lock => Get(
+        "lock",
+        new[] { "M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z", "M7 11V7a5 5 0 0 1 10 0v4" },
+        Array.Empty<Vector3>());
+
+    /// <summary>lock-open.svg — its rect written out as the path it is.</summary>
+    public static LineIcon LockOpen => Get(
+        "lock-open",
+        new[] { "M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z", "M7 11V7a5 5 0 0 1 9.9-1" },
+        Array.Empty<Vector3>());
+
     /// <summary>
     /// Draws an icon into a square box, scaled from the 24 grid.
     /// <para>

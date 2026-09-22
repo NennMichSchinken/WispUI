@@ -868,6 +868,46 @@ internal static class Tokens
         /// </summary>
         public static float FrameHoverRing => WorldLine(3f);
 
+        // --- the combat meter ---------------------------------------------------
+        // It wears the window's look but lives on the world, so every size here is in screen
+        // pixels (WorldPx), never in the suite scale — the same two-worlds rule as the frames.
+
+        /// <summary>
+        /// The meter's title bar. Lower than the window's 42: on a meter four bars tall the
+        /// full height would take a quarter of the element (spec §3a, the mockup's 34).
+        /// </summary>
+        public static float MeterTitle => WorldPx(34f);
+
+        /// <summary>The lit part at the top of the meter's title bar, like the window's own.</summary>
+        public static float MeterTitleFade => WorldPx(12f);
+
+        /// <summary>The four buttons in the meter's title bar, and the room between them.</summary>
+        public static float MeterIcon => WorldPx(16f);
+
+        public static float MeterIconGap => WorldPx(10f);
+
+        /// <summary>Between the meter's edge and its card, and around the title text.</summary>
+        public static float MeterPad => WorldPx(8f);
+
+        /// <summary>Inside the card, between its edge and the bars.</summary>
+        public static float MeterCardPad => WorldPx(4f);
+
+        /// <summary>The meter's own corners (the window's 8), its card's, and each bar's.</summary>
+        public static float MeterRadius => WorldPx(8f);
+
+        public static float MeterCardRadius => WorldPx(6f);
+
+        public static float MeterBarRadius => WorldPx(3f);
+
+        /// <summary>The size text in the meter's title bar is set at — Axis's own 16, so it stays sharp.</summary>
+        public static float MeterTitleText => WorldPx(16f);
+
+        /// <summary>Between a bar's edge and its first and last text, and between the texts.</summary>
+        public static float MeterBarInset => WorldPx(6f);
+
+        /// <summary>The corner that resizes the meter, and the lock beside it.</summary>
+        public static float MeterGrip => WorldPx(14f);
+
         /// <summary>How far a HUD text's shadow is offset. One pixel, at whatever the scale is.</summary>
         public static float HudTextShadow => WorldLine(1f);
 

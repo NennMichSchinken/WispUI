@@ -193,22 +193,32 @@ internal static class Chrome
     /// </summary>
     public static float Rule(ImDrawListPtr dl, float x0, float x1, float y)
     {
-        float step = Tokens.Line(1f);
+        Rule(dl, x0, x1, y, Tokens.Line(1f), Tokens.Metric.TitleRuleFade);
+        return Tokens.Metric.TitleRuleHeight;
+    }
+
+    /// <summary>
+    /// The same rule at a line width and fade of the caller's choosing — for the combat meter,
+    /// which draws in screen pixels rather than in the suite scale.
+    /// </summary>
+    public static void Rule(ImDrawListPtr dl, float x0, float x1, float y, float step, float fade)
+    {
         for (int i = 0; i < Tokens.Col.TitleRule.Length; i++)
         {
-            FadingHairline(dl, x0, x1, y + (i * step), Tokens.Col.TitleRule[i], Tokens.Metric.TitleRuleFade);
+            FadingHairline(dl, x0, x1, y + (i * step), Tokens.Col.TitleRule[i], fade, step);
         }
-
-        return Tokens.Metric.TitleRuleHeight;
     }
 
     /// <summary>
     /// A one-pixel rule that fades to nothing at both ends instead of butting into the frame,
     /// the way the game's own dividers run out towards the corners.
     /// </summary>
-    public static void FadingHairline(ImDrawListPtr dl, float x0, float x1, float y, uint colour, float fade)
+    public static void FadingHairline(ImDrawListPtr dl, float x0, float x1, float y, uint colour, float fade) =>
+        FadingHairline(dl, x0, x1, y, colour, fade, Tokens.Line(1f));
+
+    /// <inheritdoc cref="FadingHairline(ImDrawListPtr, float, float, float, uint, float)"/>
+    public static void FadingHairline(ImDrawListPtr dl, float x0, float x1, float y, uint colour, float fade, float thickness)
     {
-        float thickness = Tokens.Line(1f);
         float width = x1 - x0;
         if (width <= 0f)
         {

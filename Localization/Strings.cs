@@ -472,4 +472,63 @@ internal static class Strings
     public const string MetricHealingTaken = "Healing taken";
 
     public const string MetricDeaths = "Deaths";
+
+    public const string NavCombatTracker = "Combat Tracker";
+
+    // On the meter itself.
+    public const string MeterViewCurrent = "Current";
+    public const string MeterViewOverall = "Overall";
+    public const string MeterViewFight = "Earlier fight";
+    public const string MeterNotConnected = "Waiting for IINACT";
+    public const string MeterNoData = "Waiting for combat data";
+    public const string MeterResetTooltip = "Start over";
+    public const string MeterFightsTooltip = "Earlier fights";
+    public const string MeterMetricTooltip = "What to show";
+    public const string MeterSettingsTooltip = "Settings";
+    public const string MeterLocked = "Locked. Click to unlock.";
+    public const string MeterUnlocked = "Click to lock in place.";
+    public const string MeterGripTooltip = "Drag to resize. Hold Shift to change one side only.";
+    public const string MeterResetQuestion = "Reset all combat data?";
+    public const string MeterResetConfirm = "Reset";
+    public const string MeterResetCancel = "Cancel";
+
+    // The settings page.
+    public const string GroupMeterBars = "Bars";
+    public const string GroupMeterBarsHint = "Fill, colour and opacity.";
+    public const string MeterBarOpacity = "Bar opacity";
+    public const string MeterSmoothTooltip = "Bars slide to their new length instead of jumping.";
+    public const string GroupMeterText = "On each bar";
+    public const string GroupMeterTextHint = "What every line says.";
+    public const string MeterJobMark = "Job";
+    public const string MeterJobIcon = "Icon";
+    public const string MeterJobLetters = "Letters";
+    public const string MeterJobOff = "Off";
+    public const string MeterRanks = "Rank numbers";
+    public const string MeterShortNumbers = "Short numbers";
+    public const string MeterShortNumbersTooltip = "1.2M instead of 1,234,567.";
+    public const string MeterTextSize = "Text size";
+    public const string GroupMeterFights = "Fights";
+    public const string GroupMeterFightsHint = "When the meter starts over.";
+    public const string MeterOnlyInCombat = "Only in combat";
+    public const string MeterAutoReset = "Reset on entering a duty";
+    public const string MeterConfirmReset = "Ask before resetting";
+    public const string MeterEndOnReset = "End the fight on reset";
+    public const string MeterEndOnResetTooltip = "Tells IINACT the fight is over whenever you reset, so the next pull starts clean.";
+    public const string MeterEndAfterCombat = "End the fight after combat";
+    public const string MeterEndAfterCombatTooltip = "Tells IINACT the fight is over a few seconds after combat ends.";
+    public const string GroupMeterSize = "Size";
+    public const string GroupMeterSizeHint = "Or drag the meter's bottom right corner.";
+    public const string MeterWidth = "Width";
+    public const string MeterHeight = "Height";
+    public const string MeterBarHeight = "Bar height";
+    public const string MeterBarSpacing = "Bar spacing";
+    public const string GroupMeterLook = "Meter";
+    public const string GroupMeterLookHint = "How the meter sits on the screen.";
+    public const string MeterRim = "Gold rim";
+    public const string MeterBackground = "Background opacity";
+    public const string MeterLockedRow = "Locked";
+    public const string MeterLockedTooltip = "A locked meter cannot be moved or resized with the mouse. Edit Mode still moves it.";
+    public const string MeterTestMode = "Show test data";
+    public const string MeterTestModeTooltip = "Fills the meter with a made-up fight so you can set it up. Switches off when this window closes.";
+    public const string MeterNotConnectedNote = "IINACT is not answering. The meter fills once it runs.";
 }
