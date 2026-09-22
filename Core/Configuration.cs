@@ -11,7 +11,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 17;
+    public const int CurrentVersion = 18;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -909,14 +909,41 @@ public sealed class Configuration : IPluginConfiguration
         /// <summary>18-150. The useful range is 30-70; the rest is there for small parties.</summary>
         public float FrameHeight { get; set; } = 70f;
 
-        /// <summary>Between two frames. Never mixed with padding.</summary>
+        /// <summary>
+        /// ⚠️ A migration relic. It was one gap for both ways; <see cref="SpacingX"/> and
+        /// <see cref="SpacingY"/> replaced it at version 18, which reads this once. Nothing
+        /// draws from it.
+        /// </summary>
         public float Spacing { get; set; } = 2f;
+
+        /// <summary>
+        /// The gap between two frames side by side, and <see cref="SpacingY"/> the gap between
+        /// two frames one above the other. Never mixed with padding.
+        /// <para>
+        /// Two numbers since version 18 (Florian, 2026-09-22): with two columns the gap
+        /// between the columns and the gap down a column are read differently — the first
+        /// separates two groups, the second only two people — and one number cannot serve
+        /// both.
+        /// </para>
+        /// <para>
+        /// Named for the screen, not for the direction the frames run: flipping a block from
+        /// vertical to horizontal does not swap which gap is which, because the player set
+        /// them looking at the screen.
+        /// </para>
+        /// </summary>
+        public float SpacingX { get; set; } = 2f;
+
+        /// <inheritdoc cref="SpacingX"/>
+        public float SpacingY { get; set; } = 2f;
 
         /// <summary>0 = vertical (the game's own shape), 1 = horizontal.</summary>
         public int Direction { get; set; }
 
-        /// <summary>How many lines the frames break into: 1, 2 or 4.</summary>
-        public int Lines { get; set; } = 1;
+        /// <summary>
+        /// How many lines the frames break into: 1, 2 or 4. Two by default (Florian,
+        /// 2026-09-22): a full party as two columns of four.
+        /// </summary>
+        public int Lines { get; set; } = 2;
 
         /// <summary>
         /// Hides the game's own party list while WispUI's frames are on.
@@ -955,7 +982,8 @@ public sealed class Configuration : IPluginConfiguration
 
             this.FrameWidth = Bounded(this.FrameWidth, MinFrameWidth, MaxFrameWidth, 170f);
             this.FrameHeight = Bounded(this.FrameHeight, MinFrameHeight, MaxFrameHeight, 38f);
-            this.Spacing = Bounded(this.Spacing, 0f, MaxFrameSpacing, 4f);
+            this.SpacingX = Bounded(this.SpacingX, 0f, MaxFrameSpacing, 2f);
+            this.SpacingY = Bounded(this.SpacingY, 0f, MaxFrameSpacing, 2f);
             this.ManaHeight = Bounded(this.ManaHeight, MinManaHeight, MaxManaHeight, 3f);
 
             this.PositionX = Bounded(this.PositionX, -MaxPosition, MaxPosition, 100f);
@@ -1556,6 +1584,25 @@ public sealed class Configuration : IPluginConfiguration
                 SplitRowNumbers(config.Profiles.Items[i].PartyFrames);
             }
         }
+
+        if (config.Version < 18)
+        {
+            // One gap became two. Both take the one there was, so nothing moves the day this
+            // runs.
+            SplitSpacing(config.PartyFrames);
+
+            for (int i = 0; i < config.Profiles.Items.Count; i++)
+            {
+                SplitSpacing(config.Profiles.Items[i].PartyFrames);
+            }
+        }
+    }
+
+    /// <inheritdoc cref="PartyFramesConfig.SpacingX"/>
+    private static void SplitSpacing(PartyFramesConfig cfg)
+    {
+        cfg.SpacingX = cfg.Spacing;
+        cfg.SpacingY = cfg.Spacing;
     }
 
     /// <inheritdoc cref="PartyFramesConfig.BuffShowDuration"/>

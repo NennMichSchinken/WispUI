@@ -363,7 +363,8 @@ internal sealed class PartyFramesElement : HudElement
             m_config.PartyFrames.Lines,
             Tokens.WorldPx(m_config.PartyFrames.FrameWidth),
             Tokens.WorldPx(m_config.PartyFrames.FrameHeight),
-            Tokens.WorldPx(m_config.PartyFrames.Spacing));
+            Tokens.WorldPx(m_config.PartyFrames.SpacingX),
+            Tokens.WorldPx(m_config.PartyFrames.SpacingY));
 
     /// <summary>
     /// The frames as they will look, drawn into the settings window.
@@ -420,7 +421,8 @@ internal sealed class PartyFramesElement : HudElement
 
         float width = Tokens.WorldPx(cfg.FrameWidth);
         float height = Tokens.WorldPx(cfg.FrameHeight);
-        float spacing = Tokens.WorldPx(cfg.Spacing);
+        float spacingX = Tokens.WorldPx(cfg.SpacingX);
+        float spacingY = Tokens.WorldPx(cfg.SpacingY);
         float border = Tokens.Metric.FrameBorder;
         float x = origin.X;
         float y = origin.Y;
@@ -474,7 +476,8 @@ internal sealed class PartyFramesElement : HudElement
                 cfg.Lines,
                 width,
                 height,
-                spacing);
+                spacingX,
+                spacingY);
 
             Vector2 min = new(x + offset.X, y + offset.Y);
             Vector2 max = new(min.X + width, min.Y + height);

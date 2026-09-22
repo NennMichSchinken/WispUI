@@ -372,8 +372,10 @@ internal static class Strings
 
     public const string FrameWidth = "Frame width";
     public const string FrameHeight = "Frame height";
-    public const string Spacing = "Spacing";
-    public const string SpacingHint = "between frames";
+    public const string SpacingX = "Spacing X";
+    public const string SpacingXHint = "left and right";
+    public const string SpacingY = "Spacing Y";
+    public const string SpacingYHint = "above and below";
 
     // The arrangement written out, so nobody has to picture it. Filled with the numbers.
     public const string ArrangementColumns = "{0} columns of {1}";
