@@ -58,6 +58,12 @@ internal struct AuraSnapshot
     /// <summary>Whether Esuna takes it off — the one thing a healer scans a party for.</summary>
     public bool CanDispel;
 
+    /// <summary>
+    /// The collect pass it first turned up on — larger is newer. A pass counter, not a clock:
+    /// the only thing ever asked of it is which of two effects arrived later.
+    /// </summary>
+    public int Born;
+
     /// <summary>The game's ranking, kept so the order can be seen to come from somewhere.</summary>
     public byte Priority;
 }
@@ -567,8 +573,16 @@ internal sealed class PartySnapshot
             return;
         }
 
-        int count = slot.IsLocalPlayer && this.IsSolo
-            ? NativeUi.ReadCharacterStatuses(slot.Address, m_statuses)
+        // 🔴 From the person standing in the world, not from the party structure, whenever the
+        // game has them loaded. Both hold the same effects, but the party copy is refreshed
+        // from the network and its seconds therefore arrive in steps, while the object in the
+        // world counts its own down every frame — see NativeUi.FindByEntityId. The party
+        // structure stays as the fallback for somebody the game has not loaded, where it is
+        // the only thing there is.
+        nint world = NativeUi.FindByEntityId(slot.EntityId);
+
+        int count = world != 0
+            ? NativeUi.ReadCharacterStatuses(world, m_statuses)
             : NativeUi.ReadMemberStatuses(slot.Address, m_statuses);
 
         int start = index * MaxAuras;
@@ -600,7 +614,7 @@ internal sealed class PartySnapshot
                 continue;
             }
 
-            float duration = m_durations.Observe(slot.EntityId, id, entry.Remaining);
+            float duration = m_durations.Observe(slot.EntityId, id, entry.Remaining, out int born);
 
             if (facts.Category == 1)
             {
@@ -625,17 +639,17 @@ internal sealed class PartySnapshot
 
                 if (mine)
                 {
-                    Insert(m_buffs, start, ref slot.BuffCount, entry, facts, duration);
+                    Insert(m_buffs, start, ref slot.BuffCount, entry, facts, duration, born);
                 }
                 else if (!m_ownBuffsOnly)
                 {
                     // Without the split, everything lands in the first row the way it did
                     // before there was a second one.
-                    Insert(m_buffs, start, ref slot.BuffCount, entry, facts, duration);
+                    Insert(m_buffs, start, ref slot.BuffCount, entry, facts, duration, born);
                 }
                 else
                 {
-                    Insert(m_others, start, ref slot.OtherCount, entry, facts, duration);
+                    Insert(m_others, start, ref slot.OtherCount, entry, facts, duration, born);
                 }
 
                 continue;
@@ -646,7 +660,7 @@ internal sealed class PartySnapshot
                 slot.HasDispellable = true;
             }
 
-            Insert(m_auras, start, ref slot.AuraCount, entry, facts, duration);
+            Insert(m_auras, start, ref slot.AuraCount, entry, facts, duration, born);
         }
     }
 
@@ -689,6 +703,7 @@ internal sealed class PartySnapshot
             aura.StatusId = id;
             aura.Icon = facts.Icon;
             aura.CanDispel = facts.CanDispel;
+            aura.Born = 0;
             aura.Priority = facts.Priority;
 
             // A different point of the sweep on each, so what the sweep is doing can be seen
@@ -774,6 +789,7 @@ internal sealed class PartySnapshot
             slot.Icon = facts.Icon;
             slot.CanDispel = false;
             slot.Priority = facts.Priority;
+            slot.Born = 0;
             slot.Duration = PlaceholderDuration;
             slot.Remaining = PlaceholderRemaining(scatter + (i * 11));
             slot.Stacks = 0;
@@ -783,12 +799,21 @@ internal sealed class PartySnapshot
     }
 
     /// <summary>
-    /// Puts one affliction in its place, highest ranked first, keeping at most
-    /// <see cref="MaxAuras"/>.
+    /// Puts one effect in its place, keeping at most <see cref="MaxAuras"/>. Something ranked
+    /// below a full list is dropped where it stands.
+    /// <para>
+    /// 🔴 The order is: anything Esuna takes off first, then whatever arrived last. It used to
+    /// be the game's own <c>PartyListPriority</c> alone, and with a row cut down to two icons
+    /// that read as a shuffle — a new affliction the game happens to rank higher pushed a
+    /// visible one out, and the pushed-out one reappeared when the newcomer expired (Florian,
+    /// 2026-09-22). Which two icons a frame can hold is still a choice made for you, but now
+    /// it is one that can be predicted: the thing you can act on, then the thing that just
+    /// happened. The game's ranking stays as the last word between two effects that landed on
+    /// the same pass, so the order never comes down to where the game happened to file them.
+    /// </para>
     /// <para>
     /// An insertion into a list of eight, which is cheaper than collecting everything and
-    /// sorting afterwards and never allocates. Something ranked below a full list is dropped
-    /// where it stands.
+    /// sorting afterwards and never allocates.
     /// </para>
     /// </summary>
     private static void Insert(
@@ -797,11 +822,12 @@ internal sealed class PartySnapshot
         ref int count,
         in NativeUi.StatusEntry entry,
         in StatusFacts facts,
-        float duration)
+        float duration,
+        int born)
     {
         int at = count;
 
-        while (at > 0 && auras[start + at - 1].Priority < facts.Priority)
+        while (at > 0 && Outranks(facts.CanDispel, born, facts.Priority, in auras[start + at - 1]))
         {
             if (at < MaxAuras)
             {
@@ -829,12 +855,36 @@ internal sealed class PartySnapshot
         auras[start + at].Duration = duration;
         auras[start + at].Stacks = entry.Param;
         auras[start + at].CanDispel = facts.CanDispel;
+        auras[start + at].Born = born;
         auras[start + at].Priority = facts.Priority;
 
         if (count < MaxAuras)
         {
             count++;
         }
+    }
+
+    /// <summary>
+    /// Whether an effect about to be placed belongs in front of one already in the row.
+    /// <para>
+    /// Strictly in front, never merely equal: two effects that tie on all three tests keep the
+    /// order they were read in, and a comparison that let a tie move things would reshuffle
+    /// the row every frame for no reason anybody could see.
+    /// </para>
+    /// </summary>
+    private static bool Outranks(bool canDispel, int born, byte priority, in AuraSnapshot sitting)
+    {
+        if (canDispel != sitting.CanDispel)
+        {
+            return canDispel;
+        }
+
+        if (born != sitting.Born)
+        {
+            return born > sitting.Born;
+        }
+
+        return priority > sitting.Priority;
     }
 
     /// <summary>The afflictions on the member drawn at <paramref name="index"/>.</summary>
