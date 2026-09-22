@@ -22,12 +22,16 @@ internal enum JobGroup
 /// <summary>One job, as it appears in a list the player picks from.</summary>
 internal readonly struct JobEntry
 {
-    public JobEntry(uint id, JobGroup group, string name)
+    public JobEntry(uint id, JobGroup group, string name, string abbreviation)
     {
         this.Id = id;
         this.Group = group;
         this.Name = name;
+        this.Abbreviation = abbreviation;
     }
+
+    /// <summary>The games own three letters for the job, in the clients language ("WHM").</summary>
+    public string Abbreviation { get; }
 
     /// <summary>The ClassJob row id, which is what everything else keys on.</summary>
     public uint Id { get; }
@@ -93,6 +97,10 @@ internal static class JobList
         (35, JobGroup.MagicalRanged),  // Red Mage
         (42, JobGroup.MagicalRanged),  // Pictomancer
         (36, JobGroup.MagicalRanged),  // Blue Mage
+
+        // A limited job like Blue Mage, and listed beside it for the same reason: it has a
+        // colour of its own, and somebody playing it binds and profiles it like any other.
+        (43, JobGroup.MagicalRanged),  // Beastmaster
     };
 
     /// <summary>
@@ -116,7 +124,7 @@ internal static class JobList
                 continue;
             }
 
-            Entries.Add(new JobEntry(id, group, name));
+            Entries.Add(new JobEntry(id, group, name, Abbreviation(sheet, id)));
         }
 
         s_all = Entries.ToArray();
@@ -145,6 +153,19 @@ internal static class JobList
         index >= 0 && index < s_all.Length
             ? s_all[index]
             : (s_all.Length > 0 ? s_all[0] : default);
+
+    private static string Abbreviation(Lumina.Excel.ExcelSheet<ClassJob>? sheet, uint id)
+    {
+        try
+        {
+            return sheet?.GetRow(id).Abbreviation.ExtractText() ?? string.Empty;
+        }
+        catch (Exception ex)
+        {
+            Services.Log.Error(ex, "Job abbreviation could not be read for row {Id}.", id);
+            return string.Empty;
+        }
+    }
 
     private static string Name(Lumina.Excel.ExcelSheet<ClassJob>? sheet, uint id)
     {

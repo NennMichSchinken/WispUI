@@ -65,8 +65,31 @@ internal static class Jobs
 
     private const int IconSetFramed = 62100;
 
+    /// <summary>The palette as shipped. Never written after the type loads.</summary>
+    private static readonly uint[] Shipped = new uint[Count];
+
+    /// <summary>What is drawn: the shipped palette with the player's own colours laid over it.</summary>
     private static readonly uint[] Colours = new uint[Count];
+
     private static readonly JobRole[] Roles = new JobRole[Count];
+
+    /// <summary>Each class and the job it grows into, kept so a changed job colour reaches its class.</summary>
+    private static readonly (int ClassId, int JobId)[] ClassOf =
+    {
+        (1, 19),  // Gladiator -> Paladin
+        (3, 21),  // Marauder -> Warrior
+        (6, 24),  // Conjurer -> White Mage
+        (26, 28), // Arcanist -> Scholar
+        (2, 20),  // Pugilist -> Monk
+        (4, 22),  // Lancer -> Dragoon
+        (29, 30), // Rogue -> Ninja
+        (5, 23),  // Archer -> Bard
+        (7, 25),  // Thaumaturge -> Black Mage
+    };
+
+    private static uint s_roleTank = Tokens.Col.RoleTank;
+    private static uint s_roleHealer = Tokens.Col.RoleHealer;
+    private static uint s_roleDps = Tokens.Col.RoleDps;
 
     static Jobs()
     {
@@ -111,16 +134,60 @@ internal static class Jobs
 
         // The classes a job grows out of. They keep the job's colour and role, so a party
         // member below level 30 is not suddenly uncoloured.
-        Inherit(1, 19);  // Gladiator -> Paladin
-        Inherit(3, 21);  // Marauder -> Warrior
-        Inherit(6, 24);  // Conjurer -> White Mage
-        Inherit(26, 28); // Arcanist -> Scholar
-        Inherit(2, 20);  // Pugilist -> Monk
-        Inherit(4, 22);  // Lancer -> Dragoon
-        Inherit(29, 30); // Rogue -> Ninja
-        Inherit(5, 23);  // Archer -> Bard
-        Inherit(7, 25);  // Thaumaturge -> Black Mage
+        for (int i = 0; i < ClassOf.Length; i++)
+        {
+            Roles[ClassOf[i].ClassId] = Roles[ClassOf[i].JobId];
+            Shipped[ClassOf[i].ClassId] = Shipped[ClassOf[i].JobId];
+        }
+
+        Array.Copy(Shipped, Colours, Count);
     }
+
+    /// <summary>
+    /// Lays the player's own colours over the shipped palette. Called on load and whenever one
+    /// of them changes — never per frame: a bar reads the result out of a flat array.
+    /// <para>
+    /// Only what the player changed is stored, so a colour they never touched keeps following
+    /// the shipped palette if that palette is ever corrected.
+    /// </para>
+    /// </summary>
+    public static void Apply(IReadOnlyDictionary<uint, uint> jobs, IReadOnlyDictionary<int, uint> roles)
+    {
+        Array.Copy(Shipped, Colours, Count);
+
+        foreach (KeyValuePair<uint, uint> pair in jobs)
+        {
+            if (IsColoured(pair.Key))
+            {
+                Colours[pair.Key] = pair.Value;
+            }
+        }
+
+        // A class wears whatever its job wears now, not what the job wore when shipped.
+        for (int i = 0; i < ClassOf.Length; i++)
+        {
+            Colours[ClassOf[i].ClassId] = Colours[ClassOf[i].JobId];
+        }
+
+        s_roleTank = roles.TryGetValue((int)JobRole.Tank, out uint tank) ? tank : Tokens.Col.RoleTank;
+        s_roleHealer = roles.TryGetValue((int)JobRole.Healer, out uint healer) ? healer : Tokens.Col.RoleHealer;
+        s_roleDps = roles.TryGetValue((int)JobRole.Dps, out uint dps) ? dps : Tokens.Col.RoleDps;
+    }
+
+    /// <summary>Whether this row id is a job with a colour of its own — what a stored colour may name.</summary>
+    public static bool IsColoured(uint jobId) => jobId < Count && Shipped[jobId] != 0;
+
+    /// <summary>The colour a job ships with, whatever the player has made of it.</summary>
+    public static uint ShippedColour(uint jobId) => IsColoured(jobId) ? Shipped[jobId] : Tokens.Col.Ink;
+
+    /// <summary>The colour a role ships with: the measured one in the tokens.</summary>
+    public static uint ShippedRoleColour(JobRole role) => role switch
+    {
+        JobRole.Tank => Tokens.Col.RoleTank,
+        JobRole.Healer => Tokens.Col.RoleHealer,
+        JobRole.Dps => Tokens.Col.RoleDps,
+        _ => Tokens.Col.InkDim,
+    };
 
     /// <summary>The colour of a job, or the body text colour for anything we do not know.</summary>
     public static uint Colour(uint jobId) =>
@@ -131,9 +198,9 @@ internal static class Jobs
     /// <summary>The colour of a role — the three a player reads before they read a name.</summary>
     public static uint RoleColour(JobRole role) => role switch
     {
-        JobRole.Tank => Tokens.Col.RoleTank,
-        JobRole.Healer => Tokens.Col.RoleHealer,
-        JobRole.Dps => Tokens.Col.RoleDps,
+        JobRole.Tank => s_roleTank,
+        JobRole.Healer => s_roleHealer,
+        JobRole.Dps => s_roleDps,
         _ => Tokens.Col.InkDim,
     };
 
@@ -199,12 +266,6 @@ internal static class Jobs
     private static void Set(int jobId, JobRole role, uint hex)
     {
         Roles[jobId] = role;
-        Colours[jobId] = 0xFF000000u | ((hex & 0x0000FFu) << 16) | (hex & 0x00FF00u) | ((hex & 0xFF0000u) >> 16);
-    }
-
-    private static void Inherit(int classId, int jobId)
-    {
-        Roles[classId] = Roles[jobId];
-        Colours[classId] = Colours[jobId];
+        Shipped[jobId] = 0xFF000000u | ((hex & 0x0000FFu) << 16) | (hex & 0x00FF00u) | ((hex & 0xFF0000u) >> 16);
     }
 }

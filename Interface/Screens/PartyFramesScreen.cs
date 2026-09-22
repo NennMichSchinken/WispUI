@@ -173,7 +173,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdLines = "##wisp-pf-lines";
     private const string IdWidth = "##wisp-pf-width";
     private const string IdHeight = "##wisp-pf-height";
-    private const string IdSpacing = "##wisp-pf-spacing";
+    private const string IdSpacingX = "##wisp-pf-spacing";
+    private const string IdSpacingY = "##wisp-pf-spacing-y";
 
     // The ranges from the spec, §4. The useful height is 30-70; the rest is there so a small
     // party can have tall frames.
@@ -232,7 +233,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     // moves. The slots are in this order.
     private const int SlotWidth = 0;
     private const int SlotHeight = 1;
-    private const int SlotSpacing = 2;
+    private const int SlotSpacingX = 2;
     private const int SlotHealthX = 3;
     private const int SlotHealthY = 4;
     private const int SlotManaHeight = 5;
@@ -280,8 +281,10 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
     private const int SlotOtherDurationSize = 41;
 
-    /// <summary>🔴 The last slot. Adding one below this means moving the line under it too.</summary>
     private const int SlotOtherStackSize = 42;
+
+    /// <summary>🔴 The last slot. Adding one below this means moving the line under it too.</summary>
+    private const int SlotSpacingY = 43;
 
     /// <summary>
     /// How many slots there are, derived from the last one rather than written down.
@@ -294,7 +297,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     /// array grows with it.
     /// </para>
     /// </summary>
-    private const int SlotCount = SlotOtherStackSize + 1;
+    private const int SlotCount = SlotSpacingY + 1;
 
 
 
@@ -3137,7 +3140,9 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         rowY += pitch;
         this.PixelSlider(IdHeight, Strings.FrameHeight, SlotHeight, group, rowY, MinHeight, MaxHeight, true, null);
         rowY += pitch;
-        this.PixelSlider(IdSpacing, Strings.Spacing, SlotSpacing, group, rowY, 0f, MaxSpacing, true, Strings.SpacingHint);
+        this.PixelSlider(IdSpacingX, Strings.SpacingX, SlotSpacingX, group, rowY, 0f, MaxSpacing, true, Strings.SpacingXHint);
+        rowY += pitch;
+        this.PixelSlider(IdSpacingY, Strings.SpacingY, SlotSpacingY, group, rowY, 0f, MaxSpacing, true, Strings.SpacingYHint);
 
         float used = rowY - group.ContentY + Chrome.RowHeight();
         Chrome.EndGroupContent(group, used);
@@ -3156,7 +3161,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         switch (mode)
         {
             case BarColourMode.Role:
-                Stripes(dl, min, max, Tokens.Col.RoleTank, Tokens.Col.RoleHealer, Tokens.Col.RoleDps);
+                Stripes(dl, min, max, Jobs.RoleColour(JobRole.Tank), Jobs.RoleColour(JobRole.Healer), Jobs.RoleColour(JobRole.Dps));
                 break;
 
             case BarColourMode.Job:
@@ -3232,7 +3237,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     {
         SlotWidth => m_config.PartyFrames.FrameWidth,
         SlotHeight => m_config.PartyFrames.FrameHeight,
-        SlotSpacing => m_config.PartyFrames.Spacing,
+        SlotSpacingX => m_config.PartyFrames.SpacingX,
+        SlotSpacingY => m_config.PartyFrames.SpacingY,
         SlotHealthX => m_config.PartyFrames.HpTextX,
         SlotHealthY => m_config.PartyFrames.HpTextY,
         SlotHealthSize => m_config.PartyFrames.HpTextSize,
@@ -3281,7 +3287,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         {
             case SlotWidth: m_config.PartyFrames.FrameWidth = value; break;
             case SlotHeight: m_config.PartyFrames.FrameHeight = value; break;
-            case SlotSpacing: m_config.PartyFrames.Spacing = value; break;
+            case SlotSpacingX: m_config.PartyFrames.SpacingX = value; break;
+            case SlotSpacingY: m_config.PartyFrames.SpacingY = value; break;
             case SlotHealthX: m_config.PartyFrames.HpTextX = value; break;
             case SlotHealthY: m_config.PartyFrames.HpTextY = value; break;
             case SlotHealthSize: m_config.PartyFrames.HpTextSize = value; break;

@@ -62,8 +62,11 @@ public sealed class Profile
     /// <summary>The party frames as this profile has them.</summary>
     public Configuration.PartyFramesConfig PartyFrames { get; set; } = new();
 
-    /// <summary>Whether the party frames are drawn at all under this profile.</summary>
-    public bool PartyFramesEnabled { get; set; } = true;
+    /// <summary>
+    /// Whether the party frames are drawn at all under this profile. Off by default, for the
+    /// reason on <see cref="Configuration.PartyFramesEnabled"/>.
+    /// </summary>
+    public bool PartyFramesEnabled { get; set; }
 
     /// <summary>
     /// Whether this profile answers for the job being played. The fallback answers for
@@ -195,7 +198,7 @@ public sealed class Profile
     /// <c>skip.txt</c> holds what a profile must NOT carry, one name per line:
     /// <c>BarStyle</c>, <c>Font</c>, <c>ShortenNames</c>, <c>ClickToTarget</c>,
     /// <c>ContextMenu</c>, <c>MouseoverCasting</c>, <c>AuraNumberSize</c>, <c>FontName</c>,
-    /// <c>TextWeight</c>, <c>TextEdge</c> — migration relics, kept only so an old file can
+    /// <c>TextWeight</c>, <c>TextEdge</c>, <c>Spacing</c> — migration relics, kept only so an old file can
     /// be read once — and <c>Bindings</c>, <c>Mouseover</c>, which belong to the hands at
     /// the keyboard rather than to the look of a frame.
     /// </para>
@@ -307,7 +310,8 @@ public sealed class Profile
         to.PositionY = from.PositionY;
         to.FrameWidth = from.FrameWidth;
         to.FrameHeight = from.FrameHeight;
-        to.Spacing = from.Spacing;
+        to.SpacingX = from.SpacingX;
+        to.SpacingY = from.SpacingY;
         to.Direction = from.Direction;
         to.Lines = from.Lines;
         to.HideNativePartyList = from.HideNativePartyList;
