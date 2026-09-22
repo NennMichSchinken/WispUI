@@ -12,7 +12,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 19;
+    public const int CurrentVersion = 20;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -96,6 +96,18 @@ public sealed class Configuration : IPluginConfiguration
     public const float MinFrameHeight = 18f;
     public const float MaxFrameHeight = 150f;
     public const float MaxFrameSpacing = 24f;
+
+    /// <summary>
+    /// The smallest meter that still holds its title bar with all four buttons and one bar,
+    /// and the largest any screen needs. The corner stops at the first two while dragging.
+    /// </summary>
+    public const float MinMeterWidth = 220f;
+    public const float MinMeterHeight = 110f;
+    public const float MaxMeterSize = 2000f;
+    public const float MinMeterTitle = 20f;
+    public const float MaxMeterTitle = 60f;
+    public const float MinMeterBarHeight = 14f;
+    public const float MaxMeterBarHeight = 60f;
     public const float MinManaHeight = 2f;
     public const float MaxManaHeight = 16f;
     public const float MinIconSize = 8f;
@@ -191,6 +203,15 @@ public sealed class Configuration : IPluginConfiguration
     public bool PartyFramesEnabled { get; set; }
 
     public PartyFramesConfig PartyFrames { get; set; } = new();
+
+    /// <summary>
+    /// Whether the combat meter is drawn at all. Off by default, for the same reason as the
+    /// party frames: nothing appears on somebody's screen until they ask for it — and this
+    /// one also needs IINACT to have anything to show.
+    /// </summary>
+    public bool CombatTrackerEnabled { get; set; }
+
+    public CombatTrackerConfig CombatTracker { get; set; } = new();
 
     /// <summary>
     /// The saved profiles and which one is on.
@@ -1098,17 +1119,119 @@ public sealed class Configuration : IPluginConfiguration
         /// </summary>
         private const int MaxAurasPerRow = Hud.PartyFrames.PartySnapshot.MaxAuras;
 
-        /// <summary>
-        /// A number inside its range, or the default when it is not a number at all. The
-        /// second case is the one that matters: NaN fails every comparison, so it slips
-        /// through a clamp untouched and then quietly poisons every size computed from it.
-        /// </summary>
-        private static float Bounded(float value, float low, float high, float fallback) =>
-            float.IsFinite(value) ? Math.Clamp(value, low, high) : fallback;
-
         private static float Offset(float value, float fallback) =>
             Bounded(value, -MaxTextOffset, MaxTextOffset, fallback);
     }
+
+    /// <summary>
+    /// The combat meter's own settings (version 20). Ported from HamMeter, our own published
+    /// plugin, minus what the suite now answers for it: its colours are the suite's palette
+    /// and surfaces, its header and icons are the suite's sizes.
+    /// </summary>
+    [Serializable]
+    public sealed class CombatTrackerConfig
+    {
+        /// <summary>Top left of the meter on the screen, in screen pixels.</summary>
+        public float PositionX { get; set; } = 100f;
+
+        public float PositionY { get; set; } = 700f;
+
+        /// <summary>The whole meter, rim included. Set by dragging its corner.</summary>
+        public float Width { get; set; } = 360f;
+
+        public float Height { get; set; } = 240f;
+
+        /// <summary>A locked meter can neither be moved by its title bar nor resized.</summary>
+        public bool Locked { get; set; }
+
+        /// <summary>The suite's four-ring frame around the meter. On by default (Florian, 2026-09-22).</summary>
+        public bool ShowRim { get; set; } = true;
+
+        /// <summary>
+        /// The title bar. 34 by default, lower than the window's 42: on a meter four bars tall
+        /// the full height would take a quarter of the element (spec §3a). A setting since
+        /// Florian asked for one (2026-09-22).
+        /// </summary>
+        public float TitleHeight { get; set; } = 34f;
+
+        /// <summary>What the title bar says is written at this size. 16 is Axis's own, so it is sharp there.</summary>
+        public float TitleTextSize { get; set; } = 16f;
+
+        /// <summary>How much of the meter's surfaces is painted — the bars keep their own opacity.</summary>
+        public float BackgroundOpacity { get; set; } = 1f;
+
+        /// <summary>The same list of styles the party frames offer, stored by name the same way.</summary>
+        public string BarStyleName { get; set; } = Data.BarStyles.DefaultName;
+
+        /// <summary>0 = by job, 1 = by role. Both read the suite's palette under Global.</summary>
+        public int ColourMode { get; set; }
+
+        public float BarOpacity { get; set; } = 1f;
+
+        public bool SmoothBars { get; set; } = true;
+
+        public float BarHeight { get; set; } = 26f;
+
+        public float BarSpacing { get; set; } = 3f;
+
+        /// <summary>One size for everything written on a bar — one font handle, not three.</summary>
+        public float TextSize { get; set; } = 14f;
+
+        /// <summary>0 = job icon, 1 = the job's three letters, 2 = nothing.</summary>
+        public int JobMark { get; set; }
+
+        /// <summary>Which of the game's two icon sets, like the party frames' own: 0 framed, 1 plain.</summary>
+        public int JobIconStyle { get; set; }
+
+        public bool ShowRanks { get; set; } = true;
+
+        /// <summary>1.2M rather than 1,234,567.</summary>
+        public bool ShortNumbers { get; set; } = true;
+
+        /// <summary>Which reading the meter shows; see <see cref="Data.CombatMetric"/>.</summary>
+        public int Metric { get; set; }
+
+        public bool OnlyInCombat { get; set; }
+
+        public bool AutoResetInDuty { get; set; } = true;
+
+        public bool ConfirmReset { get; set; } = true;
+
+        /// <summary>Tells IINACT to close the fight whenever the meter is reset.</summary>
+        public bool EndEncounterOnReset { get; set; }
+
+        /// <summary>Tells IINACT to close the fight a few seconds after combat ends.</summary>
+        public bool AutoEndCombat { get; set; }
+
+        internal void Sanitise()
+        {
+            this.PositionX = Bounded(this.PositionX, -MaxPosition, MaxPosition, 100f);
+            this.PositionY = Bounded(this.PositionY, -MaxPosition, MaxPosition, 700f);
+            this.Width = Bounded(this.Width, MinMeterWidth, MaxMeterSize, 360f);
+            this.Height = Bounded(this.Height, MinMeterHeight, MaxMeterSize, 240f);
+            this.TitleHeight = Bounded(this.TitleHeight, MinMeterTitle, MaxMeterTitle, 34f);
+            this.TitleTextSize = Bounded(this.TitleTextSize, MinTextSize, MaxTextSize, 16f);
+            this.BackgroundOpacity = Bounded(this.BackgroundOpacity, 0f, 1f, 1f);
+            this.BarOpacity = Bounded(this.BarOpacity, MinBarOpacity, 1f, 1f);
+            this.BarHeight = Bounded(this.BarHeight, MinMeterBarHeight, MaxMeterBarHeight, 26f);
+            this.BarSpacing = Bounded(this.BarSpacing, 0f, MaxFrameSpacing, 3f);
+            this.TextSize = Bounded(this.TextSize, MinTextSize, MaxTextSize, 14f);
+            this.BarStyleName ??= Data.BarStyles.DefaultName;
+            this.ColourMode = Math.Clamp(this.ColourMode, 0, 1);
+            this.JobMark = Math.Clamp(this.JobMark, 0, 2);
+            this.JobIconStyle = Known<Data.JobIconStyle>(this.JobIconStyle);
+            this.Metric = Known<Data.CombatMetric>(this.Metric);
+        }
+    }
+
+    /// <summary>
+    /// A number inside its range, or the default when it is not a number at all. The
+    /// second case is the one that matters: NaN fails every comparison, so it slips
+    /// through a clamp untouched and then quietly poisons every size computed from it.
+    /// <para>On the outer class since version 20, so every module's block can use it.</para>
+    /// </summary>
+    private static float Bounded(float value, float low, float high, float fallback) =>
+        float.IsFinite(value) ? Math.Clamp(value, low, high) : fallback;
 
     /// <summary>
     /// A stored number that stands for one of a list. Asked of the enum itself rather than
@@ -1174,6 +1297,8 @@ public sealed class Configuration : IPluginConfiguration
 
         this.PartyFrames ??= new PartyFramesConfig();
         this.PartyFrames.Sanitise();
+        this.CombatTracker ??= new CombatTrackerConfig();
+        this.CombatTracker.Sanitise();
         this.Profiles ??= new ProfileSet();
         this.Profiles.Sanitise();
     }
@@ -1655,6 +1780,9 @@ public sealed class Configuration : IPluginConfiguration
 
         // Version 19 added the palette. Nothing to move: an empty palette is the shipped one,
         // which is what everybody had.
+
+        // Version 20 added the combat meter's block. Nothing to move either: it arrives with
+        // its defaults and switched off.
     }
 
     /// <inheritdoc cref="PartyFramesConfig.SpacingX"/>

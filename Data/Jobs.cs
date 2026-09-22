@@ -219,9 +219,10 @@ internal static class Jobs
     /// instead of on a list (session 12).
     /// </para>
     /// <para>
-    /// ⚠️ Not yet checked against a non-English client. Job abbreviations are the same three
-    /// letters in every language the game ships, which is why this is safe to derive; if one
-    /// of them ever is not, a job simply shows the body text colour instead of its own.
+    /// 🔴 Always the ENGLISH sheet. The abbreviations are not the same in every language: the
+    /// German client calls a Warrior "KRG" and a Black Mage "SMA". The fight data speaks
+    /// English whatever the client does, so on a German client the meter recognised no job
+    /// at all and dropped every line as not being a player (Florian, 2026-09-22).
     /// </para>
     /// <para>
     /// Built once, on demand, never from a draw path — a sheet read there is one of the things
@@ -242,7 +243,7 @@ internal static class Jobs
         {
             var built = new Dictionary<string, uint>(64, StringComparer.OrdinalIgnoreCase);
 
-            var sheet = Services.Data.GetExcelSheet<Lumina.Excel.Sheets.ClassJob>();
+            var sheet = Services.Data.GetExcelSheet<Lumina.Excel.Sheets.ClassJob>(Dalamud.Game.ClientLanguage.English);
 
             if (sheet is not null)
             {

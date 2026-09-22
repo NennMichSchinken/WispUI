@@ -104,6 +104,8 @@ internal static class News
     /// <summary>Tab numbers on the party frames screen, named so a note is readable.</summary>
     private const int GlobalColours = 1;
 
+    private const int TrackerBase = 0;
+
     private const int PartyBase = 0;
     private const int PartyText = 1; // No note leads here yet; the tab numbers are kept whole so one can.
     private const int PartyIcons = 2;
@@ -147,6 +149,12 @@ internal static class News
                     Screen.PartyFrames,
                     PartyBase,
                     "##wisp-pf-health"),
+                new(
+                    NewsKind.New,
+                    "A damage meter in the same look, fed by IINACT.",
+                    Screen.CombatTracker,
+                    TrackerBase,
+                    "##wisp-ct-bars"),
                 new(
                     NewsKind.New,
                     "Pick your own colour for every job and role.",

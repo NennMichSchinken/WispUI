@@ -36,7 +36,7 @@ internal sealed class IinactClient : IDisposable
     private const string UnsubscribeEndpoint = "IINACT.Unsubscribe";
     private const string ProviderEditEndpoint = "IINACT.IpcProvider." + SubscriptionEndpoint;
     private const string SubscriptionMessage = "{\"call\":\"subscribe\",\"events\":[\"CombatData\"]}";
-    private const int MaxHistory = 50;
+    internal const int MaxHistory = 50;
 
     private readonly ICallGateProvider<JObject, bool> m_receiver;
 

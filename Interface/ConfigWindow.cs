@@ -27,6 +27,7 @@ internal enum Screen
     Global,
     Profile,
     PartyFrames,
+    CombatTracker,
 
     /// <summary>The release notes. Reached from the card in the navigation footer, not from a nav row.</summary>
     News,
@@ -155,6 +156,9 @@ internal sealed class ConfigWindow : Window
         Strings.TabBindings,
     };
 
+    /// <summary>The bar and what it says · where the meter goes and how it is framed.</summary>
+    private static readonly string[] TabsCombatTracker = { Strings.TabBase, Strings.TabLayout };
+
     /// <summary>
     /// Which chip is the bindings tab, asked of the list rather than written down. Two places
     /// far apart act on it, and a literal in both is the pair that drifts when a tab is
@@ -173,6 +177,7 @@ internal sealed class ConfigWindow : Window
         new("##wisp-nav-profile", Strings.NavProfile, Screen.Profile),
         NavRow.Separator(),
         new("##wisp-nav-party", Strings.NavPartyFrames, Screen.PartyFrames),
+        new("##wisp-nav-tracker", Strings.NavCombatTracker, Screen.CombatTracker),
         NavRow.NotYet("##wisp-nav-playerbars", Strings.NavPlayerBars),
         NavRow.NotYet("##wisp-nav-gauges", Strings.NavJobGauges),
     };
@@ -192,6 +197,7 @@ internal sealed class ConfigWindow : Window
     private readonly ProfileScreen m_profiles;
     private readonly NewsScreen m_news = new();
     private readonly PartyFramesScreen m_partyFrames;
+    private readonly CombatTrackerScreen m_combatTracker;
 
     /// <summary>
     /// One buffer for the whole suite, and one strip that offers it. Both are built here and
@@ -217,7 +223,7 @@ internal sealed class ConfigWindow : Window
     /// <summary>Whether the pointer is currently ours to speak for.</summary>
     private bool m_ownsCursor;
 
-    public ConfigWindow(Configuration config, Hud.HudElement? previewOf)
+    public ConfigWindow(Configuration config, Hud.HudElement? previewOf, Hud.CombatTracker.CombatTrackerElement meter)
         : base(
             Strings.WindowId,
             ImGuiWindowFlags.NoTitleBar
@@ -233,6 +239,7 @@ internal sealed class ConfigWindow : Window
         m_global.InfoBarPreferenceChanged += () => this.InfoBarPreferenceChanged?.Invoke();
 
         m_partyFrames = new PartyFramesScreen(config);
+        m_combatTracker = new CombatTrackerScreen(config, meter);
         m_appearance = new AppearanceBar(m_clipboard);
 
         string version = ReadVersion();
@@ -242,6 +249,17 @@ internal sealed class ConfigWindow : Window
 
     /// <summary>Raised when the user turns the server info bar entry on or off.</summary>
     public event Action? InfoBarPreferenceChanged;
+
+    /// <summary>Raised when the window closes — what switches the meter's test mode back off.</summary>
+    public event Action? Closed;
+
+    /// <summary>Opens the window on one screen, from somewhere outside it — the meter's gear.</summary>
+    public void OpenAt(Screen screen)
+    {
+        m_screen = screen;
+        this.IsOpen = true;
+        this.BringToFront();
+    }
 
     /// <summary>
     /// Closing the window puts the appearance clipboard's step back out of reach. Undo is
@@ -256,6 +274,7 @@ internal sealed class ConfigWindow : Window
         // back on the next time the window opens, which is the whole reason they are allowed
         // to be as many as they are.
         PreviewMask.ShowAll();
+        this.Closed?.Invoke();
 
         this.ReleaseCursor();
     }
@@ -411,7 +430,7 @@ internal sealed class ConfigWindow : Window
 
         if (this.IsFocused)
         {
-            DrawWindowEdge(dl, origin, size);
+            DrawWindowEdge(dl, origin, size, Tokens.Line(1f), Tokens.Radius.Window);
         }
     }
 
@@ -441,11 +460,14 @@ internal sealed class ConfigWindow : Window
     /// four one-pixel rings blur into one another around a curve. FFXIV's own corners read
     /// darker for the same reason.
     /// </para>
+    /// <para>
+    /// Shared with the combat meter, which wears the same frame on the world. The ring width
+    /// and radius are handed in because the two live in different scales: the window grows
+    /// with the suite scale, the meter is measured in screen pixels.
+    /// </para>
     /// </summary>
-    private static void DrawWindowEdge(ImDrawListPtr dl, Vector2 origin, Vector2 size)
+    internal static void DrawWindowEdge(ImDrawListPtr dl, Vector2 origin, Vector2 size, float ring, float radius)
     {
-        float ring = Tokens.Line(1f);
-        float radius = Tokens.Radius.Window;
         int rings = Tokens.Col.EdgeTop.Length;
 
         for (int i = 0; i < rings; i++)
@@ -539,6 +561,7 @@ internal sealed class ConfigWindow : Window
         Screen.Global => Strings.NavGlobal,
         Screen.Profile => Strings.NavProfile,
         Screen.News => Strings.NewsTitle,
+        Screen.CombatTracker => Strings.NavCombatTracker,
         _ => Strings.NavPartyFrames,
     };
 
@@ -551,6 +574,7 @@ internal sealed class ConfigWindow : Window
         // the header keeps its shape — but the notes are not a module, and a chip reading
         // "Base" over a list of sentences would say this is something to configure.
         Screen.News => TabsNone,
+        Screen.CombatTracker => TabsCombatTracker,
         _ => TabsPartyFrames,
     };
 
@@ -1052,6 +1076,7 @@ internal sealed class ConfigWindow : Window
                 && Chrome.PillButton(IdPreviewShowAll, Strings.PreviewShowAll, origin.X, below))
             {
                 PreviewMask.ShowAll();
+        this.Closed?.Invoke();
             }
 
             // 🔴 Back to the corner first. Every row above placed itself with
@@ -1281,20 +1306,30 @@ internal sealed class ConfigWindow : Window
     /// </summary>
     private float DrawScreenHeader(ImDrawListPtr dl, float left, float right, float top)
     {
-        bool isModule = m_screen == Screen.PartyFrames;
+        bool isModule = m_screen is Screen.PartyFrames or Screen.CombatTracker;
+        bool isFrames = m_screen == Screen.PartyFrames;
+        bool enabled = isFrames ? m_config.PartyFramesEnabled : m_config.CombatTrackerEnabled;
         float height = Tokens.Metric.ModuleHeaderHeight;
         float x = left + Tokens.Metric.SectionPaddingX;
 
         // Told every frame, not only on the frames where the strip is drawn — that is what
         // makes the step back disappear when you leave the module.
-        m_appearance.NoteOwner(isModule ? m_partyFrames : null);
+        m_appearance.NoteOwner(isFrames ? m_partyFrames : null);
 
         if (isModule)
         {
             float switchY = MathF.Round(top + ((height - Tokens.Metric.SwitchHeight) * 0.5f));
-            if (Chrome.Switch(IdModuleSwitch, x, switchY, m_config.PartyFramesEnabled, true))
+            if (Chrome.Switch(IdModuleSwitch, x, switchY, enabled, true))
             {
-                m_config.PartyFramesEnabled = !m_config.PartyFramesEnabled;
+                if (isFrames)
+                {
+                    m_config.PartyFramesEnabled = !m_config.PartyFramesEnabled;
+                }
+                else
+                {
+                    m_config.CombatTrackerEnabled = !m_config.CombatTrackerEnabled;
+                }
+
                 m_config.MarkDirty();
             }
 
@@ -1312,7 +1347,7 @@ internal sealed class ConfigWindow : Window
         if (isModule)
         {
             x += MathF.Round(Ink.Measure(Ink.Role.ScreenTitle, title).X) + Tokens.Space.Md;
-            string state = m_config.PartyFramesEnabled ? Strings.StateOn : Strings.StateOff;
+            string state = enabled ? Strings.StateOn : Strings.StateOff;
             Ink.Draw(dl, Ink.Role.Small, new Vector2(x, Chrome.CenterY(top, height, Ink.Role.Small)), Tokens.Col.InkFaint, state);
         }
 
@@ -1328,7 +1363,7 @@ internal sealed class ConfigWindow : Window
             Chrome.Button(IdDefaults, Strings.Defaults, cursor, buttonY, false, Strings.DefaultsDisabled);
         }
 
-        if (isModule)
+        if (isFrames)
         {
             m_appearance.Draw(m_partyFrames, cursor - Tokens.Space.Md, buttonY);
         }
@@ -1388,6 +1423,14 @@ internal sealed class ConfigWindow : Window
                 {
                     this.JumpTo(note);
                 }
+            }
+            else if (m_screen == Screen.CombatTracker && tab == 0)
+            {
+                m_combatTracker.Draw(inner);
+            }
+            else if (m_screen == Screen.CombatTracker)
+            {
+                m_combatTracker.DrawLayout(inner);
             }
             else if (m_screen == Screen.PartyFrames && tab == 0)
             {
