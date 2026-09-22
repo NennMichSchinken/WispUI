@@ -289,7 +289,12 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
         ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0f);
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, Vector2.Zero);
 
-        if (ImGui.Begin(IdWindow, WindowFlags))
+        // 🔴 Deaf to the mouse while arranging. Edit mode lays one window over the whole
+        // screen to catch the drag, but this one can sit in front of it — and then the meter
+        // took the press itself and could not be picked up (Florian, 2026-09-22).
+        ImGuiWindowFlags flags = EditMode.IsActive ? WindowFlags | ImGuiWindowFlags.NoInputs : WindowFlags;
+
+        if (ImGui.Begin(IdWindow, flags))
         {
             this.DrawMeter(pos, size);
         }
@@ -321,7 +326,7 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
         float radius = Tokens.Metric.MeterRadius;
         dl.AddRectFilled(pos, max, Tokens.Col.Faded(Tokens.Col.Panel, surface), radius, ImDrawFlags.RoundCornersAll);
 
-        float titleBottom = pos.Y + Tokens.Metric.MeterTitle;
+        float titleBottom = pos.Y + Tokens.WorldPx(cfg.TitleHeight);
         this.DrawTitle(dl, pos, max.X, titleBottom, surface);
 
         float pad = Tokens.Metric.MeterPad;
@@ -368,9 +373,12 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
 
         // The four buttons, laid out from the right edge inwards: settings outermost, so it
         // stays put whatever the title says. Reset, fights, reading, settings from the left.
-        float icon = Tokens.Metric.MeterIcon;
+        float titleHeight = bottom - pos.Y;
+
+        // The buttons keep their size, and only shrink when the bar gets too low to hold them.
+        float icon = MathF.Min(Tokens.Metric.MeterIcon, titleHeight - (Tokens.Metric.MeterCardPad * 2f));
         float gap = Tokens.Metric.MeterIconGap;
-        float iconY = MathF.Round(pos.Y + ((Tokens.Metric.MeterTitle - icon) * 0.5f));
+        float iconY = MathF.Round(pos.Y + ((titleHeight - icon) * 0.5f));
         float x = right - pad - icon;
 
         if (IconButton(IdSettings, LineIcons.Settings, x, iconY, icon, Strings.MeterSettingsTooltip))
@@ -407,8 +415,8 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
         float buttonsLeft = x - gap;
 
         // What is on show, clipped short of the buttons rather than running under them.
-        float textSize = Tokens.Metric.MeterTitleText;
-        float textY = MathF.Round(pos.Y + ((Tokens.Metric.MeterTitle - textSize) * 0.5f));
+        float textSize = Tokens.WorldPx(cfg.TitleTextSize);
+        float textY = MathF.Round(pos.Y + ((titleHeight - textSize) * 0.5f));
         float textX = pos.X + pad + Tokens.Metric.MeterBarInset;
 
         dl.PushClipRect(pos, new Vector2(buttonsLeft, bottom), true);
@@ -460,7 +468,7 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
             if (m_count == 0)
             {
                 string note = this.TestMode || m_client.Connected ? Strings.MeterNoData : Strings.MeterNotConnected;
-                Ink.DrawNote(dl, Tokens.Metric.MeterTitleText, origin + new Vector2(Tokens.Metric.MeterBarInset, Tokens.Metric.MeterBarInset), Tokens.Col.InkDim, note, TextEdge.None);
+                Ink.DrawNote(dl, Tokens.WorldPx(cfg.TitleTextSize), origin + new Vector2(Tokens.Metric.MeterBarInset, Tokens.Metric.MeterBarInset), Tokens.Col.InkDim, note, TextEdge.None);
             }
             else
             {

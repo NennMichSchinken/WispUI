@@ -104,6 +104,8 @@ public sealed class Configuration : IPluginConfiguration
     public const float MinMeterWidth = 220f;
     public const float MinMeterHeight = 110f;
     public const float MaxMeterSize = 2000f;
+    public const float MinMeterTitle = 20f;
+    public const float MaxMeterTitle = 60f;
     public const float MinMeterBarHeight = 14f;
     public const float MaxMeterBarHeight = 60f;
     public const float MinManaHeight = 2f;
@@ -1145,6 +1147,16 @@ public sealed class Configuration : IPluginConfiguration
         /// <summary>The suite's four-ring frame around the meter. On by default (Florian, 2026-09-22).</summary>
         public bool ShowRim { get; set; } = true;
 
+        /// <summary>
+        /// The title bar. 34 by default, lower than the window's 42: on a meter four bars tall
+        /// the full height would take a quarter of the element (spec §3a). A setting since
+        /// Florian asked for one (2026-09-22).
+        /// </summary>
+        public float TitleHeight { get; set; } = 34f;
+
+        /// <summary>What the title bar says is written at this size. 16 is Axis's own, so it is sharp there.</summary>
+        public float TitleTextSize { get; set; } = 16f;
+
         /// <summary>How much of the meter's surfaces is painted — the bars keep their own opacity.</summary>
         public float BackgroundOpacity { get; set; } = 1f;
 
@@ -1194,6 +1206,8 @@ public sealed class Configuration : IPluginConfiguration
             this.PositionY = Bounded(this.PositionY, -MaxPosition, MaxPosition, 700f);
             this.Width = Bounded(this.Width, MinMeterWidth, MaxMeterSize, 360f);
             this.Height = Bounded(this.Height, MinMeterHeight, MaxMeterSize, 240f);
+            this.TitleHeight = Bounded(this.TitleHeight, MinMeterTitle, MaxMeterTitle, 34f);
+            this.TitleTextSize = Bounded(this.TitleTextSize, MinTextSize, MaxTextSize, 16f);
             this.BackgroundOpacity = Bounded(this.BackgroundOpacity, 0f, 1f, 1f);
             this.BarOpacity = Bounded(this.BarOpacity, MinBarOpacity, 1f, 1f);
             this.BarHeight = Bounded(this.BarHeight, MinMeterBarHeight, MaxMeterBarHeight, 26f);

@@ -522,6 +522,8 @@ internal static class Strings
     public const string MeterHeight = "Height";
     public const string MeterBarHeight = "Bar height";
     public const string MeterBarSpacing = "Bar spacing";
+    public const string MeterTitleHeight = "Title height";
+    public const string MeterTitleText = "Title text size";
     public const string GroupMeterLook = "Meter";
     public const string GroupMeterLookHint = "How the meter sits on the screen.";
     public const string MeterRim = "Gold rim";

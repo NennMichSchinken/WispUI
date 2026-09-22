@@ -48,6 +48,8 @@ internal sealed class CombatTrackerScreen
     private const string IdBackground = "##wisp-ct-background";
     private const string IdLocked = "##wisp-ct-locked";
     private const string IdTest = "##wisp-ct-test";
+    private const string IdTitleHeight = "##wisp-ct-titleheight";
+    private const string IdTitleText = "##wisp-ct-titletext";
 
     private const float PixelStep = 1f;
     private const float OpacityStep = 0.01f;
@@ -62,7 +64,9 @@ internal sealed class CombatTrackerScreen
     private const int SlotBarHeight = 4;
     private const int SlotBarSpacing = 5;
     private const int SlotBackground = 6;
-    private const int SlotCount = SlotBackground + 1;
+    private const int SlotTitleHeight = 7;
+    private const int SlotTitleText = 8;
+    private const int SlotCount = SlotTitleText + 1;
 
     private static readonly string[] ColourModes = { Strings.ColourByJob, Strings.ColourByRole };
     private static readonly string[] JobMarks = { Strings.MeterJobIcon, Strings.MeterJobLetters, Strings.MeterJobOff };
@@ -303,6 +307,8 @@ internal sealed class CombatTrackerScreen
         this.PixelSlider(IdBarHeight, Strings.MeterBarHeight, SlotBarHeight, group, rowY, Configuration.MinMeterBarHeight, Configuration.MaxMeterBarHeight);
         rowY += pitch;
         this.PixelSlider(IdBarSpacing, Strings.MeterBarSpacing, SlotBarSpacing, group, rowY, 0f, Configuration.MaxFrameSpacing);
+        rowY += pitch;
+        this.PixelSlider(IdTitleHeight, Strings.MeterTitleHeight, SlotTitleHeight, group, rowY, Configuration.MinMeterTitle, Configuration.MaxMeterTitle);
 
         contentHeight = rowY - group.ContentY + Chrome.RowHeight();
         Chrome.EndGroupContent(group, contentHeight);
@@ -326,6 +332,9 @@ internal sealed class CombatTrackerScreen
         {
             cfg.ShowRim = !cfg.ShowRim;
         }
+
+        rowY += pitch;
+        this.PixelSlider(IdTitleText, Strings.MeterTitleText, SlotTitleText, group, rowY, Configuration.MinTextSize, Configuration.MaxTextSize);
 
         rowY += pitch;
         Chrome.SliderResult background = Chrome.Slider(
@@ -432,6 +441,8 @@ internal sealed class CombatTrackerScreen
         SlotWidth => m_config.CombatTracker.Width,
         SlotHeight => m_config.CombatTracker.Height,
         SlotBarHeight => m_config.CombatTracker.BarHeight,
+        SlotTitleHeight => m_config.CombatTracker.TitleHeight,
+        SlotTitleText => m_config.CombatTracker.TitleTextSize,
         _ => m_config.CombatTracker.BarSpacing,
     };
 
@@ -445,6 +456,8 @@ internal sealed class CombatTrackerScreen
             case SlotWidth: cfg.Width = value; break;
             case SlotHeight: cfg.Height = value; break;
             case SlotBarHeight: cfg.BarHeight = value; break;
+            case SlotTitleHeight: cfg.TitleHeight = value; break;
+            case SlotTitleText: cfg.TitleTextSize = value; break;
             default: cfg.BarSpacing = value; break;
         }
     }

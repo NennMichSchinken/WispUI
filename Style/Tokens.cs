@@ -872,12 +872,6 @@ internal static class Tokens
         // It wears the window's look but lives on the world, so every size here is in screen
         // pixels (WorldPx), never in the suite scale — the same two-worlds rule as the frames.
 
-        /// <summary>
-        /// The meter's title bar. Lower than the window's 42: on a meter four bars tall the
-        /// full height would take a quarter of the element (spec §3a, the mockup's 34).
-        /// </summary>
-        public static float MeterTitle => WorldPx(34f);
-
         /// <summary>The lit part at the top of the meter's title bar, like the window's own.</summary>
         public static float MeterTitleFade => WorldPx(12f);
 
@@ -898,9 +892,6 @@ internal static class Tokens
         public static float MeterCardRadius => WorldPx(6f);
 
         public static float MeterBarRadius => WorldPx(3f);
-
-        /// <summary>The size text in the meter's title bar is set at — Axis's own 16, so it stays sharp.</summary>
-        public static float MeterTitleText => WorldPx(16f);
 
         /// <summary>Between a bar's edge and its first and last text, and between the texts.</summary>
         public static float MeterBarInset => WorldPx(6f);
