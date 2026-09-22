@@ -502,12 +502,12 @@ internal sealed class CombatTrackerScreen
 
         for (int i = 0; i < WizardSteps; i++)
         {
-            float left = origin.X + (i * (segment + gap));
+            float start = origin.X + (i * (segment + gap));
             uint fill = i < m_step ? Tokens.Col.Gold
                 : i == m_step ? Tokens.Col.Faded(Tokens.Col.Gold, 0.55f)
                 : Tokens.Col.Control;
-            dl.AddRectFilled(new Vector2(left, y), new Vector2(left + segment, y + barHeight), fill, barHeight * 0.5f);
-            Ink.Draw(dl, Ink.Role.Small, new Vector2(left, y + barHeight + Tokens.Space.Sm), i == m_step ? Tokens.Col.GoldHi : Tokens.Col.InkFaint, StepLabels[i]);
+            dl.AddRectFilled(new Vector2(start, y), new Vector2(start + segment, y + barHeight), fill, barHeight * 0.5f);
+            Ink.Draw(dl, Ink.Role.Small, new Vector2(start, y + barHeight + Tokens.Space.Sm), i == m_step ? Tokens.Col.GoldHi : Tokens.Col.InkFaint, StepLabels[i]);
         }
 
         y += barHeight + Tokens.Space.Sm + Ink.LineHeight(Ink.Role.Small);
