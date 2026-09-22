@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using WispUI.Core;
 using WispUI.Style;
 
 namespace WispUI.Data;
@@ -206,6 +207,61 @@ internal static class Jobs
     /// <summary>The job icon in the chosen set, or zero if we have no job.</summary>
     public static uint IconId(uint jobId, bool framed) =>
         jobId == 0 ? 0u : (uint)(framed ? IconSetFramed : IconSetPlain) + jobId;
+
+
+    /// <summary>
+    /// Job abbreviation to row id, for the one place a job arrives as text rather than as a
+    /// number: the combat tracker, where the fight data names a job "WHM".
+    /// <para>
+    /// 🔴 Read out of the game's own <c>ClassJob</c> sheet rather than typed out. A typed list
+    /// is correct until the next expansion adds a job, and then it is silently wrong for
+    /// whoever plays that job first — the same reasoning that put JobBuffs on the sheet
+    /// instead of on a list (session 12).
+    /// </para>
+    /// <para>
+    /// ⚠️ Not yet checked against a non-English client. Job abbreviations are the same three
+    /// letters in every language the game ships, which is why this is safe to derive; if one
+    /// of them ever is not, a job simply shows the body text colour instead of its own.
+    /// </para>
+    /// <para>
+    /// Built once, on demand, never from a draw path — a sheet read there is one of the things
+    /// the performance rules forbid outright (§7.3).
+    /// </para>
+    /// </summary>
+    private static Dictionary<string, uint>? s_byAbbreviation;
+
+    /// <summary>The row id behind an abbreviation like "WHM", or zero for one we cannot place.</summary>
+    public static uint FromAbbreviation(string? abbreviation)
+    {
+        if (string.IsNullOrEmpty(abbreviation))
+        {
+            return 0u;
+        }
+
+        if (s_byAbbreviation is null)
+        {
+            var built = new Dictionary<string, uint>(64, StringComparer.OrdinalIgnoreCase);
+
+            var sheet = Services.Data.GetExcelSheet<Lumina.Excel.Sheets.ClassJob>();
+
+            if (sheet is not null)
+            {
+                foreach (var row in sheet)
+                {
+                    string abbr = row.Abbreviation.ExtractText();
+
+                    if (!string.IsNullOrEmpty(abbr))
+                    {
+                        built[abbr] = row.RowId;
+                    }
+                }
+            }
+
+            s_byAbbreviation = built;
+        }
+
+        return s_byAbbreviation.TryGetValue(abbreviation, out uint id) ? id : 0u;
+    }
 
     private static void Set(int jobId, JobRole role, uint hex)
     {
