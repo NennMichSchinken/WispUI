@@ -343,7 +343,7 @@ internal static class Tokens
         /// a HUD colour).
         /// </para>
         /// </summary>
-        public static readonly uint Cleanse = Rgb(0xC8A2E8);
+        public static readonly uint Cleanse = Rgb(0xB382DD);
 
         /// <summary>
         /// ⚠️ NOT MEASURED. Somebody a raise is already on its way to — "this one is handled",
@@ -369,7 +369,7 @@ internal static class Tokens
         /// neither a role nor a job colour so a shield can never be mistaken for one. The
         /// setting under Base is what it is really for — this is only where it starts.
         /// </summary>
-        public static readonly uint Shield = Rgb(0xE9F0FF);
+        public static readonly uint Shield = Rgb(0xFFBF22);
 
         /// <summary>The wedge that sweeps an affliction icon as it runs out.</summary>
         public static readonly uint AuraSwipe = 0x96000000u;
