@@ -552,9 +552,9 @@ internal static class Strings
     public const string WizardTitle2 = "Add the repository to Dalamud";
     public const string WizardTitle3 = "Install IINACT";
     public const string WizardBody1 = "The meter reads its numbers from IINACT, a free plugin that lives in its own repository rather than in Dalamud's main list. Copy its address first.";
-    public const string WizardBody2 = "Open Dalamud's settings, paste the address into an empty line under Custom Plugin Repositories, add it, make sure Enabled is ticked and save.";
+    public const string WizardBody2 = "Open Dalamud's settings and paste the address into the empty line of Custom Plugin Repositories, the lower of the two lists. The Dev Plugin Locations list above it wants a folder and will say the path is not valid. If the address is already in the list, skip this step.";
     public const string WizardBody3 = "Search the plugin installer for IINACT and install it. This page moves on by itself once IINACT is running.";
-    public const string WizardPath = "Experimental  ›  Custom Plugin Repositories  ›  paste  ›  +  ›  Save";
+    public const string WizardPath = "Experimental  ›  Custom Plugin Repositories (the lower list)  ›  paste  ›  +  ›  Save";
     public const string WizardStatusMissing = "Not installed yet.";
     public const string WizardStatusStopped = "Installed, but not running yet.";
     public const string WizardStatusStarting = "Installed. Waiting for it to start.";
