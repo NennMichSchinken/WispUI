@@ -82,6 +82,16 @@ internal static class LineIcons
         },
         Array.Empty<Vector3>());
 
+    /// <summary>rotate-ccw.svg</summary>
+    public static LineIcon RotateCcw => Get(
+        "rotate-ccw",
+        new[]
+        {
+            "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8",
+            "M3 3v5h5",
+        },
+        Array.Empty<Vector3>());
+
     /// <summary>
     /// Draws an icon into a square box, scaled from the 24 grid.
     /// <para>

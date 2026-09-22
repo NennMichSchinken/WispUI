@@ -126,7 +126,7 @@ internal sealed class ConfigWindow : Window
         "##wisp-eye10", "##wisp-eye11", "##wisp-eye12",
     };
 
-    private static readonly string[] TabsGlobal = { Strings.TabBase };
+    private static readonly string[] TabsGlobal = { Strings.TabBase, Strings.TabColours };
     private static readonly string[] TabsProfile = { Strings.TabBase };
     /// <summary>
     /// Split by what KIND of thing a setting is, not by subject (§3.1): the bar · what is
@@ -1368,9 +1368,13 @@ internal sealed class ConfigWindow : Window
             float inner = width - (padX * 2f);
             int tab = m_tabIndex[(int)m_screen];
 
-            if (m_screen == Screen.Global)
+            if (m_screen == Screen.Global && tab == 0)
             {
                 m_global.Draw(inner);
+            }
+            else if (m_screen == Screen.Global)
+            {
+                m_global.DrawColours(inner);
             }
             else if (m_screen == Screen.Profile)
             {

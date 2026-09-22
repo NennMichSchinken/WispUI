@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Dalamud.Configuration;
 
 namespace WispUI.Core;
@@ -11,7 +12,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 18;
+    public const int CurrentVersion = 19;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -165,6 +166,21 @@ public sealed class Configuration : IPluginConfiguration
     /// spelling of the same setting in the JSON would be one to keep in step for nothing.
     /// </summary>
     internal Style.TextEdge Edge => Style.HudText.EdgeAt(this.TextEdge);
+
+    /// <summary>
+    /// The job colours the player changed, by <c>ClassJob</c> row id. Only what differs from
+    /// the shipped palette is stored, so a colour nobody touched keeps following that palette.
+    /// <para>
+    /// On the suite rather than on a module since version 19 (Florian, 2026-09-22): every
+    /// module that colours by job reads one palette, so a Scholar is the same purple on a
+    /// party frame and on a damage meter. Not carried by a profile, like the lettering — it
+    /// is how this player reads jobs, not how one job's setup looks.
+    /// </para>
+    /// </summary>
+    public Dictionary<uint, uint> JobColours { get; set; } = new();
+
+    /// <summary>The role colours the player changed, by <see cref="Data.JobRole"/>. Same rules as <see cref="JobColours"/>.</summary>
+    public Dictionary<int, uint> RoleColours { get; set; } = new();
 
     /// <summary>
     /// Whether the party frames are drawn at all. Off by default (Florian, 2026-09-22): the
@@ -1107,6 +1123,35 @@ public sealed class Configuration : IPluginConfiguration
         Enum.IsDefined((TEnum)(object)value) ? value : 0;
 
     /// <summary>
+    /// A stored palette with only what it may hold: colours for keys that exist, and every
+    /// colour fully opaque — a see-through job colour would be a health bar you can read the
+    /// game through, and no swatch in the suite offers one.
+    /// </summary>
+    private static Dictionary<TKey, uint> CleanPalette<TKey>(Dictionary<TKey, uint>? palette, Func<TKey, bool> known)
+        where TKey : notnull
+    {
+        var clean = new Dictionary<TKey, uint>();
+
+        if (palette is null)
+        {
+            return clean;
+        }
+
+        foreach (KeyValuePair<TKey, uint> pair in palette)
+        {
+            if (known(pair.Key))
+            {
+                clean[pair.Key] = pair.Value | 0xFF000000u;
+            }
+        }
+
+        return clean;
+    }
+
+    /// <summary>Hands the stored palette to the lookup every bar reads its colour from.</summary>
+    internal void ApplyPalette() => Data.Jobs.Apply(this.JobColours, this.RoleColours);
+
+    /// <summary>
     /// Puts every number in the whole suite back inside its range. See the module's own
     /// <see cref="PartyFramesConfig.Sanitise"/> for why this exists at all.
     /// </summary>
@@ -1121,6 +1166,11 @@ public sealed class Configuration : IPluginConfiguration
         this.FontName ??= Style.FontLibrary.DefaultName;
         this.TextWeight = Math.Clamp(this.TextWeight, 0, 2);
         this.TextEdge = Known<Style.TextEdge>(this.TextEdge);
+
+        this.JobColours = CleanPalette(this.JobColours, static key => Data.Jobs.IsColoured(key));
+        this.RoleColours = CleanPalette(
+            this.RoleColours,
+            static key => key is (int)Data.JobRole.Tank or (int)Data.JobRole.Healer or (int)Data.JobRole.Dps);
 
         this.PartyFrames ??= new PartyFramesConfig();
         this.PartyFrames.Sanitise();
@@ -1602,6 +1652,9 @@ public sealed class Configuration : IPluginConfiguration
                 SplitSpacing(config.Profiles.Items[i].PartyFrames);
             }
         }
+
+        // Version 19 added the palette. Nothing to move: an empty palette is the shipped one,
+        // which is what everybody had.
     }
 
     /// <inheritdoc cref="PartyFramesConfig.SpacingX"/>
