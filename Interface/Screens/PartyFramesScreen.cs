@@ -3161,7 +3161,7 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         switch (mode)
         {
             case BarColourMode.Role:
-                Stripes(dl, min, max, Tokens.Col.RoleTank, Tokens.Col.RoleHealer, Tokens.Col.RoleDps);
+                Stripes(dl, min, max, Jobs.RoleColour(JobRole.Tank), Jobs.RoleColour(JobRole.Healer), Jobs.RoleColour(JobRole.Dps));
                 break;
 
             case BarColourMode.Job:

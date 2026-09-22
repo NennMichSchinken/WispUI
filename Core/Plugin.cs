@@ -33,6 +33,7 @@ public sealed class Plugin : IDalamudPlugin
         Services.Initialize(pluginInterface);
 
         m_config = Configuration.Load();
+        m_config.ApplyPalette();
 
         // Before anything asks for a face by name. Reading the folder touches the disk, so it
         // happens once here and again only when the player asks for it.

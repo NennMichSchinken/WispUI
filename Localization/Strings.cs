@@ -50,6 +50,7 @@ internal static class Strings
     public const string TabLayout = "Layout";
     public const string TabAuras = "Auras";
     public const string TabText = "Text";
+    public const string TabColours = "Colours";
     public const string TabMarks = "Marks";
 
     // --- Subheadings inside a card. Rare on purpose — see Chrome.Subhead.
@@ -201,6 +202,15 @@ internal static class Strings
     public const string MouseMiddle = "Middle";
     public const string MouseFour = "Mouse 4";
     public const string MouseFive = "Mouse 5";
+
+    // --- colours -----------------------------------------------------------
+    public const string GroupRoles = "Roles";
+    public const string GroupRolesHint = "Used wherever something is coloured by role rather than by job.";
+    public const string GroupTanks = "Tanks";
+    public const string GroupHealers = "Healers";
+    public const string GroupMelee = "Melee";
+    public const string GroupRangedCasters = "Ranged and casters";
+    public const string ResetColour = "Back to the colour WispUI ships with.";
 
     // --- lettering ----------------------------------------------------------
     public const string GroupLettering = "Lettering";

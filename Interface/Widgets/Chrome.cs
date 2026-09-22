@@ -38,6 +38,7 @@ internal static class Chrome
     /// <summary>Fixed ids for the two halves of a slider's number cell, pushed under the row's own id.</summary>
     private const string IdValueCell = "##value";
     private const string IdValueField = "##valuefield";
+    private const string ResetId = "##reset";
 
     /// <summary>Long enough for any number a slider in this suite can hold, and no longer.</summary>
     private const int ValueTextLimit = 8;
@@ -2219,9 +2220,11 @@ internal static class Chrome
         float width,
         ref uint colour,
         bool divider = false,
-        string? hint = null)
+        string? hint = null,
+        uint? shipped = null)
     {
         Row(label, x, y, width, divider, hint);
+        bool reset = false;
 
         float height = RowHeight();
         float swatch = MathF.Round(height * 0.72f);
@@ -2229,6 +2232,43 @@ internal static class Chrome
 
         Vector2 min = new(MathF.Round(right - swatch), MathF.Round(y + ((height - swatch) * 0.5f)));
         Vector2 max = new(min.X + swatch, min.Y + swatch);
+
+        // The way back, beside the swatch and only while there is somewhere to go back to: a
+        // reset on a colour that is already the shipped one would be a button that does
+        // nothing. Per row rather than per screen (Florian, 2026-09-22) — undoing one colour
+        // should not cost the other twenty.
+        if (shipped is uint original && colour != original)
+        {
+            float icon = MathF.Round(swatch * 0.8f);
+            Vector2 at = new(MathF.Round(min.X - Tokens.Space.Sm - icon), MathF.Round(y + ((height - icon) * 0.5f)));
+
+            ImGui.PushID(id);
+            ImGui.SetCursorScreenPos(at);
+            ImGui.InvisibleButton(ResetId, new Vector2(icon, icon));
+            bool resetHovered = ImGui.IsItemHovered();
+            bool resetClicked = ImGui.IsItemClicked();
+            ShowHand(resetHovered);
+
+            if (resetHovered)
+            {
+                Tooltip(null, Strings.ResetColour);
+            }
+
+            ImGui.PopID();
+
+            LineIcons.Draw(
+                ImGui.GetWindowDrawList(),
+                LineIcons.RotateCcw,
+                at,
+                icon,
+                resetHovered ? Tokens.Col.GoldHi : Tokens.Col.InkDim);
+
+            if (resetClicked)
+            {
+                colour = original;
+                reset = true;
+            }
+        }
 
         ImGui.SetCursorScreenPos(min);
         ImGui.InvisibleButton(id, new Vector2(swatch, swatch));
@@ -2255,7 +2295,7 @@ internal static class Chrome
             ImDrawFlags.RoundCornersAll,
             Tokens.Line(1f));
 
-        return Picker(id + "-pop", ref colour);
+        return Picker(id + "-pop", ref colour) || reset;
     }
 
     /// <summary>The grey chequerboard behind a swatch, so transparency is visible as such.</summary>
