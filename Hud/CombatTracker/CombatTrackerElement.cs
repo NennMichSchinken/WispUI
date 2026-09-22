@@ -564,7 +564,8 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
         {
             float margin = Tokens.WorldPx(2f);
             float side = MathF.Max(1f, height - (margin * 2f));
-            ImTextureID icon = Icons.Handle(Jobs.IconId(row.JobId, true));
+            bool framed = m_config.CombatTracker.JobIconStyle == (int)JobIconStyle.Framed;
+            ImTextureID icon = Icons.Handle(Jobs.IconId(row.JobId, framed));
 
             if (icon != default)
             {

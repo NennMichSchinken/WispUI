@@ -33,6 +33,7 @@ internal sealed class CombatTrackerScreen
     private const string IdSmooth = "##wisp-ct-smooth";
     private const string IdJobMark = "##wisp-ct-job";
     private const string IdRanks = "##wisp-ct-ranks";
+    private const string IdIconStyle = "##wisp-ct-iconstyle";
     private const string IdShort = "##wisp-ct-short";
     private const string IdTextSize = "##wisp-ct-textsize";
     private const string IdOnlyInCombat = "##wisp-ct-combatonly";
@@ -70,6 +71,7 @@ internal sealed class CombatTrackerScreen
 
     private static readonly string[] ColourModes = { Strings.ColourByJob, Strings.ColourByRole };
     private static readonly string[] JobMarks = { Strings.MeterJobIcon, Strings.MeterJobLetters, Strings.MeterJobOff };
+    private static readonly string[] IconStyles = { Strings.IconStyleFramed, Strings.IconStylePlain };
 
     private readonly Configuration m_config;
     private readonly CombatTrackerElement m_meter;
@@ -213,6 +215,15 @@ internal sealed class CombatTrackerScreen
         if (Chrome.SegmentRow(IdJobMark, Strings.MeterJobMark, group.ContentX, rowY, group.ContentWidth, JobMarks, ref mark, false))
         {
             cfg.JobMark = mark;
+            m_config.MarkDirty();
+        }
+
+        // The same two sets, in the same words, as the party frames' job icon.
+        rowY += pitch;
+        int iconStyle = cfg.JobIconStyle;
+        if (Chrome.SegmentRow(IdIconStyle, Strings.IconStyle, group.ContentX, rowY, group.ContentWidth, IconStyles, ref iconStyle, true))
+        {
+            cfg.JobIconStyle = iconStyle;
             m_config.MarkDirty();
         }
 

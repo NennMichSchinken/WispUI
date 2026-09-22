@@ -1180,6 +1180,9 @@ public sealed class Configuration : IPluginConfiguration
         /// <summary>0 = job icon, 1 = the job's three letters, 2 = nothing.</summary>
         public int JobMark { get; set; }
 
+        /// <summary>Which of the game's two icon sets, like the party frames' own: 0 framed, 1 plain.</summary>
+        public int JobIconStyle { get; set; }
+
         public bool ShowRanks { get; set; } = true;
 
         /// <summary>1.2M rather than 1,234,567.</summary>
@@ -1216,6 +1219,7 @@ public sealed class Configuration : IPluginConfiguration
             this.BarStyleName ??= Data.BarStyles.DefaultName;
             this.ColourMode = Math.Clamp(this.ColourMode, 0, 1);
             this.JobMark = Math.Clamp(this.JobMark, 0, 2);
+            this.JobIconStyle = Known<Data.JobIconStyle>(this.JobIconStyle);
             this.Metric = Known<Data.CombatMetric>(this.Metric);
         }
     }
