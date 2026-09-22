@@ -62,8 +62,11 @@ public sealed class Profile
     /// <summary>The party frames as this profile has them.</summary>
     public Configuration.PartyFramesConfig PartyFrames { get; set; } = new();
 
-    /// <summary>Whether the party frames are drawn at all under this profile.</summary>
-    public bool PartyFramesEnabled { get; set; } = true;
+    /// <summary>
+    /// Whether the party frames are drawn at all under this profile. Off by default, for the
+    /// reason on <see cref="Configuration.PartyFramesEnabled"/>.
+    /// </summary>
+    public bool PartyFramesEnabled { get; set; }
 
     /// <summary>
     /// Whether this profile answers for the job being played. The fallback answers for

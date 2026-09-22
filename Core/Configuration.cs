@@ -166,7 +166,13 @@ public sealed class Configuration : IPluginConfiguration
     /// </summary>
     internal Style.TextEdge Edge => Style.HudText.EdgeAt(this.TextEdge);
 
-    public bool PartyFramesEnabled { get; set; } = true;
+    /// <summary>
+    /// Whether the party frames are drawn at all. Off by default (Florian, 2026-09-22): the
+    /// first time the plugin loads, the game's own party list stays exactly as it was, and
+    /// the frames are something the player switches on — never something that happened to
+    /// their screen.
+    /// </summary>
+    public bool PartyFramesEnabled { get; set; }
 
     public PartyFramesConfig PartyFrames { get; set; } = new();
 
@@ -958,7 +964,7 @@ public sealed class Configuration : IPluginConfiguration
         /// is hidden — the game still keeps it, it simply is not drawn.
         /// </para>
         /// </summary>
-        public bool HideNativePartyList { get; set; } = true;
+        public bool HideNativePartyList { get; set; }
 
         /// <summary>
         /// Puts every number back inside the range it is allowed to hold.
