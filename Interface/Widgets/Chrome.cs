@@ -333,7 +333,12 @@ internal static class Chrome
     /// Rows that are not built yet are dimmed and inert but stay visible, so the tree
     /// still tells you the module exists.
     /// </summary>
-    public static bool NavItem(string id, string label, float x, float y, float width, bool selected, bool soon)
+    /// <param name="muted">
+    /// Built, but waiting on something outside the suite — the combat tracker without IINACT.
+    /// Dimmed like a module that is coming, and still clickable, because clicking it is how
+    /// the player finds out what it is waiting for (§5.1a).
+    /// </param>
+    public static bool NavItem(string id, string label, float x, float y, float width, bool selected, bool soon, bool muted = false)
     {
         float height = Tokens.Metric.NavItemHeight;
         Vector2 min = new(x, y);
@@ -359,6 +364,7 @@ internal static class Chrome
         uint ink = soon ? Tokens.Col.InkFaint
             : selected ? Tokens.Col.GoldHi
             : hovered ? Tokens.Col.Ink
+            : muted ? Tokens.Col.InkFaint
             : Tokens.Col.InkDim;
         Ink.Draw(dl, Ink.Role.Body, new Vector2(x + Tokens.Metric.NavIndent, CenterY(y, height, Ink.Role.Body)), ink, label);
 

@@ -203,6 +203,12 @@ internal sealed class IinactClient : IDisposable
         }
     }
 
+    /// <summary>
+    /// Drops the line to IINACT after it went away, so the next start is subscribed to afresh
+    /// rather than trusted to still be listening.
+    /// </summary>
+    public void Forget() => this.Connected = false;
+
     public void ClearData()
     {
         lock (m_sync)

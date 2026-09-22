@@ -532,5 +532,40 @@ internal static class Strings
     public const string MeterLockedTooltip = "A locked meter cannot be moved or resized with the mouse. Edit Mode still moves it.";
     public const string MeterTestMode = "Show test data";
     public const string MeterTestModeTooltip = "Fills the meter with a made-up fight so you can set it up. Switches off when this window closes.";
-    public const string MeterNotConnectedNote = "IINACT is not answering. The meter fills once it runs.";
+
+    // IINACT, where it stands — said in the meter and on its page, never anywhere else.
+    public const string MeterIinactMissing = "IINACT is not installed";
+    public const string MeterIinactMissingBody = "The meter reads its numbers from IINACT. Open the settings to set it up.";
+    public const string MeterIinactStopped = "IINACT is not running";
+    public const string MeterIinactStoppedBody = "It is installed, but Dalamud did not start it. After a game patch it usually needs an update.";
+    public const string MeterIinactSilent = "IINACT is not answering";
+    public const string MeterIinactSilentBody = "It is running, but not sending anything. Restarting the game usually helps.";
+
+    // The wizard.
+    public const string WizardStep1 = "1 · Copy the address";
+    public const string WizardStep2 = "2 · Add the repository";
+    public const string WizardStep3 = "3 · Install IINACT";
+    public const string WizardKicker1 = "Combat Tracker needs IINACT · step 1 of 3";
+    public const string WizardKicker2 = "Combat Tracker needs IINACT · step 2 of 3";
+    public const string WizardKicker3 = "Combat Tracker needs IINACT · step 3 of 3";
+    public const string WizardTitle1 = "Copy IINACT's repository address";
+    public const string WizardTitle2 = "Add the repository to Dalamud";
+    public const string WizardTitle3 = "Install IINACT";
+    public const string WizardBody1 = "The meter reads its numbers from IINACT, a free plugin that lives in its own repository rather than in Dalamud's main list. Copy its address first.";
+    public const string WizardBody2 = "Open Dalamud's settings, paste the address into an empty line under Custom Plugin Repositories, add it, make sure Enabled is ticked and save.";
+    public const string WizardBody3 = "Search the plugin installer for IINACT and install it. This page moves on by itself once IINACT is running.";
+    public const string WizardPath = "Experimental  ›  Custom Plugin Repositories  ›  paste  ›  +  ›  Save";
+    public const string WizardStatusMissing = "Not installed yet.";
+    public const string WizardStatusStopped = "Installed, but not running yet.";
+    public const string WizardStatusStarting = "Installed. Waiting for it to start.";
+    public const string WizardStatusSilent = "Installed and started, but not answering. Restarting the game usually helps.";
+    public const string WizardCopy = "Copy address";
+    public const string WizardCopied = "Copied. Copy again";
+    public const string WizardOpenSettings = "Open Dalamud settings";
+    public const string WizardOpenInstaller = "Open plugin installer";
+    public const string WizardOpenUpdates = "Open plugin updates";
+    public const string WizardOpenInstalled = "Open installed plugins";
+    public const string WizardBack = "Back";
+    public const string WizardNext = "Next";
+    public const string WizardGuide = "Step by step guide on iinact.com";
 }
