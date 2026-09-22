@@ -490,6 +490,7 @@ internal sealed class CombatTrackerScreen
         m_wizardOpen = true;
 
         Vector2 origin = ImGui.GetCursorScreenPos();
+        float room = ImGui.GetContentRegionAvail().Y;
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
         IinactState state = m_meter.Iinact;
         float y = origin.Y;
@@ -509,18 +510,7 @@ internal sealed class CombatTrackerScreen
             Ink.Draw(dl, Ink.Role.Small, new Vector2(left, y + barHeight + Tokens.Space.Sm), i == m_step ? Tokens.Col.GoldHi : Tokens.Col.InkFaint, StepLabels[i]);
         }
 
-        y += barHeight + Tokens.Space.Sm + Ink.LineHeight(Ink.Role.Small) + Tokens.Space.Xl;
-
-        Ink.Draw(dl, Ink.Role.Small, new Vector2(origin.X, y), Tokens.Col.InkFaint, StepKickers[m_step]);
-        y += Ink.LineHeight(Ink.Role.Small) + Tokens.Space.Sm;
-
-        Ink.Draw(dl, Ink.Role.ScreenTitle, new Vector2(origin.X, y), Tokens.Col.Heading, StepTitles[m_step]);
-        y += Ink.LineHeight(Ink.Role.ScreenTitle) + Tokens.Space.Md;
-
-        float textWidth = MathF.Min(width, Tokens.Px(WizardTextWidth));
-        string body = StepBodies[m_step];
-        Ink.DrawWrapped(Ink.Role.Body, new Vector2(origin.X, y), textWidth, Tokens.Col.Ink, body);
-        y += Ink.MeasureWrapped(Ink.Role.Body, body, textWidth).Y + Tokens.Space.Lg;
+        y += barHeight + Tokens.Space.Sm + Ink.LineHeight(Ink.Role.Small);
 
         // The box: what the step is about, in a form that can be read off at a glance.
         string boxText = m_step switch
@@ -536,10 +526,38 @@ internal sealed class CombatTrackerScreen
             },
         };
 
+        // Everything under the bar is one column, centred in the page (Florian, 2026-09-22):
+        // flush left it clung to the corner of a page that is mostly empty. The text inside
+        // stays left-aligned — a centred paragraph is harder to read, not easier. The column
+        // is measured first, so it can sit in the upper part of what is left rather than
+        // straight under the bar.
+        float textWidth = MathF.Min(width, Tokens.Px(WizardTextWidth));
+        float left = MathF.Round(origin.X + ((width - textWidth) * 0.5f));
+        string body = StepBodies[m_step];
+        float bodyHeight = Ink.MeasureWrapped(Ink.Role.Body, body, textWidth).Y;
         float pad = Tokens.Metric.GroupPadding;
         float boxHeight = Ink.MeasureWrapped(Ink.Role.Body, boxText, textWidth - (pad * 2f)).Y + (pad * 2f);
-        Vector2 boxMin = new(origin.X, y);
-        Vector2 boxMax = new(origin.X + textWidth, y + boxHeight);
+
+        float column = Ink.LineHeight(Ink.Role.Small) + Tokens.Space.Sm
+            + Ink.LineHeight(Ink.Role.ScreenTitle) + Tokens.Space.Md
+            + bodyHeight + Tokens.Space.Lg
+            + boxHeight + Tokens.Space.Lg
+            + Tokens.Metric.ButtonHeight + Tokens.Space.Xl
+            + Ink.LineHeight(Ink.Role.Small);
+        float free = room - (y - origin.Y) - column;
+        y += MathF.Round(MathF.Max(Tokens.Space.Xl, free * WizardDrop));
+
+        Ink.Draw(dl, Ink.Role.Small, new Vector2(left, y), Tokens.Col.InkFaint, StepKickers[m_step]);
+        y += Ink.LineHeight(Ink.Role.Small) + Tokens.Space.Sm;
+
+        Ink.Draw(dl, Ink.Role.ScreenTitle, new Vector2(left, y), Tokens.Col.Heading, StepTitles[m_step]);
+        y += Ink.LineHeight(Ink.Role.ScreenTitle) + Tokens.Space.Md;
+
+        Ink.DrawWrapped(Ink.Role.Body, new Vector2(left, y), textWidth, Tokens.Col.Ink, body);
+        y += bodyHeight + Tokens.Space.Lg;
+
+        Vector2 boxMin = new(left, y);
+        Vector2 boxMax = new(left + textWidth, y + boxHeight);
         dl.AddRectFilled(boxMin, boxMax, Tokens.Col.GroupBg, Tokens.Radius.Group);
         dl.AddRect(boxMin, boxMax, Tokens.Col.Hairline, Tokens.Radius.Group, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
         Ink.DrawWrapped(Ink.Role.Body, new Vector2(boxMin.X + pad, boxMin.Y + pad), textWidth - (pad * 2f), m_step == 1 ? Tokens.Col.GoldHi : Tokens.Col.Ink, boxText);
@@ -547,7 +565,7 @@ internal sealed class CombatTrackerScreen
 
         // Back, the step's own action, and Next — the last step has no Next: it moves on by
         // itself once IINACT answers.
-        float x = origin.X;
+        float x = left;
         float spacing = Tokens.Space.Md;
 
         if (m_step > 0)
@@ -583,7 +601,7 @@ internal sealed class CombatTrackerScreen
 
         // The long way round, for anybody who wants it in pictures.
         Vector2 linkSize = Ink.Measure(Ink.Role.Small, Strings.WizardGuide);
-        ImGui.SetCursorScreenPos(new Vector2(origin.X, y));
+        ImGui.SetCursorScreenPos(new Vector2(left, y));
         ImGui.InvisibleButton(IdGuide, linkSize);
         bool linkHovered = ImGui.IsItemHovered();
         Chrome.ShowHand(linkHovered);
@@ -593,7 +611,7 @@ internal sealed class CombatTrackerScreen
             Dalamud.Utility.Util.OpenLink(GuideUrl);
         }
 
-        Ink.Draw(dl, Ink.Role.Small, new Vector2(origin.X, y), linkHovered ? Tokens.Col.GoldHi : Tokens.Col.Gold, Strings.WizardGuide);
+        Ink.Draw(dl, Ink.Role.Small, new Vector2(left, y), linkHovered ? Tokens.Col.GoldHi : Tokens.Col.Gold, Strings.WizardGuide);
         y += linkSize.Y;
 
         ImGui.SetCursorScreenPos(origin);
@@ -637,6 +655,12 @@ internal sealed class CombatTrackerScreen
 
     /// <summary>How wide the wizard's text runs before it wraps, so a line stays readable in a wide window.</summary>
     private const float WizardTextWidth = 560f;
+
+    /// <summary>
+    /// How far down the free space the column sits: a third, not the middle. Dead centre
+    /// reads as the page having sagged; the upper third is where a dialog's eye line is.
+    /// </summary>
+    private const float WizardDrop = 0.33f;
 
     private const string IdTroubleGroup = "##wisp-ct-trouble";
     private const string IdTroubleButton = "##wisp-ct-trouble-btn";
