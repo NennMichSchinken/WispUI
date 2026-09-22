@@ -444,4 +444,20 @@ internal static class Strings
     public const string ProfileCodeNotOurs = "That is not a WispUI profile code.";
     public const string ProfileCodeNewer = "That code is from a newer version of WispUI.";
     public const string ProfileCodeUnreadable = "That code is damaged. Ask for it again — chat windows sometimes cut them.";
+
+    // --- Combat tracker ---
+
+    /// <summary>
+    /// What a meter counts. Sentence case like every other label in the suite — the game's own
+    /// tools title-case these, and matching them would be the one place WispUI does.
+    /// </summary>
+    public const string MetricDamageDone = "Damage done";
+
+    public const string MetricDamageTaken = "Damage taken";
+
+    public const string MetricHealingDone = "Healing done";
+
+    public const string MetricHealingTaken = "Healing taken";
+
+    public const string MetricDeaths = "Deaths";
 }
