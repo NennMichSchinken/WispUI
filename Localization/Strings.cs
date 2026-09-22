@@ -35,14 +35,11 @@ internal static class Strings
     public const string EditModeKeys = "Drag or use the arrows  ·  Shift for 10  ·  Ctrl ignores the guides";
     public const string EditModeDone = "Done";
     public const string NewBadge = "New";
-    public const string Soon = "Soon";
 
     // --- Navigation ---------------------------------------------------------
     public const string NavGlobal = "Global";
     public const string NavProfile = "Profile";
     public const string NavPartyFrames = "Party Frames";
-    public const string NavPlayerBars = "Player Bars";
-    public const string NavJobGauges = "Job Gauges";
 
     // --- Tabs ---------------------------------------------------------------
     public const string TabBase = "Base";

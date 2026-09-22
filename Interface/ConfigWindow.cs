@@ -168,8 +168,7 @@ internal sealed class ConfigWindow : Window
 
     /// <summary>
     /// The navigation tree. Suite-wide entries first, then a separator, then the HUD
-    /// modules. Modules that are not built yet stay in the list, dimmed, so the tree
-    /// still says what is coming.
+    /// modules. Only what is built and works — no "coming soon" rows (Florian, 2026-09-22).
     /// </summary>
     private static readonly NavRow[] NavRows =
     {
@@ -178,8 +177,6 @@ internal sealed class ConfigWindow : Window
         NavRow.Separator(),
         new("##wisp-nav-party", Strings.NavPartyFrames, Screen.PartyFrames),
         new("##wisp-nav-tracker", Strings.NavCombatTracker, Screen.CombatTracker),
-        NavRow.NotYet("##wisp-nav-playerbars", Strings.NavPlayerBars),
-        NavRow.NotYet("##wisp-nav-gauges", Strings.NavJobGauges),
     };
 
     private readonly Configuration m_config;
@@ -648,7 +645,7 @@ internal sealed class ConfigWindow : Window
                 continue;
             }
 
-            bool selected = !row.Soon && row.Target == m_screen;
+            bool selected = row.Target == m_screen;
             // Looked at here too, so the row dims without the page having been opened.
             // Throttled inside; asking every frame costs a clock read.
             if (row.Target == Screen.CombatTracker)
@@ -657,7 +654,7 @@ internal sealed class ConfigWindow : Window
             }
 
             bool muted = row.Target == Screen.CombatTracker && m_meter.Iinact == Hud.CombatTracker.IinactState.Missing;
-            if (Chrome.NavItem(row.Id, row.Label, left, y, width - Tokens.Line(1f), selected, row.Soon, muted))
+            if (Chrome.NavItem(row.Id, row.Label, left, y, width - Tokens.Line(1f), selected, muted))
             {
                 m_screen = row.Target;
             }
@@ -1510,29 +1507,21 @@ internal sealed class ConfigWindow : Window
         public readonly string Id;
         public readonly string Label;
         public readonly Screen Target;
-        public readonly bool Soon;
         public readonly bool IsSeparator;
 
         public NavRow(string id, string label, Screen target)
+            : this(id, label, target, false)
         {
-            this.Id = id;
-            this.Label = label;
-            this.Target = target;
-            this.Soon = false;
-            this.IsSeparator = false;
         }
 
-        private NavRow(string id, string label, Screen target, bool soon, bool separator)
+        private NavRow(string id, string label, Screen target, bool separator)
         {
             this.Id = id;
             this.Label = label;
             this.Target = target;
-            this.Soon = soon;
             this.IsSeparator = separator;
         }
 
-        public static NavRow Separator() => new(string.Empty, string.Empty, Screen.Global, false, true);
-
-        public static NavRow NotYet(string id, string label) => new(id, label, Screen.Global, true, false);
+        public static NavRow Separator() => new(string.Empty, string.Empty, Screen.Global, true);
     }
 }

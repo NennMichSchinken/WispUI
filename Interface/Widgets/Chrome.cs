@@ -330,15 +330,18 @@ internal static class Chrome
 
     /// <summary>
     /// One row of the navigation tree. Selected rows carry the gold edge on the left.
-    /// Rows that are not built yet are dimmed and inert but stay visible, so the tree
-    /// still tells you the module exists.
+    /// <para>
+    /// The tree lists only what is built and works (Florian, 2026-09-22). It used to carry
+    /// modules still to come, dimmed with a "Soon" pill; a promise in the navigation is a
+    /// promise somebody holds you to, and what comes next is not settled.
+    /// </para>
     /// </summary>
     /// <param name="muted">
     /// Built, but waiting on something outside the suite — the combat tracker without IINACT.
-    /// Dimmed like a module that is coming, and still clickable, because clicking it is how
-    /// the player finds out what it is waiting for (§5.1a).
+    /// Dimmed, and still clickable, because clicking it is how the player finds out what it
+    /// is waiting for (§5.1a).
     /// </param>
-    public static bool NavItem(string id, string label, float x, float y, float width, bool selected, bool soon, bool muted = false)
+    public static bool NavItem(string id, string label, float x, float y, float width, bool selected, bool muted = false)
     {
         float height = Tokens.Metric.NavItemHeight;
         Vector2 min = new(x, y);
@@ -346,9 +349,9 @@ internal static class Chrome
 
         ImGui.SetCursorScreenPos(min);
         ImGui.InvisibleButton(id, new Vector2(width, height));
-        bool hovered = ImGui.IsItemHovered() && !soon;
+        bool hovered = ImGui.IsItemHovered();
         ShowHand(hovered);
-        bool clicked = ImGui.IsItemClicked() && !soon;
+        bool clicked = ImGui.IsItemClicked();
 
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
         if (selected)
@@ -361,37 +364,13 @@ internal static class Chrome
             dl.AddRectFilled(min, max, Tokens.Col.NavHover);
         }
 
-        uint ink = soon ? Tokens.Col.InkFaint
-            : selected ? Tokens.Col.GoldHi
+        uint ink = selected ? Tokens.Col.GoldHi
             : hovered ? Tokens.Col.Ink
             : muted ? Tokens.Col.InkFaint
             : Tokens.Col.InkDim;
         Ink.Draw(dl, Ink.Role.Body, new Vector2(x + Tokens.Metric.NavIndent, CenterY(y, height, Ink.Role.Body)), ink, label);
 
-        if (soon)
-        {
-            SoonChip(dl, max.X - Tokens.Space.Lg, y + (height * 0.5f));
-        }
-
         return clicked;
-    }
-
-    /// <summary>The muted "Soon" pill on a module that is not built yet.</summary>
-    private static void SoonChip(ImDrawListPtr dl, float right, float middleY)
-    {
-        Vector2 text = Ink.Measure(Ink.Role.Small, Strings.Soon);
-        float height = Tokens.Metric.BadgeHeight;
-        float width = text.X + (Tokens.Metric.BadgePaddingX * 2f);
-        Vector2 min = new(MathF.Round(right - width), MathF.Round(middleY - (height * 0.5f)));
-        Vector2 max = new(min.X + width, min.Y + height);
-
-        dl.AddRect(min, max, Tokens.Col.EdgeDim, height * 0.5f, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
-        Ink.Draw(
-            dl,
-            Ink.Role.Small,
-            new Vector2(min.X + Tokens.Metric.BadgePaddingX, MathF.Round(min.Y + ((height - text.Y) * 0.5f))),
-            Tokens.Col.InkFaint,
-            Strings.Soon);
     }
 
     /// <summary>Measures how wide a tab needs to be, so a row of them can be laid out first.</summary>
