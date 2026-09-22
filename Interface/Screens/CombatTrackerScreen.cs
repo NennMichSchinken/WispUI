@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 using WispUI.Core;
 using WispUI.Data;
 using WispUI.Hud.CombatTracker;
@@ -101,16 +102,49 @@ internal sealed class CombatTrackerScreen
             });
     }
 
+    /// <summary>
+    /// Whether the page is the IINACT wizard rather than the settings. Asked by the window
+    /// before it draws the tab chips, so it takes the fresh look at IINACT itself.
+    /// <para>
+    /// Once the wizard has started it stays until IINACT actually answers — installing it
+    /// moves it from "missing" to "not running" for a moment, and the wizard vanishing in the
+    /// middle of step 3 would take away the one line saying it worked.
+    /// </para>
+    /// </summary>
+    public bool ShowsWizard
+    {
+        get
+        {
+            m_meter.RefreshStatus();
+            IinactState state = m_meter.Iinact;
+
+            if (state == IinactState.Running)
+            {
+                m_wizardOpen = false;
+                m_step = 0;
+            }
+
+            return state == IinactState.Missing || (m_wizardOpen && state != IinactState.Unknown);
+        }
+    }
+
     /// <summary>The Base tab: the bar, what it says, and when the meter starts over.</summary>
     public void Draw(float width)
     {
+        if (this.ShowsWizard)
+        {
+            this.DrawWizard(width);
+            return;
+        }
+
         Vector2 origin = ImGui.GetCursorScreenPos();
         float column = Chrome.ColumnWidth(width);
+        float top = origin.Y + this.DrawTrouble(origin.X, origin.Y, width);
 
         Chrome.BeginGroupRow();
-        Chrome.GroupScope bars = this.DrawBarsGroup(Chrome.ColumnX(origin.X, width, 0), origin.Y, column, out float barsHeight);
-        Chrome.GroupScope text = this.DrawTextGroup(Chrome.ColumnX(origin.X, width, 1), origin.Y, column, out float textHeight);
-        float y = origin.Y + Chrome.GroupFrameRow(bars, barsHeight, text, textHeight) + Tokens.Metric.ColumnGutter;
+        Chrome.GroupScope bars = this.DrawBarsGroup(Chrome.ColumnX(origin.X, width, 0), top, column, out float barsHeight);
+        Chrome.GroupScope text = this.DrawTextGroup(Chrome.ColumnX(origin.X, width, 1), top, column, out float textHeight);
+        float y = top + Chrome.GroupFrameRow(bars, barsHeight, text, textHeight) + Tokens.Metric.ColumnGutter;
 
         Chrome.BeginGroupRow();
         Chrome.GroupScope fights = this.DrawFightsGroup(Chrome.ColumnX(origin.X, width, 0), y, column, out float fightsHeight);
@@ -123,13 +157,20 @@ internal sealed class CombatTrackerScreen
     /// <summary>The Layout tab: how big the meter is, and how it sits on the screen.</summary>
     public void DrawLayout(float width)
     {
+        if (this.ShowsWizard)
+        {
+            this.DrawWizard(width);
+            return;
+        }
+
         Vector2 origin = ImGui.GetCursorScreenPos();
         float column = Chrome.ColumnWidth(width);
+        float top = origin.Y + this.DrawTrouble(origin.X, origin.Y, width);
 
         Chrome.BeginGroupRow();
-        Chrome.GroupScope size = this.DrawSizeGroup(Chrome.ColumnX(origin.X, width, 0), origin.Y, column, out float sizeHeight);
-        Chrome.GroupScope look = this.DrawLookGroup(Chrome.ColumnX(origin.X, width, 1), origin.Y, column, out float lookHeight);
-        float y = origin.Y + Chrome.GroupFrameRow(size, sizeHeight, look, lookHeight) + Tokens.Metric.ColumnGutter;
+        Chrome.GroupScope size = this.DrawSizeGroup(Chrome.ColumnX(origin.X, width, 0), top, column, out float sizeHeight);
+        Chrome.GroupScope look = this.DrawLookGroup(Chrome.ColumnX(origin.X, width, 1), top, column, out float lookHeight);
+        float y = top + Chrome.GroupFrameRow(size, sizeHeight, look, lookHeight) + Tokens.Metric.ColumnGutter;
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
@@ -385,18 +426,259 @@ internal sealed class CombatTrackerScreen
         }
 
         contentHeight = rowY - group.ContentY + Chrome.RowHeight();
-
-        // Said where the switch is, and nowhere else — the suite never nags (§5.1a).
-        if (m_config.CombatTrackerEnabled && !m_meter.Connected)
-        {
-            float noteY = rowY + Chrome.RowHeight() + Tokens.Space.Sm;
-            Ink.Draw(ImGui.GetWindowDrawList(), Ink.Role.Small, new Vector2(group.ContentX, noteY), Tokens.Col.InkFaint, Strings.MeterNotConnectedNote);
-            contentHeight = noteY + Ink.LineHeight(Ink.Role.Small) - group.ContentY;
-        }
-
         Chrome.EndGroupContent(group, contentHeight);
         return group;
     }
+
+    // --- IINACT: the wizard, and the card for when it is there but not working --------------
+
+    /// <summary>
+    /// The card above the settings when IINACT is installed but not doing its job. Returns the
+    /// height it took, gap included, or nothing when all is well.
+    /// </summary>
+    private float DrawTrouble(float x, float y, float width)
+    {
+        IinactState state = m_meter.Iinact;
+
+        if (state is not (IinactState.NotRunning or IinactState.NotAnswering))
+        {
+            return 0f;
+        }
+
+        bool stopped = state == IinactState.NotRunning;
+
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdTroubleGroup,
+            new Chrome.GroupHead
+            {
+                Title = stopped ? Strings.MeterIinactStopped : Strings.MeterIinactSilent,
+                Description = stopped ? Strings.MeterIinactStoppedBody : Strings.MeterIinactSilentBody,
+            },
+            x,
+            y,
+            width);
+
+        string label = stopped ? Strings.WizardOpenUpdates : Strings.WizardOpenInstalled;
+        if (Chrome.Button(IdTroubleButton, label, group.ContentX, group.ContentY, true))
+        {
+            Services.PluginInterface.OpenPluginInstallerTo(
+                stopped ? PluginInstallerOpenKind.UpdateablePlugins : PluginInstallerOpenKind.InstalledPlugins,
+                stopped ? null : IinactSearch);
+        }
+
+        float used = Tokens.Metric.ButtonHeight;
+        Chrome.EndGroupContent(group, used);
+        return Chrome.GroupFrame(group, used) + Tokens.Metric.ColumnGutter;
+    }
+
+    /// <summary>
+    /// The three steps to IINACT, standing where the settings would (Florian, 2026-09-22):
+    /// a bar across the top that fills as the steps are done, one step at a time below it.
+    /// <para>
+    /// Only three, not the spec's four. "Is the repository added?" is not something a plugin
+    /// can see — Dalamud keeps its repository list to itself — so it is folded into the step
+    /// that can be checked: whether IINACT is installed and running.
+    /// </para>
+    /// <para>
+    /// A plugin cannot add a repository or install anything (API notes §3.5). What it can do
+    /// is put the address on the clipboard and open the two pages where the player does it.
+    /// </para>
+    /// </summary>
+    private void DrawWizard(float width)
+    {
+        m_wizardOpen = true;
+
+        Vector2 origin = ImGui.GetCursorScreenPos();
+        float room = ImGui.GetContentRegionAvail().Y;
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        IinactState state = m_meter.Iinact;
+        float y = origin.Y;
+
+        // The bar: one segment per step — done, on it, still to come.
+        float gap = Tokens.Space.Sm;
+        float segment = MathF.Floor((width - (gap * (WizardSteps - 1))) / WizardSteps);
+        float barHeight = Tokens.Line(5f);
+
+        for (int i = 0; i < WizardSteps; i++)
+        {
+            float start = origin.X + (i * (segment + gap));
+            uint fill = i < m_step ? Tokens.Col.Gold
+                : i == m_step ? Tokens.Col.Faded(Tokens.Col.Gold, 0.55f)
+                : Tokens.Col.Control;
+            dl.AddRectFilled(new Vector2(start, y), new Vector2(start + segment, y + barHeight), fill, barHeight * 0.5f);
+            Ink.Draw(dl, Ink.Role.Small, new Vector2(start, y + barHeight + Tokens.Space.Sm), i == m_step ? Tokens.Col.GoldHi : Tokens.Col.InkFaint, StepLabels[i]);
+        }
+
+        y += barHeight + Tokens.Space.Sm + Ink.LineHeight(Ink.Role.Small);
+
+        // The box: what the step is about, in a form that can be read off at a glance.
+        string boxText = m_step switch
+        {
+            0 => RepoUrl,
+            1 => Strings.WizardPath,
+            _ => state switch
+            {
+                IinactState.NotRunning => Strings.WizardStatusStopped,
+                IinactState.Starting => Strings.WizardStatusStarting,
+                IinactState.NotAnswering => Strings.WizardStatusSilent,
+                _ => Strings.WizardStatusMissing,
+            },
+        };
+
+        // Everything under the bar is one column, centred in the page (Florian, 2026-09-22):
+        // flush left it clung to the corner of a page that is mostly empty. The text inside
+        // stays left-aligned — a centred paragraph is harder to read, not easier. The column
+        // is measured first, so it can sit in the upper part of what is left rather than
+        // straight under the bar.
+        float textWidth = MathF.Min(width, Tokens.Px(WizardTextWidth));
+        float left = MathF.Round(origin.X + ((width - textWidth) * 0.5f));
+        string body = StepBodies[m_step];
+        float bodyHeight = Ink.MeasureWrapped(Ink.Role.Body, body, textWidth).Y;
+        float pad = Tokens.Metric.GroupPadding;
+        float boxHeight = Ink.MeasureWrapped(Ink.Role.Body, boxText, textWidth - (pad * 2f)).Y + (pad * 2f);
+
+        float column = Ink.LineHeight(Ink.Role.Small) + Tokens.Space.Sm
+            + Ink.LineHeight(Ink.Role.ScreenTitle) + Tokens.Space.Md
+            + bodyHeight + Tokens.Space.Lg
+            + boxHeight + Tokens.Space.Lg
+            + Tokens.Metric.ButtonHeight + Tokens.Space.Xl
+            + Ink.LineHeight(Ink.Role.Small);
+        float free = room - (y - origin.Y) - column;
+        y += MathF.Round(MathF.Max(Tokens.Space.Xl, free * WizardDrop));
+
+        Ink.Draw(dl, Ink.Role.Small, new Vector2(left, y), Tokens.Col.InkFaint, StepKickers[m_step]);
+        y += Ink.LineHeight(Ink.Role.Small) + Tokens.Space.Sm;
+
+        Ink.Draw(dl, Ink.Role.ScreenTitle, new Vector2(left, y), Tokens.Col.Heading, StepTitles[m_step]);
+        y += Ink.LineHeight(Ink.Role.ScreenTitle) + Tokens.Space.Md;
+
+        Ink.DrawWrapped(Ink.Role.Body, new Vector2(left, y), textWidth, Tokens.Col.Ink, body);
+        y += bodyHeight + Tokens.Space.Lg;
+
+        Vector2 boxMin = new(left, y);
+        Vector2 boxMax = new(left + textWidth, y + boxHeight);
+        dl.AddRectFilled(boxMin, boxMax, Tokens.Col.GroupBg, Tokens.Radius.Group);
+        dl.AddRect(boxMin, boxMax, Tokens.Col.Hairline, Tokens.Radius.Group, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
+        Ink.DrawWrapped(Ink.Role.Body, new Vector2(boxMin.X + pad, boxMin.Y + pad), textWidth - (pad * 2f), m_step == 1 ? Tokens.Col.GoldHi : Tokens.Col.Ink, boxText);
+        y += boxHeight + Tokens.Space.Lg;
+
+        // Back, the step's own action, and Next — the last step has no Next: it moves on by
+        // itself once IINACT answers.
+        float x = left;
+        float spacing = Tokens.Space.Md;
+
+        if (m_step > 0)
+        {
+            if (Chrome.Button(IdBack, Strings.WizardBack, x, y, true))
+            {
+                m_step--;
+            }
+
+            x += Chrome.MeasureButton(Strings.WizardBack) + spacing;
+        }
+
+        string action = m_step switch
+        {
+            0 => m_copied ? Strings.WizardCopied : Strings.WizardCopy,
+            1 => Strings.WizardOpenSettings,
+            _ => Strings.WizardOpenInstaller,
+        };
+
+        if (Chrome.Button(IdAction, action, x, y, true, null, true))
+        {
+            this.RunStep();
+        }
+
+        x += Chrome.MeasureButton(action) + spacing;
+
+        if (m_step < WizardSteps - 1 && Chrome.Button(IdNext, Strings.WizardNext, x, y, true))
+        {
+            m_step++;
+        }
+
+        y += Tokens.Metric.ButtonHeight + Tokens.Space.Xl;
+
+        // The long way round, for anybody who wants it in pictures.
+        Vector2 linkSize = Ink.Measure(Ink.Role.Small, Strings.WizardGuide);
+        ImGui.SetCursorScreenPos(new Vector2(left, y));
+        ImGui.InvisibleButton(IdGuide, linkSize);
+        bool linkHovered = ImGui.IsItemHovered();
+        Chrome.ShowHand(linkHovered);
+
+        if (ImGui.IsItemClicked())
+        {
+            Dalamud.Utility.Util.OpenLink(GuideUrl);
+        }
+
+        Ink.Draw(dl, Ink.Role.Small, new Vector2(left, y), linkHovered ? Tokens.Col.GoldHi : Tokens.Col.Gold, Strings.WizardGuide);
+        y += linkSize.Y;
+
+        ImGui.SetCursorScreenPos(origin);
+        ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
+    }
+
+    private void RunStep()
+    {
+        switch (m_step)
+        {
+            case 0:
+                ImGui.SetClipboardText(RepoUrl);
+                m_copied = true;
+                break;
+
+            // The Experimental page is where the custom repositories are listed.
+            case 1:
+                Services.PluginInterface.OpenDalamudSettingsTo(SettingsOpenKind.Experimental);
+                break;
+
+            // Opened already searching for it, so there is one entry to click.
+            default:
+                Services.PluginInterface.OpenPluginInstallerTo(PluginInstallerOpenKind.AllPlugins, IinactSearch);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// IINACT's repository, as its own installation guide gives it (iinact.com/installation,
+    /// checked 2026-09-22). IINACT is not in Dalamud's main list — damage meters are not
+    /// allowed there — so this is the only way to it.
+    /// </summary>
+    private const string RepoUrl = "https://raw.githubusercontent.com/marzent/IINACT/main/repo.json";
+
+    private const string GuideUrl = "https://www.iinact.com/installation/";
+
+    /// <summary>What the installer's search box is filled with.</summary>
+    private const string IinactSearch = "IINACT";
+
+    private const int WizardSteps = 3;
+
+    /// <summary>How wide the wizard's text runs before it wraps, so a line stays readable in a wide window.</summary>
+    private const float WizardTextWidth = 560f;
+
+    /// <summary>
+    /// How far down the free space the column sits: a third, not the middle. Dead centre
+    /// reads as the page having sagged; the upper third is where a dialog's eye line is.
+    /// </summary>
+    private const float WizardDrop = 0.33f;
+
+    private const string IdTroubleGroup = "##wisp-ct-trouble";
+    private const string IdTroubleButton = "##wisp-ct-trouble-btn";
+    private const string IdBack = "##wisp-ct-wiz-back";
+    private const string IdNext = "##wisp-ct-wiz-next";
+    private const string IdAction = "##wisp-ct-wiz-action";
+    private const string IdGuide = "##wisp-ct-wiz-guide";
+
+    private static readonly string[] StepLabels = { Strings.WizardStep1, Strings.WizardStep2, Strings.WizardStep3 };
+    private static readonly string[] StepKickers = { Strings.WizardKicker1, Strings.WizardKicker2, Strings.WizardKicker3 };
+    private static readonly string[] StepTitles = { Strings.WizardTitle1, Strings.WizardTitle2, Strings.WizardTitle3 };
+    private static readonly string[] StepBodies = { Strings.WizardBody1, Strings.WizardBody2, Strings.WizardBody3 };
+
+    // The wizard's place, in memory only: coming back to the page later starts it where the
+    // player left it, and a restart starts it over, which is what anybody would expect.
+    private int m_step;
+    private bool m_copied;
+    private bool m_wizardOpen;
 
     /// <summary>The largest the size sliders go. The corner can go further.</summary>
     private const float MeterSliderMax = 1200f;

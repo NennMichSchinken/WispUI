@@ -5,6 +5,7 @@ using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Text;
+using Dalamud.Plugin;
 using WispUI.Core;
 using WispUI.Data;
 using WispUI.Interface;
@@ -13,6 +14,28 @@ using WispUI.Localization;
 using WispUI.Style;
 
 namespace WispUI.Hud.CombatTracker;
+
+/// <summary>Where IINACT stands, as far as another plugin can tell.</summary>
+internal enum IinactState
+{
+    /// <summary>Not looked yet.</summary>
+    Unknown = 0,
+
+    /// <summary>Not in Dalamud's list of installed plugins.</summary>
+    Missing,
+
+    /// <summary>Installed, but Dalamud did not start it — after a game patch, usually waiting for its update.</summary>
+    NotRunning,
+
+    /// <summary>Started a moment ago and not answering yet.</summary>
+    Starting,
+
+    /// <summary>Started, but its line stays silent.</summary>
+    NotAnswering,
+
+    /// <summary>Answering; fights will arrive.</summary>
+    Running,
+}
 
 /// <summary>What sits between a bar's rank and its name.</summary>
 internal enum MeterJobMark
@@ -64,6 +87,15 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
 
     /// <summary>How often a missing IINACT is asked again. Asking throws when it is not there.</summary>
     private static readonly TimeSpan ConnectEvery = TimeSpan.FromSeconds(3);
+
+    /// <summary>How often the list of installed plugins is looked at. Walking it allocates.</summary>
+    private static readonly TimeSpan StatusEvery = TimeSpan.FromSeconds(2);
+
+    /// <summary>Failed calls in a row before a running IINACT counts as not answering (about ten seconds).</summary>
+    private const int NotAnsweringAfter = 3;
+
+    /// <summary>IINACT's name in Dalamud's list, as its own repository names it.</summary>
+    private const string IinactName = "IINACT";
 
     /// <summary>How long after combat the fight is closed, when that is switched on (HamMeter's value).</summary>
     private static readonly TimeSpan EndAfterCombat = TimeSpan.FromSeconds(3);
@@ -117,6 +149,8 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
     private int m_view = ViewCurrent;
 
     private DateTime m_nextConnect = DateTime.MinValue;
+    private DateTime m_nextStatus = DateTime.MinValue;
+    private int m_failedConnects;
     private DateTime m_endAt = DateTime.MaxValue;
     private bool m_wasInDuty;
     private bool m_wasInCombat;
@@ -149,8 +183,70 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
     /// </summary>
     public bool TestMode { get; set; }
 
-    /// <summary>Whether IINACT is answering. The settings page says so when it is not.</summary>
-    public bool Connected => m_client.Connected;
+    /// <summary>Where IINACT stands, as of the last look. Kept current by <see cref="RefreshStatus"/>.</summary>
+    public IinactState Iinact { get; private set; } = IinactState.Unknown;
+
+    /// <summary>
+    /// Looks at IINACT: installed, started, answering (§5.1a — the list of installed plugins,
+    /// then a call that has to come back). Throttled here, so the tick and the settings page
+    /// can both ask every frame and the list is still walked only every couple of seconds.
+    /// <para>
+    /// Only knocks when there is somebody to answer. Asking a plugin that is not there
+    /// throws inside Dalamud, and doing that every few seconds for somebody who has no
+    /// IINACT and never will is noise for nothing.
+    /// </para>
+    /// </summary>
+    public void RefreshStatus()
+    {
+        DateTime now = DateTime.UtcNow;
+
+        if (now < m_nextStatus)
+        {
+            return;
+        }
+
+        m_nextStatus = now + StatusEvery;
+
+        bool installed = false;
+        bool loaded = false;
+
+        foreach (IExposedPlugin plugin in Services.PluginInterface.InstalledPlugins)
+        {
+            if (string.Equals(plugin.InternalName, IinactName, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(plugin.Name, IinactName, StringComparison.OrdinalIgnoreCase))
+            {
+                installed = true;
+                loaded = plugin.IsLoaded;
+                break;
+            }
+        }
+
+        if (!installed || !loaded)
+        {
+            // Gone or stopped: whatever line we had to it is gone with it.
+            m_client.Forget();
+            m_failedConnects = 0;
+            this.Iinact = installed ? IinactState.NotRunning : IinactState.Missing;
+            return;
+        }
+
+        if (!m_client.Connected && now >= m_nextConnect)
+        {
+            m_nextConnect = now + ConnectEvery;
+            m_client.Connect();
+
+            if (!m_client.Connected)
+            {
+                m_failedConnects++;
+            }
+        }
+
+        // A plugin that has just started takes a moment to open its line. Only after a few
+        // tries in a row is it not answering rather than still starting.
+        this.Iinact = m_client.Connected ? IinactState.Running
+            : m_failedConnects >= NotAnsweringAfter ? IinactState.NotAnswering
+            : IinactState.Starting;
+    }
 
     public override string Name => Strings.NavCombatTracker;
 
@@ -199,11 +295,7 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
         DateTime now = DateTime.UtcNow;
         Configuration.CombatTrackerConfig cfg = m_config.CombatTracker;
 
-        if (!m_client.Connected && now >= m_nextConnect)
-        {
-            m_nextConnect = now + ConnectEvery;
-            m_client.Connect();
-        }
+        this.RefreshStatus();
 
         // Entering a duty, never leaving one. Read as a change of state on every tick, so
         // the flags settling a moment after the zone change is simply the tick they change on.
@@ -467,8 +559,7 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
 
             if (m_count == 0)
             {
-                string note = this.TestMode || m_client.Connected ? Strings.MeterNoData : Strings.MeterNotConnected;
-                Ink.DrawNote(dl, Tokens.WorldPx(cfg.TitleTextSize), origin + new Vector2(Tokens.Metric.MeterBarInset, Tokens.Metric.MeterBarInset), Tokens.Col.InkDim, note, TextEdge.None);
+                this.DrawNotice(dl, origin, area.X);
             }
             else
             {
@@ -493,6 +584,40 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
         }
 
         ImGui.EndChild();
+    }
+
+    /// <summary>
+    /// What stands where the bars would, when there are none: waiting for a fight, or what is
+    /// wrong with IINACT and what to do about it. Said here, in the meter the player is
+    /// looking at, and nowhere else — no popup, no chat line (§5.1a).
+    /// <para>
+    /// "Not running" cannot honestly say "an update is out": Dalamud does not tell another
+    /// plugin whether one is. What it does tell is that IINACT is installed and did not start,
+    /// and after a game patch that nearly always means it is waiting for its update.
+    /// </para>
+    /// </summary>
+    private void DrawNotice(ImDrawListPtr dl, Vector2 origin, float width)
+    {
+        float inset = Tokens.Metric.MeterBarInset;
+        Vector2 at = origin + new Vector2(inset, inset);
+        float size = Tokens.WorldPx(m_config.CombatTracker.TitleTextSize);
+
+        (string title, string? body) = this.TestMode || this.Iinact == IinactState.Running
+            ? (Strings.MeterNoData, (string?)null)
+            : this.Iinact switch
+            {
+                IinactState.Missing => (Strings.MeterIinactMissing, Strings.MeterIinactMissingBody),
+                IinactState.NotRunning => (Strings.MeterIinactStopped, Strings.MeterIinactStoppedBody),
+                IinactState.NotAnswering => (Strings.MeterIinactSilent, Strings.MeterIinactSilentBody),
+                _ => (Strings.MeterNotConnected, (string?)null),
+            };
+
+        Ink.DrawNote(dl, size, at, body is null ? Tokens.Col.InkDim : Tokens.Col.GoldHi, title, TextEdge.None);
+
+        if (body is not null)
+        {
+            Ink.DrawWrapped(Ink.Role.Small, new Vector2(at.X, at.Y + size + Tokens.Space.Sm), width - (inset * 2f), Tokens.Col.InkDim, body);
+        }
     }
 
     private void DrawBar(ImDrawListPtr dl, ref MeterRow row, Vector2 min, Vector2 max, float delta)

@@ -198,6 +198,7 @@ internal sealed class ConfigWindow : Window
     private readonly NewsScreen m_news = new();
     private readonly PartyFramesScreen m_partyFrames;
     private readonly CombatTrackerScreen m_combatTracker;
+    private readonly Hud.CombatTracker.CombatTrackerElement m_meter;
 
     /// <summary>
     /// One buffer for the whole suite, and one strip that offers it. Both are built here and
@@ -240,6 +241,7 @@ internal sealed class ConfigWindow : Window
 
         m_partyFrames = new PartyFramesScreen(config);
         m_combatTracker = new CombatTrackerScreen(config, meter);
+        m_meter = meter;
         m_appearance = new AppearanceBar(m_clipboard);
 
         string version = ReadVersion();
@@ -647,7 +649,15 @@ internal sealed class ConfigWindow : Window
             }
 
             bool selected = !row.Soon && row.Target == m_screen;
-            if (Chrome.NavItem(row.Id, row.Label, left, y, width - Tokens.Line(1f), selected, row.Soon))
+            // Looked at here too, so the row dims without the page having been opened.
+            // Throttled inside; asking every frame costs a clock read.
+            if (row.Target == Screen.CombatTracker)
+            {
+                m_meter.RefreshStatus();
+            }
+
+            bool muted = row.Target == Screen.CombatTracker && m_meter.Iinact == Hud.CombatTracker.IinactState.Missing;
+            if (Chrome.NavItem(row.Id, row.Label, left, y, width - Tokens.Line(1f), selected, row.Soon, muted))
             {
                 m_screen = row.Target;
             }
@@ -1267,7 +1277,9 @@ internal sealed class ConfigWindow : Window
         _ = dl;
         _ = right;
 
-        string[] tabs = TabsFor(m_screen);
+        // No tabs while the tracker is walking somebody through installing IINACT: there is
+        // nothing behind them yet, and the wizard stands where their content would.
+        string[] tabs = m_screen == Screen.CombatTracker && m_combatTracker.ShowsWizard ? TabsNone : TabsFor(m_screen);
         int screenIndex = (int)m_screen;
         if (m_tabIndex[screenIndex] >= tabs.Length)
         {
