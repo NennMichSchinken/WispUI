@@ -639,17 +639,17 @@ internal sealed class PartySnapshot
 
                 if (mine)
                 {
-                    Insert(m_buffs, start, ref slot.BuffCount, entry, facts, duration, born);
+                    Insert(m_buffs, start, ref slot.BuffCount, entry, facts, duration, born, oldestFirst: false);
                 }
                 else if (!m_ownBuffsOnly)
                 {
                     // Without the split, everything lands in the first row the way it did
                     // before there was a second one.
-                    Insert(m_buffs, start, ref slot.BuffCount, entry, facts, duration, born);
+                    Insert(m_buffs, start, ref slot.BuffCount, entry, facts, duration, born, oldestFirst: false);
                 }
                 else
                 {
-                    Insert(m_others, start, ref slot.OtherCount, entry, facts, duration, born);
+                    Insert(m_others, start, ref slot.OtherCount, entry, facts, duration, born, oldestFirst: false);
                 }
 
                 continue;
@@ -660,7 +660,7 @@ internal sealed class PartySnapshot
                 slot.HasDispellable = true;
             }
 
-            Insert(m_auras, start, ref slot.AuraCount, entry, facts, duration, born);
+            Insert(m_auras, start, ref slot.AuraCount, entry, facts, duration, born, oldestFirst: true);
         }
     }
 
@@ -802,14 +802,19 @@ internal sealed class PartySnapshot
     /// Puts one effect in its place, keeping at most <see cref="MaxAuras"/>. Something ranked
     /// below a full list is dropped where it stands.
     /// <para>
-    /// 🔴 The order is: anything Esuna takes off first, then whatever arrived last. It used to
-    /// be the game's own <c>PartyListPriority</c> alone, and with a row cut down to two icons
-    /// that read as a shuffle — a new affliction the game happens to rank higher pushed a
-    /// visible one out, and the pushed-out one reappeared when the newcomer expired (Florian,
-    /// 2026-09-22). Which two icons a frame can hold is still a choice made for you, but now
-    /// it is one that can be predicted: the thing you can act on, then the thing that just
-    /// happened. The game's ranking stays as the last word between two effects that landed on
-    /// the same pass, so the order never comes down to where the game happened to file them.
+    /// 🔴 The order is: anything Esuna takes off first, then by arrival. It used to be the
+    /// game's own <c>PartyListPriority</c> alone, and with a row cut down to two icons that
+    /// read as a shuffle — a new affliction the game happens to rank higher pushed a visible
+    /// one out, and the pushed-out one reappeared when the newcomer expired (Florian,
+    /// 2026-09-22). The game's ranking stays as the last word between two effects that landed
+    /// on the same pass, so the order never comes down to where the game happened to file them.
+    /// </para>
+    /// <para>
+    /// 🔴 Afflictions run OLDEST first, the two buff rows newest first. Newest-first on the
+    /// debuff row still read as being shoved: every new affliction pushed one you were already
+    /// watching off the end (Florian, 2026-09-23). Now what is there stays until it runs out,
+    /// and the next one in arrival order moves up into the gap. The buff rows keep the last
+    /// cast in front — "leave it as it is" (Florian, 2026-09-18).
     /// </para>
     /// <para>
     /// An insertion into a list of eight, which is cheaper than collecting everything and
@@ -823,11 +828,12 @@ internal sealed class PartySnapshot
         in NativeUi.StatusEntry entry,
         in StatusFacts facts,
         float duration,
-        int born)
+        int born,
+        bool oldestFirst)
     {
         int at = count;
 
-        while (at > 0 && Outranks(facts.CanDispel, born, facts.Priority, in auras[start + at - 1]))
+        while (at > 0 && Outranks(facts.CanDispel, born, facts.Priority, oldestFirst, in auras[start + at - 1]))
         {
             if (at < MaxAuras)
             {
@@ -872,7 +878,7 @@ internal sealed class PartySnapshot
     /// the row every frame for no reason anybody could see.
     /// </para>
     /// </summary>
-    private static bool Outranks(bool canDispel, int born, byte priority, in AuraSnapshot sitting)
+    private static bool Outranks(bool canDispel, int born, byte priority, bool oldestFirst, in AuraSnapshot sitting)
     {
         if (canDispel != sitting.CanDispel)
         {
@@ -881,7 +887,7 @@ internal sealed class PartySnapshot
 
         if (born != sitting.Born)
         {
-            return born > sitting.Born;
+            return oldestFirst ? born < sitting.Born : born > sitting.Born;
         }
 
         return priority > sitting.Priority;
