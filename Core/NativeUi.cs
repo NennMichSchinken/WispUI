@@ -220,6 +220,35 @@ internal static class NativeUi
         return (nint)manager->Objects.GetObjectByEntityId(entityId);
     }
 
+    /// <summary>
+    /// The entity id of whoever is targeted, or zero when nobody is — or when the target is
+    /// something without an entity id of its own (a door, a chest), which carries the
+    /// client's "no object" value and would otherwise match an empty party slot.
+    /// <para>
+    /// Read here rather than through <c>ITargetManager.Target</c>, because that property wraps
+    /// the target in a fresh object on every read, and this is asked once per frame (§7.1).
+    /// The same hard target the property reads: <c>TargetSystem.GetHardTarget</c>.
+    /// </para>
+    /// </summary>
+    public static unsafe uint TargetEntityId()
+    {
+        var system = FFXIVClientStructs.FFXIV.Client.Game.Control.TargetSystem.Instance();
+
+        if (system is null)
+        {
+            return 0;
+        }
+
+        var target = system->GetHardTarget();
+
+        if (target is null || target->EntityId == NoObject)
+        {
+            return 0;
+        }
+
+        return target->EntityId;
+    }
+
     /// <summary>One status effect on somebody, straight out of the game's own array.</summary>
     internal struct StatusEntry
     {

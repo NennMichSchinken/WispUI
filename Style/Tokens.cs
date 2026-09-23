@@ -868,6 +868,13 @@ internal static class Tokens
         /// </summary>
         public static float FrameHoverRing => WorldLine(3f);
 
+        /// <summary>
+        /// The ring on the frame of whoever is targeted. Thinner than the hover ring on
+        /// purpose: it is there all the time, so it only has to be findable, and when the
+        /// mouse is on the target the hover ring still has to read as the one arriving.
+        /// </summary>
+        public static float FrameTargetRing => WorldLine(2f);
+
         // --- the combat meter ---------------------------------------------------
         // It wears the window's look but lives on the world, so every size here is in screen
         // pixels (WorldPx), never in the suite scale — the same two-worlds rule as the frames.
