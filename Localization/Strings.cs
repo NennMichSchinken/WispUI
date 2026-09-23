@@ -35,14 +35,11 @@ internal static class Strings
     public const string EditModeKeys = "Drag or use the arrows  ·  Shift for 10  ·  Ctrl ignores the guides";
     public const string EditModeDone = "Done";
     public const string NewBadge = "New";
-    public const string Soon = "Soon";
 
     // --- Navigation ---------------------------------------------------------
     public const string NavGlobal = "Global";
     public const string NavProfile = "Profile";
     public const string NavPartyFrames = "Party Frames";
-    public const string NavPlayerBars = "Player Bars";
-    public const string NavJobGauges = "Job Gauges";
 
     // --- Tabs ---------------------------------------------------------------
     public const string TabBase = "Base";
@@ -50,6 +47,7 @@ internal static class Strings
     public const string TabLayout = "Layout";
     public const string TabAuras = "Auras";
     public const string TabText = "Text";
+    public const string TabColours = "Colours";
     public const string TabMarks = "Marks";
 
     // --- Subheadings inside a card. Rare on purpose — see Chrome.Subhead.
@@ -201,6 +199,15 @@ internal static class Strings
     public const string MouseMiddle = "Middle";
     public const string MouseFour = "Mouse 4";
     public const string MouseFive = "Mouse 5";
+
+    // --- colours -----------------------------------------------------------
+    public const string GroupRoles = "Roles";
+    public const string GroupRolesHint = "Used wherever something is coloured by role rather than by job.";
+    public const string GroupTanks = "Tanks";
+    public const string GroupHealers = "Healers";
+    public const string GroupMelee = "Melee";
+    public const string GroupRangedCasters = "Ranged and casters";
+    public const string ResetColour = "Back to the colour WispUI ships with.";
 
     // --- lettering ----------------------------------------------------------
     public const string GroupLettering = "Lettering";
@@ -372,8 +379,10 @@ internal static class Strings
 
     public const string FrameWidth = "Frame width";
     public const string FrameHeight = "Frame height";
-    public const string Spacing = "Spacing";
-    public const string SpacingHint = "between frames";
+    public const string SpacingX = "Spacing X";
+    public const string SpacingXHint = "left and right";
+    public const string SpacingY = "Spacing Y";
+    public const string SpacingYHint = "above and below";
 
     // The arrangement written out, so nobody has to picture it. Filled with the numbers.
     public const string ArrangementColumns = "{0} columns of {1}";
@@ -444,4 +453,116 @@ internal static class Strings
     public const string ProfileCodeNotOurs = "That is not a WispUI profile code.";
     public const string ProfileCodeNewer = "That code is from a newer version of WispUI.";
     public const string ProfileCodeUnreadable = "That code is damaged. Ask for it again — chat windows sometimes cut them.";
+
+    // --- Combat tracker ---
+
+    /// <summary>
+    /// What a meter counts. Sentence case like every other label in the suite — the game's own
+    /// tools title-case these, and matching them would be the one place WispUI does.
+    /// </summary>
+    public const string MetricDamageDone = "Damage done";
+
+    public const string MetricDamageTaken = "Damage taken";
+
+    public const string MetricHealingDone = "Healing done";
+
+    public const string MetricHealingTaken = "Healing taken";
+
+    public const string MetricDeaths = "Deaths";
+
+    public const string NavCombatTracker = "Combat Tracker";
+
+    // On the meter itself.
+    public const string MeterViewCurrent = "Current";
+    public const string MeterViewOverall = "Overall";
+    public const string MeterViewFight = "Earlier fight";
+    public const string MeterNotConnected = "Waiting for IINACT";
+    public const string MeterNoData = "Waiting for combat data";
+    public const string MeterResetTooltip = "Start over";
+    public const string MeterFightsTooltip = "Earlier fights";
+    public const string MeterMetricTooltip = "What to show";
+    public const string MeterSettingsTooltip = "Settings";
+    public const string MeterLocked = "Locked. Click to unlock.";
+    public const string MeterUnlocked = "Click to lock in place.";
+    public const string MeterGripTooltip = "Drag to resize. Hold Shift to change one side only.";
+    public const string MeterResetQuestion = "Reset all combat data?";
+    public const string MeterResetConfirm = "Reset";
+    public const string MeterResetCancel = "Cancel";
+
+    // The settings page.
+    public const string GroupMeterBars = "Bars";
+    public const string GroupMeterBarsHint = "Fill, colour and opacity.";
+    public const string MeterBarOpacity = "Bar opacity";
+    public const string MeterSmoothTooltip = "Bars slide to their new length instead of jumping.";
+    public const string GroupMeterText = "On each bar";
+    public const string GroupMeterTextHint = "What every line says.";
+    public const string MeterJobMark = "Job";
+    public const string MeterJobIcon = "Icon";
+    public const string MeterJobLetters = "Letters";
+    public const string MeterJobOff = "Off";
+    public const string MeterRanks = "Rank numbers";
+    public const string MeterShortNumbers = "Short numbers";
+    public const string MeterShortNumbersTooltip = "1.2M instead of 1,234,567.";
+    public const string MeterTextSize = "Text size";
+    public const string GroupMeterFights = "Fights";
+    public const string GroupMeterFightsHint = "When the meter starts over.";
+    public const string MeterOnlyInCombat = "Only in combat";
+    public const string MeterAutoReset = "Reset on entering a duty";
+    public const string MeterConfirmReset = "Ask before resetting";
+    public const string MeterEndOnReset = "End the fight on reset";
+    public const string MeterEndOnResetTooltip = "Tells IINACT the fight is over whenever you reset, so the next pull starts clean.";
+    public const string MeterEndAfterCombat = "End the fight after combat";
+    public const string MeterEndAfterCombatTooltip = "Tells IINACT the fight is over a few seconds after combat ends.";
+    public const string GroupMeterSize = "Size";
+    public const string GroupMeterSizeHint = "Or drag the meter's bottom right corner.";
+    public const string MeterWidth = "Width";
+    public const string MeterHeight = "Height";
+    public const string MeterBarHeight = "Bar height";
+    public const string MeterBarSpacing = "Bar spacing";
+    public const string MeterTitleHeight = "Title height";
+    public const string MeterTitleText = "Title text size";
+    public const string GroupMeterLook = "Meter";
+    public const string GroupMeterLookHint = "How the meter sits on the screen.";
+    public const string MeterRim = "Gold rim";
+    public const string MeterBackground = "Background opacity";
+    public const string MeterLockedRow = "Locked";
+    public const string MeterLockedTooltip = "A locked meter cannot be moved or resized with the mouse. Edit Mode still moves it.";
+    public const string MeterTestMode = "Show test data";
+    public const string MeterTestModeTooltip = "Fills the meter with a made-up fight so you can set it up. Switches off when this window closes.";
+
+    // IINACT, where it stands — said in the meter and on its page, never anywhere else.
+    public const string MeterIinactMissing = "IINACT is not installed";
+    public const string MeterIinactMissingBody = "The meter reads its numbers from IINACT. Open the settings to set it up.";
+    public const string MeterIinactStopped = "IINACT is not running";
+    public const string MeterIinactStoppedBody = "It is installed, but Dalamud did not start it. After a game patch it usually needs an update.";
+    public const string MeterIinactSilent = "IINACT is not answering";
+    public const string MeterIinactSilentBody = "It is running, but not sending anything. Restarting the game usually helps.";
+
+    // The wizard.
+    public const string WizardStep1 = "1 · Copy the address";
+    public const string WizardStep2 = "2 · Add the repository";
+    public const string WizardStep3 = "3 · Install IINACT";
+    public const string WizardKicker1 = "Combat Tracker needs IINACT · step 1 of 3";
+    public const string WizardKicker2 = "Combat Tracker needs IINACT · step 2 of 3";
+    public const string WizardKicker3 = "Combat Tracker needs IINACT · step 3 of 3";
+    public const string WizardTitle1 = "Copy IINACT's repository address";
+    public const string WizardTitle2 = "Add the repository to Dalamud";
+    public const string WizardTitle3 = "Install IINACT";
+    public const string WizardBody1 = "The meter reads its numbers from IINACT, a free plugin that lives in its own repository rather than in Dalamud's main list. Copy its address first.";
+    public const string WizardBody2 = "Open Dalamud's settings and paste the address into the empty line of Custom Plugin Repositories, the lower of the two lists. The Dev Plugin Locations list above it wants a folder and will say the path is not valid. If the address is already in the list, skip this step.";
+    public const string WizardBody3 = "Search the plugin installer for IINACT and install it. This page moves on by itself once IINACT is running.";
+    public const string WizardPath = "Experimental  ›  Custom Plugin Repositories (the lower list)  ›  paste  ›  +  ›  Save";
+    public const string WizardStatusMissing = "Not installed yet.";
+    public const string WizardStatusStopped = "Installed, but not running yet.";
+    public const string WizardStatusStarting = "Installed. Waiting for it to start.";
+    public const string WizardStatusSilent = "Installed and started, but not answering. Restarting the game usually helps.";
+    public const string WizardCopy = "Copy address";
+    public const string WizardCopied = "Copied. Copy again";
+    public const string WizardOpenSettings = "Open Dalamud settings";
+    public const string WizardOpenInstaller = "Open plugin installer";
+    public const string WizardOpenUpdates = "Open plugin updates";
+    public const string WizardOpenInstalled = "Open installed plugins";
+    public const string WizardBack = "Back";
+    public const string WizardNext = "Next";
+    public const string WizardGuide = "Step by step guide on iinact.com";
 }

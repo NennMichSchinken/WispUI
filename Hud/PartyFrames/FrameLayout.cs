@@ -67,14 +67,15 @@ internal static class FrameLayout
         int lines,
         float width,
         float height,
-        float spacing)
+        float spacingX,
+        float spacingY)
     {
         int perLine = PerLine(count, lines);
         int line = index / perLine;
         int slot = index - (line * perLine);
 
-        float alongX = width + spacing;
-        float alongY = height + spacing;
+        float alongX = width + spacingX;
+        float alongY = height + spacingY;
 
         return direction == FrameDirection.Horizontal
             ? new Vector2(slot * alongX, line * alongY)
@@ -95,7 +96,8 @@ internal static class FrameLayout
         int lines,
         float width,
         float height,
-        float spacing)
+        float spacingX,
+        float spacingY)
     {
         count = Math.Max(1, count);
         int perLine = PerLine(count, lines);
@@ -104,11 +106,13 @@ internal static class FrameLayout
         // hold two frames when there are only two of them.
         int used = (count + perLine - 1) / perLine;
 
-        float along = (perLine * width) + ((perLine - 1) * spacing);
-        float across = (used * height) + ((used - 1) * spacing);
+        // Frames across the screen and frames down it, whichever way the block runs. The
+        // gaps belong to the screen's axes, not to the direction (see the config).
+        int acrossScreen = direction == FrameDirection.Horizontal ? perLine : used;
+        int downScreen = direction == FrameDirection.Horizontal ? used : perLine;
 
-        return direction == FrameDirection.Horizontal
-            ? new Vector2(along, across)
-            : new Vector2((used * width) + ((used - 1) * spacing), (perLine * height) + ((perLine - 1) * spacing));
+        return new Vector2(
+            (acrossScreen * width) + ((acrossScreen - 1) * spacingX),
+            (downScreen * height) + ((downScreen - 1) * spacingY));
     }
 }

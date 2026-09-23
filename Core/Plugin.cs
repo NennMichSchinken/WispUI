@@ -21,6 +21,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly CommandHandler m_commands;
     private readonly InfoBarEntry m_infoBar;
     private readonly HudManager m_hud = new();
+    private readonly Hud.CombatTracker.CombatTrackerElement m_meter;
 
     /// <summary>The one feature that hooks the game. Owned here so it is always disposed.</summary>
     private readonly MouseoverCasting m_mouseover;
@@ -33,6 +34,7 @@ public sealed class Plugin : IDalamudPlugin
         Services.Initialize(pluginInterface);
 
         m_config = Configuration.Load();
+        m_config.ApplyPalette();
 
         // Before anything asks for a face by name. Reading the folder touches the disk, so it
         // happens once here and again only when the player asks for it.
@@ -51,7 +53,13 @@ public sealed class Plugin : IDalamudPlugin
         var frames = new PartyFramesElement(m_config);
         m_hud.Add(frames);
 
-        m_configWindow = new ConfigWindow(m_config, frames);
+        // After the frames, so it draws over them where the two meet.
+        m_meter = new Hud.CombatTracker.CombatTrackerElement(m_config);
+        m_hud.Add(m_meter);
+
+        m_configWindow = new ConfigWindow(m_config, frames, m_meter);
+        m_meter.SettingsRequested += this.OnMeterSettings;
+        m_configWindow.Closed += this.OnConfigClosed;
         m_windows.AddWindow(m_configWindow);
         m_commands = new CommandHandler(m_configWindow);
 
@@ -94,6 +102,9 @@ public sealed class Plugin : IDalamudPlugin
     {
         Services.Framework.Update -= this.OnUpdate;
         EditMode.Finished -= this.OnEditModeFinished;
+        m_meter.SettingsRequested -= this.OnMeterSettings;
+        m_configWindow.Closed -= this.OnConfigClosed;
+        m_meter.Dispose();
         m_configWindow.InfoBarPreferenceChanged -= this.OnInfoBarPreferenceChanged;
         Services.PluginInterface.UiBuilder.OpenConfigUi -= m_configWindow.Toggle;
         Services.PluginInterface.UiBuilder.OpenMainUi -= m_configWindow.Toggle;
@@ -208,13 +219,23 @@ public sealed class Plugin : IDalamudPlugin
         // asked for at another falls back to a stretched glyph nobody chose.
         // On the stack, so the tick allocates nothing. These are the three texts a frame can
         // carry; two of them are usually the same size, and SyncHud drops the duplicate.
-        Span<float> sizes = stackalloc float[3];
+        Span<float> sizes = stackalloc float[4];
         sizes[0] = Tokens.WorldPx(cfg.NameSize);
         sizes[1] = Tokens.WorldPx(cfg.HpTextSize);
         sizes[2] = Tokens.WorldPx(cfg.PartyNumberSize);
 
+        // The meter writes one size on every bar. Left out while it is off, so it never costs
+        // a handle nobody draws with.
+        sizes[3] = m_config.CombatTrackerEnabled ? Tokens.WorldPx(m_config.CombatTracker.TextSize) : 0f;
+
         Fonts.SyncHud(!m_config.HasPendingChanges, m_config.FontName, HudText.WeightAt(m_config.TextWeight), sizes);
     }
+
+    /// <summary>The meters gear: the suite, opened on the meters own page.</summary>
+    private void OnMeterSettings() => m_configWindow.OpenAt(Screen.CombatTracker);
+
+    /// <summary>The meters test mode lives only while the settings window is open (spec §3a).</summary>
+    private void OnConfigClosed() => m_meter.TestMode = false;
 
     /// <summary>Puts the settings window back when arranging ends, however it ended.</summary>
     private void OnEditModeFinished() => m_configWindow.IsOpen = true;

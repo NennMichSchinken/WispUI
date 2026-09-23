@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Dalamud.Configuration;
 
 namespace WispUI.Core;
@@ -11,7 +12,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 17;
+    public const int CurrentVersion = 20;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -95,6 +96,18 @@ public sealed class Configuration : IPluginConfiguration
     public const float MinFrameHeight = 18f;
     public const float MaxFrameHeight = 150f;
     public const float MaxFrameSpacing = 24f;
+
+    /// <summary>
+    /// The smallest meter that still holds its title bar with all four buttons and one bar,
+    /// and the largest any screen needs. The corner stops at the first two while dragging.
+    /// </summary>
+    public const float MinMeterWidth = 220f;
+    public const float MinMeterHeight = 110f;
+    public const float MaxMeterSize = 2000f;
+    public const float MinMeterTitle = 20f;
+    public const float MaxMeterTitle = 60f;
+    public const float MinMeterBarHeight = 14f;
+    public const float MaxMeterBarHeight = 60f;
     public const float MinManaHeight = 2f;
     public const float MaxManaHeight = 16f;
     public const float MinIconSize = 8f;
@@ -139,7 +152,7 @@ public sealed class Configuration : IPluginConfiguration
     /// Which face the HUD is lettered in. Axis is the game's interface face and the suite's
     /// own; it is also light, which is what prompted the choice (Florian, 2026-09-12).
     /// </summary>
-    public string FontName { get; set; } = Style.FontLibrary.DefaultName;
+    public string FontName { get; set; } = "DM Sans";
 
     /// <summary>
     /// How heavily the face is laid down. Medium by default, not Normal: against a black
@@ -157,7 +170,7 @@ public sealed class Configuration : IPluginConfiguration
     /// both noisy (Florian, 2026-09-12).
     /// </para>
     /// </summary>
-    public int TextEdge { get; set; } = 1;
+    public int TextEdge { get; set; } = 2;
 
     /// <summary>
     /// The chosen edge, as the value the drawing code wants. Internal, which is also what
@@ -166,9 +179,39 @@ public sealed class Configuration : IPluginConfiguration
     /// </summary>
     internal Style.TextEdge Edge => Style.HudText.EdgeAt(this.TextEdge);
 
-    public bool PartyFramesEnabled { get; set; } = true;
+    /// <summary>
+    /// The job colours the player changed, by <c>ClassJob</c> row id. Only what differs from
+    /// the shipped palette is stored, so a colour nobody touched keeps following that palette.
+    /// <para>
+    /// On the suite rather than on a module since version 19 (Florian, 2026-09-22): every
+    /// module that colours by job reads one palette, so a Scholar is the same purple on a
+    /// party frame and on a damage meter. Not carried by a profile, like the lettering — it
+    /// is how this player reads jobs, not how one job's setup looks.
+    /// </para>
+    /// </summary>
+    public Dictionary<uint, uint> JobColours { get; set; } = new();
+
+    /// <summary>The role colours the player changed, by <see cref="Data.JobRole"/>. Same rules as <see cref="JobColours"/>.</summary>
+    public Dictionary<int, uint> RoleColours { get; set; } = new();
+
+    /// <summary>
+    /// Whether the party frames are drawn at all. Off by default (Florian, 2026-09-22): the
+    /// first time the plugin loads, the game's own party list stays exactly as it was, and
+    /// the frames are something the player switches on — never something that happened to
+    /// their screen.
+    /// </summary>
+    public bool PartyFramesEnabled { get; set; }
 
     public PartyFramesConfig PartyFrames { get; set; } = new();
+
+    /// <summary>
+    /// Whether the combat meter is drawn at all. Off by default, for the same reason as the
+    /// party frames: nothing appears on somebody's screen until they ask for it — and this
+    /// one also needs IINACT to have anything to show.
+    /// </summary>
+    public bool CombatTrackerEnabled { get; set; }
+
+    public CombatTrackerConfig CombatTracker { get; set; } = new();
 
     /// <summary>
     /// The saved profiles and which one is on.
@@ -198,7 +241,7 @@ public sealed class Configuration : IPluginConfiguration
         /// their bar changed by an update they did not ask for.
         /// </para>
         /// </summary>
-        public string BarStyleName { get; set; } = Data.BarStyles.DefaultName;
+        public string BarStyleName { get; set; } = "Aurora";
 
         /// <summary>
         /// The old position in the style list. Nothing writes it any more; it is here so the
@@ -208,7 +251,7 @@ public sealed class Configuration : IPluginConfiguration
         public int BarStyle { get; set; }
 
         /// <summary>Index into the colour modes: by role, by job, or a fixed colour.</summary>
-        public int ColourMode { get; set; }
+        public int ColourMode { get; set; } = 1;
 
         public float BarOpacity { get; set; } = 1f;
 
@@ -216,7 +259,7 @@ public sealed class Configuration : IPluginConfiguration
         /// Health slides to its new value instead of jumping. Off by default: movement is
         /// information, and a bar that is still catching up is lying about the current state.
         /// </summary>
-        public bool SmoothBars { get; set; }
+        public bool SmoothBars { get; set; } = true;
 
         /// <summary>Draw the player name on the frame at all — the switch in the group head.</summary>
         public bool ShowName { get; set; } = true;
@@ -259,7 +302,7 @@ public sealed class Configuration : IPluginConfiguration
         // anatomy for all of them, which is also why there is no padding slider (spec §11.2).
 
         /// <summary>Index into the nine anchor points.</summary>
-        public int NamePosition { get; set; } = (int)Hud.Anchor.Left;
+        public int NamePosition { get; set; } = (int)Hud.Anchor.TopLeft;
 
         /// <summary>
         /// In pixels. A frame can be anywhere from 18 to 150 tall, and what size a name wants
@@ -273,7 +316,7 @@ public sealed class Configuration : IPluginConfiguration
         /// the icon moved or switched off the name is simply indented, which is a look rather
         /// than a fault.
         /// </summary>
-        public float NameX { get; set; } = 22f;
+        public float NameX { get; set; } = 0f;
 
         public float NameY { get; set; }
 
@@ -297,7 +340,7 @@ public sealed class Configuration : IPluginConfiguration
         // --- health text --------------------------------------------------------
 
         /// <summary>The figure's own switch. Whether it shows is not one of the things it says.</summary>
-        public bool ShowHealthText { get; set; } = true;
+        public bool ShowHealthText { get; set; } = false;
 
         /// <summary>0 the current figure, 1 a percentage, 2 what is missing.</summary>
         public int HpTextMode { get; set; } = 1;
@@ -322,7 +365,7 @@ public sealed class Configuration : IPluginConfiguration
         /// do — a healer watching their own, a Summoner — know they want it.
         /// </para>
         /// </summary>
-        public bool ShowMana { get; set; }
+        public bool ShowMana { get; set; } = true;
 
         /// <summary>0 a thin strip along the bottom edge, 1 a bar of its own.</summary>
         public int ManaStyle { get; set; }
@@ -332,7 +375,7 @@ public sealed class Configuration : IPluginConfiguration
         /// the frame was absurd at 150 px tall (Florian, at the prototype). Thin trim follows
         /// the interface scale and nothing else.
         /// </summary>
-        public float ManaHeight { get; set; } = 3f;
+        public float ManaHeight { get; set; } = 4f;
 
         /// <summary>
         /// Who gets a mana bar. Three switches rather than one "healers only": in a light
@@ -370,7 +413,7 @@ public sealed class Configuration : IPluginConfiguration
         /// whole bar — stripes, say — is exactly what says "shield" on a short stretch of one.
         /// </para>
         /// </summary>
-        public string ShieldStyleName { get; set; } = Data.BarStyles.ShieldDefaultName;
+        public string ShieldStyleName { get; set; } = "Smooth";
 
         public uint ShieldColour { get; set; } = Style.Tokens.Col.Shield;
 
@@ -390,7 +433,7 @@ public sealed class Configuration : IPluginConfiguration
         /// ever the overlay it was asked to be.
         /// </para>
         /// </summary>
-        public float ShieldOpacity { get; set; } = 0.8f;
+        public float ShieldOpacity { get; set; } = 1f;
 
         // --- job icon -----------------------------------------------------------
         // Described exactly like a text is (spec §11.2): a switch, a size, one of the nine
@@ -414,11 +457,11 @@ public sealed class Configuration : IPluginConfiguration
         public int JobIconStyle { get; set; }
 
         /// <summary>Index into the nine anchor points.</summary>
-        public int JobIconPosition { get; set; } = (int)Hud.Anchor.Left;
+        public int JobIconPosition { get; set; } = (int)Hud.Anchor.TopRight;
 
-        public float JobIconX { get; set; }
+        public float JobIconX { get; set; } = 15f;
 
-        public float JobIconY { get; set; }
+        public float JobIconY { get; set; } = -13f;
 
         /// <summary>
         /// Hide it on damage dealers. In a light party every icon is a landmark; in a full one
@@ -472,17 +515,17 @@ public sealed class Configuration : IPluginConfiguration
         /// Off by default. Who leads matters when it matters — pulling, ready checks, loot —
         /// and the rest of the time it is a mark on somebody's frame for no reason.
         /// </summary>
-        public bool ShowLeaderIcon { get; set; }
+        public bool ShowLeaderIcon { get; set; } = true;
 
         /// <summary>In pixels, and square.</summary>
-        public float LeaderIconSize { get; set; } = 16f;
+        public float LeaderIconSize { get; set; } = 20f;
 
         /// <summary>Index into the nine anchor points.</summary>
-        public int LeaderIconPosition { get; set; } = (int)Hud.Anchor.TopRight;
+        public int LeaderIconPosition { get; set; } = (int)Hud.Anchor.TopLeft;
 
-        public float LeaderIconX { get; set; }
+        public float LeaderIconX { get; set; } = -16f;
 
-        public float LeaderIconY { get; set; }
+        public float LeaderIconY { get; set; } = -16f;
 
         // --- party number -------------------------------------------------------
         // The 1 to 8 the game's own party list puts in front of every member. Same anatomy
@@ -493,7 +536,7 @@ public sealed class Configuration : IPluginConfiguration
         /// Off by default. It is a real aid in a raid where people are called by number, and
         /// eight numbers nobody uses is eight pieces of furniture on the screen.
         /// </summary>
-        public bool ShowPartyNumber { get; set; }
+        public bool ShowPartyNumber { get; set; } = true;
 
         /// <summary>
         /// In pixels, like every other text on a frame, but a step above the body size the
@@ -501,12 +544,12 @@ public sealed class Configuration : IPluginConfiguration
         /// to carry on its own — and 19 px is the next size Axis is drawn at rather than
         /// scaled to (Florian, 2026-09-12).
         /// </summary>
-        public float PartyNumberSize { get; set; } = 19f;
+        public float PartyNumberSize { get; set; } = 12f;
 
         /// <summary>Index into the nine anchor points.</summary>
-        public int PartyNumberPosition { get; set; } = (int)Hud.Anchor.TopLeft;
+        public int PartyNumberPosition { get; set; } = (int)Hud.Anchor.Left;
 
-        public float PartyNumberX { get; set; }
+        public float PartyNumberX { get; set; } = -14f;
 
         public float PartyNumberY { get; set; }
 
@@ -521,21 +564,21 @@ public sealed class Configuration : IPluginConfiguration
         public bool ShowAuras { get; set; } = true;
 
         /// <summary>In pixels, and square, like every other icon on a frame.</summary>
-        public float AuraSize { get; set; } = 20f;
+        public float AuraSize { get; set; } = 30f;
 
         /// <summary>Index into the nine anchor points.</summary>
         public int AuraPosition { get; set; } = (int)Hud.Anchor.TopRight;
 
-        public float AuraX { get; set; }
+        public float AuraX { get; set; } = 2f;
 
-        public float AuraY { get; set; }
+        public float AuraY { get; set; } = -2f;
 
         /// <summary>
         /// How many fit before the game's own ranking starts dropping them. Four, because a
         /// frame is not a debuff list — the ones that matter rank highest, and a row of
         /// twelve tiny squares is unreadable at the moment it would be needed.
         /// </summary>
-        public int AuraMaxCount { get; set; } = 4;
+        public int AuraMaxCount { get; set; } = 2;
 
         /// <summary>
         /// The stack count on effects that carry one. On: a stacking debuff is a different
@@ -563,7 +606,7 @@ public sealed class Configuration : IPluginConfiguration
         /// the same one the stack count already gives).
         /// </para>
         /// </summary>
-        public bool AuraShowDuration { get; set; }
+        public bool AuraShowDuration { get; set; } = true;
 
         /// <summary>
         /// A coloured edge on the afflictions that can be taken off.
@@ -622,7 +665,7 @@ public sealed class Configuration : IPluginConfiguration
         /// want different numbers and cannot have them.
         /// </para>
         /// </summary>
-        public float AuraDurationSize { get; set; } = 14f;
+        public float AuraDurationSize { get; set; } = 20f;
 
         /// <summary>
         /// The same for the stack count. Its own value rather than a ratio of the one
@@ -630,7 +673,7 @@ public sealed class Configuration : IPluginConfiguration
         /// and the count is the number that sits half off its icon — whoever wants it a
         /// pixel smaller should be able to say so.
         /// </summary>
-        public float AuraStackSize { get; set; } = 13f;
+        public float AuraStackSize { get; set; } = 18f;
 
         /// <summary>
         /// Point at an affliction and the game's own name and description for it come up.
@@ -650,7 +693,7 @@ public sealed class Configuration : IPluginConfiguration
         /// one everybody does (Florian, 2026-09-21).
         /// </para>
         /// </summary>
-        public bool ShowAuraTooltips { get; set; }
+        public bool ShowAuraTooltips { get; set; } = true;
 
         /// <summary>The same, for the row of effects you put on somebody.</summary>
         public bool ShowBuffTooltips { get; set; }
@@ -680,17 +723,17 @@ public sealed class Configuration : IPluginConfiguration
         public bool OwnBuffsOnly { get; set; } = true;
 
         /// <summary>In pixels, and square.</summary>
-        public float BuffSize { get; set; } = 18f;
+        public float BuffSize { get; set; } = 20f;
 
         /// <summary>Index into the nine anchor points. The opposite corner to the afflictions.</summary>
-        public int BuffPosition { get; set; } = (int)Hud.Anchor.BottomLeft;
+        public int BuffPosition { get; set; } = (int)Hud.Anchor.BottomRight;
 
-        public float BuffX { get; set; }
+        public float BuffX { get; set; } = 2f;
 
-        public float BuffY { get; set; }
+        public float BuffY { get; set; } = 2f;
 
         /// <summary>Three: a healer rarely has more than that of their own on one person.</summary>
-        public int BuffMaxCount { get; set; } = 3;
+        public int BuffMaxCount { get; set; } = 5;
 
         public bool BuffShowStacks { get; set; } = true;
 
@@ -718,10 +761,10 @@ public sealed class Configuration : IPluginConfiguration
         /// (Florian, 2026-09-21). A size is only ever right relative to what it sits on.
         /// </para>
         /// </summary>
-        public float BuffDurationSize { get; set; } = 14f;
+        public float BuffDurationSize { get; set; } = 22f;
 
         /// <inheritdoc cref="BuffDurationSize"/>
-        public float BuffStackSize { get; set; } = 13f;
+        public float BuffStackSize { get; set; } = 21f;
 
         // --- everybody else's: the third row -------------------------------------
         // What is already keeping this person up without you — mitigation, somebody else's
@@ -740,29 +783,29 @@ public sealed class Configuration : IPluginConfiguration
         /// Off by default. It is the busiest of the three and the least often needed, and a
         /// third block of icons on a frame is a real cost — it has to be asked for.
         /// </summary>
-        public bool ShowOtherBuffs { get; set; }
+        public bool ShowOtherBuffs { get; set; } = true;
 
         /// <summary>In pixels, and square.</summary>
-        public float OtherSize { get; set; } = 18f;
+        public float OtherSize { get; set; } = 20f;
 
         /// <summary>Index into the nine anchor points.</summary>
-        public int OtherPosition { get; set; } = (int)Hud.Anchor.BottomRight;
+        public int OtherPosition { get; set; } = (int)Hud.Anchor.BottomLeft;
 
-        public float OtherX { get; set; }
+        public float OtherX { get; set; } = -2f;
 
-        public float OtherY { get; set; }
+        public float OtherY { get; set; } = 2f;
 
-        public int OtherMaxCount { get; set; } = 3;
+        public int OtherMaxCount { get; set; } = 2;
 
         /// <summary>The seconds left on somebody else's benefit icon.</summary>
         /// <inheritdoc cref="BuffShowDuration" path="/para"/>
         public bool OtherShowDuration { get; set; }
 
         /// <inheritdoc cref="BuffDurationSize"/>
-        public float OtherDurationSize { get; set; } = 14f;
+        public float OtherDurationSize { get; set; } = 22f;
 
         /// <inheritdoc cref="BuffDurationSize"/>
-        public float OtherStackSize { get; set; } = 13f;
+        public float OtherStackSize { get; set; } = 21f;
 
         /// <summary>
         /// One of <see cref="Hud.FrameMarkStyle"/>. None out of the box.
@@ -773,7 +816,7 @@ public sealed class Configuration : IPluginConfiguration
         /// still say what is on a person either way; this is only about shouting it.
         /// </para>
         /// </summary>
-        public int CleanseMark { get; set; } = (int)Hud.FrameMarkStyle.Border;
+        public int CleanseMark { get; set; } = (int)Hud.FrameMarkStyle.Full;
 
         /// <summary>
         /// Whether the cleanse mark appears at all. Off out of the box.
@@ -788,7 +831,7 @@ public sealed class Configuration : IPluginConfiguration
         /// shape that was chosen rather than the first one in the list.
         /// </para>
         /// </summary>
-        public bool ShowCleanseMark { get; set; }
+        public bool ShowCleanseMark { get; set; } = true;
 
         /// <summary>
         /// Show the cleanse mark only while on a job that can actually cleanse.
@@ -824,7 +867,7 @@ public sealed class Configuration : IPluginConfiguration
         /// strong where it starts, and a wash over the whole frame cannot, so the number had
         /// to stop being one number for everybody (Florian, 2026-09-18).
         /// </summary>
-        public float CleanseOpacity { get; set; } = 0.55f;
+        public float CleanseOpacity { get; set; } = 1f;
 
         // --- the raise mark: the same marking, saying the opposite thing -------------------
         // Cleanse says "you have to do something". This says "somebody already is" — which is
@@ -832,11 +875,11 @@ public sealed class Configuration : IPluginConfiguration
 
         /// <summary>One of <see cref="Hud.FrameMarkStyle"/>. None out of the box, with the
         /// cleanse mark and for the same reason.</summary>
-        public int RaiseMark { get; set; } = (int)Hud.FrameMarkStyle.Border;
+        public int RaiseMark { get; set; } = (int)Hud.FrameMarkStyle.Full;
 
         /// <summary>Whether the raise mark appears, with the cleanse mark and for the same
         /// reason.</summary>
-        public bool ShowRaiseMark { get; set; }
+        public bool ShowRaiseMark { get; set; } = true;
 
         /// <summary>
         /// A spring green, and deliberately NOT the healer role colour <c>#6EF54D</c>: the mark
@@ -848,7 +891,7 @@ public sealed class Configuration : IPluginConfiguration
 
         public float RaiseThickness { get; set; } = 3f;
 
-        public float RaiseOpacity { get; set; } = 0.55f;
+        public float RaiseOpacity { get; set; } = 1f;
 
         // --- rescue: a raise on its way, and somebody who cannot be killed -------
         // Their own place on the frame rather than a slot in the icon row, because the row
@@ -882,7 +925,7 @@ public sealed class Configuration : IPluginConfiguration
         public bool ShowRescueIcon { get; set; } = true;
 
         /// <summary>In pixels, and square. Larger than the affliction icons on purpose.</summary>
-        public float RescueIconSize { get; set; } = 24f;
+        public float RescueIconSize { get; set; } = 30f;
 
         /// <summary>Index into the nine anchor points.</summary>
         public int RescueIconPosition { get; set; } = (int)Hud.Anchor.Centre;
@@ -904,19 +947,46 @@ public sealed class Configuration : IPluginConfiguration
         /// 90-400, in steps of five. Wide enough for a name and a number at the default; the
         /// spec's 168 became 170 so that the default sits on a stop of its own slider.
         /// </summary>
-        public float FrameWidth { get; set; } = 170f;
+        public float FrameWidth { get; set; } = 160f;
 
         /// <summary>18-150. The useful range is 30-70; the rest is there for small parties.</summary>
-        public float FrameHeight { get; set; } = 38f;
+        public float FrameHeight { get; set; } = 70f;
 
-        /// <summary>Between two frames. Never mixed with padding.</summary>
-        public float Spacing { get; set; } = 4f;
+        /// <summary>
+        /// ⚠️ A migration relic. It was one gap for both ways; <see cref="SpacingX"/> and
+        /// <see cref="SpacingY"/> replaced it at version 18, which reads this once. Nothing
+        /// draws from it.
+        /// </summary>
+        public float Spacing { get; set; } = 2f;
+
+        /// <summary>
+        /// The gap between two frames side by side, and <see cref="SpacingY"/> the gap between
+        /// two frames one above the other. Never mixed with padding.
+        /// <para>
+        /// Two numbers since version 18 (Florian, 2026-09-22): with two columns the gap
+        /// between the columns and the gap down a column are read differently — the first
+        /// separates two groups, the second only two people — and one number cannot serve
+        /// both.
+        /// </para>
+        /// <para>
+        /// Named for the screen, not for the direction the frames run: flipping a block from
+        /// vertical to horizontal does not swap which gap is which, because the player set
+        /// them looking at the screen.
+        /// </para>
+        /// </summary>
+        public float SpacingX { get; set; } = 2f;
+
+        /// <inheritdoc cref="SpacingX"/>
+        public float SpacingY { get; set; } = 2f;
 
         /// <summary>0 = vertical (the game's own shape), 1 = horizontal.</summary>
         public int Direction { get; set; }
 
-        /// <summary>How many lines the frames break into: 1, 2 or 4.</summary>
-        public int Lines { get; set; } = 1;
+        /// <summary>
+        /// How many lines the frames break into: 1, 2 or 4. Two by default (Florian,
+        /// 2026-09-22): a full party as two columns of four.
+        /// </summary>
+        public int Lines { get; set; } = 2;
 
         /// <summary>
         /// Hides the game's own party list while WispUI's frames are on.
@@ -955,7 +1025,8 @@ public sealed class Configuration : IPluginConfiguration
 
             this.FrameWidth = Bounded(this.FrameWidth, MinFrameWidth, MaxFrameWidth, 170f);
             this.FrameHeight = Bounded(this.FrameHeight, MinFrameHeight, MaxFrameHeight, 38f);
-            this.Spacing = Bounded(this.Spacing, 0f, MaxFrameSpacing, 4f);
+            this.SpacingX = Bounded(this.SpacingX, 0f, MaxFrameSpacing, 2f);
+            this.SpacingY = Bounded(this.SpacingY, 0f, MaxFrameSpacing, 2f);
             this.ManaHeight = Bounded(this.ManaHeight, MinManaHeight, MaxManaHeight, 3f);
 
             this.PositionX = Bounded(this.PositionX, -MaxPosition, MaxPosition, 100f);
@@ -1048,17 +1119,119 @@ public sealed class Configuration : IPluginConfiguration
         /// </summary>
         private const int MaxAurasPerRow = Hud.PartyFrames.PartySnapshot.MaxAuras;
 
-        /// <summary>
-        /// A number inside its range, or the default when it is not a number at all. The
-        /// second case is the one that matters: NaN fails every comparison, so it slips
-        /// through a clamp untouched and then quietly poisons every size computed from it.
-        /// </summary>
-        private static float Bounded(float value, float low, float high, float fallback) =>
-            float.IsFinite(value) ? Math.Clamp(value, low, high) : fallback;
-
         private static float Offset(float value, float fallback) =>
             Bounded(value, -MaxTextOffset, MaxTextOffset, fallback);
     }
+
+    /// <summary>
+    /// The combat meter's own settings (version 20). Ported from HamMeter, our own published
+    /// plugin, minus what the suite now answers for it: its colours are the suite's palette
+    /// and surfaces, its header and icons are the suite's sizes.
+    /// </summary>
+    [Serializable]
+    public sealed class CombatTrackerConfig
+    {
+        /// <summary>Top left of the meter on the screen, in screen pixels.</summary>
+        public float PositionX { get; set; } = 100f;
+
+        public float PositionY { get; set; } = 700f;
+
+        /// <summary>The whole meter, rim included. Set by dragging its corner.</summary>
+        public float Width { get; set; } = 360f;
+
+        public float Height { get; set; } = 240f;
+
+        /// <summary>A locked meter can neither be moved by its title bar nor resized.</summary>
+        public bool Locked { get; set; }
+
+        /// <summary>The suite's four-ring frame around the meter. On by default (Florian, 2026-09-22).</summary>
+        public bool ShowRim { get; set; } = true;
+
+        /// <summary>
+        /// The title bar. 34 by default, lower than the window's 42: on a meter four bars tall
+        /// the full height would take a quarter of the element (spec §3a). A setting since
+        /// Florian asked for one (2026-09-22).
+        /// </summary>
+        public float TitleHeight { get; set; } = 34f;
+
+        /// <summary>What the title bar says is written at this size. 16 is Axis's own, so it is sharp there.</summary>
+        public float TitleTextSize { get; set; } = 16f;
+
+        /// <summary>How much of the meter's surfaces is painted — the bars keep their own opacity.</summary>
+        public float BackgroundOpacity { get; set; } = 1f;
+
+        /// <summary>The same list of styles the party frames offer, stored by name the same way.</summary>
+        public string BarStyleName { get; set; } = Data.BarStyles.DefaultName;
+
+        /// <summary>0 = by job, 1 = by role. Both read the suite's palette under Global.</summary>
+        public int ColourMode { get; set; }
+
+        public float BarOpacity { get; set; } = 1f;
+
+        public bool SmoothBars { get; set; } = true;
+
+        public float BarHeight { get; set; } = 26f;
+
+        public float BarSpacing { get; set; } = 3f;
+
+        /// <summary>One size for everything written on a bar — one font handle, not three.</summary>
+        public float TextSize { get; set; } = 14f;
+
+        /// <summary>0 = job icon, 1 = the job's three letters, 2 = nothing.</summary>
+        public int JobMark { get; set; }
+
+        /// <summary>Which of the game's two icon sets, like the party frames' own: 0 framed, 1 plain.</summary>
+        public int JobIconStyle { get; set; }
+
+        public bool ShowRanks { get; set; } = true;
+
+        /// <summary>1.2M rather than 1,234,567.</summary>
+        public bool ShortNumbers { get; set; } = true;
+
+        /// <summary>Which reading the meter shows; see <see cref="Data.CombatMetric"/>.</summary>
+        public int Metric { get; set; }
+
+        public bool OnlyInCombat { get; set; }
+
+        public bool AutoResetInDuty { get; set; } = true;
+
+        public bool ConfirmReset { get; set; } = true;
+
+        /// <summary>Tells IINACT to close the fight whenever the meter is reset.</summary>
+        public bool EndEncounterOnReset { get; set; }
+
+        /// <summary>Tells IINACT to close the fight a few seconds after combat ends.</summary>
+        public bool AutoEndCombat { get; set; }
+
+        internal void Sanitise()
+        {
+            this.PositionX = Bounded(this.PositionX, -MaxPosition, MaxPosition, 100f);
+            this.PositionY = Bounded(this.PositionY, -MaxPosition, MaxPosition, 700f);
+            this.Width = Bounded(this.Width, MinMeterWidth, MaxMeterSize, 360f);
+            this.Height = Bounded(this.Height, MinMeterHeight, MaxMeterSize, 240f);
+            this.TitleHeight = Bounded(this.TitleHeight, MinMeterTitle, MaxMeterTitle, 34f);
+            this.TitleTextSize = Bounded(this.TitleTextSize, MinTextSize, MaxTextSize, 16f);
+            this.BackgroundOpacity = Bounded(this.BackgroundOpacity, 0f, 1f, 1f);
+            this.BarOpacity = Bounded(this.BarOpacity, MinBarOpacity, 1f, 1f);
+            this.BarHeight = Bounded(this.BarHeight, MinMeterBarHeight, MaxMeterBarHeight, 26f);
+            this.BarSpacing = Bounded(this.BarSpacing, 0f, MaxFrameSpacing, 3f);
+            this.TextSize = Bounded(this.TextSize, MinTextSize, MaxTextSize, 14f);
+            this.BarStyleName ??= Data.BarStyles.DefaultName;
+            this.ColourMode = Math.Clamp(this.ColourMode, 0, 1);
+            this.JobMark = Math.Clamp(this.JobMark, 0, 2);
+            this.JobIconStyle = Known<Data.JobIconStyle>(this.JobIconStyle);
+            this.Metric = Known<Data.CombatMetric>(this.Metric);
+        }
+    }
+
+    /// <summary>
+    /// A number inside its range, or the default when it is not a number at all. The
+    /// second case is the one that matters: NaN fails every comparison, so it slips
+    /// through a clamp untouched and then quietly poisons every size computed from it.
+    /// <para>On the outer class since version 20, so every module's block can use it.</para>
+    /// </summary>
+    private static float Bounded(float value, float low, float high, float fallback) =>
+        float.IsFinite(value) ? Math.Clamp(value, low, high) : fallback;
 
     /// <summary>
     /// A stored number that stands for one of a list. Asked of the enum itself rather than
@@ -1071,6 +1244,35 @@ public sealed class Configuration : IPluginConfiguration
     private static int Known<TEnum>(int value)
         where TEnum : struct, Enum =>
         Enum.IsDefined((TEnum)(object)value) ? value : 0;
+
+    /// <summary>
+    /// A stored palette with only what it may hold: colours for keys that exist, and every
+    /// colour fully opaque — a see-through job colour would be a health bar you can read the
+    /// game through, and no swatch in the suite offers one.
+    /// </summary>
+    private static Dictionary<TKey, uint> CleanPalette<TKey>(Dictionary<TKey, uint>? palette, Func<TKey, bool> known)
+        where TKey : notnull
+    {
+        var clean = new Dictionary<TKey, uint>();
+
+        if (palette is null)
+        {
+            return clean;
+        }
+
+        foreach (KeyValuePair<TKey, uint> pair in palette)
+        {
+            if (known(pair.Key))
+            {
+                clean[pair.Key] = pair.Value | 0xFF000000u;
+            }
+        }
+
+        return clean;
+    }
+
+    /// <summary>Hands the stored palette to the lookup every bar reads its colour from.</summary>
+    internal void ApplyPalette() => Data.Jobs.Apply(this.JobColours, this.RoleColours);
 
     /// <summary>
     /// Puts every number in the whole suite back inside its range. See the module's own
@@ -1088,8 +1290,15 @@ public sealed class Configuration : IPluginConfiguration
         this.TextWeight = Math.Clamp(this.TextWeight, 0, 2);
         this.TextEdge = Known<Style.TextEdge>(this.TextEdge);
 
+        this.JobColours = CleanPalette(this.JobColours, static key => Data.Jobs.IsColoured(key));
+        this.RoleColours = CleanPalette(
+            this.RoleColours,
+            static key => key is (int)Data.JobRole.Tank or (int)Data.JobRole.Healer or (int)Data.JobRole.Dps);
+
         this.PartyFrames ??= new PartyFramesConfig();
         this.PartyFrames.Sanitise();
+        this.CombatTracker ??= new CombatTrackerConfig();
+        this.CombatTracker.Sanitise();
         this.Profiles ??= new ProfileSet();
         this.Profiles.Sanitise();
     }
@@ -1556,6 +1765,31 @@ public sealed class Configuration : IPluginConfiguration
                 SplitRowNumbers(config.Profiles.Items[i].PartyFrames);
             }
         }
+
+        if (config.Version < 18)
+        {
+            // One gap became two. Both take the one there was, so nothing moves the day this
+            // runs.
+            SplitSpacing(config.PartyFrames);
+
+            for (int i = 0; i < config.Profiles.Items.Count; i++)
+            {
+                SplitSpacing(config.Profiles.Items[i].PartyFrames);
+            }
+        }
+
+        // Version 19 added the palette. Nothing to move: an empty palette is the shipped one,
+        // which is what everybody had.
+
+        // Version 20 added the combat meter's block. Nothing to move either: it arrives with
+        // its defaults and switched off.
+    }
+
+    /// <inheritdoc cref="PartyFramesConfig.SpacingX"/>
+    private static void SplitSpacing(PartyFramesConfig cfg)
+    {
+        cfg.SpacingX = cfg.Spacing;
+        cfg.SpacingY = cfg.Spacing;
     }
 
     /// <inheritdoc cref="PartyFramesConfig.BuffShowDuration"/>

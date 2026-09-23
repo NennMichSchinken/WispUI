@@ -343,7 +343,7 @@ internal static class Tokens
         /// a HUD colour).
         /// </para>
         /// </summary>
-        public static readonly uint Cleanse = Rgb(0xC8A2E8);
+        public static readonly uint Cleanse = Rgb(0xB382DD);
 
         /// <summary>
         /// ⚠️ NOT MEASURED. Somebody a raise is already on its way to — "this one is handled",
@@ -369,7 +369,7 @@ internal static class Tokens
         /// neither a role nor a job colour so a shield can never be mistaken for one. The
         /// setting under Base is what it is really for — this is only where it starts.
         /// </summary>
-        public static readonly uint Shield = Rgb(0xE9F0FF);
+        public static readonly uint Shield = Rgb(0xFFBF22);
 
         /// <summary>The wedge that sweeps an affliction icon as it runs out.</summary>
         public static readonly uint AuraSwipe = 0x96000000u;
@@ -867,6 +867,37 @@ internal static class Tokens
         /// it has to read as something arriving, not as the edge having changed colour.
         /// </summary>
         public static float FrameHoverRing => WorldLine(3f);
+
+        // --- the combat meter ---------------------------------------------------
+        // It wears the window's look but lives on the world, so every size here is in screen
+        // pixels (WorldPx), never in the suite scale — the same two-worlds rule as the frames.
+
+        /// <summary>The lit part at the top of the meter's title bar, like the window's own.</summary>
+        public static float MeterTitleFade => WorldPx(12f);
+
+        /// <summary>The four buttons in the meter's title bar, and the room between them.</summary>
+        public static float MeterIcon => WorldPx(16f);
+
+        public static float MeterIconGap => WorldPx(10f);
+
+        /// <summary>Between the meter's edge and its card, and around the title text.</summary>
+        public static float MeterPad => WorldPx(8f);
+
+        /// <summary>Inside the card, between its edge and the bars.</summary>
+        public static float MeterCardPad => WorldPx(4f);
+
+        /// <summary>The meter's own corners (the window's 8), its card's, and each bar's.</summary>
+        public static float MeterRadius => WorldPx(8f);
+
+        public static float MeterCardRadius => WorldPx(6f);
+
+        public static float MeterBarRadius => WorldPx(3f);
+
+        /// <summary>Between a bar's edge and its first and last text, and between the texts.</summary>
+        public static float MeterBarInset => WorldPx(6f);
+
+        /// <summary>The corner that resizes the meter, and the lock beside it.</summary>
+        public static float MeterGrip => WorldPx(14f);
 
         /// <summary>How far a HUD text's shadow is offset. One pixel, at whatever the scale is.</summary>
         public static float HudTextShadow => WorldLine(1f);

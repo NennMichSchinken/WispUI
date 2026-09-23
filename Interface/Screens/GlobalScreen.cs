@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using WispUI.Core;
+using WispUI.Data;
 using WispUI.Interface.Widgets;
 using WispUI.Localization;
 using WispUI.Style;
@@ -24,7 +25,16 @@ internal sealed class GlobalScreen
     private const string IdTextWeight = "##wisp-global-textweight";
     private const string IdTextEdge = "##wisp-global-textedge";
 
+    private const string IdRolesGroup = "##wisp-global-roles";
+    private const string IdTanksGroup = "##wisp-global-tanks";
+    private const string IdHealersGroup = "##wisp-global-healers";
+    private const string IdMeleeGroup = "##wisp-global-melee";
+    private const string IdRangedGroup = "##wisp-global-ranged";
+    private const string IdJobColour = "##wisp-colour-job-";
+
     private readonly Configuration m_config;
+
+    private string[] m_jobIds = Array.Empty<string>();
 
     /// <summary>
     /// The one selector in the suite with a searchable list, because it is the one whose list
@@ -272,6 +282,154 @@ internal sealed class GlobalScreen
         contentHeight = used;
         return group;
     }
+
+    /// <summary>
+    /// The Colours tab: the one palette every module colours by (version 19). The roles across
+    /// the top, then the jobs in the four groups a raider already sorts them into.
+    /// </summary>
+    /// <param name="width">The usable width, with the content padding already taken off.</param>
+    public void DrawColours(float width)
+    {
+        Vector2 origin = ImGui.GetCursorScreenPos();
+        float column = Chrome.ColumnWidth(width);
+        this.EnsureJobIds();
+
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope roles = this.DrawRoles(origin.X, origin.Y, width, out float rolesHeight);
+        float y = origin.Y + Chrome.GroupFrame(roles, rolesHeight) + Tokens.Metric.ColumnGutter;
+
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope tanks = this.DrawJobs(IdTanksGroup, Strings.GroupTanks, JobGroup.Tank, JobGroup.Tank, Chrome.ColumnX(origin.X, width, 0), y, column, out float tanksHeight);
+        Chrome.GroupScope healers = this.DrawJobs(IdHealersGroup, Strings.GroupHealers, JobGroup.Healer, JobGroup.Healer, Chrome.ColumnX(origin.X, width, 1), y, column, out float healersHeight);
+        y += Chrome.GroupFrameRow(tanks, tanksHeight, healers, healersHeight) + Tokens.Metric.ColumnGutter;
+
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope melee = this.DrawJobs(IdMeleeGroup, Strings.GroupMelee, JobGroup.Melee, JobGroup.Melee, Chrome.ColumnX(origin.X, width, 0), y, column, out float meleeHeight);
+        Chrome.GroupScope ranged = this.DrawJobs(IdRangedGroup, Strings.GroupRangedCasters, JobGroup.PhysicalRanged, JobGroup.MagicalRanged, Chrome.ColumnX(origin.X, width, 1), y, column, out float rangedHeight);
+        y += Chrome.GroupFrameRow(melee, meleeHeight, ranged, rangedHeight) + Tokens.Metric.ColumnGutter;
+
+        ImGui.SetCursorScreenPos(origin);
+        ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
+    }
+
+    private Chrome.GroupScope DrawRoles(float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(
+            IdRolesGroup,
+            new Chrome.GroupHead
+            {
+                Title = Strings.GroupRoles,
+                Description = Strings.GroupRolesHint,
+            },
+            x,
+            y,
+            width);
+
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
+
+        for (int i = 0; i < RoleRows.Length; i++)
+        {
+            JobRole role = RoleRows[i];
+            uint colour = Jobs.RoleColour(role);
+
+            if (Chrome.ColourRow(RoleIds[i], RoleNames[i], group.ContentX, rowY, group.ContentWidth, ref colour, i > 0, null, Jobs.ShippedRoleColour(role)))
+            {
+                colour |= 0xFF000000u;
+
+                if (colour == Jobs.ShippedRoleColour(role))
+                {
+                    m_config.RoleColours.Remove((int)role);
+                }
+                else
+                {
+                    m_config.RoleColours[(int)role] = colour;
+                }
+
+                m_config.ApplyPalette();
+                m_config.MarkDirty();
+            }
+
+            rowY += pitch;
+        }
+
+        contentHeight = rowY - pitch - group.ContentY + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, contentHeight);
+        return group;
+    }
+
+    /// <summary>One group of job colours: every job in either of two groups, in game order.</summary>
+    private Chrome.GroupScope DrawJobs(string id, string title, JobGroup first, JobGroup second, float x, float y, float width, out float contentHeight)
+    {
+        Chrome.GroupScope group = Chrome.BeginGroup(id, new Chrome.GroupHead { Title = title }, x, y, width);
+
+        float pitch = Chrome.RowPitch();
+        float rowY = group.ContentY;
+        int rows = 0;
+        JobEntry[] jobs = JobList.All;
+
+        for (int i = 0; i < jobs.Length; i++)
+        {
+            JobEntry job = jobs[i];
+
+            if (job.Group != first && job.Group != second)
+            {
+                continue;
+            }
+
+            uint colour = Jobs.Colour(job.Id);
+            uint shipped = Jobs.ShippedColour(job.Id);
+
+            if (Chrome.ColourRow(m_jobIds[i], job.Name, group.ContentX, rowY, group.ContentWidth, ref colour, rows > 0, job.Abbreviation, shipped))
+            {
+                colour |= 0xFF000000u;
+
+                if (colour == shipped)
+                {
+                    m_config.JobColours.Remove(job.Id);
+                }
+                else
+                {
+                    m_config.JobColours[job.Id] = colour;
+                }
+
+                m_config.ApplyPalette();
+                m_config.MarkDirty();
+            }
+
+            rowY += pitch;
+            rows++;
+        }
+
+        contentHeight = rows == 0 ? 0f : ((rows - 1) * pitch) + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, contentHeight);
+        return group;
+    }
+
+    /// <summary>
+    /// One id per job row, built when the job list is, never per frame. The list is read from
+    /// the game's sheet at load, so its length is only known then.
+    /// </summary>
+    private void EnsureJobIds()
+    {
+        JobEntry[] jobs = JobList.All;
+
+        if (m_jobIds.Length == jobs.Length)
+        {
+            return;
+        }
+
+        m_jobIds = new string[jobs.Length];
+
+        for (int i = 0; i < jobs.Length; i++)
+        {
+            m_jobIds[i] = IdJobColour + jobs[i].Id.ToString(CultureInfo.InvariantCulture);
+        }
+    }
+
+    private static readonly JobRole[] RoleRows = { JobRole.Tank, JobRole.Healer, JobRole.Dps };
+    private static readonly string[] RoleIds = { "##wisp-colour-tank", "##wisp-colour-healer", "##wisp-colour-dps" };
+    private static readonly string[] RoleNames = { Strings.RoleTank, Strings.RoleHealer, Strings.RoleDps };
 
     /// <summary>The three weights, in the order the segments sit. Built once, not per frame.</summary>
     private static readonly string[] WeightNames =

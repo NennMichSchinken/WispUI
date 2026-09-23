@@ -38,6 +38,7 @@ internal static class Chrome
     /// <summary>Fixed ids for the two halves of a slider's number cell, pushed under the row's own id.</summary>
     private const string IdValueCell = "##value";
     private const string IdValueField = "##valuefield";
+    private const string ResetId = "##reset";
 
     /// <summary>Long enough for any number a slider in this suite can hold, and no longer.</summary>
     private const int ValueTextLimit = 8;
@@ -192,22 +193,32 @@ internal static class Chrome
     /// </summary>
     public static float Rule(ImDrawListPtr dl, float x0, float x1, float y)
     {
-        float step = Tokens.Line(1f);
+        Rule(dl, x0, x1, y, Tokens.Line(1f), Tokens.Metric.TitleRuleFade);
+        return Tokens.Metric.TitleRuleHeight;
+    }
+
+    /// <summary>
+    /// The same rule at a line width and fade of the caller's choosing — for the combat meter,
+    /// which draws in screen pixels rather than in the suite scale.
+    /// </summary>
+    public static void Rule(ImDrawListPtr dl, float x0, float x1, float y, float step, float fade)
+    {
         for (int i = 0; i < Tokens.Col.TitleRule.Length; i++)
         {
-            FadingHairline(dl, x0, x1, y + (i * step), Tokens.Col.TitleRule[i], Tokens.Metric.TitleRuleFade);
+            FadingHairline(dl, x0, x1, y + (i * step), Tokens.Col.TitleRule[i], fade, step);
         }
-
-        return Tokens.Metric.TitleRuleHeight;
     }
 
     /// <summary>
     /// A one-pixel rule that fades to nothing at both ends instead of butting into the frame,
     /// the way the game's own dividers run out towards the corners.
     /// </summary>
-    public static void FadingHairline(ImDrawListPtr dl, float x0, float x1, float y, uint colour, float fade)
+    public static void FadingHairline(ImDrawListPtr dl, float x0, float x1, float y, uint colour, float fade) =>
+        FadingHairline(dl, x0, x1, y, colour, fade, Tokens.Line(1f));
+
+    /// <inheritdoc cref="FadingHairline(ImDrawListPtr, float, float, float, uint, float)"/>
+    public static void FadingHairline(ImDrawListPtr dl, float x0, float x1, float y, uint colour, float fade, float thickness)
     {
-        float thickness = Tokens.Line(1f);
         float width = x1 - x0;
         if (width <= 0f)
         {
@@ -319,10 +330,18 @@ internal static class Chrome
 
     /// <summary>
     /// One row of the navigation tree. Selected rows carry the gold edge on the left.
-    /// Rows that are not built yet are dimmed and inert but stay visible, so the tree
-    /// still tells you the module exists.
+    /// <para>
+    /// The tree lists only what is built and works (Florian, 2026-09-22). It used to carry
+    /// modules still to come, dimmed with a "Soon" pill; a promise in the navigation is a
+    /// promise somebody holds you to, and what comes next is not settled.
+    /// </para>
     /// </summary>
-    public static bool NavItem(string id, string label, float x, float y, float width, bool selected, bool soon)
+    /// <param name="muted">
+    /// Built, but waiting on something outside the suite — the combat tracker without IINACT.
+    /// Dimmed, and still clickable, because clicking it is how the player finds out what it
+    /// is waiting for (§5.1a).
+    /// </param>
+    public static bool NavItem(string id, string label, float x, float y, float width, bool selected, bool muted = false)
     {
         float height = Tokens.Metric.NavItemHeight;
         Vector2 min = new(x, y);
@@ -330,9 +349,9 @@ internal static class Chrome
 
         ImGui.SetCursorScreenPos(min);
         ImGui.InvisibleButton(id, new Vector2(width, height));
-        bool hovered = ImGui.IsItemHovered() && !soon;
+        bool hovered = ImGui.IsItemHovered();
         ShowHand(hovered);
-        bool clicked = ImGui.IsItemClicked() && !soon;
+        bool clicked = ImGui.IsItemClicked();
 
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
         if (selected)
@@ -345,36 +364,13 @@ internal static class Chrome
             dl.AddRectFilled(min, max, Tokens.Col.NavHover);
         }
 
-        uint ink = soon ? Tokens.Col.InkFaint
-            : selected ? Tokens.Col.GoldHi
+        uint ink = selected ? Tokens.Col.GoldHi
             : hovered ? Tokens.Col.Ink
+            : muted ? Tokens.Col.InkFaint
             : Tokens.Col.InkDim;
         Ink.Draw(dl, Ink.Role.Body, new Vector2(x + Tokens.Metric.NavIndent, CenterY(y, height, Ink.Role.Body)), ink, label);
 
-        if (soon)
-        {
-            SoonChip(dl, max.X - Tokens.Space.Lg, y + (height * 0.5f));
-        }
-
         return clicked;
-    }
-
-    /// <summary>The muted "Soon" pill on a module that is not built yet.</summary>
-    private static void SoonChip(ImDrawListPtr dl, float right, float middleY)
-    {
-        Vector2 text = Ink.Measure(Ink.Role.Small, Strings.Soon);
-        float height = Tokens.Metric.BadgeHeight;
-        float width = text.X + (Tokens.Metric.BadgePaddingX * 2f);
-        Vector2 min = new(MathF.Round(right - width), MathF.Round(middleY - (height * 0.5f)));
-        Vector2 max = new(min.X + width, min.Y + height);
-
-        dl.AddRect(min, max, Tokens.Col.EdgeDim, height * 0.5f, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
-        Ink.Draw(
-            dl,
-            Ink.Role.Small,
-            new Vector2(min.X + Tokens.Metric.BadgePaddingX, MathF.Round(min.Y + ((height - text.Y) * 0.5f))),
-            Tokens.Col.InkFaint,
-            Strings.Soon);
     }
 
     /// <summary>Measures how wide a tab needs to be, so a row of them can be laid out first.</summary>
@@ -2219,9 +2215,11 @@ internal static class Chrome
         float width,
         ref uint colour,
         bool divider = false,
-        string? hint = null)
+        string? hint = null,
+        uint? shipped = null)
     {
         Row(label, x, y, width, divider, hint);
+        bool reset = false;
 
         float height = RowHeight();
         float swatch = MathF.Round(height * 0.72f);
@@ -2229,6 +2227,43 @@ internal static class Chrome
 
         Vector2 min = new(MathF.Round(right - swatch), MathF.Round(y + ((height - swatch) * 0.5f)));
         Vector2 max = new(min.X + swatch, min.Y + swatch);
+
+        // The way back, beside the swatch and only while there is somewhere to go back to: a
+        // reset on a colour that is already the shipped one would be a button that does
+        // nothing. Per row rather than per screen (Florian, 2026-09-22) — undoing one colour
+        // should not cost the other twenty.
+        if (shipped is uint original && colour != original)
+        {
+            float icon = MathF.Round(swatch * 0.8f);
+            Vector2 at = new(MathF.Round(min.X - Tokens.Space.Sm - icon), MathF.Round(y + ((height - icon) * 0.5f)));
+
+            ImGui.PushID(id);
+            ImGui.SetCursorScreenPos(at);
+            ImGui.InvisibleButton(ResetId, new Vector2(icon, icon));
+            bool resetHovered = ImGui.IsItemHovered();
+            bool resetClicked = ImGui.IsItemClicked();
+            ShowHand(resetHovered);
+
+            if (resetHovered)
+            {
+                Tooltip(null, Strings.ResetColour);
+            }
+
+            ImGui.PopID();
+
+            LineIcons.Draw(
+                ImGui.GetWindowDrawList(),
+                LineIcons.RotateCcw,
+                at,
+                icon,
+                resetHovered ? Tokens.Col.GoldHi : Tokens.Col.InkDim);
+
+            if (resetClicked)
+            {
+                colour = original;
+                reset = true;
+            }
+        }
 
         ImGui.SetCursorScreenPos(min);
         ImGui.InvisibleButton(id, new Vector2(swatch, swatch));
@@ -2255,7 +2290,7 @@ internal static class Chrome
             ImDrawFlags.RoundCornersAll,
             Tokens.Line(1f));
 
-        return Picker(id + "-pop", ref colour);
+        return Picker(id + "-pop", ref colour) || reset;
     }
 
     /// <summary>The grey chequerboard behind a swatch, so transparency is visible as such.</summary>

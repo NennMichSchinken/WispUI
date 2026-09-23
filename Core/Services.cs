@@ -75,6 +75,12 @@ internal sealed class Services
     /// </summary>
     [PluginService] internal static IGameInteropProvider Interop { get; private set; } = null!;
 
+    /// <summary>
+    /// The chat log — written to for exactly one thing: the echo line IINACT reads as "close
+    /// this fight". Never used to tell the player anything (CLAUDE.md §5.1a: never nag).
+    /// </summary>
+    [PluginService] internal static IChatGui Chat { get; private set; } = null!;
+
     internal static void Initialize(IDalamudPluginInterface pluginInterface)
     {
         pluginInterface.Create<Services>();
