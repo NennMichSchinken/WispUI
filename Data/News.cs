@@ -75,10 +75,13 @@ internal readonly struct NewsRelease
 /// What is new, as the window shows it.
 /// <para>
 /// 🔴 WRITTEN BY HAND FOR EVERY RELEASE, and it is a permanent release step rather than a
-/// one-off — see CLAUDE.md §2.1. Two files carry a release's notes and both need the new
-/// version: this one for the window, and <c>CHANGELOG.md</c> for the published changelog
-/// that goes with the submission. Missing one of them is not a build error, which is
-/// exactly why it is written down here.
+/// one-off. Three files carry a release and all three need the new version: this one for
+/// the window, <c>CHANGELOG.md</c> for the release page (the release workflow copies this
+/// version's section from it and fails if there is none), and <c>repo.json</c>, whose
+/// version and one-line changelog are what the plugin installer shows (the workflow fails
+/// if its version does not match the build). The version itself lives in
+/// <c>WispUI.csproj</c>. Missing this file is not a build error, which is exactly why it
+/// is written down here.
 /// </para>
 /// <para>
 /// Rules that keep the screen honest, learned from the sister project:

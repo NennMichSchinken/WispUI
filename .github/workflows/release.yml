@@ -1,0 +1,71 @@
+# Builds the plugin when a version tag is pushed and attaches it to a GitHub release.
+# The custom repository (repo.json) downloads from "releases/latest", so publishing a
+# release is what ships an update. Pushing the tag is the only manual step.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # The Dalamud SDK builds against an installed Dalamud; a runner has none, so the
+      # released one is unpacked and pointed at through DALAMUD_HOME. latest.zip is the
+      # live release — when Dalamud moves to a new API level, this build moves with it
+      # and fails until the plugin is updated, which is the right time to find out.
+      - name: Fetch Dalamud
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://goatcorp.github.io/dalamud-distrib/latest.zip -OutFile dalamud.zip
+          Expand-Archive dalamud.zip -DestinationPath "$env:RUNNER_TEMP\dalamud"
+          "DALAMUD_HOME=$env:RUNNER_TEMP\dalamud" >> $env:GITHUB_ENV
+
+      - name: Build
+        run: dotnet build -c Release -p:RestoreLockedMode=true
+
+      # The tag and the project version have to agree, or the installer would offer a
+      # version that is not the one in the zip.
+      - name: Check version
+        shell: pwsh
+        run: |
+          $built = (Get-Content bin/Release/WispUI/WispUI.json | ConvertFrom-Json).AssemblyVersion
+          $tagged = "$($env:GITHUB_REF_NAME.TrimStart('v')).0"
+          if ($built -ne $tagged) { throw "Tag $env:GITHUB_REF_NAME does not match the built version $built." }
+          $listed = (Get-Content repo.json | ConvertFrom-Json)[0].AssemblyVersion
+          if ($listed -ne $built) { throw "repo.json lists $listed, but the build is $built." }
+
+      # The release text is this version's section of CHANGELOG.md.
+      - name: Release notes
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          $notes = @()
+          $inside = $false
+          foreach ($line in Get-Content CHANGELOG.md) {
+            if ($line -match '^## ') {
+              if ($inside) { break }
+              $inside = $line -match "^## $([regex]::Escape($version))\b"
+              continue
+            }
+            if ($inside) { $notes += $line }
+          }
+          if ($notes.Count -eq 0) { throw "CHANGELOG.md has no section for $version." }
+          $notes -join "`n" | Out-File release-notes.md -Encoding utf8
+          Copy-Item bin/Release/WispUI/latest.zip WispUI.zip
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: WispUI.zip
+          body_path: release-notes.md
