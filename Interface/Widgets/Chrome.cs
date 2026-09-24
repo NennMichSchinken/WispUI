@@ -1,0 +1,2488 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Numerics;
+using Dalamud.Bindings.ImGui;
+using WispUI.Core;
+using WispUI.Localization;
+using WispUI.Style;
+
+namespace WispUI.Interface.Widgets;
+
+/// <summary>
+/// The window chrome, as reusable pieces: nav rows, tabs, buttons, switches.
+/// Every one of them lives here exactly once. A second copy of any of these is a rule
+/// break, because an improvement has to reach every place that uses it.
+/// <para>
+/// They all draw at an absolute screen position and take their hit box from an invisible
+/// button, so a screen can lay itself out without fighting the ImGui cursor. Text goes
+/// through <see cref="Ink"/>, which keeps the draw path free of allocations.
+/// </para>
+/// </summary>
+internal static class Chrome
+{
+    // Fixed ids for the parts of a group head. The group pushes its own id first, so these
+    // stay unique without a string being built on every frame.
+    private const string IdGroupToggle = "##wisp-group-toggle";
+    private const string IdGroupAction = "##wisp-group-action";
+    private const string IdGroupCollapse = "##wisp-group-collapse";
+    private const string IdGroupEye = "##wisp-group-eye";
+
+
+    /// <summary>Only ever mixed towards, never painted: the step a control takes under the hand.</summary>
+    private const uint White = 0xFFFFFFFFu;
+
+    private static bool s_closePopups;
+    private static bool s_rowSplit;
+
+    /// <summary>Fixed ids for the two halves of a slider's number cell, pushed under the row's own id.</summary>
+    private const string IdValueCell = "##value";
+    private const string IdValueField = "##valuefield";
+    private const string ResetId = "##reset";
+
+    /// <summary>Long enough for any number a slider in this suite can hold, and no longer.</summary>
+    private const int ValueTextLimit = 8;
+
+    // Which slider's number is being typed into, and what is in the field. Only one can be at
+    // a time, so one set serves them all. This is not settings state — it lives for as long as
+    // the cursor is in the field and no longer.
+    private static string s_editSlider = string.Empty;
+    private static string s_editText = string.Empty;
+    private static bool s_editFocus;
+    private static bool s_editSeen;
+
+    /// <summary>
+    /// True while a slider's number is being typed into. The window reads it to keep escape
+    /// away from itself: the key has to be able to abandon the entry, not close the suite.
+    /// </summary>
+    public static bool IsEditingValue => s_editSlider.Length > 0;
+
+    /// <summary>Abandons an entry in progress. The window calls it when it closes.</summary>
+    public static void CancelValueEdit() => s_editSlider = string.Empty;
+
+    /// <summary>
+    /// Set for one frame when escape was pressed with a list or panel open. Whoever is drawing
+    /// a popup this frame reads it and closes itself: only the popup's own body may call
+    /// ImGui's close, so the key cannot act on it from the outside.
+    /// </summary>
+    public static bool ClosePopupRequested => s_closePopups;
+
+    /// <summary>Asks every popup drawn this frame to close. Cleared again by <see cref="EndFrame"/>.</summary>
+    public static void RequestClosePopups() => s_closePopups = true;
+
+    /// <summary>Called once at the end of the window's frame, after every popup has had its turn.</summary>
+    public static void EndFrame()
+    {
+        s_closePopups = false;
+
+        // A field whose row was not drawn this frame is a field on a screen nobody is looking
+        // at any more. It is dropped rather than left waiting, the way the undo button had to
+        // be: state that outlives what it belongs to comes back as a ghost later.
+        if (!s_editSeen)
+        {
+            s_editSlider = string.Empty;
+        }
+
+        s_editSeen = false;
+    }
+
+    /// <summary>
+    /// Puts the pointing hand under the mouse while it is over something that can be used.
+    /// <para>
+    /// Every control calls this, and that is the point: ImGui hands the cursor to the backend
+    /// once a frame, and a window that never asks for one leaves whatever was last set
+    /// standing — which is how the game's own hand, put there by a door behind the window,
+    /// was still showing over our controls (Florian, 2026-09-12). Saying what the pointer is
+    /// over is both the affordance and the cure.
+    /// </para>
+    /// </summary>
+    public static void ShowHand(bool hovered)
+    {
+        if (hovered)
+        {
+            ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+        }
+    }
+
+    /// <summary>Vertically centres one line of the given role in a box of that height.</summary>
+    public static float CenterY(float top, float height, Ink.Role role) =>
+        MathF.Round(top + ((height - Ink.LineHeight(role)) * 0.5f));
+
+    /// <summary>
+    /// Draws a top-to-bottom two-colour fill, the shape FFXIV uses for its own chrome.
+    /// <para>
+    /// ImGui cannot round the corners of a gradient, so with a radius the fill is built in
+    /// three parts: a rounded cap in the top colour, the gradient between the caps, and a
+    /// rounded cap in the bottom colour. The gradient starts and ends exactly where the caps
+    /// do, so each cap holds the colour its neighbour begins with and nothing square pokes
+    /// out from under a rounded edge.
+    /// </para>
+    /// <para>
+    /// <paramref name="fade"/> ends the gradient early and fills the rest in the bottom
+    /// colour — a lit edge that runs out near the top rather than a wash over the whole box.
+    /// </para>
+    /// </summary>
+    public static void VerticalFill(
+        ImDrawListPtr dl,
+        Vector2 min,
+        Vector2 max,
+        uint top,
+        uint bottom,
+        float rounding = 0f,
+        ImDrawFlags flags = ImDrawFlags.RoundCornersAll,
+        float fade = 0f)
+    {
+        float fadeTop = min.Y;
+        float fadeBottom = max.Y;
+
+        if (rounding > 0f && max.Y - min.Y > rounding * 2f)
+        {
+            // The rounded caps can only hold one colour each, so the gradient runs between
+            // them rather than under them. Drawing it across the full height instead left the
+            // caps sitting on a colour the gradient had already moved past — a straight line
+            // across the bar at exactly the cap's edge, which is what this used to do.
+            fadeTop = min.Y + rounding;
+            fadeBottom = max.Y - rounding;
+
+            dl.AddRectFilled(min, new Vector2(max.X, fadeTop), top, rounding, flags & ImDrawFlags.RoundCornersTop);
+
+            ImDrawFlags capFlags = flags & ImDrawFlags.RoundCornersBottom;
+            dl.AddRectFilled(
+                new Vector2(min.X, fadeBottom),
+                max,
+                bottom,
+                rounding,
+                capFlags == 0 ? ImDrawFlags.RoundCornersNone : capFlags);
+        }
+
+        // A fade shorter than the box: the light runs out near the lit edge and the rest of
+        // the box is the surface colour, the way the game's own title bars are lit. The flat
+        // remainder is painted in the colour the gradient ends on, so there is no seam.
+        if (fade > 0f && fade < fadeBottom - fadeTop)
+        {
+            float fadeEnd = fadeTop + fade;
+            dl.AddRectFilledMultiColor(
+                new Vector2(min.X, fadeTop),
+                new Vector2(max.X, fadeEnd),
+                top,
+                top,
+                bottom,
+                bottom);
+
+            dl.AddRectFilled(new Vector2(min.X, fadeEnd), new Vector2(max.X, fadeBottom), bottom);
+            return;
+        }
+
+        dl.AddRectFilledMultiColor(
+            new Vector2(min.X, fadeTop),
+            new Vector2(max.X, fadeBottom),
+            top,
+            top,
+            bottom,
+            bottom);
+    }
+
+    /// <summary>A one-pixel horizontal rule.</summary>
+    public static void Hairline(ImDrawListPtr dl, float x0, float x1, float y, uint colour) =>
+        dl.AddRectFilled(new Vector2(x0, y), new Vector2(x1, y + Tokens.Line(1f)), colour);
+
+    /// <summary>
+    /// The three-pixel divider measured off the game — dark, surface, light — fading out at
+    /// both ends. This is the only rule that separates the window's big regions; anything
+    /// finer uses <see cref="Hairline"/>. Returns the height it used.
+    /// </summary>
+    public static float Rule(ImDrawListPtr dl, float x0, float x1, float y)
+    {
+        Rule(dl, x0, x1, y, Tokens.Line(1f), Tokens.Metric.TitleRuleFade);
+        return Tokens.Metric.TitleRuleHeight;
+    }
+
+    /// <summary>
+    /// The same rule at a line width and fade of the caller's choosing — for the combat meter,
+    /// which draws in screen pixels rather than in the suite scale.
+    /// </summary>
+    public static void Rule(ImDrawListPtr dl, float x0, float x1, float y, float step, float fade)
+    {
+        for (int i = 0; i < Tokens.Col.TitleRule.Length; i++)
+        {
+            FadingHairline(dl, x0, x1, y + (i * step), Tokens.Col.TitleRule[i], fade, step);
+        }
+    }
+
+    /// <summary>
+    /// A one-pixel rule that fades to nothing at both ends instead of butting into the frame,
+    /// the way the game's own dividers run out towards the corners.
+    /// </summary>
+    public static void FadingHairline(ImDrawListPtr dl, float x0, float x1, float y, uint colour, float fade) =>
+        FadingHairline(dl, x0, x1, y, colour, fade, Tokens.Line(1f));
+
+    /// <inheritdoc cref="FadingHairline(ImDrawListPtr, float, float, float, uint, float)"/>
+    public static void FadingHairline(ImDrawListPtr dl, float x0, float x1, float y, uint colour, float fade, float thickness)
+    {
+        float width = x1 - x0;
+        if (width <= 0f)
+        {
+            return;
+        }
+
+        // Two fades cannot take more than the line has to give.
+        fade = MathF.Min(fade, width * 0.5f);
+        uint clear = Tokens.Col.Faded(colour, 0f);
+
+        dl.AddRectFilledMultiColor(
+            new Vector2(x0, y),
+            new Vector2(x0 + fade, y + thickness),
+            clear,
+            colour,
+            colour,
+            clear);
+
+        dl.AddRectFilled(new Vector2(x0 + fade, y), new Vector2(x1 - fade, y + thickness), colour);
+
+        dl.AddRectFilledMultiColor(
+            new Vector2(x1 - fade, y),
+            new Vector2(x1, y + thickness),
+            colour,
+            clear,
+            clear,
+            colour);
+    }
+
+    /// <summary>
+    /// Shows a tooltip while the last item is hovered — the one place a longer explanation
+    /// belongs, since it is not in the flow of the screen.
+    /// <para>
+    /// Built by hand rather than through <c>SetTooltip</c> for two reasons: ImGui sets a
+    /// tooltip as a single unbroken line, which on a wide screen runs right across the game,
+    /// and the default font is not the one the rest of the window is written in.
+    /// </para>
+    /// </summary>
+    public static void TooltipOnHover(string text)
+    {
+        if (!ImGui.IsItemHovered())
+        {
+            return;
+        }
+
+        Tooltip(null, text);
+    }
+
+    /// <summary>
+    /// The tooltip itself, without the hover test — for callers that decide hovering for
+    /// themselves. The HUD does: it paints into a draw list rather than laying out items, so
+    /// there is no "item" for ImGui to have been hovered.
+    /// <para>
+    /// 🔴 In the interface face, never the one the player chose for their frames, and never
+    /// via <c>ImGui.SetTooltip</c> — that neither wraps nor takes the face (session 3). A
+    /// heading is optional so one routine serves a plain hint and a named effect.
+    /// </para>
+    /// </summary>
+    public static void Tooltip(string? heading, string text)
+    {
+        // 🔴 Its own look, pushed here rather than inherited. A tooltip is a popup window as
+        // far as ImGui is concerned, so it reads whatever popup padding, rounding, border and
+        // colours happen to be pushed where it is raised — which made the same tooltip come
+        // out framed and padded inside an open selector list and bare and cramped over a row
+        // in the settings window (Florian, 2026-09-19). These are the selector list's values,
+        // because that is the one that looked right.
+        //
+        // Before BeginTooltip, never after: a window reads its padding and border when it
+        // begins, not while it is filled.
+        float pad = Tokens.Metric.PopupPadding;
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(pad, pad));
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupRounding, Tokens.Radius.Control);
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupBorderSize, Tokens.Line(1f));
+
+        // The gap between the heading and the text under it, pinned for the same reason as
+        // the padding: it is the window's spacing otherwise, and that differs by where the
+        // tooltip was raised.
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(0f, Tokens.Space.Sm));
+        ImGui.PushStyleColor(ImGuiCol.PopupBg, Tokens.Col.PopupBg);
+        ImGui.PushStyleColor(ImGuiCol.Border, Tokens.Col.PopupEdge);
+
+        ImGui.BeginTooltip();
+        ImGui.PushTextWrapPos(Tokens.Metric.TooltipWrap);
+
+        if (!string.IsNullOrEmpty(heading))
+        {
+            Ink.Push(Ink.Role.Title);
+            ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.Heading);
+            ImGui.TextUnformatted(heading);
+            ImGui.PopStyleColor();
+            Ink.Pop(Ink.Role.Title);
+        }
+
+        if (text.Length > 0)
+        {
+            Ink.Push(Ink.Role.Body);
+            ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.Ink);
+            ImGui.TextUnformatted(text);
+            ImGui.PopStyleColor();
+            Ink.Pop(Ink.Role.Body);
+        }
+
+        ImGui.PopTextWrapPos();
+        ImGui.EndTooltip();
+
+        ImGui.PopStyleColor(2);
+        ImGui.PopStyleVar(4);
+    }
+
+    /// <summary>
+    /// One row of the navigation tree. Selected rows carry the gold edge on the left.
+    /// <para>
+    /// The tree lists only what is built and works (Florian, 2026-09-22). It used to carry
+    /// modules still to come, dimmed with a "Soon" pill; a promise in the navigation is a
+    /// promise somebody holds you to, and what comes next is not settled.
+    /// </para>
+    /// </summary>
+    /// <param name="muted">
+    /// Built, but waiting on something outside the suite — the combat tracker without IINACT.
+    /// Dimmed, and still clickable, because clicking it is how the player finds out what it
+    /// is waiting for (§5.1a).
+    /// </param>
+    public static bool NavItem(string id, string label, float x, float y, float width, bool selected, bool muted = false)
+    {
+        float height = Tokens.Metric.NavItemHeight;
+        Vector2 min = new(x, y);
+        Vector2 max = new(x + width, y + height);
+
+        ImGui.SetCursorScreenPos(min);
+        ImGui.InvisibleButton(id, new Vector2(width, height));
+        bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
+        bool clicked = ImGui.IsItemClicked();
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        if (selected)
+        {
+            dl.AddRectFilled(min, max, Tokens.Col.NavSelected);
+            dl.AddRectFilled(min, new Vector2(x + Tokens.Metric.NavAccent, max.Y), Tokens.Col.Gold);
+        }
+        else if (hovered)
+        {
+            dl.AddRectFilled(min, max, Tokens.Col.NavHover);
+        }
+
+        uint ink = selected ? Tokens.Col.GoldHi
+            : hovered ? Tokens.Col.Ink
+            : muted ? Tokens.Col.InkFaint
+            : Tokens.Col.InkDim;
+        Ink.Draw(dl, Ink.Role.Body, new Vector2(x + Tokens.Metric.NavIndent, CenterY(y, height, Ink.Role.Body)), ink, label);
+
+        return clicked;
+    }
+
+    /// <summary>Measures how wide a tab needs to be, so a row of them can be laid out first.</summary>
+    public static float MeasureTab(string label) =>
+        MathF.Round(Ink.Measure(Ink.Role.Body, label).X + (Tokens.Metric.TabPaddingX * 2f));
+
+    /// <summary>
+    /// One tab, drawn as a free-standing chip rather than a folder tab attached to a line.
+    /// The selected chip is filled; the others are just text until you hover them.
+    /// </summary>
+    public static bool Tab(string id, string label, float x, float y, float width, bool selected)
+    {
+        float height = Tokens.Metric.TabHeight;
+        Vector2 min = new(x, y);
+        Vector2 max = new(x + width, y + height);
+
+        ImGui.SetCursorScreenPos(min);
+        ImGui.InvisibleButton(id, new Vector2(width, height));
+        bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
+        bool clicked = ImGui.IsItemClicked();
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        float radius = Tokens.Radius.Control;
+
+        // Lighter at the top than at the bottom, the way the game shades its own tabs. That
+        // one gradient is what makes them read as raised rather than as flat rectangles.
+        if (selected)
+        {
+            VerticalFill(dl, min, max, Tokens.Col.ButtonTop, Tokens.Col.ButtonBottom, radius);
+            dl.AddRect(min, max, Tokens.Col.GoldDim, radius, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
+        }
+        else if (hovered)
+        {
+            VerticalFill(dl, min, max, Tokens.Col.Control, Tokens.Col.Control2, radius);
+        }
+
+        uint ink = selected ? Tokens.Col.GoldHi : hovered ? Tokens.Col.Ink : Tokens.Col.InkDim;
+        float textX = MathF.Round(x + ((width - Ink.Measure(Ink.Role.Body, label).X) * 0.5f));
+        Ink.Draw(dl, Ink.Role.Body, new Vector2(textX, CenterY(y, height, Ink.Role.Body)), ink, label);
+
+        return clicked;
+    }
+
+    /// <summary>Measures a button, so a right-aligned row can be laid out before drawing.</summary>
+    public static float MeasureButton(string label) =>
+        MathF.Round(Ink.Measure(Ink.Role.Body, label).X + (Tokens.Metric.ButtonPaddingX * 2f));
+
+    /// <summary>
+    /// A standard button. A disabled one still answers a hover, because a disabled control
+    /// owes the user a reason. Pass it in <paramref name="disabledReason"/>.
+    /// </summary>
+    /// <param name="primary">
+    /// Marks the one button in a group that finishes the job — it carries the gold edge that
+    /// a hovered button otherwise gets. At most one per group, or the emphasis says nothing.
+    /// </param>
+    public static bool Button(
+        string id,
+        string label,
+        float x,
+        float y,
+        bool enabled,
+        string? disabledReason = null,
+        bool primary = false)
+    {
+        float width = MeasureButton(label);
+        float height = Tokens.Metric.ButtonHeight;
+        Vector2 min = new(x, y);
+        Vector2 max = new(x + width, y + height);
+
+        ImGui.SetCursorScreenPos(min);
+        ImGui.InvisibleButton(id, new Vector2(width, height));
+        bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered && enabled);
+        bool clicked = enabled && ImGui.IsItemClicked();
+
+        float alpha = enabled ? 1f : Tokens.Col.DisabledAlpha;
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        VerticalFill(
+            dl,
+            min,
+            max,
+            Tokens.Col.Faded(Tokens.Col.ButtonTop, alpha),
+            Tokens.Col.Faded(Tokens.Col.ButtonBottom, alpha),
+            Tokens.Radius.Control);
+
+        uint edge = enabled && (hovered || primary) ? Tokens.Col.GoldDim : Tokens.Col.ControlEdge;
+        dl.AddRect(min, max, Tokens.Col.Faded(edge, alpha), Tokens.Radius.Control, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
+
+        uint ink = enabled && (hovered || primary) ? Tokens.Col.GoldHi : Tokens.Col.Ink;
+        Ink.Draw(
+            dl,
+            Ink.Role.Body,
+            new Vector2(x + Tokens.Metric.ButtonPaddingX, CenterY(y, height, Ink.Role.Body)),
+            Tokens.Col.Faded(ink, alpha),
+            label);
+
+        if (!enabled && disabledReason is not null)
+        {
+            TooltipOnHover(disabledReason);
+        }
+
+        return clicked;
+    }
+
+    /// <summary>The per-module on/off switch that sits at the left of every module header.</summary>
+    public static bool Switch(string id, float x, float y, bool value, bool enabled, string? disabledReason = null)
+    {
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.InvisibleButton(id, new Vector2(Tokens.Metric.SwitchWidth, Tokens.Metric.SwitchHeight));
+        bool clicked = enabled && ImGui.IsItemClicked();
+
+        PaintSwitch(ImGui.GetWindowDrawList(), x, y, value, enabled ? 1f : Tokens.Col.DisabledAlpha);
+
+        if (!enabled && disabledReason is not null)
+        {
+            TooltipOnHover(disabledReason);
+        }
+
+        return clicked;
+    }
+
+    /// <summary>
+    /// Paints a switch without claiming a hit box, so a row that already owns its hit box can
+    /// put one at its edge. The drawing lives here once; whoever wants a switch calls this.
+    /// </summary>
+    private static void PaintSwitch(ImDrawListPtr dl, float x, float y, bool value, float alpha)
+    {
+        float width = Tokens.Metric.SwitchWidth;
+        float height = Tokens.Metric.SwitchHeight;
+        Vector2 min = new(x, y);
+        Vector2 max = new(x + width, y + height);
+        float radius = height * 0.5f;
+
+        dl.AddRectFilled(min, max, Tokens.Col.Faded(value ? Tokens.Col.GoldSwitchTrack : Tokens.Col.Input, alpha), radius);
+        dl.AddRect(
+            min,
+            max,
+            Tokens.Col.Faded(value ? Tokens.Col.GoldDim : Tokens.Col.ControlEdge, alpha),
+            radius,
+            ImDrawFlags.RoundCornersAll,
+            Tokens.Line(1f));
+
+        float knob = Tokens.Metric.SwitchKnob;
+        float inset = MathF.Round((height - knob) * 0.5f);
+        float knobX = value ? max.X - inset - knob : min.X + inset;
+        dl.AddRectFilled(
+            new Vector2(knobX, min.Y + inset),
+            new Vector2(knobX + knob, min.Y + inset + knob),
+            Tokens.Col.Faded(value ? Tokens.Col.GoldHi : Tokens.Col.InkFaint, alpha),
+            knob * 0.5f);
+    }
+
+    /// <summary>Paints a tick box without claiming a hit box. The one tick in the suite.</summary>
+    private static void PaintTick(ImDrawListPtr dl, Vector2 min, bool value, bool hovered, float alpha)
+    {
+        float box = Tokens.Metric.CheckBox;
+        Vector2 max = new(min.X + box, min.Y + box);
+
+        dl.AddRectFilled(min, max, Tokens.Col.Faded(value ? Tokens.Col.Gold : Tokens.Col.Input, alpha), Tokens.Radius.Small);
+        dl.AddRect(
+            min,
+            max,
+            Tokens.Col.Faded(value ? Tokens.Col.GoldHi : hovered ? Tokens.Col.GoldDim : Tokens.Col.ControlEdge, alpha),
+            Tokens.Radius.Small,
+            ImDrawFlags.RoundCornersAll,
+            Tokens.Line(1f));
+
+        if (!value)
+        {
+            return;
+        }
+
+        // Two strokes rather than a glyph, so it never depends on the game font having one.
+        float thickness = Tokens.Line(2f);
+        uint ink = Tokens.Col.Faded(Tokens.Col.InkOnGold, alpha);
+        dl.AddLine(
+            new Vector2(min.X + (box * 0.24f), min.Y + (box * 0.52f)),
+            new Vector2(min.X + (box * 0.44f), min.Y + (box * 0.72f)),
+            ink,
+            thickness);
+        dl.AddLine(
+            new Vector2(min.X + (box * 0.44f), min.Y + (box * 0.72f)),
+            new Vector2(min.X + (box * 0.78f), min.Y + (box * 0.28f)),
+            ink,
+            thickness);
+    }
+
+    /// <summary>What a compact option puts at the right edge of its row.</summary>
+    internal enum OptionControl
+    {
+        Tick,
+        Switch,
+    }
+
+    /// <summary>
+    /// A compact option: the label on the left, the control hard against the right edge of
+    /// the column. The whole row is the hit box, so it can be clicked anywhere along it.
+    /// <para>
+    /// That right edge is the point. A tick box parked next to its label leaves the column
+    /// with nothing to align to, and a screen full of them reads as scattered controls rather
+    /// than as a list of settings — the value of a slider, a switch and a tick all end on the
+    /// same line instead.
+    /// </para>
+    /// </summary>
+    /// <param name="divider">
+    /// Draws a faint line in the gap ABOVE the row — pass it on every option of a run except
+    /// the first, whose top line is the group's own head rule.
+    /// <para>
+    /// Above rather than below is LumenUI's rule, and it is the one that composes: a line
+    /// under a row has to be suppressed on the last one, and a subheading dropped into the
+    /// middle of a run would need its own special case. Belonging to the row beneath it, the
+    /// line simply never appears where a run begins.
+    /// </para>
+    /// </param>
+    /// <summary>The hit box of one choice in a segment strip. Told apart by an id scope.</summary>
+    private const string IdSegment = "##wisp-seg";
+
+    public static bool OptionRow(
+        string id,
+        string label,
+        float x,
+        float y,
+        float width,
+        bool value,
+        OptionControl control = OptionControl.Tick,
+        string? tooltip = null,
+        bool enabled = true,
+        bool divider = false)
+    {
+        // The same row every other setting gets: label left, one control against the right
+        // edge, one height. The whole row is the hit box.
+        float height = RowHeight();
+
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.InvisibleButton(id, new Vector2(width, height));
+        bool hovered = ImGui.IsItemHovered() && enabled;
+        ShowHand(hovered);
+        bool clicked = ImGui.IsItemClicked() && enabled;
+
+        float alpha = enabled ? 1f : Tokens.Col.DisabledAlpha;
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        Ink.Draw(
+            dl,
+            Ink.Role.Body,
+            new Vector2(x, CenterY(y, height, Ink.Role.Body)),
+            Tokens.Col.Faded(Tokens.Col.Ink, alpha),
+            label);
+
+        if (control == OptionControl.Switch)
+        {
+            float switchWidth = Tokens.Metric.SwitchWidth;
+            PaintSwitch(
+                dl,
+                MathF.Round(x + width - switchWidth),
+                MathF.Round(y + ((height - Tokens.Metric.SwitchHeight) * 0.5f)),
+                value,
+                alpha);
+        }
+        else
+        {
+            float box = Tokens.Metric.CheckBox;
+            PaintTick(
+                dl,
+                new Vector2(MathF.Round(x + width - box), MathF.Round(y + ((height - box) * 0.5f))),
+                value,
+                hovered,
+                alpha);
+        }
+
+        if (divider)
+        {
+            // Centred in the air above the row, so it sits between two rows, not on either.
+            Hairline(dl, x, x + width, MathF.Round(y - (Tokens.Metric.RowGap * 0.5f)), Tokens.Col.RowDivider);
+        }
+
+        if (tooltip is not null)
+        {
+            TooltipOnHover(tooltip);
+        }
+
+        return clicked;
+    }
+
+    /// <summary>
+    /// One line of a checklist in a popup: a name, a tick against the right edge, and the
+    /// whole line as the target.
+    /// <para>
+    /// 🔴 Not <see cref="OptionRow"/>, which was tried first and read wrong (Florian,
+    /// 2026-09-19: "vom Spacing her"). A settings row is a paragraph — it is tall, it carries
+    /// a divider, it expects air around it, because there are four of them on a card and each
+    /// one is a decision. A menu is a list you read down in one go, so it is tight, has no
+    /// dividers, and marks where the pointer is instead. Same tick, same colours, different
+    /// rhythm, and the rhythm is the whole difference.
+    /// </para>
+    /// </summary>
+    public static bool MenuTickRow(string id, string label, float x, float y, float width, bool ticked)
+    {
+        float height = Tokens.Metric.MenuRowHeight;
+        float pad = Tokens.Space.Sm;
+
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.InvisibleButton(id, new Vector2(width, height));
+        bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
+        bool clicked = ImGui.IsItemClicked();
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        if (hovered)
+        {
+            // The band runs the full width of the row including its padding, so the pointer
+            // marks a line of the list rather than a box inside it.
+            dl.AddRectFilled(
+                new Vector2(x - pad, y),
+                new Vector2(x + width + pad, y + height),
+                Tokens.Col.NavHover,
+                Tokens.Radius.Small);
+        }
+
+        Ink.Draw(
+            dl,
+            Ink.Role.Body,
+            new Vector2(x, CenterY(y, height, Ink.Role.Body)),
+            hovered ? Tokens.Col.Ink : (ticked ? Tokens.Col.Ink : Tokens.Col.InkDim),
+            label);
+
+        float box = Tokens.Metric.CheckBox;
+        PaintTick(
+            dl,
+            new Vector2(MathF.Round(x + width - box), MathF.Round(y + ((height - box) * 0.5f))),
+            ticked,
+            hovered,
+            1f);
+
+        return clicked;
+    }
+
+    /// <summary>
+    /// A row whose control is a strip of two or three choices, all of them visible at once.
+    /// <para>
+    /// The selector answers "which one of many"; this answers "this one or that one", where
+    /// the whole point is that both words are readable without touching anything. A pair of
+    /// arrows around a two-item list makes the reader click to find out what the alternative
+    /// even is (Florian, 2026-09-12).
+    /// </para>
+    /// <para>
+    /// Above three choices it stops working — the labels go narrow before they go short — and
+    /// that is where the arrow selector starts. Nothing enforces it; the widths simply say so.
+    /// </para>
+    /// </summary>
+    /// <returns>True on the frame a different choice was clicked.</returns>
+    public static bool SegmentRow(
+        string id,
+        string label,
+        float x,
+        float y,
+        float width,
+        string[] options,
+        ref int value,
+        bool divider = false,
+        string? hint = null)
+    {
+        float controlX = Row(label, x, y, width, divider, hint);
+        float height = RowHeight();
+        float controlWidth = ControlWidth();
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        Vector2 min = new(MathF.Round(controlX), MathF.Round(y));
+        Vector2 max = new(min.X + controlWidth, min.Y + height);
+
+        dl.AddRectFilled(min, max, Tokens.Col.Input, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll);
+
+        // One id scope per strip, and the segments inside it are told apart by number rather
+        // than by a built-up string: an id per frame per segment would be an allocation in a
+        // path that runs every frame.
+        ImGui.PushID(id);
+
+        int clicked = -1;
+        float accent = Tokens.Metric.NavAccent;
+
+        for (int i = 0; i < options.Length; i++)
+        {
+            // Measured from the left edge each time rather than accumulated, so the last
+            // segment ends exactly on the right edge whatever the division leaves over.
+            float left = MathF.Round(min.X + (controlWidth * i / options.Length));
+            float right = MathF.Round(min.X + (controlWidth * (i + 1) / options.Length));
+            bool selected = i == value;
+
+            ImGui.PushID(i);
+            ImGui.SetCursorScreenPos(new Vector2(left, min.Y));
+            ImGui.InvisibleButton(IdSegment, new Vector2(right - left, height));
+            bool hovered = ImGui.IsItemHovered();
+            ShowHand(hovered);
+
+            if (ImGui.IsItemClicked() && !selected)
+            {
+                clicked = i;
+            }
+
+            ImGui.PopID();
+
+            if (selected || hovered)
+            {
+                // The selected face is drawn inside the strip's own outline, so the rounding
+                // of the two ends belongs to the strip and not to whichever choice is on.
+                dl.PushClipRect(min, max, true);
+                dl.AddRectFilled(
+                    new Vector2(left, min.Y),
+                    new Vector2(right, max.Y),
+                    selected ? Tokens.Col.Control : Tokens.Col.Control2,
+                    Tokens.Radius.Control,
+                    ImDrawFlags.RoundCornersAll);
+
+                if (selected)
+                {
+                    dl.AddRectFilled(new Vector2(left, max.Y - accent), new Vector2(right, max.Y), Tokens.Col.Gold);
+                }
+
+                dl.PopClipRect();
+            }
+
+            Vector2 text = Ink.Measure(Ink.Role.Body, options[i]);
+            Ink.Draw(
+                dl,
+                Ink.Role.Body,
+                new Vector2(MathF.Round(left + ((right - left - text.X) * 0.5f)), CenterY(y, height, Ink.Role.Body)),
+                selected ? Tokens.Col.Ink : Tokens.Col.InkDim,
+                options[i]);
+        }
+
+        ImGui.PopID();
+
+        dl.AddRect(min, max, Tokens.Col.ControlEdge, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
+
+        if (clicked < 0)
+        {
+            return false;
+        }
+
+        value = clicked;
+        return true;
+    }
+
+    /// <summary>
+    /// The head of a settings section: a title and one line saying what it covers.
+    /// Returns the height it used, the gap down to the first row included.
+    /// <para>
+    /// The description is set in the smallest role rather than in body copy. At body size it
+    /// was as loud as a control label, which left the head reading as another row instead of
+    /// as the thing the rows below belong to.
+    /// </para>
+    /// </summary>
+    public static float SectionHeader(string title, string description, float x, float y)
+    {
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        Ink.Draw(dl, Ink.Role.Title, new Vector2(x, y), Tokens.Col.Heading, title);
+
+        float used = Ink.LineHeight(Ink.Role.Title) + Tokens.Space.Xs;
+        Ink.Draw(dl, Ink.Role.Small, new Vector2(x, MathF.Round(y + used)), Tokens.Col.InkFaint, description);
+
+        return used + Ink.LineHeight(Ink.Role.Small) + Tokens.Metric.SectionHeadGap;
+    }
+
+    /// <summary>
+    /// The eye that takes one part out of the preview for a moment, or puts it back.
+    /// <para>
+    /// Drawn rather than written: it sits in a group's head beside a switch and a badge, and
+    /// a word there would read as another setting. An eye says "look", which is the whole
+    /// difference between this and everything else on the card.
+    /// </para>
+    /// <para>
+    /// Shut — the crossed-out glyph — is the state worth noticing, so that is the one drawn
+    /// in gold. An open eye is the resting state and stays quiet.
+    /// </para>
+    /// <para>
+    /// 🔴 A glyph from Dalamud's icon face, not two arcs drawn by hand. The hand-drawn one
+    /// was tried first and looked exactly as good as an eighteen pixel curve made of one
+    /// pixel strokes ever does, which is to say mushy (Florian, 2026-09-19: "das Auge sieht
+    /// nicht gut aus"). A face is hinted and rasterised for the size it is asked for; a path
+    /// is not. Anything glyph-shaped belongs in a font.
+    /// </para>
+    /// </summary>
+    public static bool EyeButton(string id, float x, float y, float size, bool shown)
+    {
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.InvisibleButton(id, new Vector2(size, size));
+        bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
+        bool clicked = ImGui.IsItemClicked();
+
+        uint ink = shown
+            ? (hovered ? Tokens.Col.Ink : Tokens.Col.InkDim)
+            : (hovered ? Tokens.Col.GoldHi : Tokens.Col.Gold);
+
+        LineIcons.Draw(
+            ImGui.GetWindowDrawList(),
+            shown ? LineIcons.Eye : LineIcons.EyeOff,
+            new Vector2(MathF.Round(x), MathF.Round(y)),
+            size,
+            ink);
+
+        return clicked;
+    }
+
+    /// <summary>What goes in the head of a group, beyond its name.</summary>
+    internal readonly struct GroupHead
+    {
+        // Both may be left out by a caller that does not need them, which makes them null
+        // rather than empty — declared as such so nothing reads one without saying so.
+        public string? Title { get; init; }
+
+        /// <summary>One line saying what the group covers. May be empty or left out.</summary>
+        public string? Description { get; init; }
+
+        /// <summary>An on/off switch at the right of the head, or null for a group that is always on.</summary>
+        public bool? Toggle { get; init; }
+
+        /// <summary>A button at the right of the head — "Defaults", say. Null for none.</summary>
+        public string? Action { get; init; }
+
+        /// <summary>A small count beside the head, the way a list says how long it is.</summary>
+        public string? Badge { get; init; }
+
+        public bool Collapsible { get; init; }
+
+        public bool Collapsed { get; init; }
+
+        /// <summary>
+        /// The part of the preview this card governs, or null for a card that governs
+        /// nothing drawable. Set, it puts an eye in the head that takes that part out of the
+        /// preview while you look at the rest.
+        /// </summary>
+        public Hud.PreviewPart? Eye { get; init; }
+    }
+
+    /// <summary>What a group reports back, and where its rows go.</summary>
+    internal readonly struct GroupScope
+    {
+        /// <summary>
+        /// The group's own id, carried so the frame can record where it ended up.
+        /// <para>
+        /// 🔴 This is what a patch note jumps to. The alternative was a second set of keys
+        /// registered beside the groups, the way the sister project does it — two lists to
+        /// keep in step, and a note pointing at a key somebody renamed lands nowhere. A
+        /// group already has exactly one name; that name is the target.
+        /// </para>
+        /// </summary>
+        public readonly string Id;
+
+        public readonly float X;
+        public readonly float Y;
+        public readonly float Width;
+
+        /// <summary>Where the first row goes, and how wide the rows are.</summary>
+        public readonly float ContentX;
+
+        public readonly float ContentY;
+        public readonly float ContentWidth;
+
+        /// <summary>False while the group's switch is off: rows are inert and veiled.</summary>
+        public readonly bool Enabled;
+
+        /// <summary>True while the group is folded away — the caller draws no rows at all.</summary>
+        public readonly bool Collapsed;
+
+        public readonly bool ToggleClicked;
+        public readonly bool ActionClicked;
+        public readonly bool CollapseClicked;
+
+        public GroupScope(
+            string id,
+            float x,
+            float y,
+            float width,
+            float contentX,
+            float contentY,
+            float contentWidth,
+            bool enabled,
+            bool collapsed,
+            bool toggleClicked,
+            bool actionClicked,
+            bool collapseClicked)
+        {
+            this.Id = id;
+            this.X = x;
+            this.Y = y;
+            this.Width = width;
+            this.ContentX = contentX;
+            this.ContentY = contentY;
+            this.ContentWidth = contentWidth;
+            this.Enabled = enabled;
+            this.Collapsed = collapsed;
+            this.ToggleClicked = toggleClicked;
+            this.ActionClicked = actionClicked;
+            this.CollapseClicked = collapseClicked;
+        }
+    }
+
+    /// <summary>
+    /// Opens a settings group: a framed block with a head of its own. Always paired with
+    /// <see cref="EndGroup"/>, which draws the frame once the rows have said how tall they are.
+    /// <para>
+    /// The frame is the hairline in a second shape — as a stroke it separates two sections, as
+    /// a rectangle it gathers one. That keeps the window at the two kinds of divider it has
+    /// always had, and it needs no surface colour of its own, which matters because the
+    /// measured palette has exactly one surface: the game separates with lines, not shades.
+    /// </para>
+    /// <para>
+    /// A group is what a per-group switch, a per-group "Defaults" and a fold-away hang on.
+    /// None of those had anywhere to live while a section was just a heading and some space.
+    /// </para>
+    /// </summary>
+    public static GroupScope BeginGroup(string id, in GroupHead head, float x, float y, float width)
+    {
+        // Pushed so the head's parts can use fixed ids instead of building one per frame.
+        ImGui.PushID(id);
+
+        float pad = Tokens.Metric.GroupPadding;
+        float left = x + pad;
+        float right = x + width - pad;
+        float top = y + pad;
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        bool enabled = head.Toggle ?? true;
+        float alpha = enabled ? 1f : Tokens.Col.DisabledAlpha;
+
+        // --- right of the head, laid out from the edge inwards ---
+        float cursor = right;
+        bool toggleClicked = false;
+        if (head.Toggle is not null)
+        {
+            cursor -= Tokens.Metric.SwitchWidth;
+            toggleClicked = Switch(IdGroupToggle, cursor, top, head.Toggle.Value, true);
+            cursor -= Tokens.Space.Md;
+        }
+
+        if (head.Eye is not null)
+        {
+            float size = Tokens.Metric.EyeGlyph;
+            cursor -= size;
+
+            if (EyeButton(IdGroupEye, cursor, MathF.Round(top + ((Ink.LineHeight(Ink.Role.Title) - size) * 0.5f)), size, Hud.PreviewMask.Shows(head.Eye.Value)))
+            {
+                Hud.PreviewMask.Toggle(head.Eye.Value);
+            }
+
+            TooltipOnHover(Strings.PreviewEyeTooltip);
+            cursor -= Tokens.Space.Md;
+        }
+
+        bool collapseClicked = false;
+        if (head.Collapsible)
+        {
+            float size = Tokens.Metric.CollapseGlyph;
+            cursor -= size;
+            collapseClicked = CollapseArrow(dl, IdGroupCollapse, cursor, top, size, head.Collapsed);
+            cursor -= Tokens.Space.Md;
+        }
+
+        if (head.Badge is not null)
+        {
+            Vector2 text = Ink.Measure(Ink.Role.Small, head.Badge);
+            float badgeHeight = Tokens.Metric.BadgeHeight;
+            float badgeWidth = text.X + (Tokens.Metric.BadgePaddingX * 2f);
+            cursor -= badgeWidth;
+            Vector2 min = new(MathF.Round(cursor), MathF.Round(top + ((Ink.LineHeight(Ink.Role.Title) - badgeHeight) * 0.5f)));
+            dl.AddRect(
+                min,
+                new Vector2(min.X + badgeWidth, min.Y + badgeHeight),
+                Tokens.Col.Faded(Tokens.Col.EdgeDim, alpha),
+                Tokens.Radius.Small,
+                ImDrawFlags.RoundCornersAll,
+                Tokens.Line(1f));
+            Ink.Draw(
+                dl,
+                Ink.Role.Small,
+                new Vector2(min.X + Tokens.Metric.BadgePaddingX, MathF.Round(min.Y + ((badgeHeight - text.Y) * 0.5f))),
+                Tokens.Col.Faded(Tokens.Col.InkFaint, alpha),
+                head.Badge);
+            cursor -= Tokens.Space.Md;
+        }
+
+        bool actionClicked = false;
+        if (head.Action is not null)
+        {
+            cursor -= MeasureButton(head.Action);
+            actionClicked = Button(
+                IdGroupAction,
+                head.Action,
+                cursor,
+                MathF.Round(top + ((Ink.LineHeight(Ink.Role.Title) - Tokens.Metric.ButtonHeight) * 0.5f)),
+                enabled);
+        }
+
+        // --- the name, and the line under it ---
+        //
+        // 🔴 Both taken as "or nothing". Title and Description are declared as plain
+        // strings, but a group built with an object initialiser leaves out whatever it does
+        // not need, and a left-out string is null — so a group with no description crashed
+        // the draw path the first time one was written without one (2026-09-20). Nothing in
+        // a shared widget may depend on a caller having filled a field in (§7.6).
+        string title = head.Title ?? string.Empty;
+        string description = head.Description ?? string.Empty;
+
+        Ink.Draw(dl, Ink.Role.Title, new Vector2(left, top), Tokens.Col.Faded(Tokens.Col.Heading, alpha), title);
+        float headHeight = Ink.LineHeight(Ink.Role.Title);
+
+        if (description.Length > 0)
+        {
+            float descY = MathF.Round(top + headHeight + Tokens.Space.Xs);
+            Ink.Draw(dl, Ink.Role.Small, new Vector2(left, descY), Tokens.Col.Faded(Tokens.Col.InkFaint, alpha), description);
+            headHeight += Tokens.Space.Xs + Ink.LineHeight(Ink.Role.Small);
+        }
+
+        float contentY = top + headHeight;
+        if (!head.Collapsed)
+        {
+            // Held back from the frame on both sides. A rule that runs into the border cuts
+            // the group into two stacked boxes; inset, it divides one object.
+            float ruleY = MathF.Round(contentY + Tokens.Metric.GroupHeadGap);
+            Hairline(dl, left, right, ruleY, Tokens.Col.Faded(Tokens.Col.Hairline, alpha));
+            contentY = ruleY + Tokens.Line(1f) + Tokens.Metric.GroupRuleGap;
+        }
+
+        // Blocks input to everything the caller draws next. The veil that goes with it is
+        // drawn in EndGroup, once the rows have been laid out.
+        if (!enabled && !head.Collapsed)
+        {
+            ImGui.BeginDisabled();
+        }
+
+        return new GroupScope(
+            id,
+            x,
+            y,
+            width,
+            left,
+            contentY,
+            right - left,
+            enabled,
+            head.Collapsed,
+            toggleClicked,
+            actionClicked,
+            collapseClicked);
+    }
+
+    /// <summary>
+    /// Closes a group and draws its frame. Takes the height the rows turned out to be, which
+    /// is why the frame is drawn last: a group is exactly as tall as what is in it.
+    /// Returns the whole height, so the screen can move on.
+    /// </summary>
+    public static float EndGroup(in GroupScope scope, float contentHeight)
+    {
+        EndGroupContent(scope, contentHeight);
+        return GroupFrame(scope, contentHeight);
+    }
+
+    /// <summary>
+    /// Closes what a group contains without drawing its frame: lifts the disabled block and
+    /// the id, and veils the rows if the group is off. Split out from <see cref="EndGroup"/>
+    /// for the side-by-side case, where neither frame can be drawn until both columns have
+    /// said how tall they are — see <see cref="GroupFrameRow"/>.
+    /// </summary>
+    public static void EndGroupContent(in GroupScope scope, float contentHeight)
+    {
+        if (!scope.Enabled && !scope.Collapsed)
+        {
+            ImGui.EndDisabled();
+
+            // Veiled by painting the surface back over the rows at part strength. Cheaper and
+            // more honest than dimming every colour on the way out: what is there stays
+            // readable, it just stops asking for attention.
+            ImGui.GetWindowDrawList().AddRectFilled(
+                new Vector2(scope.ContentX, scope.ContentY),
+                new Vector2(scope.ContentX + scope.ContentWidth, scope.ContentY + contentHeight),
+                Tokens.Col.Faded(Tokens.Col.GroupBg, 1f - Tokens.Col.DisabledAlpha));
+        }
+
+        ImGui.PopID();
+    }
+
+    /// <summary>
+    /// One row of a settings group: the label on the left, one control hard against the right
+    /// edge. EVERY row is built this way — a dropdown, a slider and a tick all take the same
+    /// height, so nothing in one column can come out level with a gap in another.
+    /// <para>
+    /// This is FFXIV's own row, and it is what the two-line version (label above control) cost
+    /// us: with two row heights in play, a compact row could be aligned to a field's label, to
+    /// its control, or to the middle of its step, and each of the three left the other two
+    /// looking wrong. One height, one question, no answer needed.
+    /// </para>
+    /// </summary>
+    public static float RowHeight() => Tokens.Metric.FieldControlHeight;
+
+    /// <summary>Row to row, the height plus the air between two of them.</summary>
+    public static float RowPitch() => RowHeight() + Tokens.Metric.RowGap;
+
+    /// <summary>
+    /// A heading inside a group, for a card long enough that its rows fall into parts.
+    /// Returns how much height it took, so the caller advances by what happened rather than
+    /// by a number it remembered.
+    /// <para>
+    /// 🔴 A fourth level, and it was argued against before it was built: tab, card, row are
+    /// three already, and splitting the card in two is what the card is FOR. It is here
+    /// because the split has a price the argument did not weigh — the two benefit rows have
+    /// the same anatomy on purpose, so they would have to split too, and six cards on this
+    /// tab buys an eighth tab, which §3.1 counts as its own cost (Florian, 2026-09-21,
+    /// after seeing both laid out). <b>Keep it rare.</b> A card that needs three of these
+    /// is a card that should have been two cards.
+    /// </para>
+    /// <para>
+    /// The word plus a hairline out to the right edge, same as a release section: the line
+    /// is what makes it read as a heading rather than as a shorter row above the others.
+    /// </para>
+    /// </summary>
+    public static float Subhead(ImDrawListPtr dl, string label, float x, float y, float width, bool first)
+    {
+        float top = first ? 0f : Tokens.Space.Lg;
+        float labelWidth = MathF.Round(Ink.Measure(Ink.Role.Small, label).X);
+        float line = Ink.LineHeight(Ink.Role.Small);
+
+        Ink.Draw(dl, Ink.Role.Small, new Vector2(x, y + top), Tokens.Col.Heading, label);
+        Hairline(
+            dl,
+            x + labelWidth + Tokens.Space.Md,
+            x + width,
+            MathF.Round(y + top + (line * 0.5f)),
+            Tokens.Col.RowDivider);
+
+        return top + line + Tokens.Space.Md;
+    }
+
+    /// <summary>
+    /// How wide every control is, whatever it is. Taken as a fixed column off the right edge
+    /// rather than as a share of the row, so controls line up down the screen AND across the
+    /// two columns; the label takes what is left.
+    /// </summary>
+    public static float ControlWidth() => Tokens.Metric.ControlWidth;
+
+    /// <summary>Where a row's control starts — the right-hand column of the row.</summary>
+    public static float ControlX(float rowX, float rowWidth) => rowX + rowWidth - ControlWidth();
+
+    /// <summary>
+    /// Draws a row's divider and its label, and hands back where the control goes. The divider
+    /// is centred in the air above the row, so it sits between two rows rather than on either.
+    /// </summary>
+    public static float Row(string label, float x, float y, float width, bool divider, string? hint = null)
+    {
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        if (divider)
+        {
+            Hairline(dl, x, x + width, MathF.Round(y - (Tokens.Metric.RowGap * 0.5f)), Tokens.Col.RowDivider);
+        }
+
+        float labelY = CenterY(y, RowHeight(), Ink.Role.Body);
+        Ink.Draw(dl, Ink.Role.Body, new Vector2(x, labelY), Tokens.Col.Ink, label);
+
+        if (hint is not null)
+        {
+            // On the label's baseline, in the smallest role, and dropped rather than crowded
+            // if the control column has taken the room.
+            float hintX = MathF.Round(x + Ink.Measure(Ink.Role.Body, label).X + Tokens.Space.Md);
+            float hintY = MathF.Round(labelY + Ink.LineHeight(Ink.Role.Body) - Ink.LineHeight(Ink.Role.Small));
+            if (hintX + Ink.Measure(Ink.Role.Small, hint).X + Tokens.Space.Md <= ControlX(x, width))
+            {
+                Ink.Draw(dl, Ink.Role.Small, new Vector2(hintX, hintY), Tokens.Col.InkFaint, hint);
+            }
+        }
+
+        return ControlX(x, width);
+    }
+
+    /// <summary>
+    /// Opens a row of groups. Called before the first <see cref="BeginGroup"/> of the row,
+    /// because a group's surface has to go down before its rows and the height is only known
+    /// afterwards: the draw list is split in two, the rows go on the upper channel, and the
+    /// surfaces are painted onto the lower one when the row is framed.
+    /// </summary>
+    public static void BeginGroupRow()
+    {
+        ImDrawListPtr list = ImGui.GetWindowDrawList();
+        list.ChannelsSplit(2);
+        list.ChannelsSetCurrent(1);
+        s_rowSplit = true;
+    }
+
+    /// <summary>
+    /// Draws one group's surface and frame around the height its rows turned out to be, and
+    /// returns the whole height so the screen can move on.
+    /// </summary>
+    public static float GroupFrame(in GroupScope scope, float contentHeight)
+    {
+        float bottom = GroupBottom(scope, contentHeight);
+        ImDrawListPtr dl = BeginBacks();
+        Surface(dl, scope, bottom);
+        EndBacks(dl);
+        return FrameTo(scope, bottom);
+    }
+
+    /// <summary>
+    /// Frames two groups that sit side by side, both down to the lower of the two bottom
+    /// edges. Two columns of different length would otherwise end in a step, and every group
+    /// added later would add another one; a shared bottom edge keeps the row one object.
+    /// A folded-away group keeps its own small height — stretching it would undo the fold.
+    /// </summary>
+    public static float GroupFrameRow(in GroupScope left, float leftHeight, in GroupScope right, float rightHeight)
+    {
+        float bottom = MathF.Max(GroupBottom(left, leftHeight), GroupBottom(right, rightHeight));
+        float leftBottom = left.Collapsed ? GroupBottom(left, leftHeight) : bottom;
+        float rightBottom = right.Collapsed ? GroupBottom(right, rightHeight) : bottom;
+
+        ImDrawListPtr dl = BeginBacks();
+        Surface(dl, left, leftBottom);
+        Surface(dl, right, rightBottom);
+        EndBacks(dl);
+
+        return MathF.Max(FrameTo(left, leftBottom), FrameTo(right, rightBottom));
+    }
+
+    /// <summary>Switches to the channel the group surfaces are painted on, if the row split it.</summary>
+    private static ImDrawListPtr BeginBacks()
+    {
+        ImDrawListPtr list = ImGui.GetWindowDrawList();
+        if (s_rowSplit)
+        {
+            list.ChannelsSetCurrent(0);
+        }
+
+        return list;
+    }
+
+    private static void EndBacks(ImDrawListPtr list)
+    {
+        if (!s_rowSplit)
+        {
+            return;
+        }
+
+        list.ChannelsMerge();
+        s_rowSplit = false;
+    }
+
+    private static void Surface(ImDrawListPtr dl, in GroupScope scope, float bottom) => dl.AddRectFilled(
+        new Vector2(scope.X, scope.Y),
+        new Vector2(scope.X + scope.Width, bottom),
+        Tokens.Col.GroupBg,
+        Tokens.Radius.Group,
+        ImDrawFlags.RoundCornersAll);
+
+    private static float GroupBottom(in GroupScope scope, float contentHeight) => scope.Collapsed
+        ? scope.ContentY + Tokens.Metric.GroupPadding
+        : scope.ContentY + contentHeight + Tokens.Metric.GroupPadding;
+
+    /// <summary>
+    /// Drawn after the rows on purpose: it is an outline with nothing behind it, so covering
+    /// the content is impossible, and this way it can wrap whatever height came out.
+    /// </summary>
+    private static float FrameTo(in GroupScope scope, float bottom)
+    {
+        Vector2 min = new(scope.X, scope.Y);
+        Vector2 max = new(scope.X + scope.Width, bottom);
+
+        // Where this group ended up, for a patch note that wants to jump to it. Stamped
+        // with the frame, so nothing can scroll to a rectangle a group had on a screen
+        // that is no longer the one being drawn.
+        s_groupRects[scope.Id] = new GroupRect(min, max, ImGui.GetFrameCount());
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        if (s_flashStrength > 0f && string.Equals(s_flashGroup, scope.Id, StringComparison.Ordinal))
+        {
+            // Over the surface and under the outline: a wash, not a border. The same reason
+            // the cleanse mark is a band and not a line — area catches the eye (session 9).
+            dl.AddRectFilled(
+                min,
+                max,
+                Tokens.Col.Faded(Tokens.Col.Gold, s_flashStrength * FlashPeak),
+                Tokens.Radius.Group,
+                ImDrawFlags.RoundCornersAll);
+        }
+
+        dl.AddRect(
+            min,
+            max,
+            Tokens.Col.Hairline,
+            Tokens.Radius.Group,
+            ImDrawFlags.RoundCornersAll,
+            Tokens.Line(1f));
+
+        return bottom - scope.Y;
+    }
+
+    /// <summary>How strong the flash is at its brightest. Enough to find, not enough to shout.</summary>
+    private const float FlashPeak = 0.22f;
+
+    private readonly record struct GroupRect(Vector2 Min, Vector2 Max, int Frame);
+
+    private static readonly Dictionary<string, GroupRect> s_groupRects = new(StringComparer.Ordinal);
+
+    private static string? s_flashGroup;
+    private static float s_flashStrength;
+
+    /// <summary>
+    /// Where a group was drawn this frame, or false when it was not drawn at all.
+    /// <para>
+    /// The frame stamp is the whole point: after a jump has switched the screen, the target
+    /// group has not been drawn yet, and a rectangle it held on some earlier screen would
+    /// send the scroll somewhere arbitrary. The caller waits until the answer is fresh.
+    /// </para>
+    /// </summary>
+    public static bool GroupRectThisFrame(string id, out Vector2 min, out Vector2 max)
+    {
+        min = default;
+        max = default;
+
+        if (!s_groupRects.TryGetValue(id, out GroupRect rect) || rect.Frame != ImGui.GetFrameCount())
+        {
+            return false;
+        }
+
+        min = rect.Min;
+        max = rect.Max;
+        return true;
+    }
+
+    /// <summary>
+    /// Which group is lit up and how brightly, pushed once per frame by whoever owns the
+    /// jump. Chrome keeps no timer of its own — how long a flash lasts is a decision, and
+    /// decisions live in the window, not in the widget that paints them (§7.9).
+    /// </summary>
+    public static void SetGroupFlash(string? id, float strength)
+    {
+        s_flashGroup = id;
+        s_flashStrength = Math.Clamp(strength, 0f, 1f);
+    }
+
+    /// <summary>The fold-away arrow in a group head, drawn as a triangle rather than typed.</summary>
+    private static bool CollapseArrow(ImDrawListPtr dl, string id, float x, float y, float size, bool collapsed)
+    {
+        float line = Ink.LineHeight(Ink.Role.Title);
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.InvisibleButton(id, new Vector2(size, line));
+        bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
+        bool clicked = ImGui.IsItemClicked();
+
+        uint ink = hovered ? Tokens.Col.GoldHi : Tokens.Col.InkDim;
+        float cx = MathF.Round(x + (size * 0.5f));
+        float cy = MathF.Round(y + (line * 0.5f));
+        float half = MathF.Round(size * 0.35f);
+
+        if (collapsed)
+        {
+            dl.AddTriangleFilled(
+                new Vector2(cx + half, cy),
+                new Vector2(cx - half, cy - half),
+                new Vector2(cx - half, cy + half),
+                ink);
+        }
+        else
+        {
+            dl.AddTriangleFilled(
+                new Vector2(cx, cy + half),
+                new Vector2(cx - half, cy - half),
+                new Vector2(cx + half, cy - half),
+                ink);
+        }
+
+        return clicked;
+    }
+
+    /// <summary>
+    /// The width of one column of the settings grid. Controls are sized to this, never to
+    /// the full content width.
+    /// </summary>
+    public static float ColumnWidth(float contentWidth)
+    {
+        float gutters = Tokens.Metric.ColumnGutter * (Tokens.Metric.Columns - 1);
+        return MathF.Floor((contentWidth - gutters) / Tokens.Metric.Columns);
+    }
+
+    /// <summary>The left edge of the given column, counted from zero.</summary>
+    public static float ColumnX(float contentLeft, float contentWidth, int column) =>
+        contentLeft + (column * (ColumnWidth(contentWidth) + Tokens.Metric.ColumnGutter));
+
+    /// <summary>
+    /// How tall a check box row is. The caller advances by this rather than by a row token of
+    /// its own, so the gap under a check box is the same gap as under everything else.
+    /// </summary>
+    public static float CheckBoxHeight() =>
+        MathF.Max(Tokens.Metric.CheckBox, Ink.LineHeight(Ink.Role.Body));
+
+    /// <summary>A check box with its label to the right of it, the way the game writes its own.</summary>
+    /// <param name="enabled">
+    /// A disabled box is still drawn and still answers a hover — the paste panel uses this to
+    /// show a part the target element does not have, rather than leaving it off the list and
+    /// letting the user wonder where it went.
+    /// </param>
+    public static bool CheckBox(
+        string id,
+        string label,
+        float x,
+        float y,
+        bool value,
+        string? tooltip = null,
+        bool enabled = true)
+    {
+        float box = Tokens.Metric.CheckBox;
+        float labelWidth = Ink.Measure(Ink.Role.Body, label).X;
+        float height = CheckBoxHeight();
+        float width = box + Tokens.Space.Md + labelWidth;
+
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.InvisibleButton(id, new Vector2(width, height));
+        bool hovered = ImGui.IsItemHovered() && enabled;
+        ShowHand(hovered);
+        bool clicked = ImGui.IsItemClicked() && enabled;
+
+        Vector2 min = new(x, MathF.Round(y + ((height - box) * 0.5f)));
+        Vector2 max = new(min.X + box, min.Y + box);
+
+        float alpha = enabled ? 1f : Tokens.Col.DisabledAlpha;
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        PaintTick(dl, min, value, hovered, alpha);
+
+        Ink.Draw(
+            dl,
+            Ink.Role.Body,
+            new Vector2(max.X + Tokens.Space.Md, CenterY(y, height, Ink.Role.Body)),
+            Tokens.Col.Faded(hovered ? Tokens.Col.Ink : Tokens.Col.InkDim, alpha),
+            label);
+
+        if (tooltip is not null)
+        {
+            TooltipOnHover(tooltip);
+        }
+
+        return clicked;
+    }
+
+    /// <summary>What a <see cref="Slider"/> reports back after one frame.</summary>
+    public readonly struct SliderResult
+    {
+        public readonly float Value;
+
+        /// <summary>The value moved this frame. Show it, but do not save it yet.</summary>
+        public readonly bool Changed;
+
+        /// <summary>The drag ended this frame. This is the moment to save and to do the expensive work.</summary>
+        public readonly bool Released;
+
+        /// <summary>How tall the whole control turned out, caption row included.</summary>
+        public readonly float Height;
+
+        public SliderResult(float value, bool changed, bool released, float height)
+        {
+            this.Value = value;
+            this.Changed = changed;
+            this.Released = released;
+            this.Height = height;
+        }
+    }
+
+    /// <summary>
+    /// A slider laid out over two rows: the label top left, the value top right, and the
+    /// track across the width of its column beneath them. The track fills up to the grab, the
+    /// way the game's own sliders do, and the grab is a circle.
+    /// <para>
+    /// Moving and releasing are reported separately, because the rule is that a change shows
+    /// at once but is written on release.
+    /// </para>
+    /// </summary>
+    /// <param name="hint">A few words beside the label, for what a label alone cannot say.</param>
+    /// <param name="tooltip">The longer explanation, which belongs here and not in the flow.</param>
+    public static SliderResult Slider(
+        string id,
+        string label,
+        string valueText,
+        float x,
+        float y,
+        float width,
+        float value,
+        float min,
+        float max,
+        string? hint = null,
+        string? tooltip = null,
+        bool divider = false,
+        float step = 0f,
+        float editScale = 0f)
+    {
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        // The row's own label and note, and the value at the very right — the number belongs
+        // to the reader, so it keeps the edge and the track gives up the room for it.
+        float valueWidth = Tokens.Metric.ValueWidth;
+        float rowX = x;
+        float rowWidth = width;
+        Row(label, rowX, y, rowWidth, divider, hint);
+
+        bool editing = editScale > 0f && s_editSlider == id;
+        if (!editing)
+        {
+            float valueX = MathF.Round(rowX + rowWidth - Ink.Measure(Ink.Role.Body, valueText).X);
+            Ink.Draw(dl, Ink.Role.Body, new Vector2(valueX, CenterY(y, RowHeight(), Ink.Role.Body)), Tokens.Col.GoldHi, valueText);
+        }
+
+        // The track sits in the control column, less the room the value took.
+        x = ControlX(rowX, rowWidth);
+        width = ControlWidth() - valueWidth - Tokens.Space.Md;
+
+        float boxTop = y;
+        float boxHeight = RowHeight();
+        float rowHeight = Tokens.Metric.SliderHeight;
+        float trackRowTop = MathF.Round(boxTop + ((boxHeight - rowHeight) * 0.5f));
+        float radius = Tokens.Metric.SliderGrabRadius;
+
+        // The hit box is the whole cell, not just the track: an easier grab, and it costs
+        // nothing, since the value only ever comes from the horizontal position.
+        ImGui.SetCursorScreenPos(new Vector2(x, boxTop));
+        ImGui.InvisibleButton(id, new Vector2(width, boxHeight));
+        bool active = ImGui.IsItemActive();
+        bool hovered = ImGui.IsItemHovered();
+        bool released = ImGui.IsItemDeactivated();
+
+        // Held as well as hovered: while the knob is being dragged the mouse is often off the
+        // row altogether, and the hand is what says the control still has it.
+        ShowHand(hovered || active);
+
+        if (tooltip is not null && !active)
+        {
+            TooltipOnHover(tooltip);
+        }
+
+        // The grab is a circle, so its centre travels between one radius from each end.
+        float travel = width - (radius * 2f);
+        float result = value;
+        bool changed = false;
+        if (active && travel > 0f)
+        {
+            result = Drag(x, radius, travel, min, max, step);
+            changed = result != value;
+        }
+
+        float fraction = max > min ? Math.Clamp((result - min) / (max - min), 0f, 1f) : 0f;
+        float grabCenterX = MathF.Round(x + radius + (fraction * travel));
+
+        float trackHeight = Tokens.Metric.SliderTrack;
+        float trackTop = MathF.Round(trackRowTop + ((rowHeight - trackHeight) * 0.5f));
+        Vector2 trackMin = new(x, trackTop);
+        Vector2 trackMax = new(x + width, trackTop + trackHeight);
+        float trackRadius = trackHeight * 0.5f;
+
+        dl.AddRectFilled(trackMin, trackMax, Tokens.Col.SliderTrackBg, trackRadius);
+        if (fraction > 0f)
+        {
+            dl.PushClipRect(trackMin, new Vector2(grabCenterX, trackMax.Y), true);
+            dl.AddRectFilled(
+                trackMin,
+                trackMax,
+                active || hovered ? Tokens.Col.SliderFillHi : Tokens.Col.SliderFill,
+                trackRadius);
+            dl.PopClipRect();
+        }
+
+        // No outline on the track. The rounded ends are the shape; a border around them only
+        // made the bar look boxed in.
+        Vector2 grabCenter = new(grabCenterX, MathF.Round(trackTop + (trackHeight * 0.5f)));
+        MilledKnob(dl, grabCenter, radius, active || hovered ? 0.16f : 0f);
+
+        // Always drawn, even mid-drag: a field that simply vanished when the track was grabbed
+        // would leave the row believing it is still being typed into. A drag in progress still
+        // wins, it just does not get to skip closing the field.
+        if (editScale > 0f)
+        {
+            float typed = ValueCell(
+                dl,
+                id,
+                rowX + rowWidth - valueWidth,
+                boxTop,
+                valueWidth,
+                Ink.Measure(Ink.Role.Body, valueText).X,
+                value,
+                min,
+                max,
+                editScale,
+                editing);
+
+            if (!active && !float.IsNaN(typed) && typed != result)
+            {
+                result = typed;
+                changed = true;
+                released = true;
+            }
+        }
+
+        return new SliderResult(result, changed, released, RowHeight());
+    }
+
+    /// <summary>
+    /// The number at the end of a slider row, as something you can click into and type.
+    /// <para>
+    /// A track is only so many pixels long, and a range with more values than that has some
+    /// no mouse position can reach — the step is what makes the reachable ones land on round
+    /// numbers, and this is what reaches the rest. It also answers the plainer case: when you
+    /// already know the number, pointing at it is the long way round.
+    /// </para>
+    /// </summary>
+    /// <param name="scale">
+    /// What the number is in the reader's units: 1 where the value is a pixel count, 100
+    /// where the value is a fraction and the row says a percentage.
+    /// </param>
+    /// <returns>The value that was typed, or <see cref="float.NaN"/> while nothing was.</returns>
+    private static float ValueCell(
+        ImDrawListPtr dl,
+        string id,
+        float x,
+        float y,
+        float width,
+        float textWidth,
+        float value,
+        float min,
+        float max,
+        float scale,
+        bool editing)
+    {
+        float height = RowHeight();
+        float typed = float.NaN;
+        s_editSeen |= editing;
+
+        // Pushed so the cell and its field can use fixed ids: a derived id would have to be
+        // built per frame, and this runs in a draw path like everything else.
+        ImGui.PushID(id);
+
+        if (editing)
+        {
+            if (s_editFocus)
+            {
+                ImGui.SetKeyboardFocusHere();
+                s_editFocus = false;
+            }
+
+            float fieldHeight = Tokens.Metric.ValueEditHeight;
+            float pad = MathF.Round((fieldHeight - Ink.LineHeight(Ink.Role.Body)) * 0.5f);
+
+            ImGui.SetCursorScreenPos(new Vector2(x, MathF.Round(y + ((height - fieldHeight) * 0.5f))));
+            ImGui.SetNextItemWidth(width);
+            ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, Tokens.Radius.Small);
+            ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, Tokens.Line(1f));
+            ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(Tokens.Space.Sm, pad));
+            ImGui.PushStyleColor(ImGuiCol.FrameBg, Tokens.Col.Input);
+            ImGui.PushStyleColor(ImGuiCol.Border, Tokens.Col.ControlEdge);
+            ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.GoldHi);
+            Ink.Push(Ink.Role.Body);
+
+            bool submitted = ImGui.InputText(
+                IdValueField,
+                ref s_editText,
+                ValueTextLimit,
+                ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.CharsDecimal | ImGuiInputTextFlags.AutoSelectAll);
+
+            bool finished = submitted || ImGui.IsItemDeactivated();
+
+            Ink.Pop(Ink.Role.Body);
+            ImGui.PopStyleColor(3);
+            ImGui.PopStyleVar(3);
+
+            // Escape leaves the field with the text it was given, so cancelling simply parses
+            // back to the value that was already there and changes nothing.
+            if (finished)
+            {
+                if (float.TryParse(s_editText, NumberStyles.Float, CultureInfo.InvariantCulture, out float parsed))
+                {
+                    typed = Math.Clamp(parsed / scale, min, max);
+                }
+
+                s_editSlider = string.Empty;
+            }
+        }
+        else
+        {
+            ImGui.SetCursorScreenPos(new Vector2(x, y));
+            ImGui.InvisibleButton(IdValueCell, new Vector2(width, height));
+
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetMouseCursor(ImGuiMouseCursor.TextInput);
+
+                // A hairline under the number, which is the whole invitation it needs: a box
+                // drawn round it would read as a field standing empty beside every slider.
+                float line = MathF.Round(y + ((height + Ink.LineHeight(Ink.Role.Body)) * 0.5f) + Tokens.Space.Xs);
+                Hairline(dl, MathF.Round(x + width - textWidth), x + width, line, Tokens.Col.GoldDim);
+            }
+
+            if (ImGui.IsItemClicked())
+            {
+                s_editSlider = id;
+                s_editText = ((int)MathF.Round(value * scale)).ToString(CultureInfo.InvariantCulture);
+                s_editFocus = true;
+
+                // Counts as seen for this frame as well, or the sweep at the end of it would
+                // drop the entry before it ever drew.
+                s_editSeen = true;
+            }
+        }
+
+        ImGui.PopID();
+        return typed;
+    }
+
+    /// <summary>
+    /// What the slider is worth at this mouse position.
+    /// <para>
+    /// The knob stays under the cursor. That is not a nicety — a knob that lags behind the
+    /// hand reads as a broken control, whatever it is doing underneath (Florian, 2026-09-12).
+    /// </para>
+    /// <para>
+    /// What makes a value hittable is the step, not the drag: the slider lands only on whole
+    /// steps, so a size settles on a pixel rather than between two. The rule the callers
+    /// follow is that a slider's range, divided by its step, must leave fewer stops than the
+    /// track has pixels — otherwise there are values no mouse position can reach, which is
+    /// why a frame width steps by five where everything else steps by one.
+    /// </para>
+    /// </summary>
+    /// <param name="step">The smallest move the value may make, or zero for a smooth one.</param>
+    private static float Drag(float x, float radius, float travel, float min, float max, float step)
+    {
+        float t = Math.Clamp((ImGui.GetIO().MousePos.X - x - radius) / travel, 0f, 1f);
+        float result = min + (t * (max - min));
+
+        if (step > 0f)
+        {
+            result = min + (MathF.Round((result - min) / step) * step);
+        }
+
+        return Math.Clamp(result, min, max);
+    }
+
+    /// <summary>
+    /// The slider knob: a milled metal disc, bright at the rim, darker towards the middle,
+    /// with radial grooves across the face. Built from wedges rather than a gradient, because
+    /// a draw list has no radial fill and the grooves are what make it read as metal at all.
+    /// <paramref name="lift"/> raises every tone towards white while the knob is in hand.
+    /// </summary>
+    private static void MilledKnob(ImDrawListPtr dl, Vector2 centre, float radius, float lift)
+    {
+        // Fine enough that the wedges disappear into a sheen rather than reading as slices.
+        const int Wedges = 32;
+
+        // Four bright quarters, the pattern a spun disc shows under one light. Turned an
+        // eighth so the bright ones sit on the diagonals — square-on they read as a cross.
+        const float Lobes = 4f;
+        const float Phase = MathF.PI * 0.25f;
+
+        uint light = Tokens.Col.Mix(Tokens.Col.SliderGrab, White, lift);
+        uint dark = Tokens.Col.Mix(Tokens.Col.SliderGrabMill, White, lift);
+
+        // A round silhouette under the wedges: thirty-two straight chords make a polygon, and
+        // its flat sides showed at the rim. The wedges stop a hair short of this circle, so
+        // what defines the outline is the circle's own antialiased edge.
+        dl.AddCircleFilled(centre, radius, dark);
+
+        float step = MathF.PI * 2f / Wedges;
+        radius -= Tokens.Line(1f);
+        Vector2 previous = new(centre.X + radius, centre.Y);
+
+        for (int i = 1; i <= Wedges; i++)
+        {
+            float angle = i * step;
+            Vector2 point = new(
+                centre.X + (MathF.Cos(angle) * radius),
+                centre.Y + (MathF.Sin(angle) * radius));
+
+            float sheen = 0.5f + (0.5f * MathF.Cos(((angle - (step * 0.5f)) * Lobes) + Phase));
+            dl.AddTriangleFilled(centre, previous, point, Tokens.Col.Mix(dark, light, sheen));
+            previous = point;
+        }
+
+        // Where the grind converges. No drawn rim: at sixteen pixels across, a ring dark
+        // enough to see reads as an outline round a sticker rather than as the edge of a
+        // disc — the dark tone of the grind at the silhouette does that job on its own.
+        dl.AddCircleFilled(centre, radius * 0.18f, Tokens.Col.Mix(Tokens.Col.SliderGrabCore, White, lift));
+    }
+
+    /// <summary>
+    /// The close glyph in the title bar. Drawn as two lines rather than typed as a character,
+    /// so it never depends on a glyph being present in the game font.
+    /// </summary>
+    public static bool CloseButton(string id, float x, float y)
+    {
+        float size = Tokens.Metric.TitleButton;
+        Vector2 min = new(x, y);
+        Vector2 max = new(x + size, y + size);
+
+        ImGui.SetCursorScreenPos(min);
+        ImGui.InvisibleButton(id, new Vector2(size, size));
+        bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
+        bool clicked = ImGui.IsItemClicked();
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        dl.AddRectFilled(min, max, Tokens.Col.Control, Tokens.Radius.Control);
+        dl.AddRect(
+            min,
+            max,
+            hovered ? Tokens.Col.Gold : Tokens.Col.EdgeDim,
+            Tokens.Radius.Control,
+            ImDrawFlags.RoundCornersAll,
+            Tokens.Line(1f));
+
+        uint ink = hovered ? Tokens.Col.GoldHi : Tokens.Col.InkDim;
+        float pad = MathF.Round(size * 0.3f);
+        float thickness = Tokens.Line(1f);
+        dl.AddLine(new Vector2(min.X + pad, min.Y + pad), new Vector2(max.X - pad, max.Y - pad), ink, thickness);
+        dl.AddLine(new Vector2(max.X - pad, min.Y + pad), new Vector2(min.X + pad, max.Y - pad), ink, thickness);
+
+        return clicked;
+    }
+
+    private const string IdKeybindField = "##wisp-keybind";
+    private const string IdBindingRemove = "##wisp-bindremove";
+
+    /// <summary>
+    /// How wide the keybind field is on a binding row. The action field takes what is left,
+    /// so the two together fill the row and the pair reads as one thing.
+    /// </summary>
+    public static float KeybindWidth() => Tokens.Px(150f);
+
+    /// <summary>
+    /// The keybind field on its own, without a label: the right-hand half of a binding row.
+    /// </summary>
+    /// <returns>True when a new binding was captured this frame.</returns>
+    public static bool KeybindField(
+        string id,
+        float x,
+        float y,
+        ref bool listening,
+        ref int button,
+        ref int modifiers)
+    {
+        float height = RowHeight();
+        float fieldWidth = KeybindWidth();
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        Vector2 min = new(MathF.Round(x), MathF.Round(y));
+        Vector2 max = new(min.X + fieldWidth, min.Y + height);
+
+        ImGui.PushID(id);
+        ImGui.SetCursorScreenPos(min);
+        ImGui.InvisibleButton(IdKeybindField, max - min);
+        bool hovered = ImGui.IsItemHovered();
+        bool pressed = ImGui.IsItemClicked();
+        ImGui.PopID();
+
+        ShowHand(hovered);
+
+        dl.AddRectFilled(min, max, Tokens.Col.Input, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll);
+        dl.AddRect(
+            min,
+            max,
+            listening ? Tokens.Col.Gold : Tokens.Col.ControlEdge,
+            Tokens.Radius.Control,
+            ImDrawFlags.RoundCornersAll,
+            Tokens.Line(1f));
+
+        bool captured = false;
+
+        if (listening)
+        {
+            // The click that started listening is still being released this frame, so what is
+            // asked about is a press and not a release — otherwise the field would capture the
+            // very click that opened it.
+            int caught = PressedButton();
+
+            if (caught >= 0)
+            {
+                button = caught;
+                modifiers = (int)HeldMods();
+                listening = false;
+                captured = true;
+            }
+            else if (ImGui.IsKeyPressed(ImGuiKey.Escape))
+            {
+                listening = false;
+            }
+        }
+        else if (pressed)
+        {
+            listening = true;
+        }
+
+        string text = listening ? Strings.KeybindListening : KeybindText(button, modifiers);
+        Vector2 size = Ink.Measure(Ink.Role.Body, text);
+        Ink.Draw(
+            dl,
+            Ink.Role.Body,
+            new Vector2(
+                MathF.Round(min.X + ((fieldWidth - size.X) * 0.5f)),
+                CenterY(y, height, Ink.Role.Body)),
+            listening ? Tokens.Col.Gold : Tokens.Col.Ink,
+            text);
+
+        return captured;
+    }
+
+    /// <summary>
+    /// The name end of a binding row: an icon and a label, clickable when there is something
+    /// to choose.
+    /// <para>
+    /// No box around it. What is on the left of a binding row is a statement of what the
+    /// binding does, not a form field — the reference this follows reads as a list of things
+    /// with a key beside each, and a field drawn round the name would make it look like two
+    /// settings side by side instead (Florian, 2026-09-12).
+    /// </para>
+    /// </summary>
+    /// <returns>True when the name was clicked and a list should open.</returns>
+    public static bool BindingName(
+        string id,
+        float x,
+        float y,
+        float width,
+        ImTextureID icon,
+        string label,
+        bool clickable,
+        bool dimmed)
+    {
+        float height = RowHeight();
+        float iconSize = Tokens.Px(22f);
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        bool clicked = false;
+        bool hovered = false;
+
+        if (clickable)
+        {
+            ImGui.SetCursorScreenPos(new Vector2(x, y));
+            ImGui.InvisibleButton(id, new Vector2(width, height));
+            hovered = ImGui.IsItemHovered();
+            clicked = ImGui.IsItemClicked();
+            ShowHand(hovered);
+        }
+
+        float iconY = MathF.Round(y + ((height - iconSize) * 0.5f));
+        Vector2 iconMin = new(MathF.Round(x), iconY);
+        Vector2 iconMax = new(iconMin.X + iconSize, iconY + iconSize);
+
+        if (!icon.IsNull)
+        {
+            dl.AddImage(icon, iconMin, iconMax);
+        }
+        else
+        {
+            // A placeholder square rather than nothing: the built-in bindings have no icon,
+            // and a name that starts further left than the one above it breaks the column.
+            dl.AddRectFilled(iconMin, iconMax, Tokens.Col.Control2, Tokens.Radius.Control);
+        }
+
+        uint ink = dimmed ? Tokens.Col.InkDim : (hovered ? Tokens.Col.GoldHi : Tokens.Col.Ink);
+        Ink.Draw(
+            dl,
+            Ink.Role.Body,
+            new Vector2(MathF.Round(iconMax.X + Tokens.Space.Md), CenterY(y, height, Ink.Role.Body)),
+            ink,
+            label);
+
+        return clicked;
+    }
+
+    /// <summary>
+    /// The small switch at the end of a binding row. Smaller than an option row's switch,
+    /// because it belongs to one line in a list rather than to a setting of its own.
+    /// </summary>
+    public static bool BindingToggle(string id, float x, float y, bool on)
+    {
+        float trackWidth = Tokens.Px(30f);
+        float trackHeight = Tokens.Px(16f);
+        float rowHeight = RowHeight();
+        float top = MathF.Round(y + ((rowHeight - trackHeight) * 0.5f));
+
+        Vector2 min = new(MathF.Round(x), top);
+        Vector2 max = new(min.X + trackWidth, top + trackHeight);
+
+        ImGui.SetCursorScreenPos(min);
+        ImGui.InvisibleButton(id, new Vector2(trackWidth, trackHeight));
+        bool hovered = ImGui.IsItemHovered();
+        bool clicked = ImGui.IsItemClicked();
+        ShowHand(hovered);
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        float radius = trackHeight * 0.5f;
+        dl.AddRectFilled(min, max, on ? Tokens.Col.GoldSwitchTrack : Tokens.Col.Control2, radius);
+
+        float knob = MathF.Round(radius - Tokens.Px(2f));
+        float knobX = on ? max.X - radius : min.X + radius;
+        dl.AddCircleFilled(
+            new Vector2(knobX, MathF.Round(min.Y + radius)),
+            knob,
+            on ? (hovered ? Tokens.Col.GoldHi : Tokens.Col.Gold) : Tokens.Col.InkFaint);
+
+        return clicked;
+    }
+
+
+    /// <summary>
+    /// The mark that says "this one of several", at the left of a row.
+    /// <para>
+    /// A dot rather than a tick, because the two say different things: a tick is a setting
+    /// that is on, and several can be on at once. This is a choice among rows where exactly
+    /// one holds, and a filled circle is what that has looked like since before anybody
+    /// wrote a style guide.
+    /// </para>
+    /// </summary>
+    public static bool RadioDot(string id, float x, float y, bool on, string? tooltip = null)
+    {
+        float box = RowHeight();
+        float radius = Tokens.Metric.RadioDot;
+        Vector2 centre = new(MathF.Round(x + (radius * 1.5f)), MathF.Round(y + (box * 0.5f)));
+
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.InvisibleButton(id, new Vector2(radius * 3f, box));
+        bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        uint edge = on ? Tokens.Col.Gold : (hovered ? Tokens.Col.GoldDim : Tokens.Col.ControlEdge);
+
+        dl.AddCircle(centre, radius, edge, 0, Tokens.Line(1f));
+
+        if (on)
+        {
+            dl.AddCircleFilled(centre, MathF.Max(1f, radius - Tokens.Px(3f)), Tokens.Col.Gold);
+        }
+
+        if (tooltip is not null && hovered)
+        {
+            TooltipOnHover(tooltip);
+        }
+
+        return ImGui.IsItemClicked();
+    }
+
+    /// <summary>
+    /// A name being typed: an inline field where a piece of text normally sits.
+    /// <para>
+    /// The same shape as the number cell a slider carries, and for the same reason — the
+    /// thing you are editing stays where it was rather than moving into a dialogue. Which
+    /// row is being renamed is the caller's business, not a static field here: a widget in
+    /// an immediate-mode interface has no state of its own to keep (CLAUDE.md §7.9).
+    /// </para>
+    /// </summary>
+    /// <param name="focus">
+    /// True on the first frame of an edit, to put the caret in the field. The caller clears
+    /// it; asking for focus every frame would make the field impossible to click out of.
+    /// </param>
+    /// <returns>True on the frame the edit finished, whether by Enter or by clicking away.</returns>
+    public static bool NameField(
+        string id,
+        float x,
+        float y,
+        float width,
+        int limit,
+        ref string text,
+        ref bool focus)
+    {
+        float height = RowHeight();
+        float fieldHeight = Tokens.Metric.ValueEditHeight;
+        float pad = MathF.Round((fieldHeight - Ink.LineHeight(Ink.Role.Body)) * 0.5f);
+
+        ImGui.PushID(id);
+
+        if (focus)
+        {
+            ImGui.SetKeyboardFocusHere();
+            focus = false;
+        }
+
+        ImGui.SetCursorScreenPos(new Vector2(x, MathF.Round(y + ((height - fieldHeight) * 0.5f))));
+        ImGui.SetNextItemWidth(width);
+        ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, Tokens.Radius.Small);
+        ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, Tokens.Line(1f));
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(Tokens.Space.Sm, pad));
+        ImGui.PushStyleColor(ImGuiCol.FrameBg, Tokens.Col.Input);
+        ImGui.PushStyleColor(ImGuiCol.Border, Tokens.Col.ControlEdge);
+        ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.GoldHi);
+        Ink.Push(Ink.Role.Body);
+
+        bool submitted = ImGui.InputText(
+            IdNameField,
+            ref text,
+            limit,
+            ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll);
+
+        bool finished = submitted || ImGui.IsItemDeactivated();
+
+        Ink.Pop(Ink.Role.Body);
+        ImGui.PopStyleColor(3);
+        ImGui.PopStyleVar(3);
+        ImGui.PopID();
+
+        return finished;
+    }
+
+    private const string IdNameField = "##wisp-name-field";
+
+    /// <summary>The divider a row draws above itself, at the full width of its group.</summary>
+    public static void RowDivider(float left, float right, float y) =>
+        Hairline(
+            ImGui.GetWindowDrawList(),
+            left,
+            right,
+            MathF.Round(y - (Tokens.Metric.RowGap * 0.5f)),
+            Tokens.Col.RowDivider);
+
+    /// <summary>
+    /// A rounded button sized to its own label, for something you can do with a list rather
+    /// than a setting in it. Sits under the list, aligned with its left edge.
+    /// </summary>
+    /// <summary>
+    /// A colour, as a row: the label on the left and a swatch of the colour against the right
+    /// edge, which opens the game-independent picker when clicked.
+    /// <para>
+    /// The one row type the suite was missing. It was put off twice — once at the bar's fixed
+    /// colour and once at the cleanse mark — and both times the answer was "the picker comes
+    /// with the module that needs it". This is that module, and the row is written here rather
+    /// than there so the next colour anywhere in the suite inherits it (CLAUDE.md §5.2).
+    /// </para>
+    /// <para>
+    /// The picker itself is ImGui's, dressed in our own colours. Drawing a hue wheel by hand
+    /// would be a week of work to arrive at the same thing, and nobody is looking at a colour
+    /// picker in the middle of a fight.
+    /// </para>
+    /// </summary>
+    /// <param name="colour">The colour, as ImGui packs one: alpha, blue, green, red.</param>
+    /// <returns>True on the frames the colour changed.</returns>
+    public static bool ColourRow(
+        string id,
+        string label,
+        float x,
+        float y,
+        float width,
+        ref uint colour,
+        bool divider = false,
+        string? hint = null,
+        uint? shipped = null)
+    {
+        Row(label, x, y, width, divider, hint);
+        bool reset = false;
+
+        float height = RowHeight();
+        float swatch = MathF.Round(height * 0.72f);
+        float right = ControlX(x, width) + ControlWidth();
+
+        Vector2 min = new(MathF.Round(right - swatch), MathF.Round(y + ((height - swatch) * 0.5f)));
+        Vector2 max = new(min.X + swatch, min.Y + swatch);
+
+        // The way back, beside the swatch and only while there is somewhere to go back to: a
+        // reset on a colour that is already the shipped one would be a button that does
+        // nothing. Per row rather than per screen (Florian, 2026-09-22) — undoing one colour
+        // should not cost the other twenty.
+        if (shipped is uint original && colour != original)
+        {
+            float icon = MathF.Round(swatch * 0.8f);
+            Vector2 at = new(MathF.Round(min.X - Tokens.Space.Sm - icon), MathF.Round(y + ((height - icon) * 0.5f)));
+
+            ImGui.PushID(id);
+            ImGui.SetCursorScreenPos(at);
+            ImGui.InvisibleButton(ResetId, new Vector2(icon, icon));
+            bool resetHovered = ImGui.IsItemHovered();
+            bool resetClicked = ImGui.IsItemClicked();
+            ShowHand(resetHovered);
+
+            if (resetHovered)
+            {
+                Tooltip(null, Strings.ResetColour);
+            }
+
+            ImGui.PopID();
+
+            LineIcons.Draw(
+                ImGui.GetWindowDrawList(),
+                LineIcons.RotateCcw,
+                at,
+                icon,
+                resetHovered ? Tokens.Col.GoldHi : Tokens.Col.InkDim);
+
+            if (resetClicked)
+            {
+                colour = original;
+                reset = true;
+            }
+        }
+
+        ImGui.SetCursorScreenPos(min);
+        ImGui.InvisibleButton(id, new Vector2(swatch, swatch));
+
+        bool hovered = ImGui.IsItemHovered();
+        ShowHand(hovered);
+
+        if (ImGui.IsItemClicked())
+        {
+            ImGui.OpenPopup(id + "-pop");
+        }
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+
+        // On a chequerboard, so a colour the user has made transparent reads as transparent
+        // rather than as a darker colour.
+        Chequer(dl, min, max);
+        dl.AddRectFilled(min, max, colour, Tokens.Radius.Small, ImDrawFlags.RoundCornersAll);
+        dl.AddRect(
+            min,
+            max,
+            hovered ? Tokens.Col.ControlEdgeHover : Tokens.Col.ControlEdge,
+            Tokens.Radius.Small,
+            ImDrawFlags.RoundCornersAll,
+            Tokens.Line(1f));
+
+        return Picker(id + "-pop", ref colour) || reset;
+    }
+
+    /// <summary>The grey chequerboard behind a swatch, so transparency is visible as such.</summary>
+    private static void Chequer(ImDrawListPtr dl, Vector2 min, Vector2 max)
+    {
+        float step = MathF.Max(3f, MathF.Round((max.Y - min.Y) * 0.25f));
+
+        dl.AddRectFilled(min, max, Tokens.Col.ChequerLight, Tokens.Radius.Small, ImDrawFlags.RoundCornersAll);
+        dl.PushClipRect(min, max, true);
+
+        int row = 0;
+        for (float cy = min.Y; cy < max.Y; cy += step)
+        {
+            for (float cx = min.X + ((row % 2) * step); cx < max.X; cx += step * 2f)
+            {
+                dl.AddRectFilled(
+                    new Vector2(cx, cy),
+                    new Vector2(MathF.Min(cx + step, max.X), MathF.Min(cy + step, max.Y)),
+                    Tokens.Col.ChequerDark);
+            }
+
+            row++;
+        }
+
+        dl.PopClipRect();
+    }
+
+    private static bool Picker(string id, ref uint colour)
+    {
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(Tokens.Space.Md, Tokens.Space.Md));
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupRounding, Tokens.Radius.Control);
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupBorderSize, Tokens.Line(1f));
+        ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, Tokens.Radius.Control);
+        ImGui.PushStyleColor(ImGuiCol.PopupBg, Tokens.Col.PopupBg);
+        ImGui.PushStyleColor(ImGuiCol.Border, Tokens.Col.PopupEdge);
+        ImGui.PushStyleColor(ImGuiCol.FrameBg, Tokens.Col.FieldOnDark);
+        ImGui.PushStyleColor(ImGuiCol.Text, Tokens.Col.Ink);
+
+        bool changed = false;
+        Ink.Push(Ink.Role.Body);
+
+        if (ImGui.BeginPopup(id))
+        {
+            // Escape belongs to the window, which cannot close a popup from outside it.
+            if (ClosePopupRequested)
+            {
+                ImGui.CloseCurrentPopup();
+            }
+
+            Vector4 value = ImGui.ColorConvertU32ToFloat4(colour);
+
+            if (ImGui.ColorPicker4(
+                    id + "-p",
+                    ref value,
+                    ImGuiColorEditFlags.AlphaBar | ImGuiColorEditFlags.NoSidePreview | ImGuiColorEditFlags.NoSmallPreview))
+            {
+                colour = ImGui.ColorConvertFloat4ToU32(value);
+                changed = true;
+            }
+
+            ImGui.EndPopup();
+        }
+
+        Ink.Pop(Ink.Role.Body);
+        ImGui.PopStyleColor(4);
+        ImGui.PopStyleVar(4);
+
+        return changed;
+    }
+
+    public static bool PillButton(string id, string label, float x, float y, float heightOverride = 0f)
+    {
+        float height = heightOverride > 0f ? heightOverride : RowHeight();
+        float width = MathF.Round(Ink.Measure(Ink.Role.Body, label).X + (Tokens.Space.Lg * 2f));
+
+        Vector2 min = new(MathF.Round(x), MathF.Round(y));
+        Vector2 max = new(min.X + width, min.Y + height);
+
+        ImGui.SetCursorScreenPos(min);
+        ImGui.InvisibleButton(id, max - min);
+        bool hovered = ImGui.IsItemHovered();
+        bool clicked = ImGui.IsItemClicked();
+        ShowHand(hovered);
+
+        ImDrawListPtr dl = ImGui.GetWindowDrawList();
+        float radius = height * 0.5f;
+        dl.AddRectFilled(min, max, hovered ? Tokens.Col.Control : Tokens.Col.Control2, radius);
+        dl.AddRect(
+            min,
+            max,
+            hovered ? Tokens.Col.Gold : Tokens.Col.GoldDim,
+            radius,
+            ImDrawFlags.RoundCornersAll,
+            Tokens.Line(1f));
+
+        Vector2 size = Ink.Measure(Ink.Role.Body, label);
+        Ink.Draw(
+            dl,
+            Ink.Role.Body,
+            new Vector2(
+                MathF.Round(min.X + ((width - size.X) * 0.5f)),
+                CenterY(y, height, Ink.Role.Body)),
+            hovered ? Tokens.Col.GoldHi : Tokens.Col.Gold,
+            label);
+
+        return clicked;
+    }
+
+
+
+    /// <summary>
+    /// Which mouse button is being pressed right now, or -1. Press and not release, because
+    /// this is asked in the frame after a click that is still letting go.
+    /// </summary>
+    private static int PressedButton()
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            if (ImGui.IsMouseClicked((ImGuiMouseButton)i))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static BindingModifiers HeldMods()
+    {
+        ImGuiIOPtr io = ImGui.GetIO();
+        BindingModifiers held = BindingModifiers.None;
+
+        if (io.KeyCtrl)
+        {
+            held |= BindingModifiers.Ctrl;
+        }
+
+        if (io.KeyShift)
+        {
+            held |= BindingModifiers.Shift;
+        }
+
+        if (io.KeyAlt)
+        {
+            held |= BindingModifiers.Alt;
+        }
+
+        return held;
+    }
+
+    /// <summary>
+    /// A binding written out the way it is pressed: modifiers first, then the button. Built
+    /// fresh each frame, which is acceptable here and nowhere near the HUD — a settings row
+    /// only exists while the window is open.
+    /// </summary>
+    public static string KeybindText(int button, int modifiers)
+    {
+        var mods = (BindingModifiers)modifiers;
+        string name = ButtonName(button);
+
+        if (mods == BindingModifiers.None)
+        {
+            return name;
+        }
+
+        string prefix = string.Empty;
+
+        if ((mods & BindingModifiers.Ctrl) != 0)
+        {
+            prefix += Strings.ModCtrl + " + ";
+        }
+
+        if ((mods & BindingModifiers.Shift) != 0)
+        {
+            prefix += Strings.ModShift + " + ";
+        }
+
+        if ((mods & BindingModifiers.Alt) != 0)
+        {
+            prefix += Strings.ModAlt + " + ";
+        }
+
+        return prefix + name;
+    }
+
+    private static string ButtonName(int button) => button switch
+    {
+        0 => Strings.MouseLeft,
+        1 => Strings.MouseRight,
+        2 => Strings.MouseMiddle,
+        3 => Strings.MouseFour,
+        4 => Strings.MouseFive,
+        _ => Strings.MouseLeft,
+    };
+}

@@ -1,0 +1,40 @@
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+    <PropertyGroup>
+        <AssemblyName>WispUI</AssemblyName>
+        <!-- Kept in step with WispUI.json. Never derived from a timestamp or a build
+             counter: the plugin repository requires the same commit to always
+             produce the same version. -->
+        <AssemblyVersion>0.1.0.0</AssemblyVersion>
+        <FileVersion>0.1.0.0</FileVersion>
+        <InformationalVersion>0.1.0.0</InformationalVersion>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Content Include="WispUI.json" CopyToOutputDirectory="Always" />
+    </ItemGroup>
+
+    <!-- The two vector faces and their licences. Both are SIL Open Font License, which
+         permits shipping them inside another work as long as the licence travels with
+         them - so the .txt files are not documentation, they are a condition of use.
+         The game's own faces need nothing here: they are read out of the game files. -->
+    <ItemGroup>
+        <Content Include="Fonts\**" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
+    <!-- Our own bar textures - drawn for WispUI, nothing carried in, so nothing here has a
+         condition attached the way the fonts do.
+
+         Greyscale on purpose: a grey picture takes any tint, so one file serves every job
+         colour, every role colour and the shield, and adding a colour never means adding a
+         texture. The light layers are white with their shape in the alpha channel, which is
+         what lets a bar be painted BRIGHTER than its colour - a multiplied base never can. -->
+    <ItemGroup>
+        <Content Include="Textures\**" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+</Project>

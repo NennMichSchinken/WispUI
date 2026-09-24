@@ -1,0 +1,8 @@
+{
+    "Name": "WispUI",
+    "Author": "NennMichSchinken",
+    "Punchline": "A curated UI suite for FFXIV.",
+    "Description": "WispUI is a focused, curated UI suite for Final Fantasy XIV. It replaces the narrow vanilla party list with real rectangular unit frames whose width, height, padding and spacing you control, and keeps the option list short on purpose. It also includes a damage meter in the same look, fed by IINACT.",
+    "RepoUrl": "https://github.com/NennMichSchinken/WispUI",
+    "Tags": ["UI", "HUD", "party", "unitframes"]
+}
