@@ -63,7 +63,7 @@ internal static class JobBuffs
         uint[] built = Building.ToArray();
         Cache[jobId] = built;
 
-        Services.Log.Information(
+        Services.Log.Debug(
             "Job {Job}: {Count} of {Actions} actions leave an effect that shares their name.",
             jobId,
             built.Length,

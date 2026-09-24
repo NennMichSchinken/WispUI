@@ -19,8 +19,6 @@ internal sealed class Services
 
     [PluginService] internal static IFramework Framework { get; private set; } = null!;
 
-    [PluginService] internal static IGameConfig GameConfig { get; private set; } = null!;
-
     [PluginService] internal static IDtrBar DtrBar { get; private set; } = null!;
 
     /// <summary>

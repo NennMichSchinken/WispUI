@@ -128,7 +128,7 @@ internal static class JobList
         }
 
         s_all = Entries.ToArray();
-        Services.Log.Information("Job list built with {Count} jobs.", s_all.Length);
+        Services.Log.Debug("Job list built with {Count} jobs.", s_all.Length);
     }
 
     /// <summary>Where this job sits in the list, or -1 when it is not one we offer.</summary>

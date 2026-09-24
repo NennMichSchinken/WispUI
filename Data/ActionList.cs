@@ -153,7 +153,7 @@ internal static class ActionList
             : string.CompareOrdinal(a.Name, b.Name));
 
         ActionEntry[] built = Building.ToArray();
-        Services.Log.Information("Job {Job}: {Count} bindable actions.", jobId, built.Length);
+        Services.Log.Debug("Job {Job}: {Count} bindable actions.", jobId, built.Length);
         return built;
     }
 
