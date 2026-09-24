@@ -118,11 +118,11 @@ internal static class News
     {
         new(
             "0.1.0",
-            "2026-09-20",
+            "2026-09-24",
             // 🔴 Two lines in the navigation card, and the card clips rather than grows.
             // Roughly sixty characters fit — past that a sentence loses its end, which
             // reads as a defect even though it is the intended cap.
-            "Party frames, profiles per job, and a live preview.",
+            "Party frames, a damage meter, and profiles per job.",
             new NewsEntry[]
             {
                 new(
@@ -185,6 +185,17 @@ internal static class News
                     Screen.PartyFrames,
                     PartyAuras,
                     "##wisp-pf-auras"),
+                new(
+                    NewsKind.New,
+                    "Debuffs keep their place until they run out, and new ones line up behind.",
+                    Screen.PartyFrames,
+                    PartyAuras,
+                    "##wisp-pf-auras"),
+                // No setting behind it, so no jump: the ring is always there, like the
+                // game's own party list marks its target.
+                new(
+                    NewsKind.New,
+                    "A thin ring around the frame of whoever you have targeted."),
                 new(
                     NewsKind.New,
                     "The frames use the party order you already set in the game.",
