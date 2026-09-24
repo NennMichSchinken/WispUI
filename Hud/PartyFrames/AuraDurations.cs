@@ -38,25 +38,32 @@ internal sealed class AuraDurations
     private readonly float[] m_durations = new float[Size];
     private readonly int[] m_seen = new int[Size];
 
+    /// <summary>The pass each entry was first seen on — its arrival order, nothing more.</summary>
+    private readonly int[] m_born = new int[Size];
+
     private int m_stamp;
 
     /// <summary>Called once per collect, before anything is recorded.</summary>
     public void BeginPass() => m_stamp++;
 
     /// <summary>
-    /// Records what is left on an effect and answers how long it runs in total.
+    /// Records what is left on an effect, and answers how long it runs in total and when it
+    /// first turned up.
     /// </summary>
     /// <param name="owner">Whose effect it is. The same status on two people runs its own clock.</param>
     /// <param name="statusId">Which effect.</param>
     /// <param name="remaining">Seconds left, as the game reports them.</param>
-    /// <returns>The longest time seen on it, which is never less than <paramref name="remaining"/>.</returns>
-    public float Observe(uint owner, uint statusId, float remaining)
+    /// <param name="born">
+    /// The pass this effect was first seen on. Larger means newer, and that is the whole of
+    /// what it is for — a pass counter rather than a clock, because the only question asked of
+    /// it is which of two effects arrived later.
+    /// </param>
+    /// <returns>The longest time seen on it, or zero for one that does not run out.</returns>
+    public float Observe(uint owner, uint statusId, float remaining, out int born)
     {
-        if (remaining <= 0f)
-        {
-            // Nothing to sweep: an effect that does not run out has no fraction to show.
-            return 0f;
-        }
+        // Somebody appearing now is the newest thing on the frame until the table says
+        // otherwise, which is also the right answer when the table has no room for them.
+        born = m_stamp;
 
         ulong key = ((ulong)owner << 32) | statusId;
         int slot = Hash(key);
@@ -76,6 +83,12 @@ internal sealed class AuraDurations
                 }
 
                 m_seen[at] = m_stamp;
+                born = m_born[at];
+
+                // 🔴 A refresh does NOT make it new again. Somebody topping up a shield has
+                // not given the frame a new thing to read, and a row that reshuffles every
+                // time a heal-over-time is renewed is the jumping this ordering exists to
+                // stop (Florian, 2026-09-22).
                 return m_durations[at];
             }
 
@@ -89,13 +102,17 @@ internal sealed class AuraDurations
         {
             // Every slot in reach is somebody else's and still warm. The sweep does without
             // rather than evicting a live entry; it comes back on the next cast.
-            return remaining;
+            return remaining > 0f ? remaining : 0f;
         }
 
         m_keys[free] = key;
-        m_durations[free] = remaining;
+        m_durations[free] = remaining > 0f ? remaining : 0f;
         m_seen[free] = m_stamp;
-        return remaining;
+        m_born[free] = m_stamp;
+
+        // An effect that does not run out has no fraction to sweep — but it still has a
+        // birthday, which is why this is answered here rather than turned away at the door.
+        return remaining > 0f ? remaining : 0f;
     }
 
     /// <summary>

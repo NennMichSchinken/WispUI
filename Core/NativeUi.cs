@@ -188,6 +188,38 @@ internal static class NativeUi
         return count < 0 ? 0 : count;
     }
 
+    /// <summary>
+    /// The world object for somebody, by entity id, or zero when the game has not loaded them.
+    /// <para>
+    /// 🔴 This is what makes an effect's remaining time run smoothly. The copy of somebody's
+    /// effects that lives on the party structure is refreshed from the network, so the seconds
+    /// on it arrive in steps; the object in the world counts its own down every frame. Same
+    /// numbers, one of them is just stale between packets (Florian, 2026-09-22: "the sweep is
+    /// laggy and jumps, and the time left does not run down cleanly").
+    /// </para>
+    /// <para>
+    /// The game's own binary search over its entity-id-sorted list, not a walk of the object
+    /// table: this runs once per member per frame, and Dalamud's search both walks linearly
+    /// and wraps what it finds in a fresh object (CLAUDE.md §7.1).
+    /// </para>
+    /// </summary>
+    public static unsafe nint FindByEntityId(uint entityId)
+    {
+        if (entityId == 0 || entityId == NoObject)
+        {
+            return 0;
+        }
+
+        var manager = FFXIVClientStructs.FFXIV.Client.Game.Object.GameObjectManager.Instance();
+
+        if (manager is null)
+        {
+            return 0;
+        }
+
+        return (nint)manager->Objects.GetObjectByEntityId(entityId);
+    }
+
     /// <summary>One status effect on somebody, straight out of the game's own array.</summary>
     internal struct StatusEntry
     {
