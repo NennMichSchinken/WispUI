@@ -637,6 +637,30 @@ internal sealed class PartyFramesElement : HudElement
         // 2026-09-12). Asking the mouse here is what puts it in the middle of the stack.
         if (live)
         {
+            // The target's ring, in the same place and colour as the hover ring but thinner, so
+            // the two read as one family and the hover still reads as the louder of them when
+            // the mouse is on the target (Florian, 2026-09-23). Drawn first so the hover ring
+            // covers it rather than the other way round. No switch: the game's own party list
+            // always marks the target, and there is nobody who wants to lose track of theirs.
+            uint targetId = NativeUi.TargetEntityId();
+
+            // 🔴 Zero is "nobody", and an empty or offline slot can carry it too — without this
+            // a frame with no one behind it would wear the ring whenever nothing is targeted.
+            for (int i = 0; targetId != 0 && i < count; i++)
+            {
+                if (geo.HasInside[i] && members[i].EntityId == targetId)
+                {
+                    float ring = Tokens.Metric.FrameTargetRing;
+                    Ring(
+                        dl,
+                        new Vector2(geo.FrameMin[i].X - ring, geo.FrameMin[i].Y - ring),
+                        new Vector2(geo.FrameMax[i].X + ring, geo.FrameMax[i].Y + ring),
+                        ring,
+                        Tokens.Col.FrameHover);
+                    break;
+                }
+            }
+
             this.TakeTheMouse(dl, cfg, geo, count);
         }
 
