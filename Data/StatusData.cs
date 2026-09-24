@@ -276,15 +276,6 @@ internal static class StatusData
             }
 
             invulnerable[id] = true;
-
-            // Written out so the guesswork above can be checked rather than trusted. A wrong
-            // id here is silent otherwise, and a frame that never says "unkillable" looks the
-            // same as one that has nothing to say (session 8: a silent fallback reads as a
-            // decision).
-            Services.Log.Information(
-                "Invulnerability {Id} is \"{Name}\".",
-                id,
-                sheet.GetRowOrDefault(id)?.Name.ExtractText() ?? "?");
         }
 
         s_facts = facts;

@@ -191,7 +191,7 @@ internal static class FontLibrary
 
             if (added > 0)
             {
-                Services.Log.Information("Found {Count} font(s) in {Folder}.", added, folder);
+                Services.Log.Debug("Found {Count} font(s) in {Folder}.", added, folder);
             }
         }
         catch (Exception ex)

@@ -154,28 +154,8 @@ internal static class Icons
         uv0 = new System.Numerics.Vector2(StatusInsetX / w, StatusInsetTop / h);
         uv1 = new System.Numerics.Vector2(1f - (StatusInsetX / w), 1f - (StatusInsetBottom / h));
 
-        if (!s_loggedStatusSize)
-        {
-            // Once, and only so the crop above stops being a thing anybody has to guess at.
-            // The insets are pixels off a texture whose size was assumed wrong the first time;
-            // this says what it actually is.
-            s_loggedStatusSize = true;
-            Services.Log.Information(
-                "Status icon {Id} texture is {Width}x{Height}; art kept from {X0},{Y0} to {X1},{Y1}.",
-                iconId,
-                wrap.Width,
-                wrap.Height,
-                uv0.X * w,
-                uv0.Y * h,
-                uv1.X * w,
-                uv1.Y * h);
-        }
-
         return true;
     }
-
-    /// <summary>Whether the one-time note about the status texture size has been written.</summary>
-    private static bool s_loggedStatusSize;
 
     /// <summary>Resolved lookups by icon id. A null value is an id the game does not have.</summary>
     private static readonly Dictionary<uint, ISharedImmediateTexture?> Sheets = new();

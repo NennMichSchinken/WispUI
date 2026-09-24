@@ -304,7 +304,7 @@ internal static class Fonts
         {
             s_loadedFontBytes = File.ReadAllBytes(path);
             s_loadedFontFile = path;
-            Services.Log.Information(
+            Services.Log.Debug(
                 "Loaded font {File} ({Bytes} bytes).", Path.GetFileName(path), s_loadedFontBytes.Length);
             return s_loadedFontBytes;
         }

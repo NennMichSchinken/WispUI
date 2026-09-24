@@ -185,10 +185,6 @@ internal sealed class PartyFramesElement : HudElement
     /// <summary>The leader's mark. One picture for the whole party, so it is resolved once.</summary>
     private ImTextureID m_leaderIcon;
 
-    /// <summary>What the party looked like when it was last written to the log.</summary>
-    private readonly uint[] m_logged = new uint[PartySnapshot.Capacity];
-    private int m_loggedCount = -1;
-
     public PartyFramesElement(Configuration config)
     {
         m_config = config;
@@ -270,7 +266,6 @@ internal sealed class PartyFramesElement : HudElement
 
         m_snapshot.Collect(m_config.PartyFrames.OwnBuffsOnly);
         this.CollectIcons();
-        this.LogIfPartyChanged();
     }
 
     /// <summary>
@@ -2127,52 +2122,5 @@ internal sealed class PartyFramesElement : HudElement
         }
 
         return m_drawnName[slot];
-    }
-
-    /// <summary>
-    /// Writes the snapshot to the log whenever the party changes hands — once per change, not
-    /// per frame. This is what lets the numbers be checked against the game's own party list
-    /// instead of taken on trust, and it costs nothing while the group stays as it is.
-    /// </summary>
-    private void LogIfPartyChanged()
-    {
-        PartyMemberSnapshot[] members = m_snapshot.Members;
-        bool changed = m_loggedCount != m_snapshot.Count;
-
-        for (int i = 0; !changed && i < m_snapshot.Count; i++)
-        {
-            changed = m_logged[i] != members[i].EntityId;
-        }
-
-        if (!changed)
-        {
-            return;
-        }
-
-        m_loggedCount = m_snapshot.Count;
-        Services.Log.Information(
-            "Party snapshot: {Count} member(s), solo={Solo}",
-            m_snapshot.Count,
-            m_snapshot.IsSolo);
-
-        for (int i = 0; i < m_snapshot.Count; i++)
-        {
-            ref PartyMemberSnapshot member = ref members[i];
-            m_logged[i] = member.EntityId;
-            Services.Log.Information(
-                "  [{Slot}] {Name} no={Number} content={Content} job={Job} role={Role} presence={Presence} hp={Hp}/{MaxHp} mp={Mp}/{MaxMp} self={Self}",
-                i,
-                member.Name,
-                member.PartyNumber,
-                member.NameKey,
-                member.JobId,
-                member.Role,
-                member.Presence,
-                member.Hp,
-                member.MaxHp,
-                member.Mp,
-                member.MaxMp,
-                member.IsLocalPlayer);
-        }
     }
 }

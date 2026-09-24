@@ -46,7 +46,6 @@ public sealed class Plugin : IDalamudPlugin
         Data.StatusData.Prime(Hud.PartyFrames.PartySnapshot.MaxAuras);
 
         Scaling.CommitAtLoad(m_config.Scale);
-        Scaling.LogGameScaleReadings();
 
         // Kept in a local, because the settings window draws this same element as its
         // preview. One object, one set of drawing code, two places it appears.
