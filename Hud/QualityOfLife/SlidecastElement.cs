@@ -131,7 +131,29 @@ internal sealed class SlidecastElement : HudElement
         Vector2 max = new(MathF.Round(origin.X + (art.Width * scale.X)), MathF.Round(origin.Y + (art.Height * scale.Y)));
 
         Configuration.QualityOfLifeConfig cfg = m_config.QualityOfLife;
-        DrawNineSlice(dl, in art, min, max, scale, taken ? cfg.SlidecastReadyColour : cfg.SlidecastWaitColour);
+        uint colour = taken ? cfg.SlidecastReadyColour : cfg.SlidecastWaitColour;
+
+        // 🔴 Two layers. Tinting a picture multiplies it, so the art alone can only come out
+        // darker than the colour — it did, too dark to read (Florian, 2026-09-25). The colour
+        // itself goes underneath, as a capsule that stops inside the rim; the art on top
+        // covers its edges, so the shape is still the game's and the colour is the colour.
+        Vector2 fillMin = new(
+            MathF.Round(origin.X + (art.Width * start * scale.X)),
+            MathF.Round(origin.Y + (Tokens.Metric.SlideFillInsetTop * scale.Y)));
+        Vector2 fillMax = new(
+            MathF.Round(origin.X + ((art.Width - Tokens.Metric.SlideFillInsetRight) * scale.X)),
+            MathF.Round(origin.Y + ((art.Height - Tokens.Metric.SlideFillInsetBottom) * scale.Y)));
+
+        if (fillMax.X > fillMin.X && fillMax.Y > fillMin.Y)
+        {
+            dl.AddRectFilled(
+                fillMin,
+                fillMax,
+                Tokens.Col.Faded(colour, taken ? Tokens.Metric.SlideReadyAlpha : Tokens.Metric.SlideWaitAlpha),
+                (fillMax.Y - fillMin.Y) * 0.5f);
+        }
+
+        DrawNineSlice(dl, in art, min, max, scale, colour);
     }
 
     /// <summary>

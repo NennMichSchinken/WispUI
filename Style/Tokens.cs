@@ -903,6 +903,28 @@ internal static class Tokens
         public const float SlideArtLeadIn = 8f;
 
         /// <summary>
+        /// Where the colour under the art stops, in gauge units: inside the rim at the right
+        /// end, top and bottom, so the art's own rim covers its edges and the shape stays the
+        /// game's. From the rim measured 2026-09-25 (outer edge 7 / 3 / 4 units in), one unit
+        /// further in so no edge can show past the curve.
+        /// </summary>
+        public const float SlideFillInsetRight = 8f;
+
+        public const float SlideFillInsetTop = 4f;
+
+        public const float SlideFillInsetBottom = 5f;
+
+        /// <summary>
+        /// How strongly the colour under the art shows: a veil while the cast can still be
+        /// lost, a solid fill the moment the server has taken it (Florian, 2026-09-25: the
+        /// fill was the part that read well). Needed at all because tinting a picture can only
+        /// darken it — on its own the tinted art came out too dark to see.
+        /// </summary>
+        public const float SlideWaitAlpha = 0.3f;
+
+        public const float SlideReadyAlpha = 0.65f;
+
+        /// <summary>
         /// The slide window the game allows, in seconds: the last half second of a cast.
         /// Where the window starts on the bar. Which colour it wears is the game's own word.
         /// </summary>
