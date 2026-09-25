@@ -915,15 +915,16 @@ internal static class NativeUi
     /// How far the visible bar — its gold rim — sits inside that picture, in the node's own
     /// units: the picture carries a see-through margin round the art. Left, top, right, bottom.
     /// <para>
-    /// MEASURED 2026-09-25 from a screenshot at a window scale of 1.1: the rim ran 161 × 12
-    /// pixels inside a 176 × 22 node. Without it the window stood out past the end of the bar
-    /// and above and below it (Florian's screenshot, same day).
+    /// MEASURED 2026-09-25 from two screenshots at a window scale of 1.1: the rim runs 161 ×
+    /// 12 pixels inside a 176 × 22 node, its outer edge one unit further out at top and
+    /// bottom than the first measurement took it. Without the insets the window stood out
+    /// past the end of the bar and above and below it (Florian's screenshots, same day).
     /// </para>
     /// </summary>
     private const float CastTrackInsetLeft = 7f;
-    private const float CastTrackInsetTop = 4f;
+    private const float CastTrackInsetTop = 3f;
     private const float CastTrackInsetRight = 7f;
-    private const float CastTrackInsetBottom = 5f;
+    private const float CastTrackInsetBottom = 4f;
 
     /// <summary>
     /// Where the game's cast bar track sits on the screen, in screen pixels. False while the

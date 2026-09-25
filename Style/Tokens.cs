@@ -901,6 +901,13 @@ internal static class Tokens
         public static float SlideEdge => WorldLine(2f);
 
         /// <summary>
+        /// The rounding at the bar's end, as a share of the bar's height. MEASURED 2026-09-25:
+        /// the game's rim curves over about three of its twelve pixels. A share rather than
+        /// pixels, so it follows the cast bar when the player resizes it in the HUD layout.
+        /// </summary>
+        public const float SlideEndRounding = 0.25f;
+
+        /// <summary>
         /// How strongly the window fills once the server has taken the cast. Strong enough to
         /// read out of the corner of an eye — that moment is the whole point — and still
         /// short of hiding the fill running underneath it.

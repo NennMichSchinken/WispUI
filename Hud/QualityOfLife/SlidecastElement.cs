@@ -114,16 +114,31 @@ internal sealed class SlidecastElement : HudElement
         Configuration.QualityOfLifeConfig cfg = m_config.QualityOfLife;
         uint edge = taken ? cfg.SlidecastReadyColour : cfg.SlidecastWaitColour;
 
+        // Rounded on the right only: that end is the end of the game's bar, which is rounded,
+        // and square corners stood out past its curve (Florian, 2026-09-25). The left side is
+        // in the middle of the bar, where a curve would say nothing.
+        float rounding = MathF.Round((max.Y - min.Y) * Tokens.Metric.SlideEndRounding);
+
         if (taken)
         {
-            dl.AddRectFilled(from, max, Tokens.Col.Faded(cfg.SlidecastReadyColour, Tokens.Metric.SlideFillAlpha));
+            dl.AddRectFilled(
+                from,
+                max,
+                Tokens.Col.Faded(cfg.SlidecastReadyColour, Tokens.Metric.SlideFillAlpha),
+                rounding,
+                ImDrawFlags.RoundCornersRight);
         }
 
-        // Pulled in by half the stroke, so the line lies ON the edge of the bar rather than
-        // straddling it: a stroke is centred on its path, and centred on the rim it stood a
-        // pixel out past the end of the bar.
+        // Pulled in by half the stroke, so the line lies ON the rim rather than straddling it:
+        // a stroke is centred on its path, and centred on the rim it stood a pixel outside.
         float half = Tokens.Metric.SlideEdge * 0.5f;
         Vector2 inset = new(half, half);
-        dl.AddRect(from + inset, max - inset, edge, 0f, ImDrawFlags.None, Tokens.Metric.SlideEdge);
+        dl.AddRect(
+            from + inset,
+            max - inset,
+            edge,
+            MathF.Max(0f, rounding - half),
+            ImDrawFlags.RoundCornersRight,
+            Tokens.Metric.SlideEdge);
     }
 }
