@@ -472,6 +472,10 @@ internal static class Strings
 
     public const string NavCombatTracker = "Combat Tracker";
 
+    // --- Party frames: Custom or Legacy ----------------------------------------
+    public const string PartyModeCustom = "Custom";
+    public const string PartyModeLegacy = "Legacy";
+
     // --- Quality of Life ------------------------------------------------------
     public const string NavQualityOfLife = "Quality of Life";
     public const string GroupSlidecast = "Cast bar";

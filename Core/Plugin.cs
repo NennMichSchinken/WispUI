@@ -188,8 +188,9 @@ public sealed class Plugin : IDalamudPlugin
         //
         // The list goes only while there is something of ours in its place: switching the
         // module off gives it back without the player having to remember a second tick.
+        // Never in Legacy: there the game's list IS the frames.
         NativeUi.SettleNativePartyList(
-            m_config.PartyFramesEnabled && m_config.PartyFrames.HideNativePartyList);
+            m_config.PartyFramesEnabled && !m_config.PartyFrames.Legacy && m_config.PartyFrames.HideNativePartyList);
 
         this.SyncHudFonts();
 

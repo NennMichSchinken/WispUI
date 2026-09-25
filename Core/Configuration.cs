@@ -12,7 +12,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 21;
+    public const int CurrentVersion = 22;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -239,6 +239,17 @@ public sealed class Configuration : IPluginConfiguration
     [Serializable]
     public sealed class PartyFramesConfig
     {
+        /// <summary>
+        /// Legacy instead of Custom (version 22): the game's own party list stays, and WispUI
+        /// only adds its marks and its mouse to it. Off — Custom — by default, which is what
+        /// everybody had before the choice existed.
+        /// <para>
+        /// On the module rather than on the suite, so a profile carries it: somebody may want
+        /// grid frames on their healer and the game's list on their tank (Florian, 2026-09-25).
+        /// </para>
+        /// </summary>
+        public bool Legacy { get; set; }
+
         /// <summary>
         /// The bar style, by name.
         /// <para>
@@ -1835,6 +1846,9 @@ public sealed class Configuration : IPluginConfiguration
         // its defaults and switched off.
 
         // Version 21 added the Quality of Life block. The same: defaults, switched off.
+
+        // Version 22 added Legacy to the party frames. False is Custom, which is what
+        // everybody had, in the live block and in every profile alike.
     }
 
     /// <inheritdoc cref="PartyFramesConfig.SpacingX"/>

@@ -171,6 +171,17 @@ internal sealed class ConfigWindow : Window
     private static readonly int TabIndexBindings = Array.IndexOf(TabsPartyFrames, Strings.TabBindings);
 
     /// <summary>
+    /// Legacy's tabs: the marks WispUI lays on the game's list, and what the mouse does on it.
+    /// Everything else on the Custom tabs is about frames of ours, which Legacy does not draw.
+    /// </summary>
+    private static readonly string[] TabsPartyFramesLegacy = { Strings.TabBase, Strings.TabBindings };
+
+    /// <summary>The Custom / Legacy choice in the party frames' header, in that order.</summary>
+    private static readonly string[] PartyModes = { Strings.PartyModeCustom, Strings.PartyModeLegacy };
+
+    private const string IdPartyMode = "##wisp-pf-mode";
+
+    /// <summary>
     /// The navigation tree. Suite-wide entries first, then a separator, then the HUD
     /// modules. Only what is built and works — no "coming soon" rows (Florian, 2026-09-22).
     /// </summary>
@@ -592,6 +603,54 @@ internal sealed class ConfigWindow : Window
     private static readonly string[] TabsNone = System.Array.Empty<string>();
 
     /// <summary>
+    /// The tabs a screen shows right now. The same as <see cref="TabsFor"/> except for the
+    /// party frames, whose tabs depend on the mode: a release note still points at the Custom
+    /// tabs, which is what it was written against.
+    /// </summary>
+    private string[] TabsOn(Screen screen) =>
+        screen == Screen.PartyFrames && m_config.PartyFrames.Legacy ? TabsPartyFramesLegacy : TabsFor(screen);
+
+    /// <summary>Whether the party frames' Bindings tab is the one showing, in either mode.</summary>
+    private bool OnBindingsTab()
+    {
+        string[] tabs = this.TabsOn(Screen.PartyFrames);
+        int tab = m_tabIndex[(int)Screen.PartyFrames];
+        return tab >= 0 && tab < tabs.Length && tabs[tab] == Strings.TabBindings;
+    }
+
+    /// <summary>
+    /// Custom or Legacy, as a strip in the header — above the tabs because it decides which
+    /// tabs there are (Florian, 2026-09-25). Exactly one is always on.
+    /// <para>
+    /// Switching keeps you on the same tab where both modes have it (Bindings), and puts you
+    /// on Base where the tab you were on does not exist in the other mode.
+    /// </para>
+    /// </summary>
+    private void DrawPartyMode(float x, float y)
+    {
+        float widest = MathF.Max(
+            Ink.Measure(Ink.Role.Body, Strings.PartyModeCustom).X,
+            Ink.Measure(Ink.Role.Body, Strings.PartyModeLegacy).X);
+        float width = MathF.Round((widest + (Tokens.Space.Lg * 2f)) * PartyModes.Length);
+
+        int mode = m_config.PartyFrames.Legacy ? 1 : 0;
+        string[] before = this.TabsOn(Screen.PartyFrames);
+        int tab = m_tabIndex[(int)Screen.PartyFrames];
+        string current = tab >= 0 && tab < before.Length ? before[tab] : Strings.TabBase;
+
+        if (!Chrome.Segment(IdPartyMode, x, y, width, Tokens.Metric.ButtonHeight, PartyModes, ref mode))
+        {
+            return;
+        }
+
+        m_config.PartyFrames.Legacy = mode == 1;
+        m_config.MarkDirty();
+
+        int kept = Array.IndexOf(this.TabsOn(Screen.PartyFrames), current);
+        m_tabIndex[(int)Screen.PartyFrames] = kept < 0 ? 0 : kept;
+    }
+
+    /// <summary>
     /// The title bar. Its fill runs from the very top of the window rather than from inside
     /// the frame inset: the bar is lighter than the surface, so leaving those few pixels to
     /// the surface colour drew a dark line across the top whenever the window lost focus and
@@ -920,7 +979,7 @@ internal sealed class ConfigWindow : Window
         // pointer do on a frame, and none of that changes how the frame looks. A preview that
         // cannot answer the question on screen is just height taken from the settings
         // (Florian, 2026-09-19).
-        if (party && m_tabIndex[(int)m_screen] == TabIndexBindings)
+        if (party && this.OnBindingsTab())
         {
             return top;
         }
@@ -999,7 +1058,11 @@ internal sealed class ConfigWindow : Window
                 chipX += width + Tokens.Metric.TabGap;
             }
 
-            this.DrawPreviewEyeMenu(dl, x + wide, y, barHeight);
+            // The eyes take parts of a frame of ours out of view; in Legacy there is none.
+            if (!m_config.PartyFrames.Legacy)
+            {
+                this.DrawPreviewEyeMenu(dl, x + wide, y, barHeight);
+            }
         }
 
         y += barHeight + Tokens.Space.Sm;
@@ -1303,7 +1366,7 @@ internal sealed class ConfigWindow : Window
 
         // No tabs while the tracker is walking somebody through installing IINACT: there is
         // nothing behind them yet, and the wizard stands where their content would.
-        string[] tabs = m_screen == Screen.CombatTracker && m_combatTracker.ShowsWizard ? TabsNone : TabsFor(m_screen);
+        string[] tabs = m_screen == Screen.CombatTracker && m_combatTracker.ShowsWizard ? TabsNone : this.TabsOn(m_screen);
         int screenIndex = (int)m_screen;
         if (m_tabIndex[screenIndex] >= tabs.Length)
         {
@@ -1352,7 +1415,9 @@ internal sealed class ConfigWindow : Window
 
         // Told every frame, not only on the frames where the strip is drawn — that is what
         // makes the step back disappear when you leave the module.
-        m_appearance.NoteOwner(isFrames ? m_partyFrames : null);
+        // Legacy has no appearance of ours to copy: the look is the game's.
+        bool copyable = isFrames && !m_config.PartyFrames.Legacy;
+        m_appearance.NoteOwner(copyable ? m_partyFrames : null);
 
         if (isModule)
         {
@@ -1387,6 +1452,12 @@ internal sealed class ConfigWindow : Window
             x += MathF.Round(Ink.Measure(Ink.Role.ScreenTitle, title).X) + Tokens.Space.Md;
             string state = enabled ? Strings.StateOn : Strings.StateOff;
             Ink.Draw(dl, Ink.Role.Small, new Vector2(x, Chrome.CenterY(top, height, Ink.Role.Small)), Tokens.Col.InkFaint, state);
+
+            if (isFrames)
+            {
+                x += MathF.Round(Ink.Measure(Ink.Role.Small, state).X) + Tokens.Space.Xl;
+                this.DrawPartyMode(x, MathF.Round(top + ((height - Tokens.Metric.ButtonHeight) * 0.5f)));
+            }
         }
 
         // Right to left: Defaults sits outermost, so it stays in the same place on every
@@ -1403,7 +1474,10 @@ internal sealed class ConfigWindow : Window
 
         if (isFrames)
         {
-            m_appearance.Draw(m_partyFrames, cursor - Tokens.Space.Md, buttonY);
+            if (copyable)
+            {
+                m_appearance.Draw(m_partyFrames, cursor - Tokens.Space.Md, buttonY);
+            }
         }
 
         return top + height;
@@ -1473,6 +1547,17 @@ internal sealed class ConfigWindow : Window
             else if (m_screen == Screen.QualityOfLife)
             {
                 m_qualityOfLife.Draw(inner);
+            }
+            else if (m_screen == Screen.PartyFrames && m_config.PartyFrames.Legacy)
+            {
+                if (this.OnBindingsTab())
+                {
+                    m_partyFrames.DrawBindings(inner);
+                }
+                else
+                {
+                    m_partyFrames.DrawLegacy(inner);
+                }
             }
             else if (m_screen == Screen.PartyFrames && tab == 0)
             {

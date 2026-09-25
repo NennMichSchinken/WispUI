@@ -736,11 +736,28 @@ internal static class Chrome
         string? hint = null)
     {
         float controlX = Row(label, x, y, width, divider, hint);
-        float height = RowHeight();
-        float controlWidth = ControlWidth();
+        return Segment(id, controlX, y, ControlWidth(), RowHeight(), options, ref value);
+    }
+
+    /// <summary>
+    /// The strip itself, without a row around it: two or three choices side by side, exactly
+    /// one of them on. The same strip as in a settings row, so a choice looks the same
+    /// wherever it is offered — in a row, or in a screen's header where it decides which
+    /// tabs there are (Florian, 2026-09-25: Custom or Legacy party frames).
+    /// </summary>
+    /// <returns>True on the frame a different choice was clicked.</returns>
+    public static bool Segment(
+        string id,
+        float x,
+        float y,
+        float controlWidth,
+        float height,
+        string[] options,
+        ref int value)
+    {
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
 
-        Vector2 min = new(MathF.Round(controlX), MathF.Round(y));
+        Vector2 min = new(MathF.Round(x), MathF.Round(y));
         Vector2 max = new(min.X + controlWidth, min.Y + height);
 
         dl.AddRectFilled(min, max, Tokens.Col.Input, Tokens.Radius.Control, ImDrawFlags.RoundCornersAll);

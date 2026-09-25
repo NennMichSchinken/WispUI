@@ -877,6 +877,25 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     }
 
     /// <summary>
+    /// Legacy's Base tab: the two marks WispUI lays on the game's own list, and nothing else —
+    /// the list itself is the game's to set up (Florian, 2026-09-25).
+    /// </summary>
+    public void DrawLegacy(float width)
+    {
+        Vector2 origin = ImGui.GetCursorScreenPos();
+        float column = Chrome.ColumnWidth(width);
+        float y = origin.Y;
+
+        Chrome.BeginGroupRow();
+        Chrome.GroupScope cleanse = this.DrawCleanse(Chrome.ColumnX(origin.X, width, 0), y, column, out float cleanseHeight, true);
+        Chrome.GroupScope raiseMark = this.DrawRaiseMark(Chrome.ColumnX(origin.X, width, 1), y, column, out float raiseMarkHeight, true);
+        y += FrameRow(cleanse, cleanseHeight, raiseMark, raiseMarkHeight);
+
+        ImGui.SetCursorScreenPos(origin);
+        ImGui.Dummy(new Vector2(width, y - origin.Y + Tokens.Metric.ContentPaddingBottom));
+    }
+
+    /// <summary>
     /// The Icons tab: the badges a frame carries. They are together because they are the same
     /// kind of thing and are set the same way — a size, one of the nine points, and the two
     /// nudges off it — not because they happen to be pictures.
@@ -2711,13 +2730,18 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         return group;
     }
 
-    private Chrome.GroupScope DrawCleanse(float x, float y, float width, out float contentHeight)
+    /// <param name="legacy">
+    /// The Legacy cut of the same card: no shape and no thickness, because on the game's list
+    /// the mark is one shape (variant D, Florian 2026-09-25). Colour and strength are the SAME
+    /// settings in both modes, so switching mode never loses one.
+    /// </param>
+    private Chrome.GroupScope DrawCleanse(float x, float y, float width, out float contentHeight, bool legacy = false)
     {
         Chrome.GroupScope group = Chrome.BeginGroup(
             IdCleanseGroup,
             new Chrome.GroupHead
             {
-                Eye = PreviewPart.CleanseMark,
+                Eye = legacy ? null : PreviewPart.CleanseMark,
                 Title = Strings.GroupCleanse,
                 Description = Strings.GroupCleanseHint,
                 Toggle = m_config.PartyFrames.ShowCleanseMark,
@@ -2734,20 +2758,24 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         float rowY = group.ContentY;
 
-        int mark = Array.IndexOf(MarkStyles, FrameMark.At(m_config.PartyFrames.CleanseMark));
-        mark = mark < 0 ? 0 : mark;
-
-        if (m_cleanse.Draw(
-                ref mark,
-                Chrome.Row(Strings.CleanseHow, group.ContentX, rowY, group.ContentWidth, false, Strings.CleanseHowTooltip),
-                rowY,
-                Chrome.ControlWidth()))
+        if (!legacy)
         {
-            m_config.PartyFrames.CleanseMark = (int)MarkStyles[mark];
-            m_config.MarkDirty();
+            int mark = Array.IndexOf(MarkStyles, FrameMark.At(m_config.PartyFrames.CleanseMark));
+            mark = mark < 0 ? 0 : mark;
+
+            if (m_cleanse.Draw(
+                    ref mark,
+                    Chrome.Row(Strings.CleanseHow, group.ContentX, rowY, group.ContentWidth, false, Strings.CleanseHowTooltip),
+                    rowY,
+                    Chrome.ControlWidth()))
+            {
+                m_config.PartyFrames.CleanseMark = (int)MarkStyles[mark];
+                m_config.MarkDirty();
+            }
+
+            rowY += Chrome.RowPitch();
         }
 
-        rowY += Chrome.RowPitch();
         uint colour = m_config.PartyFrames.CleanseColour;
         if (Chrome.ColourRow(
                 IdCleanseColour,
@@ -2756,24 +2784,27 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 rowY,
                 group.ContentWidth,
                 ref colour,
-                true,
+                !legacy,
                 null))
         {
             m_config.PartyFrames.CleanseColour = colour;
             m_config.MarkDirty();
         }
 
-        rowY += Chrome.RowPitch();
-        this.PixelSlider(
-            IdCleanseThickness,
-            Strings.CleanseThickness,
-            SlotCleanseThickness,
-            group,
-            rowY,
-            MinCleanseThickness,
-            MaxCleanseThickness,
-            true,
-            Strings.CleanseThicknessTooltip);
+        if (!legacy)
+        {
+            rowY += Chrome.RowPitch();
+            this.PixelSlider(
+                IdCleanseThickness,
+                Strings.CleanseThickness,
+                SlotCleanseThickness,
+                group,
+                rowY,
+                MinCleanseThickness,
+                MaxCleanseThickness,
+                true,
+                Strings.CleanseThicknessTooltip);
+        }
 
         rowY += Chrome.RowPitch();
         float cleanseOpacity = m_config.PartyFrames.CleanseOpacity;
@@ -2831,13 +2862,14 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     /// them on for different reasons (Florian, 2026-09-18).
     /// </para>
     /// </summary>
-    private Chrome.GroupScope DrawRaiseMark(float x, float y, float width, out float contentHeight)
+    /// <param name="legacy">The Legacy cut, as for <see cref="DrawCleanse"/>.</param>
+    private Chrome.GroupScope DrawRaiseMark(float x, float y, float width, out float contentHeight, bool legacy = false)
     {
         Chrome.GroupScope group = Chrome.BeginGroup(
             IdRaiseMarkGroup,
             new Chrome.GroupHead
             {
-                Eye = PreviewPart.RaiseMark,
+                Eye = legacy ? null : PreviewPart.RaiseMark,
                 Title = Strings.GroupRaiseMark,
                 Description = Strings.GroupRaiseMarkHint,
                 Toggle = m_config.PartyFrames.ShowRaiseMark,
@@ -2854,20 +2886,24 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         float rowY = group.ContentY;
 
-        int mark = Array.IndexOf(MarkStyles, FrameMark.At(m_config.PartyFrames.RaiseMark));
-        mark = mark < 0 ? 0 : mark;
-
-        if (m_raiseMark.Draw(
-                ref mark,
-                Chrome.Row(Strings.RaiseHow, group.ContentX, rowY, group.ContentWidth, false, Strings.RaiseHowTooltip),
-                rowY,
-                Chrome.ControlWidth()))
+        if (!legacy)
         {
-            m_config.PartyFrames.RaiseMark = (int)MarkStyles[mark];
-            m_config.MarkDirty();
+            int mark = Array.IndexOf(MarkStyles, FrameMark.At(m_config.PartyFrames.RaiseMark));
+            mark = mark < 0 ? 0 : mark;
+
+            if (m_raiseMark.Draw(
+                    ref mark,
+                    Chrome.Row(Strings.RaiseHow, group.ContentX, rowY, group.ContentWidth, false, Strings.RaiseHowTooltip),
+                    rowY,
+                    Chrome.ControlWidth()))
+            {
+                m_config.PartyFrames.RaiseMark = (int)MarkStyles[mark];
+                m_config.MarkDirty();
+            }
+
+            rowY += Chrome.RowPitch();
         }
 
-        rowY += Chrome.RowPitch();
         uint colour = m_config.PartyFrames.RaiseColour;
         if (Chrome.ColourRow(
                 IdRaiseColour,
@@ -2876,24 +2912,27 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 rowY,
                 group.ContentWidth,
                 ref colour,
-                true,
+                !legacy,
                 null))
         {
             m_config.PartyFrames.RaiseColour = colour;
             m_config.MarkDirty();
         }
 
-        rowY += Chrome.RowPitch();
-        this.PixelSlider(
-            IdRaiseThickness,
-            Strings.RaiseThickness,
-            SlotRaiseThickness,
-            group,
-            rowY,
-            MinCleanseThickness,
-            MaxCleanseThickness,
-            true,
-            Strings.CleanseThicknessTooltip);
+        if (!legacy)
+        {
+            rowY += Chrome.RowPitch();
+            this.PixelSlider(
+                IdRaiseThickness,
+                Strings.RaiseThickness,
+                SlotRaiseThickness,
+                group,
+                rowY,
+                MinCleanseThickness,
+                MaxCleanseThickness,
+                true,
+                Strings.CleanseThicknessTooltip);
+        }
 
         rowY += Chrome.RowPitch();
         float raiseOpacity = m_config.PartyFrames.RaiseOpacity;

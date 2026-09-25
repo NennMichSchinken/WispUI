@@ -205,6 +205,7 @@ public sealed class Profile
     /// </summary>
     internal static void Copy(Configuration.PartyFramesConfig from, Configuration.PartyFramesConfig to)
     {
+        to.Legacy = from.Legacy;
         to.BarStyleName = from.BarStyleName;
         to.ColourMode = from.ColourMode;
         to.BarOpacity = from.BarOpacity;

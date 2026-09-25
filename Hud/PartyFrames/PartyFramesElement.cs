@@ -192,7 +192,11 @@ internal sealed class PartyFramesElement : HudElement
 
     public override string Name => Strings.NavPartyFrames;
 
-    public override bool Enabled => m_config.PartyFramesEnabled;
+    /// <summary>
+    /// Only in Custom mode. In Legacy the game's own list is the frames, and nothing of ours
+    /// is drawn in its place (Florian, 2026-09-25).
+    /// </summary>
+    public override bool Enabled => m_config.PartyFramesEnabled && !m_config.PartyFrames.Legacy;
 
     public override bool Movable => true;
 
@@ -351,8 +355,9 @@ internal sealed class PartyFramesElement : HudElement
 
     public override bool HasPreview => true;
 
-    public override Vector2 PreviewSize(int count) =>
-        FrameLayout.BlockSize(
+    public override Vector2 PreviewSize(int count) => m_config.PartyFrames.Legacy
+        ? LegacyPreview.Size(count)
+        : FrameLayout.BlockSize(
             count,
             (FrameDirection)m_config.PartyFrames.Direction,
             m_config.PartyFrames.Lines,
@@ -376,6 +381,15 @@ internal sealed class PartyFramesElement : HudElement
         // the real frames is gone: it existed because the icons could not be seen without a
         // fight, and this band is that answer done properly (Florian, 2026-09-19).
         m_preview.FillPlaceholders(count, true);
+
+        // Legacy has no frames of ours to show: the band shows the game's list as a stand-in,
+        // with the marks WispUI lays on it.
+        if (m_config.PartyFrames.Legacy)
+        {
+            LegacyPreview.Draw(dl, origin, m_preview, m_config.PartyFrames);
+            return;
+        }
+
         this.DrawContent(dl, origin, m_preview, m_previewGeo, false);
     }
 

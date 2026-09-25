@@ -371,6 +371,14 @@ internal static class Tokens
         public static readonly uint SlideReady = Rgb(0x5BD98A);
 
         /// <summary>
+        /// ⚠️ NOT MEASURED. The Legacy preview's stand-in of the game's party list: its bar's
+        /// empty track and its health fill, the pale green the game uses, by eye.
+        /// </summary>
+        public static readonly uint LegacyTrack = Rgb(0x2C2B2B);
+
+        public static readonly uint LegacyHealth = Rgb(0xCFE8C9);
+
+        /// <summary>
         /// ⚠️ NOT MEASURED. Somebody who cannot be killed right now — the amber the game uses
         /// on its own invulnerability effects, by eye.
         /// </summary>
@@ -886,6 +894,31 @@ internal static class Tokens
         /// mouse is on the target the hover ring still has to read as the one arriving.
         /// </summary>
         public static float FrameTargetRing => WorldLine(2f);
+
+        // --- the Legacy preview: a stand-in of the game's party list -------------
+        // In screen pixels like everything drawn as the HUD looks. ⚠️ By eye from the game's
+        // list at 100 %, not measured; the real marks sit on the real list.
+
+        public static float LegacyRowWidth => WorldPx(220f);
+
+        public static float LegacyRowHeight => WorldPx(42f);
+
+        public static float LegacyRowGap => WorldPx(4f);
+
+        public static float LegacyRowPad => WorldPx(6f);
+
+        public static float LegacyIcon => WorldPx(30f);
+
+        public static float LegacyBarHeight => WorldPx(6f);
+
+        public static float LegacyNameGap => WorldPx(2f);
+
+        /// <summary>The mark round a row (variant D): its outline, its corners, and how strong its wash is at full fill strength.</summary>
+        public static float LegacyMarkEdge => WorldLine(2f);
+
+        public static float LegacyMarkRadius => WorldPx(6f);
+
+        public const float LegacyWash = 0.18f;
 
         // --- the slide window on the game's cast bar ----------------------------
 
