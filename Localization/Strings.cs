@@ -470,7 +470,7 @@ internal static class Strings
     public const string DispelPartyNumber = "Party number";
     public const string DispelPartyNumberTooltip = "Writes each member's place in the party in their square while nothing is on them.";
     public const string GroupDispelShown = "When it shows";
-    public const string GroupDispelShownHint = "A click always casts on that member. A lit square is one that needs it.";
+    public const string GroupDispelShownHint = "A click always casts on that member; a lit square needs it. No clicks in PvP.";
     public const string DispelOnlyWhenAble = "Only on jobs that can cleanse";
     public const string DispelOnlyWhenAbleTooltip = "Hides the squares on any job without Esuna, the Warden's Paean or Exuviation.";
     public const string DispelHideWhenClear = "Hide when nobody needs one";

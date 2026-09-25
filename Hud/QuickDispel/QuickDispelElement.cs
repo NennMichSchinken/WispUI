@@ -168,7 +168,11 @@ internal sealed class QuickDispelElement : HudElement
 
         // Edit mode moves the squares by their outside, like every element; clicking one
         // there would cast a spell on a stand-in.
-        if (!EditMode.IsActive && m_drawn > 0)
+        //
+        // 🔴 And not in PvP: the squares still light, but take no clicks. A click that casts
+        // on somebody without targeting them is an advantage a PvP opponent does not have
+        // (Florian, 2026-09-25). The mouse is left alone entirely, so the game gets it.
+        if (!EditMode.IsActive && m_drawn > 0 && !Services.ClientState.IsPvP)
         {
             this.Input(dl);
         }
