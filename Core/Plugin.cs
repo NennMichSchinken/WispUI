@@ -210,9 +210,19 @@ public sealed class Plugin : IDalamudPlugin
     /// Asked of the job rather than kept: changing job changes the list, and there is no
     /// event for it that is cheaper than the lookup.
     /// </para>
+    /// <para>
+    /// 🔴 Nothing in PvP: an empty list takes the hook out altogether, so no action is ever
+    /// redirected there. A redirect is an advantage a PvP opponent does not have, and the
+    /// plugin rules ask for none (Florian, 2026-09-25).
+    /// </para>
     /// </summary>
     private void SyncMouseover() =>
-        m_mouseover.Sync(m_config.PartyFrames.Mouseover.For(Services.Objects.LocalPlayer?.ClassJob.RowId ?? 0u));
+        m_mouseover.Sync(Services.ClientState.IsPvP
+            ? NoSpells
+            : m_config.PartyFrames.Mouseover.For(Services.Objects.LocalPlayer?.ClassJob.RowId ?? 0u));
+
+    /// <summary>What the hook is handed in PvP. Never written to.</summary>
+    private static readonly System.Collections.Generic.List<MouseoverSpell> NoSpells = new();
 
     /// <summary>
     /// Keeps the HUD's font handles in step with the face and the text sizes in use.

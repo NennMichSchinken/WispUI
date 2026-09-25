@@ -1027,7 +1027,9 @@ internal sealed class PartyFramesElement : HudElement, IDisposable
                 MouseoverCasting.PointAt(target.GameObjectId);
                 m_pointedAt = true;
 
-                if (cfg.MouseoverTarget)
+                // Not in PvP: the game's mouseover target is what a <mo> macro casts on, which
+                // makes this mouseover casting by another road (Florian, 2026-09-25).
+                if (cfg.MouseoverTarget && !Services.ClientState.IsPvP)
                 {
                     Services.Targets.MouseOverTarget = target;
                     m_heldMouseOver = true;
