@@ -1054,13 +1054,13 @@ internal static class NativeUi
             return;
         }
 
-        AtkNineGridNode* overlay = NewSlideNode(fill, SlideFillNodeId, fill->PartId);
-        AtkNineGridNode* frame = NewSlideNode(fill, SlideFrameNodeId, (uint)CastArtPart);
+        AtkNineGridNode* overlay = NewNineGridLike(fill, SlideFillNodeId, fill->PartId);
+        AtkNineGridNode* frame = NewNineGridLike(fill, SlideFrameNodeId, (uint)CastArtPart);
 
         if (overlay is null || frame is null)
         {
-            FreeSlideNode(overlay);
-            FreeSlideNode(frame);
+            FreeNineGrid(overlay);
+            FreeNineGrid(frame);
             return;
         }
 
@@ -1073,8 +1073,11 @@ internal static class NativeUi
         s_slideAddon = (nint)addon;
     }
 
-    /// <summary>A new, unlinked nine-grid wearing one piece of the gauge fill's art.</summary>
-    private static unsafe AtkNineGridNode* NewSlideNode(AtkNineGridNode* fill, uint id, uint part)
+    /// <summary>
+    /// A new, unlinked nine-grid wearing one piece of another nine-grid's art: the cast bar's
+    /// gauge fill for the slide window, a party row's target glow for the Legacy marks.
+    /// </summary>
+    private static unsafe AtkNineGridNode* NewNineGridLike(AtkNineGridNode* fill, uint id, uint part)
     {
         var node = FFXIVClientStructs.FFXIV.Client.System.Memory.IMemorySpace.GetUISpace()->Create<AtkNineGridNode>();
         if (node is null)
@@ -1095,8 +1098,8 @@ internal static class NativeUi
         res->Color.B = 255;
         res->Color.A = 255;
 
-        // The fill's own art: its parts list is borrowed, never owned — it belongs to the
-        // cast bar and goes when the cast bar goes, which is also when our nodes go.
+        // The source's own art: its parts list is borrowed, never owned — it belongs to the
+        // game's window and goes when that window goes, which is also when our nodes go.
         node->PartsList = fill->PartsList;
         node->PartId = part < fill->PartsList->PartCount ? part : fill->PartId;
         node->TopOffset = fill->TopOffset;
@@ -1163,7 +1166,7 @@ internal static class NativeUi
     /// Destroys an unlinked node without freeing it, then gives the memory back to the space
     /// it came from — the parts list it points at is the cast bar's and must not go with it.
     /// </summary>
-    private static unsafe void FreeSlideNode(AtkNineGridNode* node)
+    private static unsafe void FreeNineGrid(AtkNineGridNode* node)
     {
         if (node is null)
         {
@@ -1203,8 +1206,8 @@ internal static class NativeUi
         Unlink(&overlay->AtkResNode);
         addon->UldManager.UpdateDrawNodeList();
 
-        FreeSlideNode(frame);
-        FreeSlideNode(overlay);
+        FreeNineGrid(frame);
+        FreeNineGrid(overlay);
     }
 
     /// <summary>
@@ -1216,6 +1219,225 @@ internal static class NativeUi
         if (s_slideFrame != null && s_slideAddon == addonAddress)
         {
             RemoveSlideWindow();
+        }
+    }
+
+    // --- Legacy marks: nodes in the game's own party list ----------------------
+    //
+    // One node per row, wearing that row's own target glow — the frame the game lights up
+    // round whoever is targeted — tinted in the cleanse or raise colour (Florian, 2026-09-25,
+    // variant D: an outline round the row and a light wash). The same ownership rules as the
+    // slide window: game thread only, checked against the live window, out before the
+    // window is torn down.
+    //
+    // 🔴 A row of the party list is a COMPONENT with its own node tree. The mark hangs in
+    // that tree, beside the glow, so it is the component's draw list that has to be rebuilt
+    // after linking — not the window's.
+
+    /// <summary>The rows a party list can show, and the id our mark on each row wears ("WIS`" + row).</summary>
+    private const int PartyRows = 8;
+
+    private const uint PartyMarkNodeId = 0x57495360u;
+
+    /// <summary>Our mark on each row, and the party list window they were put into.</summary>
+    private static readonly nint[] s_partyMarks = new nint[PartyRows];
+
+    private static nint s_partyMarksAddon;
+
+    /// <summary>
+    /// Lays the marks on the party list, one per row, or keeps them up to date. Called right
+    /// before the party list draws.
+    /// </summary>
+    /// <param name="addonAddress">The party list window the lifecycle handed us.</param>
+    /// <param name="colours">
+    /// Per row, top to bottom: the mark's colour as ImGui packs one, its alpha the strength;
+    /// zero for no mark on that row.
+    /// </param>
+    public static unsafe void UpdatePartyMarks(nint addonAddress, ReadOnlySpan<uint> colours)
+    {
+        var list = (FFXIVClientStructs.FFXIV.Client.UI.AddonPartyList*)addonAddress;
+        if (list is null)
+        {
+            return;
+        }
+
+        // Marks that belong to a window which no longer exists went down with it, or will.
+        if (s_partyMarksAddon != 0 && s_partyMarksAddon != addonAddress)
+        {
+            Array.Clear(s_partyMarks);
+            s_partyMarksAddon = 0;
+        }
+
+        int shown = Math.Clamp(list->MemberCount, 0, PartyRows);
+
+        for (int row = 0; row < PartyRows; row++)
+        {
+            ref var member = ref list->PartyMembers[row];
+            AtkNineGridNode* glow = member.TargetGlow;
+            var mark = (AtkNineGridNode*)s_partyMarks[row];
+            uint colour = row < shown && row < colours.Length ? colours[row] : 0u;
+
+            if (glow is null || glow->AtkResNode.ParentNode is null || member.PartyMemberComponent is null)
+            {
+                continue;
+            }
+
+            if (mark is null)
+            {
+                if (colour == 0u || glow->PartsList is null)
+                {
+                    continue;
+                }
+
+                mark = NewNineGridLike(glow, PartyMarkNodeId + (uint)row, glow->PartId);
+                if (mark is null)
+                {
+                    continue;
+                }
+
+                LinkLast(glow->AtkResNode.ParentNode, &mark->AtkResNode);
+                member.PartyMemberComponent->UldManager.UpdateDrawNodeList();
+                s_partyMarks[row] = (nint)mark;
+                s_partyMarksAddon = addonAddress;
+            }
+
+            AtkResNode* node = &mark->AtkResNode;
+
+            if (colour == 0u)
+            {
+                node->NodeFlags &= ~NodeFlags.Visible;
+                continue;
+            }
+
+            // Exactly where the game puts its own glow, so the mark is the glow's shape on
+            // that row whatever the list's layout, scale or row height.
+            node->SetPositionFloat(glow->AtkResNode.X, glow->AtkResNode.Y);
+            node->SetWidth(glow->AtkResNode.Width);
+            node->SetHeight(glow->AtkResNode.Height);
+
+            // Add only, as on the cast bar: the glow art's own colour counts for nothing and
+            // its shape is filled with exactly ours.
+            node->MultiplyRed = 0;
+            node->MultiplyGreen = 0;
+            node->MultiplyBlue = 0;
+            node->AddRed = (short)(colour & 0xFFu);
+            node->AddGreen = (short)((colour >> 8) & 0xFFu);
+            node->AddBlue = (short)((colour >> 16) & 0xFFu);
+            node->Color.A = (byte)((colour >> 24) & 0xFFu);
+            node->NodeFlags |= NodeFlags.Visible;
+            node->DrawFlags |= 1u;
+        }
+    }
+
+    /// <summary>
+    /// Takes every mark out of the party list and frees it. Safe to call at any time on the
+    /// game's thread; marks whose window is no longer the live list are forgotten, not touched.
+    /// </summary>
+    public static unsafe void RemovePartyMarks()
+    {
+        if (s_partyMarksAddon == 0)
+        {
+            return;
+        }
+
+        var list = (FFXIVClientStructs.FFXIV.Client.UI.AddonPartyList*)Services.GameGui.GetAddonByName("_PartyList", 1).Address;
+        nint owner = s_partyMarksAddon;
+        s_partyMarksAddon = 0;
+
+        if (list is null || (nint)list != owner)
+        {
+            Array.Clear(s_partyMarks);
+            return;
+        }
+
+        for (int row = 0; row < PartyRows; row++)
+        {
+            var mark = (AtkNineGridNode*)s_partyMarks[row];
+            s_partyMarks[row] = 0;
+
+            if (mark is null)
+            {
+                continue;
+            }
+
+            Unlink(&mark->AtkResNode);
+
+            AtkComponentBase* component = list->PartyMembers[row].PartyMemberComponent;
+            if (component is not null)
+            {
+                component->UldManager.UpdateDrawNodeList();
+            }
+
+            FreeNineGrid(mark);
+        }
+    }
+
+    /// <summary>The party list is about to be torn down: our marks come out first.</summary>
+    public static void ForgetPartyMarks(nint addonAddress)
+    {
+        if (s_partyMarksAddon != 0 && s_partyMarksAddon == addonAddress)
+        {
+            RemovePartyMarks();
+        }
+    }
+
+    /// <summary>
+    /// Writes the first party row's target glow to the log — where it sits, how big it is,
+    /// which art it wears. ⚠️ A diagnostic for <c>/wisp status</c>, builds strings.
+    /// </summary>
+    public static unsafe void DumpPartyGlow()
+    {
+        var list = (FFXIVClientStructs.FFXIV.Client.UI.AddonPartyList*)Services.GameGui.GetAddonByName("_PartyList", 1).Address;
+        if (list is null)
+        {
+            Services.Log.Information("[party] no _PartyList window.");
+            return;
+        }
+
+        for (int row = 0; row < Math.Clamp(list->MemberCount, 0, PartyRows); row++)
+        {
+            AtkNineGridNode* glow = list->PartyMembers[row].TargetGlow;
+            if (glow is null)
+            {
+                Services.Log.Information("[party] row {0}: no glow", row);
+                continue;
+            }
+
+            AtkResNode* g = &glow->AtkResNode;
+            Services.Log.Information(
+                "[party] row {0}: glow at ({1:0.0},{2:0.0}) size {3}x{4} screen ({5:0.0},{6:0.0}) shown={7} part {8} of {9} slices l{10} t{11} r{12} b{13} ours={14}",
+                row,
+                g->X,
+                g->Y,
+                g->Width,
+                g->Height,
+                g->ScreenX,
+                g->ScreenY,
+                (g->NodeFlags & NodeFlags.Visible) != 0,
+                glow->PartId,
+                glow->PartsList is null ? 0u : glow->PartsList->PartCount,
+                glow->LeftOffset,
+                glow->TopOffset,
+                glow->RightOffset,
+                glow->BottomOffset,
+                s_partyMarks[row] != 0);
+
+            // The other highlight a row has. Which of the two is the game's hover band
+            // (Florian, 2026-09-25: the mark should cover exactly that) is what this settles.
+            AtkNineGridNode* flash = list->PartyMembers[row].ClickFlash;
+            if (flash is not null)
+            {
+                AtkResNode* f = &flash->AtkResNode;
+                Services.Log.Information(
+                    "[party] row {0}: flash at ({1:0.0},{2:0.0}) size {3}x{4} shown={5} part {6}",
+                    row,
+                    f->X,
+                    f->Y,
+                    f->Width,
+                    f->Height,
+                    (f->NodeFlags & NodeFlags.Visible) != 0,
+                    flash->PartId);
+            }
         }
     }
 

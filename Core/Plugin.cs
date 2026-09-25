@@ -26,6 +26,9 @@ public sealed class Plugin : IDalamudPlugin
     /// <summary>The slide window. Owned here because it puts a node into the game's cast bar, which must come out on the way.</summary>
     private readonly Hud.QualityOfLife.SlidecastElement m_slidecast;
 
+    /// <summary>The party frames. Owned here because in Legacy they lay marks into the game's party list, which must come out on the way.</summary>
+    private readonly PartyFramesElement m_frames;
+
     /// <summary>The one feature that hooks the game. Owned here so it is always disposed.</summary>
     private readonly MouseoverCasting m_mouseover;
 
@@ -52,8 +55,8 @@ public sealed class Plugin : IDalamudPlugin
 
         // Kept in a local, because the settings window draws this same element as its
         // preview. One object, one set of drawing code, two places it appears.
-        var frames = new PartyFramesElement(m_config);
-        m_hud.Add(frames);
+        m_frames = new PartyFramesElement(m_config);
+        m_hud.Add(m_frames);
 
         // After the frames, so it draws over them where the two meet.
         m_meter = new Hud.CombatTracker.CombatTrackerElement(m_config);
@@ -64,7 +67,7 @@ public sealed class Plugin : IDalamudPlugin
         m_slidecast = new Hud.QualityOfLife.SlidecastElement(m_config);
         m_hud.Add(m_slidecast);
 
-        m_configWindow = new ConfigWindow(m_config, frames, m_meter);
+        m_configWindow = new ConfigWindow(m_config, m_frames, m_meter);
         m_meter.SettingsRequested += this.OnMeterSettings;
         m_configWindow.Closed += this.OnConfigClosed;
         m_windows.AddWindow(m_configWindow);
@@ -122,6 +125,7 @@ public sealed class Plugin : IDalamudPlugin
         // Our node out of the game's cast bar. Nothing of ours may stay in the game's
         // interface once the code that owns it is gone.
         m_slidecast.Dispose();
+        m_frames.Dispose();
 
         // A piece of the player's interface must never stay hidden by something that has
         // stopped running. Nothing happens here if we never hid it.

@@ -1,6 +1,8 @@
 using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Game.Addon.Lifecycle;
+using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Game.ClientState.Objects.Types;
 using WispUI.Appearance;
 using WispUI.Core;
@@ -20,7 +22,7 @@ namespace WispUI.Hud.PartyFrames;
 /// on top of all of it.
 /// </para>
 /// </summary>
-internal sealed class PartyFramesElement : HudElement
+internal sealed class PartyFramesElement : HudElement, IDisposable
 {
     /// <summary>
     /// How quickly a smoothed bar closes the gap to the real value, per second. Set so a
@@ -185,20 +187,100 @@ internal sealed class PartyFramesElement : HudElement
     /// <summary>The leader's mark. One picture for the whole party, so it is resolved once.</summary>
     private ImTextureID m_leaderIcon;
 
+    private const string PartyListAddon = "_PartyList";
+
+    /// <summary>
+    /// Legacy only: the mark each row of the game's list should wear this frame, top to
+    /// bottom — the colour with its strength as alpha, zero for none. Worked out in
+    /// <see cref="Collect"/> from the same party pass the frames use, and handed to the game's
+    /// list right before it draws.
+    /// </summary>
+    private readonly uint[] m_legacyMarks = new uint[PartySnapshot.Capacity];
+
     public PartyFramesElement(Configuration config)
     {
         m_config = config;
+
+        // Legacy's marks are nodes in the game's own list: kept up to date right before the
+        // list draws, and taken out before the list is torn down.
+        Services.AddonLifecycle.RegisterListener(AddonEvent.PreDraw, PartyListAddon, this.OnPartyListDraw);
+        Services.AddonLifecycle.RegisterListener(AddonEvent.PreFinalize, PartyListAddon, this.OnPartyListGone);
     }
 
     public override string Name => Strings.NavPartyFrames;
 
     /// <summary>
-    /// Only in Custom mode. In Legacy the game's own list is the frames, and nothing of ours
-    /// is drawn in its place (Florian, 2026-09-25).
+    /// On in both modes: in Legacy nothing of ours is drawn (Florian, 2026-09-25), but the
+    /// party still has to be read to know which row gets a mark.
     /// </summary>
-    public override bool Enabled => m_config.PartyFramesEnabled && !m_config.PartyFrames.Legacy;
+    public override bool Enabled => m_config.PartyFramesEnabled;
 
-    public override bool Movable => true;
+    private bool Legacy => m_config.PartyFrames.Legacy;
+
+    /// <summary>Nothing to drag in Legacy: the list is where the game's HUD layout puts it.</summary>
+    public override bool Movable => !this.Legacy;
+
+    /// <summary>
+    /// Unhooks and takes the marks out. Dalamud disposes a plugin on the game's thread, which
+    /// is the thread the list may be touched on; anywhere else it is left to the game.
+    /// </summary>
+    public void Dispose()
+    {
+        Services.AddonLifecycle.UnregisterListener(AddonEvent.PreDraw, PartyListAddon, this.OnPartyListDraw);
+        Services.AddonLifecycle.UnregisterListener(AddonEvent.PreFinalize, PartyListAddon, this.OnPartyListGone);
+
+        if (Services.Framework.IsInFrameworkUpdateThread)
+        {
+            NativeUi.RemovePartyMarks();
+        }
+    }
+
+    private void OnPartyListDraw(AddonEvent type, AddonArgs args)
+    {
+        // Custom, or switched off: nothing of ours in the game's list at all.
+        if (!m_config.PartyFramesEnabled || !this.Legacy)
+        {
+            NativeUi.RemovePartyMarks();
+            return;
+        }
+
+        NativeUi.UpdatePartyMarks(args.Addon.Address, m_legacyMarks);
+    }
+
+    private void OnPartyListGone(AddonEvent type, AddonArgs args) => NativeUi.ForgetPartyMarks(args.Addon.Address);
+
+    /// <summary>
+    /// Which mark each row wears: raise over cleanse, because "somebody is already on it" is
+    /// the reason to stop looking at a row; the same switches, colours, strengths and the same
+    /// "only on jobs that can cleanse" rule as the Custom frames.
+    /// </summary>
+    private void CollectLegacyMarks()
+    {
+        Configuration.PartyFramesConfig cfg = m_config.PartyFrames;
+        bool cleanse = cfg.ShowCleanseMark && (!cfg.CleanseOnlyWhenAble || CanCleanseNow());
+        PartyMemberSnapshot[] members = m_snapshot.Members;
+
+        for (int i = 0; i < m_legacyMarks.Length; i++)
+        {
+            m_legacyMarks[i] = 0u;
+
+            if (i >= m_snapshot.Count)
+            {
+                continue;
+            }
+
+            ref PartyMemberSnapshot member = ref members[i];
+
+            if (cfg.ShowRaiseMark && member.RaiseRemaining > 0f)
+            {
+                m_legacyMarks[i] = Tokens.Col.Faded(cfg.RaiseColour, cfg.RaiseOpacity);
+            }
+            else if (cleanse && member.HasDispellable)
+            {
+                m_legacyMarks[i] = Tokens.Col.Faded(cfg.CleanseColour, cfg.CleanseOpacity);
+            }
+        }
+    }
 
     /// <summary>
     /// The block all the frames together occupy, worked out from what was actually drawn.
@@ -261,6 +343,16 @@ internal sealed class PartyFramesElement : HudElement
         // things it covers — which is exactly wrong for a tab whose every control needs to be
         // watched while it is moved (Florian, 2026-09-13: the icons were never visible,
         // because turning on the thing that showed eight frames took the window away).
+        //
+        // Legacy first: the real party, always, and only the marks come out of it. There is
+        // nothing of ours to arrange in edit mode.
+        if (this.Legacy)
+        {
+            m_snapshot.Collect(m_config.PartyFrames.OwnBuffsOnly);
+            this.CollectLegacyMarks();
+            return;
+        }
+
         if (EditMode.IsActive)
         {
             m_snapshot.FillPlaceholders();
@@ -311,6 +403,13 @@ internal sealed class PartyFramesElement : HudElement
     /// </summary>
     public override void Draw(ImDrawListPtr dl)
     {
+        // Legacy draws nothing of its own — no frames, no window over them that would take
+        // the mouse from the game's list. Its marks are nodes in that list.
+        if (this.Legacy)
+        {
+            return;
+        }
+
         if (!NativeUi.ContextMenuBounds(out Vector2 menuMin, out Vector2 menuMax))
         {
             this.DrawLive(dl);
