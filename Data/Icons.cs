@@ -1,7 +1,9 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Textures;
 using Dalamud.Interface.Textures.TextureWraps;
+using Dalamud.Utility;
 using WispUI.Core;
 
 namespace WispUI.Data;
@@ -94,6 +96,7 @@ internal static class Icons
                     System.IO.Path.Combine(dir, "Textures", path.Replace('/', System.IO.Path.DirectorySeparatorChar)));
 
             Ours[path] = texture;
+            Hold(texture);
         }
 
         if (texture is null || !texture.TryGetWrap(out IDalamudTextureWrap? wrap, out _))
@@ -133,6 +136,7 @@ internal static class Icons
         {
             sheet = Services.Textures.TryGetFromGameIcon(iconId, out ISharedImmediateTexture? found) ? found : null;
             Sheets[iconId] = sheet;
+            Hold(sheet);
         }
 
         if (sheet is null || !sheet.TryGetWrap(out IDalamudTextureWrap? wrap, out _))
@@ -164,6 +168,56 @@ internal static class Icons
     private static readonly Dictionary<string, ISharedImmediateTexture?> Ours = new();
 
     /// <summary>
+    /// A hold on every texture WispUI has drawn, for as long as the plugin runs.
+    /// <para>
+    /// 🔴 Dalamud frees a shared texture on the graphics card once nobody has asked for it for
+    /// two seconds (<c>SharedImmediateTexture.SelfReferenceDurationTicks</c>), and loads it again
+    /// on the next request. With the party frames switched off, the preview band is the only
+    /// thing asking — so leaving the Party frames screen for a moment and coming back freed and
+    /// re-created every bar texture and every stand-in's icons. Exactly that sequence crashed the
+    /// game four times inside the graphics driver, always with the driver's photo mode hooked
+    /// into the frame (Florian, 2026-09-25). A driver should survive a texture being freed and
+    /// made again, but there is no reason to keep asking it to: the set is small (our bar
+    /// textures, job icons, whatever effects have been on screen) and a held texture costs a
+    /// few kilobytes.
+    /// </para>
+    /// <para>
+    /// Capped, because effect icons are the one open-ended part — a long session could see
+    /// hundreds. Past the cap a texture is simply not held, which is how everything behaved
+    /// before.
+    /// </para>
+    /// </summary>
+    private static readonly List<Task<IDalamudTextureWrap>> Held = new();
+
+    private const int MaxHeld = 512;
+
+    /// <summary>Takes a hold on a texture the first time it is looked up. Never per frame.</summary>
+    private static void Hold(ISharedImmediateTexture? texture)
+    {
+        if (texture is null || Held.Count >= MaxHeld)
+        {
+            return;
+        }
+
+        Held.Add(texture.RentAsync());
+    }
+
+    /// <summary>Lets go of every held texture. Called once, when the plugin unloads.</summary>
+    public static void Release()
+    {
+        for (int i = 0; i < Held.Count; i++)
+        {
+            // Disposes the wrap whenever the load finishes, or swallows the failure if it never
+            // does — a texture still loading at unload must not throw on the way out.
+            _ = Held[i].ToContentDisposedTask(true);
+        }
+
+        Held.Clear();
+        Sheets.Clear();
+        Ours.Clear();
+    }
+
+    /// <summary>
     /// The texture to draw for an icon id, or a null handle while it is not available — not
     /// loaded yet, or no such icon. The caller draws nothing in that case rather than drawing
     /// Dalamud's empty texture, which would be a grey square where an icon is meant to be.
@@ -179,6 +233,7 @@ internal static class Icons
         {
             sheet = Services.Textures.TryGetFromGameIcon(iconId, out ISharedImmediateTexture? found) ? found : null;
             Sheets[iconId] = sheet;
+            Hold(sheet);
         }
 
         if (sheet is null)

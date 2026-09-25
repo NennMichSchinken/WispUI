@@ -120,6 +120,16 @@ internal static class News
     public static readonly NewsRelease[] Releases =
     {
         new(
+            "0.1.1",
+            "2026-09-25",
+            "Fixes a crash when switching settings pages.",
+            new NewsEntry[]
+            {
+                new(
+                    NewsKind.Fixed,
+                    "A crash when leaving the party frames settings and coming back with the frames turned off."),
+            }),
+        new(
             "0.1.0",
             "2026-09-24",
             // 🔴 Two lines in the navigation card, and the card clips rather than grows.
