@@ -214,11 +214,11 @@ public sealed class Configuration : IPluginConfiguration
     public CombatTrackerConfig CombatTracker { get; set; } = new();
 
     /// <summary>
-    /// Whether the small helpers on the game's own interface are on at all (version 21).
-    /// Off by default like every module: nothing on somebody's screen changes until they ask.
+    /// The small helpers on the game's own interface (version 21). No switch for the module
+    /// as a whole: it is a shelf of unrelated helpers, and each card switches its own
+    /// (Florian, 2026-09-25) — a second switch above them would only be a second place to
+    /// turn the same thing off.
     /// </summary>
-    public bool QualityOfLifeEnabled { get; set; }
-
     public QualityOfLifeConfig QualityOfLife { get; set; } = new();
 
     /// <summary>
@@ -1244,8 +1244,11 @@ public sealed class Configuration : IPluginConfiguration
     [Serializable]
     public sealed class QualityOfLifeConfig
     {
-        /// <summary>The slide window on the game's cast bar. On, so the module does something the moment it is switched on.</summary>
-        public bool SlidecastEnabled { get; set; } = true;
+        /// <summary>
+        /// The slide window on the game's cast bar. Off by default: with no module switch
+        /// above it, this IS the switch, and nothing on somebody's screen changes until they ask.
+        /// </summary>
+        public bool SlidecastEnabled { get; set; }
 
         /// <summary>The outline before the server has taken the cast.</summary>
         public uint SlidecastWaitColour { get; set; } = Style.Tokens.Col.SlideWait;

@@ -1355,14 +1355,11 @@ internal sealed class ConfigWindow : Window
     /// </summary>
     private float DrawScreenHeader(ImDrawListPtr dl, float left, float right, float top)
     {
-        bool isModule = m_screen is Screen.PartyFrames or Screen.CombatTracker or Screen.QualityOfLife;
+        // Quality of Life is a module with no switch of its own: each of its cards carries one
+        // (Florian, 2026-09-25), so its header is a title like Global's.
+        bool isModule = m_screen is Screen.PartyFrames or Screen.CombatTracker;
         bool isFrames = m_screen == Screen.PartyFrames;
-        bool enabled = m_screen switch
-        {
-            Screen.PartyFrames => m_config.PartyFramesEnabled,
-            Screen.QualityOfLife => m_config.QualityOfLifeEnabled,
-            _ => m_config.CombatTrackerEnabled,
-        };
+        bool enabled = isFrames ? m_config.PartyFramesEnabled : m_config.CombatTrackerEnabled;
         float height = Tokens.Metric.ModuleHeaderHeight;
         float x = left + Tokens.Metric.SectionPaddingX;
 
@@ -1378,10 +1375,6 @@ internal sealed class ConfigWindow : Window
                 if (isFrames)
                 {
                     m_config.PartyFramesEnabled = !m_config.PartyFramesEnabled;
-                }
-                else if (m_screen == Screen.QualityOfLife)
-                {
-                    m_config.QualityOfLifeEnabled = !m_config.QualityOfLifeEnabled;
                 }
                 else
                 {

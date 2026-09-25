@@ -49,7 +49,7 @@ internal sealed class SlidecastElement : HudElement, IDisposable
 
     public override string Name => Strings.GroupSlidecast;
 
-    public override bool Enabled => m_config.QualityOfLifeEnabled && m_config.QualityOfLife.SlidecastEnabled;
+    public override bool Enabled => m_config.QualityOfLife.SlidecastEnabled;
 
     /// <summary>Nothing for the HUD pass: the game draws the window as part of its own bar.</summary>
     public override bool HasAnythingToDraw => false;
