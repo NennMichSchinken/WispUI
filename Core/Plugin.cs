@@ -124,6 +124,9 @@ public sealed class Plugin : IDalamudPlugin
         // write puts the live settings back into the profile they belong to on its own.
         m_config.FlushPending();
         Fonts.Dispose();
+
+        // After the draw callback is gone, so nothing can be drawing with a texture being let go.
+        Data.Icons.Release();
     }
 
     /// <summary>
