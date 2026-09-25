@@ -177,7 +177,7 @@ internal sealed class ConfigWindow : Window
     private static readonly string[] TabsPartyFramesLegacy = { Strings.TabBase, Strings.TabBindings };
 
     /// <summary>The Custom / Legacy choice in the party frames' header, in that order.</summary>
-    private static readonly string[] PartyModes = { Strings.PartyModeCustom, Strings.PartyModeLegacy };
+    private static readonly string[] PartyModes = { Strings.PartyModeLegacy, Strings.PartyModeCustom };
 
     private const string IdPartyMode = "##wisp-pf-mode";
 
@@ -619,35 +619,48 @@ internal sealed class ConfigWindow : Window
     }
 
     /// <summary>
-    /// Custom or Legacy, as a strip in the header — above the tabs because it decides which
-    /// tabs there are (Florian, 2026-09-25). Exactly one is always on.
+    /// Legacy or Custom, as a strip at the start of the tab row, a hairline away from the
+    /// tabs: first what the module is, then the tabs that belong to it — and switching shows
+    /// the row beside it grow or shrink (Florian, 2026-09-25, variant A). Exactly one is on.
     /// <para>
     /// Switching keeps you on the same tab where both modes have it (Bindings), and puts you
     /// on Base where the tab you were on does not exist in the other mode.
     /// </para>
     /// </summary>
-    private void DrawPartyMode(float x, float y)
+    /// <returns>Where the tabs start, right of the strip and its hairline.</returns>
+    private float DrawPartyMode(ImDrawListPtr dl, float x, float y)
     {
         float widest = MathF.Max(
             Ink.Measure(Ink.Role.Body, Strings.PartyModeCustom).X,
             Ink.Measure(Ink.Role.Body, Strings.PartyModeLegacy).X);
         float width = MathF.Round((widest + (Tokens.Space.Lg * 2f)) * PartyModes.Length);
+        float height = Tokens.Metric.TabHeight;
 
-        int mode = m_config.PartyFrames.Legacy ? 1 : 0;
+        // Legacy first, so it sits on the left (Florian, 2026-09-25).
+        int mode = m_config.PartyFrames.Legacy ? 0 : 1;
         string[] before = this.TabsOn(Screen.PartyFrames);
         int tab = m_tabIndex[(int)Screen.PartyFrames];
         string current = tab >= 0 && tab < before.Length ? before[tab] : Strings.TabBase;
 
-        if (!Chrome.Segment(IdPartyMode, x, y, width, Tokens.Metric.ButtonHeight, PartyModes, ref mode))
+        if (Chrome.Segment(IdPartyMode, x, y, width, height, PartyModes, ref mode))
         {
-            return;
+            m_config.PartyFrames.Legacy = mode == 0;
+            m_config.MarkDirty();
+
+            int kept = Array.IndexOf(this.TabsOn(Screen.PartyFrames), current);
+            m_tabIndex[(int)Screen.PartyFrames] = kept < 0 ? 0 : kept;
         }
 
-        m_config.PartyFrames.Legacy = mode == 1;
-        m_config.MarkDirty();
+        // The hairline between what the module is and what it has, at the tabs' own height
+        // less a little top and bottom, so it separates without boxing anything in.
+        float lineX = MathF.Round(x + width + Tokens.Space.Lg);
+        float inset = MathF.Round(height * 0.2f);
+        dl.AddRectFilled(
+            new Vector2(lineX, y + inset),
+            new Vector2(lineX + Tokens.Line(1f), y + height - inset),
+            Tokens.Col.Hairline);
 
-        int kept = Array.IndexOf(this.TabsOn(Screen.PartyFrames), current);
-        m_tabIndex[(int)Screen.PartyFrames] = kept < 0 ? 0 : kept;
+        return lineX + Tokens.Line(1f) + Tokens.Space.Lg;
     }
 
     /// <summary>
@@ -1361,7 +1374,6 @@ internal sealed class ConfigWindow : Window
     /// </summary>
     private float DrawTabs(ImDrawListPtr dl, float left, float right, float top)
     {
-        _ = dl;
         _ = right;
 
         // No tabs while the tracker is walking somebody through installing IINACT: there is
@@ -1383,6 +1395,12 @@ internal sealed class ConfigWindow : Window
 
         float tabTop = top + Tokens.Space.Md;
         float x = left + Tokens.Metric.SectionPaddingX;
+
+        if (m_screen == Screen.PartyFrames)
+        {
+            x = this.DrawPartyMode(dl, x, tabTop);
+        }
+
         for (int i = 0; i < tabs.Length && i < TabIds.Length; i++)
         {
             float width = Chrome.MeasureTab(tabs[i]);
@@ -1452,12 +1470,6 @@ internal sealed class ConfigWindow : Window
             x += MathF.Round(Ink.Measure(Ink.Role.ScreenTitle, title).X) + Tokens.Space.Md;
             string state = enabled ? Strings.StateOn : Strings.StateOff;
             Ink.Draw(dl, Ink.Role.Small, new Vector2(x, Chrome.CenterY(top, height, Ink.Role.Small)), Tokens.Col.InkFaint, state);
-
-            if (isFrames)
-            {
-                x += MathF.Round(Ink.Measure(Ink.Role.Small, state).X) + Tokens.Space.Xl;
-                this.DrawPartyMode(x, MathF.Round(top + ((height - Tokens.Metric.ButtonHeight) * 0.5f)));
-            }
         }
 
         // Right to left: Defaults sits outermost, so it stays in the same place on every

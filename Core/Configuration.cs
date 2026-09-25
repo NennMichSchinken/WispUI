@@ -241,14 +241,18 @@ public sealed class Configuration : IPluginConfiguration
     {
         /// <summary>
         /// Legacy instead of Custom (version 22): the game's own party list stays, and WispUI
-        /// only adds its marks and its mouse to it. Off — Custom — by default, which is what
-        /// everybody had before the choice existed.
+        /// only adds its marks and its mouse to it.
+        /// <para>
+        /// Legacy by default (Florian, 2026-09-25): the lightest touch on somebody's screen is
+        /// the right first one. Anybody from before the choice keeps Custom — the migration to
+        /// version 22 writes it in.
+        /// </para>
         /// <para>
         /// On the module rather than on the suite, so a profile carries it: somebody may want
         /// grid frames on their healer and the game's list on their tank (Florian, 2026-09-25).
         /// </para>
         /// </summary>
-        public bool Legacy { get; set; }
+        public bool Legacy { get; set; } = true;
 
         /// <summary>
         /// The bar style, by name.
@@ -850,7 +854,7 @@ public sealed class Configuration : IPluginConfiguration
         /// shape that was chosen rather than the first one in the list.
         /// </para>
         /// </summary>
-        public bool ShowCleanseMark { get; set; } = true;
+        public bool ShowCleanseMark { get; set; }
 
         /// <summary>
         /// Show the cleanse mark only while on a job that can actually cleanse.
@@ -898,7 +902,7 @@ public sealed class Configuration : IPluginConfiguration
 
         /// <summary>Whether the raise mark appears, with the cleanse mark and for the same
         /// reason.</summary>
-        public bool ShowRaiseMark { get; set; } = true;
+        public bool ShowRaiseMark { get; set; }
 
         /// <summary>
         /// A spring green, and deliberately NOT the healer role colour <c>#6EF54D</c>: the mark
@@ -1847,8 +1851,18 @@ public sealed class Configuration : IPluginConfiguration
 
         // Version 21 added the Quality of Life block. The same: defaults, switched off.
 
-        // Version 22 added Legacy to the party frames. False is Custom, which is what
-        // everybody had, in the live block and in every profile alike.
+        // Version 22 added Legacy to the party frames, and Legacy is the default for a new
+        // install. Everybody before it had Custom — their frames must not vanish on the day
+        // they update — so Custom is written in, in the live block and in every profile.
+        if (config.Version < 22)
+        {
+            config.PartyFrames.Legacy = false;
+
+            for (int i = 0; i < config.Profiles.Items.Count; i++)
+            {
+                config.Profiles.Items[i].PartyFrames.Legacy = false;
+            }
+        }
     }
 
     /// <inheritdoc cref="PartyFramesConfig.SpacingX"/>
