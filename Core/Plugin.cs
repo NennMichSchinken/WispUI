@@ -23,6 +23,12 @@ public sealed class Plugin : IDalamudPlugin
     private readonly HudManager m_hud = new();
     private readonly Hud.CombatTracker.CombatTrackerElement m_meter;
 
+    /// <summary>
+    /// The live party, read once a frame for everyone who draws from it — the frames and
+    /// Quick Dispel. Ticked here rather than by either, so it keeps ticking with one of them off.
+    /// </summary>
+    private readonly PartySnapshot m_party = new();
+
     /// <summary>The slide window. Owned here because it puts a node into the game's cast bar, which must come out on the way.</summary>
     private readonly Hud.QualityOfLife.SlidecastElement m_slidecast;
 
@@ -55,8 +61,12 @@ public sealed class Plugin : IDalamudPlugin
 
         // Kept in a local, because the settings window draws this same element as its
         // preview. One object, one set of drawing code, two places it appears.
-        m_frames = new PartyFramesElement(m_config);
+        m_frames = new PartyFramesElement(m_config, m_party);
         m_hud.Add(m_frames);
+
+        // After the frames, so its squares and its hover ring sit over them where the two meet.
+        var dispel = new Hud.QuickDispel.QuickDispelElement(m_config, m_party);
+        m_hud.Add(dispel);
 
         // After the frames, so it draws over them where the two meet.
         m_meter = new Hud.CombatTracker.CombatTrackerElement(m_config);
@@ -67,7 +77,7 @@ public sealed class Plugin : IDalamudPlugin
         m_slidecast = new Hud.QualityOfLife.SlidecastElement(m_config);
         m_hud.Add(m_slidecast);
 
-        m_configWindow = new ConfigWindow(m_config, m_frames, m_meter);
+        m_configWindow = new ConfigWindow(m_config, m_frames, dispel, m_meter);
         m_meter.SettingsRequested += this.OnMeterSettings;
         m_configWindow.Closed += this.OnConfigClosed;
         m_windows.AddWindow(m_configWindow);
@@ -197,6 +207,13 @@ public sealed class Plugin : IDalamudPlugin
             m_config.PartyFramesEnabled && !m_config.PartyFrames.Legacy && m_config.PartyFrames.HideNativePartyList);
 
         this.SyncHudFonts();
+
+        // Raises in flight and who is in range. Only while something reads the party: the
+        // watch walks the object table, and nobody should pay for it with both modules off.
+        if (m_config.PartyFramesEnabled || m_config.QuickDispelEnabled)
+        {
+            m_party.Tick(Environment.TickCount64 / 1000d);
+        }
 
         // Work that has to keep running while nothing is drawn, or that costs too much to do
         // per frame. Each element throttles its own.

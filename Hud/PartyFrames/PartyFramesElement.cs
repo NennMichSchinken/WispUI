@@ -61,7 +61,8 @@ internal sealed class PartyFramesElement : HudElement, IDisposable
     private const float NumberPlateEdge = 0.09f;
 
     private readonly Configuration m_config;
-    private readonly PartySnapshot m_snapshot = new();
+    /// <summary>The live party, shared with Quick Dispel so the party is read once a frame.</summary>
+    private readonly PartySnapshot m_snapshot;
 
     /// <summary>The stand-ins the settings window preview is drawn from. Never the live one.</summary>
     private readonly PartySnapshot m_preview = new();
@@ -197,9 +198,10 @@ internal sealed class PartyFramesElement : HudElement, IDisposable
     /// </summary>
     private readonly uint[] m_legacyMarks = new uint[PartySnapshot.Capacity];
 
-    public PartyFramesElement(Configuration config)
+    public PartyFramesElement(Configuration config, PartySnapshot party)
     {
         m_config = config;
+        m_snapshot = party;
 
         // Legacy's marks are nodes in the game's own list: kept up to date right before the
         // list draws, and taken out before the list is torn down.
@@ -344,23 +346,17 @@ internal sealed class PartyFramesElement : HudElement, IDisposable
         // watched while it is moved (Florian, 2026-09-13: the icons were never visible,
         // because turning on the thing that showed eight frames took the window away).
         //
-        // Legacy first: the real party, always, and only the marks come out of it. There is
-        // nothing of ours to arrange in edit mode.
+        // Stand-ins in edit mode, the party otherwise — decided inside, once for every reader
+        // of the shared snapshot. Legacy takes only the marks out of it; in edit mode the
+        // stand-ins carry none, so the game's list goes unmarked while things are arranged.
+        m_snapshot.Refresh(m_config.PartyFrames.OwnBuffsOnly);
+
         if (this.Legacy)
         {
-            m_snapshot.Collect(m_config.PartyFrames.OwnBuffsOnly);
             this.CollectLegacyMarks();
             return;
         }
 
-        if (EditMode.IsActive)
-        {
-            m_snapshot.FillPlaceholders();
-            this.CollectIcons();
-            return;
-        }
-
-        m_snapshot.Collect(m_config.PartyFrames.OwnBuffsOnly);
         this.CollectIcons();
     }
 
@@ -1232,7 +1228,7 @@ internal sealed class PartyFramesElement : HudElement, IDisposable
     /// on its path, so half of it falls outside the rectangle and is antialiased — the same
     /// reason the window's rings and the party number's edge are filled shapes.
     /// </summary>
-    private static void Ring(ImDrawListPtr dl, Vector2 min, Vector2 max, float thickness, uint colour)
+    internal static void Ring(ImDrawListPtr dl, Vector2 min, Vector2 max, float thickness, uint colour)
     {
         float t = MathF.Min(thickness, MathF.Min(max.X - min.X, max.Y - min.Y) * 0.5f);
         if (t <= 0f)
@@ -1283,12 +1279,6 @@ internal sealed class PartyFramesElement : HudElement, IDisposable
 
         return player is not null && StatusData.CanCleanse(player.ClassJob.RowId, player.Level);
     }
-
-    /// <summary>
-    /// Looks for raises in flight. On the tick because it costs a walk of the object table
-    /// and must keep running whether or not anything is being drawn.
-    /// </summary>
-    public override void Tick() => m_snapshot.Tick(Environment.TickCount64 / 1000d);
 
     private void DrawJobIcon(
         ImDrawListPtr dl,
@@ -1618,7 +1608,7 @@ internal sealed class PartyFramesElement : HudElement, IDisposable
     /// not run out — there is no number to write for something that is simply there.
     /// </para>
     /// </summary>
-    private static string? DurationText(float remaining)
+    internal static string? DurationText(float remaining)
     {
         if (remaining <= 0f)
         {

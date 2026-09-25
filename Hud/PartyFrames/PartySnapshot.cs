@@ -339,6 +339,41 @@ internal sealed class PartySnapshot
 
     public PartyMemberSnapshot[] Members => m_members;
 
+    /// <summary>The ImGui frame this snapshot was last filled in, so a second reader reuses it.</summary>
+    private int m_refreshedFrame = -1;
+
+    /// <summary>
+    /// Fills the snapshot for this frame, unless somebody already has.
+    /// <para>
+    /// 🔴 The live snapshot is shared: the party frames and Quick Dispel both read the party,
+    /// and a list that is already walked is not walked a second time (CLAUDE.md §5.2).
+    /// Whoever draws first pays for the walk; everybody after them reads what it found.
+    /// </para>
+    /// <para>
+    /// Edit mode fills it with stand-ins instead, for every reader at once — an element
+    /// being arranged has to have somebody to arrange.
+    /// </para>
+    /// </summary>
+    public void Refresh(bool ownBuffsOnly)
+    {
+        int frame = Dalamud.Bindings.ImGui.ImGui.GetFrameCount();
+
+        if (frame == m_refreshedFrame)
+        {
+            return;
+        }
+
+        m_refreshedFrame = frame;
+
+        if (EditMode.IsActive)
+        {
+            this.FillPlaceholders();
+            return;
+        }
+
+        this.Collect(ownBuffsOnly);
+    }
+
     /// <summary>
     /// Fills the array from the game. Called once per frame, before anything draws.
     /// <para>
@@ -491,6 +526,11 @@ internal sealed class PartySnapshot
         {
             ref PartyMemberSnapshot slot = ref m_members[i];
             slot.EntityId = PlaceholderId + (uint)i;
+
+            // Their place in the party, which the number on a frame and on a Quick Dispel
+            // square is. Left unset, it was whatever the slot last held — nothing at all in
+            // the preview, and the live party's numbers in edit mode.
+            slot.PartyNumber = i + 1;
             slot.HudIndex = -1;
             slot.PartyIndex = -1;
 

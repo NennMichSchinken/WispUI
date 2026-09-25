@@ -920,6 +920,30 @@ internal static class Tokens
 
         public const float LegacyWash = 0.18f;
 
+        // --- Quick Dispel ---------------------------------------------------------
+        // On the world, so screen pixels (WorldPx), never the suite scale.
+
+        /// <summary>Between two squares. Enough that two job colours side by side read as two edges.</summary>
+        public static float DispelGap => WorldPx(4f);
+
+        /// <summary>The job-colour edge of a square. Two, so the colour reads at a glance on a 16 px square.</summary>
+        public static float DispelEdge => WorldLine(2f);
+
+        /// <summary>The Alt handle above the first square: its diameter, and the air under it.</summary>
+        public static float DispelHandle => WorldPx(10f);
+
+        public static float DispelHandleGap => WorldPx(4f);
+
+        /// <summary>
+        /// A square whose member is out of reach or not here. Fainter than a frame out of
+        /// range: a frame still has health to say, a square
+        /// only says "you can click this", and here that is not true.
+        /// </summary>
+        public const float DispelAwayAlpha = 0.4f;
+
+        /// <summary>The party number and the seconds, as a share of the square's side.</summary>
+        public const float DispelNumberShare = 0.5f;
+
         // --- the slide window on the game's cast bar ----------------------------
 
         /// <summary>

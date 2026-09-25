@@ -27,6 +27,7 @@ internal enum Screen
     Global,
     Profile,
     PartyFrames,
+    QuickDispel,
     CombatTracker,
     QualityOfLife,
 
@@ -163,6 +164,9 @@ internal sealed class ConfigWindow : Window
     /// <summary>One tab: each helper is a card on it, not a tab of its own.</summary>
     private static readonly string[] TabsQualityOfLife = { Strings.TabBase };
 
+    /// <summary>One tab: five settings in two cards.</summary>
+    private static readonly string[] TabsQuickDispel = { Strings.TabBase };
+
     /// <summary>
     /// Which chip is the bindings tab, asked of the list rather than written down. Two places
     /// far apart act on it, and a literal in both is the pair that drifts when a tab is
@@ -191,6 +195,7 @@ internal sealed class ConfigWindow : Window
         new("##wisp-nav-profile", Strings.NavProfile, Screen.Profile),
         NavRow.Separator(),
         new("##wisp-nav-party", Strings.NavPartyFrames, Screen.PartyFrames),
+        new("##wisp-nav-dispel", Strings.NavQuickDispel, Screen.QuickDispel),
         new("##wisp-nav-tracker", Strings.NavCombatTracker, Screen.CombatTracker),
         new("##wisp-nav-qol", Strings.NavQualityOfLife, Screen.QualityOfLife),
     };
@@ -213,6 +218,10 @@ internal sealed class ConfigWindow : Window
     private readonly CombatTrackerScreen m_combatTracker;
     private readonly Hud.CombatTracker.CombatTrackerElement m_meter;
     private readonly QualityOfLifeScreen m_qualityOfLife;
+
+    /// <summary>The Quick Dispel squares, for their preview band, and their settings page.</summary>
+    private readonly Hud.HudElement m_dispel;
+    private readonly QuickDispelScreen m_quickDispel;
 
     /// <summary>
     /// One buffer for the whole suite, and one strip that offers it. Both are built here and
@@ -241,6 +250,7 @@ internal sealed class ConfigWindow : Window
     public ConfigWindow(
         Configuration config,
         Hud.HudElement? previewOf,
+        Hud.HudElement dispel,
         Hud.CombatTracker.CombatTrackerElement meter)
         : base(
             Strings.WindowId,
@@ -260,6 +270,8 @@ internal sealed class ConfigWindow : Window
         m_combatTracker = new CombatTrackerScreen(config, meter);
         m_meter = meter;
         m_qualityOfLife = new QualityOfLifeScreen(config);
+        m_dispel = dispel;
+        m_quickDispel = new QuickDispelScreen(config);
         m_appearance = new AppearanceBar(m_clipboard);
 
         string version = ReadVersion();
@@ -583,6 +595,7 @@ internal sealed class ConfigWindow : Window
         Screen.News => Strings.NewsTitle,
         Screen.CombatTracker => Strings.NavCombatTracker,
         Screen.QualityOfLife => Strings.NavQualityOfLife,
+        Screen.QuickDispel => Strings.NavQuickDispel,
         _ => Strings.NavPartyFrames,
     };
 
@@ -597,6 +610,7 @@ internal sealed class ConfigWindow : Window
         Screen.News => TabsNone,
         Screen.CombatTracker => TabsCombatTracker,
         Screen.QualityOfLife => TabsQualityOfLife,
+        Screen.QuickDispel => TabsQuickDispel,
         _ => TabsPartyFrames,
     };
 
@@ -1095,6 +1109,7 @@ internal sealed class ConfigWindow : Window
     private Hud.HudElement? PreviewFor(Screen screen) => screen switch
     {
         Screen.PartyFrames => m_previewOf,
+        Screen.QuickDispel => m_dispel,
         _ => null,
     };
 
@@ -1425,9 +1440,14 @@ internal sealed class ConfigWindow : Window
     {
         // Quality of Life is a module with no switch of its own: each of its cards carries one
         // (Florian, 2026-09-25), so its header is a title like Global's.
-        bool isModule = m_screen is Screen.PartyFrames or Screen.CombatTracker;
+        bool isModule = m_screen is Screen.PartyFrames or Screen.QuickDispel or Screen.CombatTracker;
         bool isFrames = m_screen == Screen.PartyFrames;
-        bool enabled = isFrames ? m_config.PartyFramesEnabled : m_config.CombatTrackerEnabled;
+        bool enabled = m_screen switch
+        {
+            Screen.PartyFrames => m_config.PartyFramesEnabled,
+            Screen.QuickDispel => m_config.QuickDispelEnabled,
+            _ => m_config.CombatTrackerEnabled,
+        };
         float height = Tokens.Metric.ModuleHeaderHeight;
         float x = left + Tokens.Metric.SectionPaddingX;
 
@@ -1442,13 +1462,17 @@ internal sealed class ConfigWindow : Window
             float switchY = MathF.Round(top + ((height - Tokens.Metric.SwitchHeight) * 0.5f));
             if (Chrome.Switch(IdModuleSwitch, x, switchY, enabled, true))
             {
-                if (isFrames)
+                switch (m_screen)
                 {
-                    m_config.PartyFramesEnabled = !m_config.PartyFramesEnabled;
-                }
-                else
-                {
-                    m_config.CombatTrackerEnabled = !m_config.CombatTrackerEnabled;
+                    case Screen.PartyFrames:
+                        m_config.PartyFramesEnabled = !m_config.PartyFramesEnabled;
+                        break;
+                    case Screen.QuickDispel:
+                        m_config.QuickDispelEnabled = !m_config.QuickDispelEnabled;
+                        break;
+                    default:
+                        m_config.CombatTrackerEnabled = !m_config.CombatTrackerEnabled;
+                        break;
                 }
 
                 m_config.MarkDirty();
@@ -1559,6 +1583,10 @@ internal sealed class ConfigWindow : Window
             else if (m_screen == Screen.QualityOfLife)
             {
                 m_qualityOfLife.Draw(inner);
+            }
+            else if (m_screen == Screen.QuickDispel)
+            {
+                m_quickDispel.Draw(inner);
             }
             else if (m_screen == Screen.PartyFrames && m_config.PartyFrames.Legacy)
             {

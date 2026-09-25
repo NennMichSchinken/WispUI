@@ -459,6 +459,23 @@ internal static class Strings
     public const string PartyModeCustom = "Custom";
     public const string PartyModeLegacy = "Legacy";
 
+    // --- Quick Dispel ---------------------------------------------------------
+    public const string NavQuickDispel = "Quick Dispel";
+    public const string GroupDispelSquares = "Squares";
+    public const string GroupDispelSquaresHint = "One per party member. Hold Alt over them to move them.";
+    public const string DispelSquareSize = "Square size";
+    public const string DispelLayout = "Layout";
+    public const string DispelLayoutRow = "Row";
+    public const string DispelLayoutGrid = "4 across";
+    public const string DispelPartyNumber = "Party number";
+    public const string DispelPartyNumberTooltip = "Writes each member's place in the party in their square while nothing is on them.";
+    public const string GroupDispelShown = "When it shows";
+    public const string GroupDispelShownHint = "A click always casts on that member. A lit square is one that needs it.";
+    public const string DispelOnlyWhenAble = "Only on jobs that can cleanse";
+    public const string DispelOnlyWhenAbleTooltip = "Hides the squares on any job without Esuna, the Warden's Paean or Exuviation.";
+    public const string DispelHideWhenClear = "Hide when nobody needs one";
+    public const string DispelHideWhenClearTooltip = "Hides the squares until somebody has an effect you can take off. Off, they stay where your eye expects them.";
+
     // --- Quality of Life ------------------------------------------------------
     public const string NavQualityOfLife = "Quality of Life";
     public const string GroupSlidecast = "Cast bar";
