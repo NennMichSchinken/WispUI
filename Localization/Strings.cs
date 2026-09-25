@@ -479,7 +479,9 @@ internal static class Strings
     public const string SlidecastWaitColour = "Not yet";
     public const string SlidecastWaitTooltip = "The outline over the last half second of a cast, before the server has taken it. Moving now still cancels the cast.";
     public const string SlidecastReadyColour = "Safe to move";
-    public const string SlidecastReadyTooltip = "The fill the moment the server has taken the cast. From here on you can move and the cast still goes through.";
+    public const string SlidecastReadyTooltip = "The colour the moment the server has taken the cast. From here on you can move and the cast still goes through.";
+    public const string SlidecastFill = "Fill when safe";
+    public const string SlidecastFillTooltip = "Fills the window with the safe colour, over the cast bar's own fill. Off, only the frame changes colour.";
 
     // On the meter itself.
     public const string MeterViewCurrent = "Current";

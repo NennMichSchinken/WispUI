@@ -1250,8 +1250,15 @@ public sealed class Configuration : IPluginConfiguration
         /// <summary>The outline before the server has taken the cast.</summary>
         public uint SlidecastWaitColour { get; set; } = Style.Tokens.Col.SlideWait;
 
-        /// <summary>The fill once it has — the moment moving is safe.</summary>
+        /// <summary>The frame once it has — the moment moving is safe.</summary>
         public uint SlidecastReadyColour { get; set; } = Style.Tokens.Col.SlideReady;
+
+        /// <summary>
+        /// Whether the window also fills with the ready colour at that moment, or only its
+        /// frame turns (Florian, 2026-09-25: both ways read well, so both are offered). On,
+        /// because the fill is what carries the moment at a glance.
+        /// </summary>
+        public bool SlidecastFill { get; set; } = true;
 
         internal void Sanitise()
         {

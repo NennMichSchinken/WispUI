@@ -94,7 +94,7 @@ internal sealed class SlidecastElement : HudElement, IDisposable
             args.Addon.Address,
             casting,
             SlideStart(total),
-            taken,
+            taken && cfg.SlidecastFill,
             taken ? cfg.SlidecastReadyColour : cfg.SlidecastWaitColour,
             Tokens.Col.Faded(cfg.SlidecastReadyColour, Tokens.Metric.SlideReadyAlpha));
     }
@@ -183,7 +183,7 @@ internal sealed class SlidecastElement : HudElement, IDisposable
         // cast is taken. The fill here is a capsule of ours inside the rim rather than the
         // gauge's fill art, because ImGui can only tint a picture darker; the frame on top
         // covers its edges, so the shape is still the game's.
-        if (!taken)
+        if (!taken || !cfg.SlidecastFill)
         {
             DrawNineSlice(dl, in art, min, max, scale, colour);
             return;

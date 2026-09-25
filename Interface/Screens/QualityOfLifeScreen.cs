@@ -20,6 +20,7 @@ internal sealed class QualityOfLifeScreen
     private const string IdSlidecastGroup = "##wisp-qol-slidecast";
     private const string IdSlidecastWait = "##wisp-qol-slidewait";
     private const string IdSlidecastReady = "##wisp-qol-slideready";
+    private const string IdSlidecastFill = "##wisp-qol-slidefill";
 
     private readonly Configuration m_config;
 
@@ -94,6 +95,23 @@ internal sealed class QualityOfLifeScreen
                 Tokens.Col.SlideReady))
         {
             cfg.SlidecastReadyColour = ready;
+            m_config.MarkDirty();
+        }
+
+        rowY += Chrome.RowPitch();
+        if (Chrome.OptionRow(
+                IdSlidecastFill,
+                Strings.SlidecastFill,
+                group.ContentX,
+                rowY,
+                group.ContentWidth,
+                cfg.SlidecastFill,
+                Chrome.OptionControl.Tick,
+                Strings.SlidecastFillTooltip,
+                true,
+                true))
+        {
+            cfg.SlidecastFill = !cfg.SlidecastFill;
             m_config.MarkDirty();
         }
 
