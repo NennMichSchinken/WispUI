@@ -94,7 +94,9 @@ internal sealed class SlidecastElement : HudElement, IDisposable
             args.Addon.Address,
             casting,
             SlideStart(total),
-            taken ? cfg.SlidecastReadyColour : cfg.SlidecastWaitColour);
+            taken,
+            taken ? cfg.SlidecastReadyColour : cfg.SlidecastWaitColour,
+            Tokens.Col.Faded(cfg.SlidecastReadyColour, Tokens.Metric.SlideReadyAlpha));
     }
 
     private void OnCastBarGone(AddonEvent type, AddonArgs args) => NativeUi.ForgetSlideWindow(args.Addon.Address);
@@ -177,10 +179,16 @@ internal sealed class SlidecastElement : HudElement, IDisposable
         Configuration.QualityOfLifeConfig cfg = m_config.QualityOfLife;
         uint colour = taken ? cfg.SlidecastReadyColour : cfg.SlidecastWaitColour;
 
-        // 🔴 Two layers. Tinting a picture multiplies it, so the art alone can only come out
-        // darker than the colour — it did, too dark to read (Florian, 2026-09-25). The colour
-        // itself goes underneath, as a capsule that stops inside the rim; the art on top
-        // covers its edges, so the shape is still the game's and the colour is the colour.
+        // Like the real one: the frame alone while waiting, a green fill under it once the
+        // cast is taken. The fill here is a capsule of ours inside the rim rather than the
+        // gauge's fill art, because ImGui can only tint a picture darker; the frame on top
+        // covers its edges, so the shape is still the game's.
+        if (!taken)
+        {
+            DrawNineSlice(dl, in art, min, max, scale, colour);
+            return;
+        }
+
         Vector2 fillMin = new(
             MathF.Round(origin.X + (art.Width * start * scale.X)),
             MathF.Round(origin.Y + (Tokens.Metric.SlideFillInsetTop * scale.Y)));
@@ -193,7 +201,7 @@ internal sealed class SlidecastElement : HudElement, IDisposable
             dl.AddRectFilled(
                 fillMin,
                 fillMax,
-                Tokens.Col.Faded(colour, taken ? Tokens.Metric.SlideReadyAlpha : Tokens.Metric.SlideWaitAlpha),
+                Tokens.Col.Faded(colour, Tokens.Metric.SlideReadyAlpha),
                 (fillMax.Y - fillMin.Y) * 0.5f);
         }
 

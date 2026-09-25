@@ -915,14 +915,12 @@ internal static class Tokens
         public const float SlideFillInsetBottom = 5f;
 
         /// <summary>
-        /// How strongly the colour under the art shows: a veil while the cast can still be
-        /// lost, a solid fill the moment the server has taken it (Florian, 2026-09-25: the
-        /// fill was the part that read well). Needed at all because tinting a picture can only
-        /// darken it — on its own the tinted art came out too dark to see.
+        /// How strongly the green fill covers the game's pink fill once the server has taken
+        /// the cast. Strong, because it is the one moment the window exists for (Florian,
+        /// 2026-09-25: a green frame round a bar that stayed pink was hard to read); short of
+        /// solid, so the bar's own progress still shows through underneath.
         /// </summary>
-        public const float SlideWaitAlpha = 0.3f;
-
-        public const float SlideReadyAlpha = 0.65f;
+        public const float SlideReadyAlpha = 0.85f;
 
         /// <summary>
         /// The slide window the game allows, in seconds: the last half second of a cast.
