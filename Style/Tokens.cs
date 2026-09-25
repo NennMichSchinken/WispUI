@@ -370,11 +370,6 @@ internal static class Tokens
         /// </summary>
         public static readonly uint SlideReady = Rgb(0x5BD98A);
 
-        /// <summary>The preview's stand-in cast bar: its track and its fill.</summary>
-        public static readonly uint SlideTrack = Rgb(0x2C2B2B);
-
-        public static readonly uint SlideFill = Rgb(0xE27AA7);
-
         /// <summary>
         /// ⚠️ NOT MEASURED. Somebody who cannot be killed right now — the amber the game uses
         /// on its own invulnerability effects, by eye.
@@ -903,18 +898,6 @@ internal static class Tokens
         public const float SlideArtLeadIn = 8f;
 
         /// <summary>
-        /// Where the colour under the art stops, in gauge units: inside the rim at the right
-        /// end, top and bottom, so the art's own rim covers its edges and the shape stays the
-        /// game's. From the rim measured 2026-09-25 (outer edge 7 / 3 / 4 units in), one unit
-        /// further in so no edge can show past the curve.
-        /// </summary>
-        public const float SlideFillInsetRight = 8f;
-
-        public const float SlideFillInsetTop = 4f;
-
-        public const float SlideFillInsetBottom = 5f;
-
-        /// <summary>
         /// How strongly the green fill covers the game's pink fill once the server has taken
         /// the cast. Strong, because it is the one moment the window exists for (Florian,
         /// 2026-09-25: a green frame round a bar that stayed pink was hard to read); short of
@@ -927,28 +910,6 @@ internal static class Tokens
         /// Where the window starts on the bar. Which colour it wears is the game's own word.
         /// </summary>
         public const float SlideSeconds = 0.5f;
-
-        /// <summary>The stand-in cast the preview plays, in seconds, and the rest before it plays again.</summary>
-        public const float SlidePreviewCast = 2.5f;
-
-        public const float SlidePreviewRest = 0.9f;
-
-        /// <summary>
-        /// How late the preview's stand-in server answers, past the start of the window. A
-        /// typical round trip, so the preview shows the colour change arriving a moment after
-        /// the window — which is what the real one does.
-        /// </summary>
-        public const float SlidePreviewLatency = 0.08f;
-
-        /// <summary>
-        /// The preview's stand-in gauge, in the game's gauge units (measured 2026-09-25: 160 ×
-        /// 20), how much bigger it is drawn, and how far the visible bar sits inside it.
-        /// </summary>
-        public static readonly System.Numerics.Vector2 SlidePreviewUnits = new(160f, 20f);
-
-        public const float SlidePreviewScale = 1.5f;
-
-        public static readonly System.Numerics.Vector2 SlidePreviewTrackInset = new(8f, 5f);
 
         // --- the combat meter ---------------------------------------------------
         // It wears the window's look but lives on the world, so every size here is in screen

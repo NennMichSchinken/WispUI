@@ -203,9 +203,6 @@ internal sealed class ConfigWindow : Window
     private readonly Hud.CombatTracker.CombatTrackerElement m_meter;
     private readonly QualityOfLifeScreen m_qualityOfLife;
 
-    /// <summary>What the Quality of Life page previews: the slide window on a stand-in cast bar.</summary>
-    private readonly Hud.HudElement m_slidecast;
-
     /// <summary>
     /// One buffer for the whole suite, and one strip that offers it. Both are built here and
     /// handed to whichever module is on screen — the clipboard belongs to the suite, the
@@ -233,8 +230,7 @@ internal sealed class ConfigWindow : Window
     public ConfigWindow(
         Configuration config,
         Hud.HudElement? previewOf,
-        Hud.CombatTracker.CombatTrackerElement meter,
-        Hud.HudElement slidecast)
+        Hud.CombatTracker.CombatTrackerElement meter)
         : base(
             Strings.WindowId,
             ImGuiWindowFlags.NoTitleBar
@@ -253,7 +249,6 @@ internal sealed class ConfigWindow : Window
         m_combatTracker = new CombatTrackerScreen(config, meter);
         m_meter = meter;
         m_qualityOfLife = new QualityOfLifeScreen(config);
-        m_slidecast = slidecast;
         m_appearance = new AppearanceBar(m_clipboard);
 
         string version = ReadVersion();
@@ -1014,14 +1009,7 @@ internal sealed class ConfigWindow : Window
             return y + Tokens.Space.Sm;
         }
 
-        // The frames get the full fixed height, so the page does not jump when the party size
-        // changes. Anything else is one small thing at one size, and 200 pixels of dark
-        // around a cast bar would be height taken from the settings for nothing.
-        float height = party
-            ? Tokens.Metric.PreviewHeight
-            : MathF.Min(
-                Tokens.Metric.PreviewHeight,
-                shown.PreviewSize(m_config.PreviewCount).Y + ((Tokens.Metric.PreviewPadding + Tokens.Space.Xl) * 2f));
+        float height = Tokens.Metric.PreviewHeight;
         this.DrawPreviewViewport(dl, shown, x, y, wide, height);
 
         return y + height + Tokens.Space.Md;
@@ -1031,7 +1019,6 @@ internal sealed class ConfigWindow : Window
     private Hud.HudElement? PreviewFor(Screen screen) => screen switch
     {
         Screen.PartyFrames => m_previewOf,
-        Screen.QualityOfLife => m_slidecast,
         _ => null,
     };
 

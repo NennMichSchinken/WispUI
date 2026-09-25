@@ -64,7 +64,7 @@ public sealed class Plugin : IDalamudPlugin
         m_slidecast = new Hud.QualityOfLife.SlidecastElement(m_config);
         m_hud.Add(m_slidecast);
 
-        m_configWindow = new ConfigWindow(m_config, frames, m_meter, m_slidecast);
+        m_configWindow = new ConfigWindow(m_config, frames, m_meter);
         m_meter.SettingsRequested += this.OnMeterSettings;
         m_configWindow.Closed += this.OnConfigClosed;
         m_windows.AddWindow(m_configWindow);
