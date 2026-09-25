@@ -791,24 +791,35 @@ internal static class Chrome
 
             ImGui.PopID();
 
-            if (selected || hovered)
+            // Rounded only where the segment is an end of the strip: the outer corners follow
+            // the strip's own curve, the corners between two choices stay square.
+            ImDrawFlags corners = ImDrawFlags.RoundCornersNone;
+
+            if (i == 0)
             {
-                // The selected face is drawn inside the strip's own outline, so the rounding
-                // of the two ends belongs to the strip and not to whichever choice is on.
-                dl.PushClipRect(min, max, true);
-                dl.AddRectFilled(
-                    new Vector2(left, min.Y),
-                    new Vector2(right, max.Y),
-                    selected ? Tokens.Col.Control : Tokens.Col.Control2,
-                    Tokens.Radius.Control,
-                    ImDrawFlags.RoundCornersAll);
+                corners |= ImDrawFlags.RoundCornersLeft;
+            }
 
-                if (selected)
-                {
-                    dl.AddRectFilled(new Vector2(left, max.Y - accent), new Vector2(right, max.Y), Tokens.Col.Gold);
-                }
+            if (i == options.Length - 1)
+            {
+                corners |= ImDrawFlags.RoundCornersRight;
+            }
 
-                dl.PopClipRect();
+            Vector2 faceMin = new(left, min.Y);
+            Vector2 faceMax = new(right, max.Y);
+
+            if (selected)
+            {
+                // 🔴 The gold line is the face's own bottom edge, not a bar laid under it: the
+                // face is filled gold, and its surface drawn over it one line shorter. A
+                // straight bar clipped to the strip stood out square past the rounded end
+                // (Florian, 2026-09-25); this way it runs up the curve with the corner.
+                dl.AddRectFilled(faceMin, faceMax, Tokens.Col.Gold, Tokens.Radius.Control, corners);
+                dl.AddRectFilled(faceMin, new Vector2(right, max.Y - accent), Tokens.Col.Control, Tokens.Radius.Control, corners);
+            }
+            else if (hovered)
+            {
+                dl.AddRectFilled(faceMin, faceMax, Tokens.Col.Control2, Tokens.Radius.Control, corners);
             }
 
             Vector2 text = Ink.Measure(Ink.Role.Body, options[i]);
