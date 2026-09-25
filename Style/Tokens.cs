@@ -929,10 +929,26 @@ internal static class Tokens
         /// <summary>The job-colour edge of a square. Two, so the colour reads at a glance on a 16 px square.</summary>
         public static float DispelEdge => WorldLine(2f);
 
-        /// <summary>The Alt handle above the first square: its diameter, and the air under it.</summary>
-        public static float DispelHandle => WorldPx(10f);
+        /// <summary>
+        /// The Alt handle above the first square: a smaller square with no edge, as a share of
+        /// a real one, and the air under it. A square rather than a dot, because a dot did not
+        /// read as something to take hold of (Florian, 2026-09-25).
+        /// </summary>
+        public const float DispelHandleShare = 0.5f;
 
         public static float DispelHandleGap => WorldPx(4f);
+
+        /// <summary>How far the handle brightens towards white under the pointer.</summary>
+        public const float DispelHandleLift = 0.25f;
+
+        /// <summary>
+        /// The ring round the square under the pointer. Thinner and half as strong as the
+        /// frames' own (Florian, 2026-09-25: too loud on a square this small) — on a square the
+        /// hand already says "clickable", the ring only says which one.
+        /// </summary>
+        public static float DispelHoverRing => WorldLine(2f);
+
+        public const float DispelHoverAlpha = 0.5f;
 
         /// <summary>
         /// A square whose member is out of reach or not here. Fainter than a frame out of

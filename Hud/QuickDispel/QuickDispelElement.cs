@@ -352,7 +352,7 @@ internal sealed class QuickDispelElement : HudElement
         // The handle is offered while Alt is held over the squares, and stays for as long as
         // it is being dragged — letting go of Alt mid-drag must not drop the squares.
         bool handle = m_dragging || (io.KeyAlt && m_hovered);
-        float dot = Tokens.Metric.DispelHandle;
+        float dot = Tokens.WorldPx(m_config.QuickDispel.SquareSize * Tokens.Metric.DispelHandleShare);
         Vector2 dotMin = new(blockMin.X, blockMin.Y - Tokens.Metric.DispelHandleGap - dot);
         Vector2 windowMin = handle ? new Vector2(blockMin.X, dotMin.Y) : blockMin;
 
@@ -397,13 +397,13 @@ internal sealed class QuickDispelElement : HudElement
 
                 ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
 
-                float ring = Tokens.Metric.FrameHoverRing;
+                float ring = Tokens.Metric.DispelHoverRing;
                 PartyFramesElement.Ring(
                     dl,
                     new Vector2(m_min[i].X - ring, m_min[i].Y - ring),
                     new Vector2(m_max[i].X + ring, m_max[i].Y + ring),
                     ring,
-                    Tokens.Col.FrameHover);
+                    Tokens.Col.Softer(Tokens.Col.FrameHover, Tokens.Metric.DispelHoverAlpha));
 
                 // Always, lit or not (Florian, 2026-09-25): the light says who needs it, the
                 // square is simply that person. A click that sometimes does nothing reads as a
@@ -430,7 +430,7 @@ internal sealed class QuickDispelElement : HudElement
     }
 
     /// <summary>
-    /// The dot above the first square. Dragging it moves the squares without edit mode —
+    /// The small square above the first one. Dragging it moves the squares without edit mode —
     /// freely, with no pull to the screen's middle: that is edit mode's job, and this is the
     /// quick way (Florian, 2026-09-22).
     /// </summary>
@@ -463,10 +463,12 @@ internal sealed class QuickDispelElement : HudElement
             ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeAll);
         }
 
-        float radius = dot * 0.5f;
-        Vector2 centre = new(dotMin.X + radius, dotMin.Y + radius);
-        dl.AddCircleFilled(centre, radius, Tokens.Col.FrameEdge);
-        dl.AddCircleFilled(centre, radius - Tokens.Metric.DispelEdge, hovered || active ? Tokens.Col.GoldHi : Tokens.Col.Gold);
+        // A small square in the squares' own ground, no edge — one of them, only smaller, so it
+        // reads as belonging to the row. Brighter under the pointer, which is all it says.
+        uint ground = hovered || active
+            ? Tokens.Col.Mix(Tokens.Col.FrameBg, Tokens.Col.HudInk, Tokens.Metric.DispelHandleLift)
+            : Tokens.Col.FrameBg;
+        dl.AddRectFilled(dotMin, new Vector2(dotMin.X + dot, dotMin.Y + dot), ground);
 
         return hovered || active;
     }
