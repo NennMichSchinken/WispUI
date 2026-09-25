@@ -12,7 +12,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 20;
+    public const int CurrentVersion = 21;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -212,6 +212,14 @@ public sealed class Configuration : IPluginConfiguration
     public bool CombatTrackerEnabled { get; set; }
 
     public CombatTrackerConfig CombatTracker { get; set; } = new();
+
+    /// <summary>
+    /// Whether the small helpers on the game's own interface are on at all (version 21).
+    /// Off by default like every module: nothing on somebody's screen changes until they ask.
+    /// </summary>
+    public bool QualityOfLifeEnabled { get; set; }
+
+    public QualityOfLifeConfig QualityOfLife { get; set; } = new();
 
     /// <summary>
     /// The saved profiles and which one is on.
@@ -1225,6 +1233,36 @@ public sealed class Configuration : IPluginConfiguration
     }
 
     /// <summary>
+    /// The Quality of Life module (version 21): small helpers that sit on the game's own
+    /// interface rather than replacing it.
+    /// <para>
+    /// 🔴 Not in a profile, like the lettering: the cast bar is a property of the screen, not
+    /// of the job being played. Nobody wants the slide window on their healer and not on
+    /// their caster.
+    /// </para>
+    /// </summary>
+    [Serializable]
+    public sealed class QualityOfLifeConfig
+    {
+        /// <summary>The slide window on the game's cast bar. On, so the module does something the moment it is switched on.</summary>
+        public bool SlidecastEnabled { get; set; } = true;
+
+        /// <summary>The outline before the server has taken the cast.</summary>
+        public uint SlidecastWaitColour { get; set; } = Style.Tokens.Col.SlideWait;
+
+        /// <summary>The fill once it has — the moment moving is safe.</summary>
+        public uint SlidecastReadyColour { get; set; } = Style.Tokens.Col.SlideReady;
+
+        internal void Sanitise()
+        {
+            // A see-through outline would be one nobody can find; every swatch in the suite
+            // hands out opaque colours, so an alpha here only arrives by hand-editing.
+            this.SlidecastWaitColour |= 0xFF000000u;
+            this.SlidecastReadyColour |= 0xFF000000u;
+        }
+    }
+
+    /// <summary>
     /// A number inside its range, or the default when it is not a number at all. The
     /// second case is the one that matters: NaN fails every comparison, so it slips
     /// through a clamp untouched and then quietly poisons every size computed from it.
@@ -1299,6 +1337,8 @@ public sealed class Configuration : IPluginConfiguration
         this.PartyFrames.Sanitise();
         this.CombatTracker ??= new CombatTrackerConfig();
         this.CombatTracker.Sanitise();
+        this.QualityOfLife ??= new QualityOfLifeConfig();
+        this.QualityOfLife.Sanitise();
         this.Profiles ??= new ProfileSet();
         this.Profiles.Sanitise();
     }
@@ -1783,6 +1823,8 @@ public sealed class Configuration : IPluginConfiguration
 
         // Version 20 added the combat meter's block. Nothing to move either: it arrives with
         // its defaults and switched off.
+
+        // Version 21 added the Quality of Life block. The same: defaults, switched off.
     }
 
     /// <inheritdoc cref="PartyFramesConfig.SpacingX"/>

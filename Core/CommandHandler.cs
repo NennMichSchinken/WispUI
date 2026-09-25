@@ -39,6 +39,10 @@ internal sealed class CommandHandler : IDisposable
         if (arguments.Trim().Equals("status", StringComparison.OrdinalIgnoreCase))
         {
             Data.StatusData.DumpPlayerStatuses();
+
+            // ⚠️ Measuring the slide window (2026-09-25). Comes out with the one in
+            // SlidecastElement once the track node is known.
+            NativeUi.DumpCastBar();
             return;
         }
 

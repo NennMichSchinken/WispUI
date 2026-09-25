@@ -861,6 +861,206 @@ internal static class NativeUi
     // Whatever paints it is not that input path, and finding out means going after the
     // targeting system — too much to reach for over a highlight Florian called liveable.
 
+    // --- the player's own cast ------------------------------------------------
+
+    /// <summary>
+    /// The player's cast right now: how far in, how long in all, and whether the server has
+    /// already taken it.
+    /// <para>
+    /// 🔴 "Taken" is the game's own statement, not an estimate. The cast info carries the
+    /// sequence number of the cast the player started and, separately, the sequence number of
+    /// the last cast the server answered. Once the two agree the result is on its way and the
+    /// cast can no longer be cancelled by moving — that moment IS the start of the slide
+    /// window, whatever the player's latency. (Field meaning from the structure definitions;
+    /// ⚠️ not yet confirmed in-game, 2026-09-25.)
+    /// </para>
+    /// </summary>
+    public static unsafe bool ReadOwnCast(out float elapsed, out float total, out bool taken)
+    {
+        elapsed = 0f;
+        total = 0f;
+        taken = false;
+
+        var player = FFXIVClientStructs.FFXIV.Client.Game.Control.Control.GetLocalPlayer();
+        if (player == null)
+        {
+            return false;
+        }
+
+        var cast = &player->CastInfo;
+
+        // Greater-than rather than not-equal, so a NaN is turned away as well.
+        if (!cast->IsCasting || !(cast->TotalCastTime > 0f))
+        {
+            return false;
+        }
+
+        elapsed = cast->CurrentCastTime;
+        total = cast->TotalCastTime;
+
+        // Zero is what a cast the player did not start carries. Two zeroes agreeing would
+        // say "taken" for a cast nobody sent.
+        taken = cast->SourceSequence != 0u && cast->ResponseSourceSequence == cast->SourceSequence;
+        return true;
+    }
+
+    /// <summary>
+    /// The node of the game's cast bar that the fill runs along.
+    /// <para>
+    /// ⚠️ NOT MEASURED YET. Zero means "look for it": the widest visible picture in the cast
+    /// bar window, which should be the track. Once the node list has been read off a real cast
+    /// (the log line written on the first cast after loading), the id goes here and the search
+    /// goes away.
+    /// </para>
+    /// </summary>
+    private const uint CastTrackNodeId = 0u;
+
+    /// <summary>
+    /// Where the game's cast bar track sits on the screen, in screen pixels. False while the
+    /// bar is not up — no cast, or the player has hidden it in their HUD layout.
+    /// </summary>
+    public static unsafe bool ReadCastBar(out Vector2 min, out Vector2 max)
+    {
+        min = default;
+        max = default;
+
+        var addon = (AtkUnitBase*)Services.GameGui.GetAddonByName("_CastBar", 1).Address;
+        if (addon is null || !addon->IsVisible)
+        {
+            return false;
+        }
+
+        AtkResNode* track = CastTrackNodeId != 0u ? addon->GetNodeById(CastTrackNodeId) : WidestPicture(addon);
+        if (track is null || !ShownOnScreen(track))
+        {
+            return false;
+        }
+
+        ScreenScale(track, out float scaleX, out float scaleY);
+        min = new Vector2(track->ScreenX, track->ScreenY);
+        max = new Vector2(min.X + (track->Width * scaleX), min.Y + (track->Height * scaleY));
+        return max.X - min.X > 1f && max.Y - min.Y > 1f;
+    }
+
+    /// <summary>The widest visible image or nine-grid in a window. No allocation: a walk over a short list.</summary>
+    private static unsafe AtkResNode* WidestPicture(AtkUnitBase* addon)
+    {
+        AtkResNode* best = null;
+        float bestWidth = 0f;
+        int count = addon->UldManager.NodeListCount;
+
+        for (int i = 0; i < count; i++)
+        {
+            AtkResNode* node = addon->UldManager.NodeList[i];
+
+            if (node is null || (node->Type != NodeType.Image && node->Type != NodeType.NineGrid) || !ShownOnScreen(node))
+            {
+                continue;
+            }
+
+            ScreenScale(node, out float scaleX, out _);
+            float width = node->Width * scaleX;
+
+            if (width > bestWidth)
+            {
+                best = node;
+                bestWidth = width;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>Visible only if it and every node above it are.</summary>
+    private static unsafe bool ShownOnScreen(AtkResNode* node)
+    {
+        for (AtkResNode* n = node; n != null; n = n->ParentNode)
+        {
+            if ((n->NodeFlags & NodeFlags.Visible) == 0)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// How big one of a node's own pixels is on the screen: its scale times the scale of
+    /// everything above it, the window's own scale included (that sits on the root node).
+    /// </summary>
+    private static unsafe void ScreenScale(AtkResNode* node, out float x, out float y)
+    {
+        x = 1f;
+        y = 1f;
+
+        for (AtkResNode* n = node; n != null; n = n->ParentNode)
+        {
+            x *= n->ScaleX;
+            y *= n->ScaleY;
+        }
+    }
+
+    /// <summary>
+    /// Writes every node of the cast bar window to the log, with the cast beside it.
+    /// <para>
+    /// ⚠️ A diagnostic, not a draw-path call: it builds strings. It exists to measure which
+    /// node is the track (<see cref="CastTrackNodeId"/>) and whether "taken" arrives where the
+    /// structure definitions say. 🔴 Comes out, or goes to Debug, once both are measured.
+    /// </para>
+    /// </summary>
+    public static unsafe void DumpCastBar()
+    {
+        bool casting = ReadOwnCast(out float elapsed, out float total, out bool taken);
+        Services.Log.Information(
+            "[cast] casting={0} elapsed={1:0.000} total={2:0.000} taken={3}",
+            casting,
+            elapsed,
+            total,
+            taken);
+
+        var addon = (AtkUnitBase*)Services.GameGui.GetAddonByName("_CastBar", 1).Address;
+        if (addon is null)
+        {
+            Services.Log.Information("[cast] no _CastBar window.");
+            return;
+        }
+
+        Services.Log.Information(
+            "[cast] window visible={0} scale={1:0.000} nodes={2}",
+            addon->IsVisible,
+            addon->Scale,
+            addon->UldManager.NodeListCount);
+
+        for (int i = 0; i < addon->UldManager.NodeListCount; i++)
+        {
+            AtkResNode* node = addon->UldManager.NodeList[i];
+            if (node is null)
+            {
+                continue;
+            }
+
+            ScreenScale(node, out float scaleX, out float scaleY);
+            Services.Log.Information(
+                "[cast] node id={0} type={1} shown={2} screen=({3:0.0},{4:0.0}) size={5}x{6} scale=({7:0.000},{8:0.000}) parent={9}",
+                node->NodeId,
+                (int)node->Type,
+                ShownOnScreen(node),
+                node->ScreenX,
+                node->ScreenY,
+                node->Width,
+                node->Height,
+                scaleX,
+                scaleY,
+                node->ParentNode == null ? 0u : node->ParentNode->NodeId);
+        }
+
+        if (ReadCastBar(out Vector2 min, out Vector2 max))
+        {
+            Services.Log.Information("[cast] track picked: ({0:0.0},{1:0.0}) to ({2:0.0},{3:0.0})", min.X, min.Y, max.X, max.Y);
+        }
+    }
+
     private static AtkCursor.CursorType Shape(ImGuiMouseCursor cursor) => cursor switch
     {
         // The game's own word for the pointing hand it shows over anything you can click.

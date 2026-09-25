@@ -56,7 +56,12 @@ public sealed class Plugin : IDalamudPlugin
         m_meter = new Hud.CombatTracker.CombatTrackerElement(m_config);
         m_hud.Add(m_meter);
 
-        m_configWindow = new ConfigWindow(m_config, frames, m_meter);
+        // Last, so the slide window is drawn over anything of ours that might share its
+        // corner of the screen. It sits on the game's own cast bar and must stay readable.
+        var slidecast = new Hud.QualityOfLife.SlidecastElement(m_config);
+        m_hud.Add(slidecast);
+
+        m_configWindow = new ConfigWindow(m_config, frames, m_meter, slidecast);
         m_meter.SettingsRequested += this.OnMeterSettings;
         m_configWindow.Closed += this.OnConfigClosed;
         m_windows.AddWindow(m_configWindow);

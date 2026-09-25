@@ -359,6 +359,23 @@ internal static class Tokens
         public static readonly uint Raise = Rgb(0x5BD98A);
 
         /// <summary>
+        /// ⚠️ NOT MEASURED. The slide window on the cast bar, before the server has taken the
+        /// cast: "not yet". A warm red, after the screenshot Florian brought (2026-09-25).
+        /// </summary>
+        public static readonly uint SlideWait = Rgb(0xFF6A5A);
+
+        /// <summary>
+        /// ⚠️ NOT MEASURED. The slide window once the cast is taken: "move now". The same
+        /// green as the raise mark on purpose — both say "this is handled".
+        /// </summary>
+        public static readonly uint SlideReady = Rgb(0x5BD98A);
+
+        /// <summary>The preview's stand-in cast bar: its track and its fill.</summary>
+        public static readonly uint SlideTrack = Rgb(0x2C2B2B);
+
+        public static readonly uint SlideFill = Rgb(0xE27AA7);
+
+        /// <summary>
         /// ⚠️ NOT MEASURED. Somebody who cannot be killed right now — the amber the game uses
         /// on its own invulnerability effects, by eye.
         /// </summary>
@@ -874,6 +891,45 @@ internal static class Tokens
         /// mouse is on the target the hover ring still has to read as the one arriving.
         /// </summary>
         public static float FrameTargetRing => WorldLine(2f);
+
+        // --- the slide window on the game's cast bar ----------------------------
+
+        /// <summary>
+        /// The outline round the slide window. Two pixels, like the target ring: it sits on
+        /// the game's bar for the whole cast, so it only has to be findable, not loud.
+        /// </summary>
+        public static float SlideEdge => WorldLine(2f);
+
+        /// <summary>
+        /// How strongly the window fills once the server has taken the cast. Strong enough to
+        /// read out of the corner of an eye — that moment is the whole point — and still
+        /// short of hiding the fill running underneath it.
+        /// </summary>
+        public const float SlideFillAlpha = 0.55f;
+
+        /// <summary>
+        /// The slide window the game allows, in seconds: the last half second of a cast.
+        /// Used only where there is nothing better — the outline before the server has
+        /// answered, and the preview. The live fill waits for the game's own word.
+        /// </summary>
+        public const float SlideSeconds = 0.5f;
+
+        /// <summary>The stand-in cast the preview plays, in seconds, and the rest before it plays again.</summary>
+        public const float SlidePreviewCast = 2.5f;
+
+        public const float SlidePreviewRest = 0.9f;
+
+        /// <summary>
+        /// How late the preview's stand-in server answers, past the start of the window. A
+        /// typical round trip, so the preview shows the fill arriving a moment after the
+        /// outline — which is what the real one does.
+        /// </summary>
+        public const float SlidePreviewLatency = 0.08f;
+
+        /// <summary>The preview's stand-in bar: about the size of the game's own at 100 %.</summary>
+        public static float SlidePreviewWidth => WorldPx(220f);
+
+        public static float SlidePreviewHeight => WorldPx(12f);
 
         // --- the combat meter ---------------------------------------------------
         // It wears the window's look but lives on the world, so every size here is in screen

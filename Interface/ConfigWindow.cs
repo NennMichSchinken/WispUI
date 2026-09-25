@@ -28,6 +28,7 @@ internal enum Screen
     Profile,
     PartyFrames,
     CombatTracker,
+    QualityOfLife,
 
     /// <summary>The release notes. Reached from the card in the navigation footer, not from a nav row.</summary>
     News,
@@ -159,6 +160,9 @@ internal sealed class ConfigWindow : Window
     /// <summary>The bar and what it says · where the meter goes and how it is framed.</summary>
     private static readonly string[] TabsCombatTracker = { Strings.TabBase, Strings.TabLayout };
 
+    /// <summary>One tab: each helper is a card on it, not a tab of its own.</summary>
+    private static readonly string[] TabsQualityOfLife = { Strings.TabBase };
+
     /// <summary>
     /// Which chip is the bindings tab, asked of the list rather than written down. Two places
     /// far apart act on it, and a literal in both is the pair that drifts when a tab is
@@ -177,6 +181,7 @@ internal sealed class ConfigWindow : Window
         NavRow.Separator(),
         new("##wisp-nav-party", Strings.NavPartyFrames, Screen.PartyFrames),
         new("##wisp-nav-tracker", Strings.NavCombatTracker, Screen.CombatTracker),
+        new("##wisp-nav-qol", Strings.NavQualityOfLife, Screen.QualityOfLife),
     };
 
     private readonly Configuration m_config;
@@ -196,6 +201,10 @@ internal sealed class ConfigWindow : Window
     private readonly PartyFramesScreen m_partyFrames;
     private readonly CombatTrackerScreen m_combatTracker;
     private readonly Hud.CombatTracker.CombatTrackerElement m_meter;
+    private readonly QualityOfLifeScreen m_qualityOfLife;
+
+    /// <summary>What the Quality of Life page previews: the slide window on a stand-in cast bar.</summary>
+    private readonly Hud.HudElement m_slidecast;
 
     /// <summary>
     /// One buffer for the whole suite, and one strip that offers it. Both are built here and
@@ -221,7 +230,11 @@ internal sealed class ConfigWindow : Window
     /// <summary>Whether the pointer is currently ours to speak for.</summary>
     private bool m_ownsCursor;
 
-    public ConfigWindow(Configuration config, Hud.HudElement? previewOf, Hud.CombatTracker.CombatTrackerElement meter)
+    public ConfigWindow(
+        Configuration config,
+        Hud.HudElement? previewOf,
+        Hud.CombatTracker.CombatTrackerElement meter,
+        Hud.HudElement slidecast)
         : base(
             Strings.WindowId,
             ImGuiWindowFlags.NoTitleBar
@@ -239,6 +252,8 @@ internal sealed class ConfigWindow : Window
         m_partyFrames = new PartyFramesScreen(config);
         m_combatTracker = new CombatTrackerScreen(config, meter);
         m_meter = meter;
+        m_qualityOfLife = new QualityOfLifeScreen(config);
+        m_slidecast = slidecast;
         m_appearance = new AppearanceBar(m_clipboard);
 
         string version = ReadVersion();
@@ -561,6 +576,7 @@ internal sealed class ConfigWindow : Window
         Screen.Profile => Strings.NavProfile,
         Screen.News => Strings.NewsTitle,
         Screen.CombatTracker => Strings.NavCombatTracker,
+        Screen.QualityOfLife => Strings.NavQualityOfLife,
         _ => Strings.NavPartyFrames,
     };
 
@@ -574,6 +590,7 @@ internal sealed class ConfigWindow : Window
         // "Base" over a list of sentences would say this is something to configure.
         Screen.News => TabsNone,
         Screen.CombatTracker => TabsCombatTracker,
+        Screen.QualityOfLife => TabsQualityOfLife,
         _ => TabsPartyFrames,
     };
 
@@ -894,16 +911,21 @@ internal sealed class ConfigWindow : Window
     {
         // Only where there is something to show. The suite-wide screens configure nothing
         // that can be drawn, and an empty band on them would be furniture.
-        if (m_screen != Screen.PartyFrames || m_previewOf is null || !m_previewOf.HasPreview)
+        Hud.HudElement? shown = this.PreviewFor(m_screen);
+        if (shown is null || !shown.HasPreview)
         {
             return top;
         }
+
+        // The party sizes and the eyes are the frames' own questions. Another module's band
+        // is the caret, the word and the drawing.
+        bool party = m_screen == Screen.PartyFrames;
 
         // Bindings is the one party tab the band says nothing about: it sets what a key and a
         // pointer do on a frame, and none of that changes how the frame looks. A preview that
         // cannot answer the question on screen is just height taken from the settings
         // (Florian, 2026-09-19).
-        if (m_tabIndex[(int)m_screen] == TabIndexBindings)
+        if (party && m_tabIndex[(int)m_screen] == TabIndexBindings)
         {
             return top;
         }
@@ -965,22 +987,25 @@ internal sealed class ConfigWindow : Window
 
         // How many stand-ins. The three party sizes somebody actually plays, as chips rather
         // than a selector: they are one tap each and all three are worth seeing at a glance.
-        float chipX = x + headWidth + Tokens.Space.Lg;
-
-        for (int i = 0; i < PreviewCounts.Length; i++)
+        if (party)
         {
-            float width = Chrome.MeasureTab(PreviewCountLabels[i]);
+            float chipX = x + headWidth + Tokens.Space.Lg;
 
-            if (Chrome.Tab(PreviewCountIds[i], PreviewCountLabels[i], chipX, y, width, m_config.PreviewCount == PreviewCounts[i]))
+            for (int i = 0; i < PreviewCounts.Length; i++)
             {
-                m_config.PreviewCount = PreviewCounts[i];
-                m_config.MarkDirty();
+                float width = Chrome.MeasureTab(PreviewCountLabels[i]);
+
+                if (Chrome.Tab(PreviewCountIds[i], PreviewCountLabels[i], chipX, y, width, m_config.PreviewCount == PreviewCounts[i]))
+                {
+                    m_config.PreviewCount = PreviewCounts[i];
+                    m_config.MarkDirty();
+                }
+
+                chipX += width + Tokens.Metric.TabGap;
             }
 
-            chipX += width + Tokens.Metric.TabGap;
+            this.DrawPreviewEyeMenu(dl, x + wide, y, barHeight);
         }
-
-        this.DrawPreviewEyeMenu(dl, x + wide, y, barHeight);
 
         y += barHeight + Tokens.Space.Sm;
 
@@ -989,11 +1014,26 @@ internal sealed class ConfigWindow : Window
             return y + Tokens.Space.Sm;
         }
 
-        float height = Tokens.Metric.PreviewHeight;
-        this.DrawPreviewViewport(dl, x, y, wide, height);
+        // The frames get the full fixed height, so the page does not jump when the party size
+        // changes. Anything else is one small thing at one size, and 200 pixels of dark
+        // around a cast bar would be height taken from the settings for nothing.
+        float height = party
+            ? Tokens.Metric.PreviewHeight
+            : MathF.Min(
+                Tokens.Metric.PreviewHeight,
+                shown.PreviewSize(m_config.PreviewCount).Y + ((Tokens.Metric.PreviewPadding + Tokens.Space.Xl) * 2f));
+        this.DrawPreviewViewport(dl, shown, x, y, wide, height);
 
         return y + height + Tokens.Space.Md;
     }
+
+    /// <summary>Which element a screen's band shows, or null for a screen without one.</summary>
+    private Hud.HudElement? PreviewFor(Screen screen) => screen switch
+    {
+        Screen.PartyFrames => m_previewOf,
+        Screen.QualityOfLife => m_slidecast,
+        _ => null,
+    };
 
     /// <summary>
     /// The eye at the right of the band, and the list of everything the preview can be asked
@@ -1105,7 +1145,7 @@ internal sealed class ConfigWindow : Window
     /// The dark area the frames are drawn into: clipped to its own rectangle, scrolled when
     /// the block is larger than it, and centred when it is smaller.
     /// </summary>
-    private void DrawPreviewViewport(ImDrawListPtr dl, float x, float y, float width, float height)
+    private void DrawPreviewViewport(ImDrawListPtr dl, Hud.HudElement shown, float x, float y, float width, float height)
     {
         // Behind the frames rather than the window's own surface. What a frame really sits on
         // is the game, which is anything at all, so the honest backdrop here is a neutral
@@ -1132,7 +1172,7 @@ internal sealed class ConfigWindow : Window
         if (ImGui.BeginChild(IdPreview, new Vector2(width, height), false, ImGuiWindowFlags.HorizontalScrollbar))
         {
             float pad = Tokens.Metric.PreviewPadding;
-            Vector2 block = m_previewOf!.PreviewSize(m_config.PreviewCount);
+            Vector2 block = shown.PreviewSize(m_config.PreviewCount);
             Vector2 content = block + new Vector2(pad * 2f, pad * 2f);
 
             // Centred while it fits, hard against the padding once it does not — a block that
@@ -1150,7 +1190,7 @@ internal sealed class ConfigWindow : Window
             // frames go straight into the draw list, which ImGui cannot size a window from.
             ImGui.Dummy(block);
 
-            m_previewOf.DrawPreview(ImGui.GetWindowDrawList(), origin, m_config.PreviewCount);
+            shown.DrawPreview(ImGui.GetWindowDrawList(), origin, m_config.PreviewCount);
         }
 
         ImGui.EndChild();
@@ -1315,9 +1355,14 @@ internal sealed class ConfigWindow : Window
     /// </summary>
     private float DrawScreenHeader(ImDrawListPtr dl, float left, float right, float top)
     {
-        bool isModule = m_screen is Screen.PartyFrames or Screen.CombatTracker;
+        bool isModule = m_screen is Screen.PartyFrames or Screen.CombatTracker or Screen.QualityOfLife;
         bool isFrames = m_screen == Screen.PartyFrames;
-        bool enabled = isFrames ? m_config.PartyFramesEnabled : m_config.CombatTrackerEnabled;
+        bool enabled = m_screen switch
+        {
+            Screen.PartyFrames => m_config.PartyFramesEnabled,
+            Screen.QualityOfLife => m_config.QualityOfLifeEnabled,
+            _ => m_config.CombatTrackerEnabled,
+        };
         float height = Tokens.Metric.ModuleHeaderHeight;
         float x = left + Tokens.Metric.SectionPaddingX;
 
@@ -1333,6 +1378,10 @@ internal sealed class ConfigWindow : Window
                 if (isFrames)
                 {
                     m_config.PartyFramesEnabled = !m_config.PartyFramesEnabled;
+                }
+                else if (m_screen == Screen.QualityOfLife)
+                {
+                    m_config.QualityOfLifeEnabled = !m_config.QualityOfLifeEnabled;
                 }
                 else
                 {
@@ -1440,6 +1489,10 @@ internal sealed class ConfigWindow : Window
             else if (m_screen == Screen.CombatTracker)
             {
                 m_combatTracker.DrawLayout(inner);
+            }
+            else if (m_screen == Screen.QualityOfLife)
+            {
+                m_qualityOfLife.Draw(inner);
             }
             else if (m_screen == Screen.PartyFrames && tab == 0)
             {

@@ -472,6 +472,15 @@ internal static class Strings
 
     public const string NavCombatTracker = "Combat Tracker";
 
+    // --- Quality of Life ------------------------------------------------------
+    public const string NavQualityOfLife = "Quality of Life";
+    public const string GroupSlidecast = "Cast bar";
+    public const string GroupSlidecastHint = "Marks the end of a cast you can already move out of.";
+    public const string SlidecastWaitColour = "Not yet";
+    public const string SlidecastWaitTooltip = "The outline over the last half second of a cast, before the server has taken it. Moving now still cancels the cast.";
+    public const string SlidecastReadyColour = "Safe to move";
+    public const string SlidecastReadyTooltip = "The fill the moment the server has taken the cast. From here on you can move and the cast still goes through.";
+
     // On the meter itself.
     public const string MeterViewCurrent = "Current";
     public const string MeterViewOverall = "Overall";
