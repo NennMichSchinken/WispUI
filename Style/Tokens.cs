@@ -936,7 +936,7 @@ internal static class Tokens
         /// </summary>
         public const float DispelHandleShare = 0.5f;
 
-        public static float DispelHandleGap => WorldPx(4f);
+        public static float DispelHandleGap => WorldPx(8f);
 
         /// <summary>How far the handle brightens towards white under the pointer.</summary>
         public const float DispelHandleLift = 0.25f;
