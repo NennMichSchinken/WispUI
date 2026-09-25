@@ -39,6 +39,9 @@ internal sealed class CommandHandler : IDisposable
         if (arguments.Trim().Equals("status", StringComparison.OrdinalIgnoreCase))
         {
             Data.StatusData.DumpPlayerStatuses();
+
+            // The cast bar's nodes, for when a patch moves the one the slide window sits on.
+            NativeUi.DumpCastBar();
             return;
         }
 

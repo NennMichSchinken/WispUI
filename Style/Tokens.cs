@@ -359,6 +359,18 @@ internal static class Tokens
         public static readonly uint Raise = Rgb(0x5BD98A);
 
         /// <summary>
+        /// ⚠️ NOT MEASURED. The slide window on the cast bar, before the server has taken the
+        /// cast: "not yet". A warm red, after the screenshot Florian brought (2026-09-25).
+        /// </summary>
+        public static readonly uint SlideWait = Rgb(0xFF6A5A);
+
+        /// <summary>
+        /// ⚠️ NOT MEASURED. The slide window once the cast is taken: "move now". The same
+        /// green as the raise mark on purpose — both say "this is handled".
+        /// </summary>
+        public static readonly uint SlideReady = Rgb(0x5BD98A);
+
+        /// <summary>
         /// ⚠️ NOT MEASURED. Somebody who cannot be killed right now — the amber the game uses
         /// on its own invulnerability effects, by eye.
         /// </summary>
@@ -874,6 +886,30 @@ internal static class Tokens
         /// mouse is on the target the hover ring still has to read as the one arriving.
         /// </summary>
         public static float FrameTargetRing => WorldLine(2f);
+
+        // --- the slide window on the game's cast bar ----------------------------
+
+        /// <summary>
+        /// The see-through lead-in on the left of the game's gauge art, in the gauge's own
+        /// units. The art is placed this far before the slide point so that its visible left
+        /// edge lands on it. The same margin the gauge carries (measured 2026-09-25: the
+        /// visible rim starts 7 to 8 units inside the 160-unit gauge).
+        /// </summary>
+        public const float SlideArtLeadIn = 8f;
+
+        /// <summary>
+        /// How strongly the green fill covers the game's pink fill once the server has taken
+        /// the cast. Strong, because it is the one moment the window exists for (Florian,
+        /// 2026-09-25: a green frame round a bar that stayed pink was hard to read); short of
+        /// solid, so the bar's own progress still shows through underneath.
+        /// </summary>
+        public const float SlideReadyAlpha = 0.85f;
+
+        /// <summary>
+        /// The slide window the game allows, in seconds: the last half second of a cast.
+        /// Where the window starts on the bar. Which colour it wears is the game's own word.
+        /// </summary>
+        public const float SlideSeconds = 0.5f;
 
         // --- the combat meter ---------------------------------------------------
         // It wears the window's look but lives on the world, so every size here is in screen
