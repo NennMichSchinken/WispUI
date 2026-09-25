@@ -33,14 +33,6 @@ internal sealed class SlidecastElement : HudElement
     private float m_total;
     private bool m_taken;
 
-    // --- measuring (⚠️ comes out once the track node and "taken" are confirmed) ---
-    private bool m_dumped;
-    private bool m_wasTaken;
-    private int m_takenLogged;
-
-    /// <summary>How many casts get their "taken" moment written to the log. A handful is a measurement; every cast is noise.</summary>
-    private const int TakenLogLimit = 5;
-
     public SlidecastElement(Configuration config)
     {
         m_config = config;
@@ -52,10 +44,8 @@ internal sealed class SlidecastElement : HudElement
 
     public override void Collect()
     {
-        bool casting = NativeUi.ReadOwnCast(out float elapsed, out m_total, out m_taken);
+        bool casting = NativeUi.ReadOwnCast(out _, out m_total, out m_taken);
         m_show = casting && NativeUi.ReadCastBar(out m_min, out m_max);
-
-        this.Measure(casting, elapsed);
     }
 
     public override void Draw(ImDrawListPtr dl)
@@ -129,37 +119,11 @@ internal sealed class SlidecastElement : HudElement
             dl.AddRectFilled(from, max, Tokens.Col.Faded(cfg.SlidecastReadyColour, Tokens.Metric.SlideFillAlpha));
         }
 
-        dl.AddRect(from, max, edge, 0f, ImDrawFlags.None, Tokens.Metric.SlideEdge);
-    }
-
-    /// <summary>
-    /// ⚠️ MEASURING ONLY. Writes the cast bar's node list on the first cast after loading,
-    /// and how much of the cast was left when the server took it, for the first few casts.
-    /// Builds strings, but only on those few frames.
-    /// </summary>
-    private void Measure(bool casting, float elapsed)
-    {
-        if (!casting)
-        {
-            m_wasTaken = false;
-            return;
-        }
-
-        if (!m_dumped)
-        {
-            m_dumped = true;
-            NativeUi.DumpCastBar();
-        }
-
-        if (m_taken && !m_wasTaken && m_takenLogged < TakenLogLimit)
-        {
-            m_takenLogged++;
-            Services.Log.Information(
-                "[cast] taken with {0:0.000}s of {1:0.000}s left",
-                m_total - elapsed,
-                m_total);
-        }
-
-        m_wasTaken = m_taken;
+        // Pulled in by half the stroke, so the line lies ON the edge of the bar rather than
+        // straddling it: a stroke is centred on its path, and centred on the rim it stood a
+        // pixel out past the end of the bar.
+        float half = Tokens.Metric.SlideEdge * 0.5f;
+        Vector2 inset = new(half, half);
+        dl.AddRect(from + inset, max - inset, edge, 0f, ImDrawFlags.None, Tokens.Metric.SlideEdge);
     }
 }

@@ -871,8 +871,8 @@ internal static class NativeUi
     /// sequence number of the cast the player started and, separately, the sequence number of
     /// the last cast the server answered. Once the two agree the result is on its way and the
     /// cast can no longer be cancelled by moving — that moment IS the start of the slide
-    /// window, whatever the player's latency. (Field meaning from the structure definitions;
-    /// ⚠️ not yet confirmed in-game, 2026-09-25.)
+    /// window, whatever the player's latency. MEASURED 2026-09-25: on a 1.97 s cast it came
+    /// with 0.40 s left — a tenth of a second after the nominal half-second window opened.
     /// </para>
     /// </summary>
     public static unsafe bool ReadOwnCast(out float elapsed, out float total, out bool taken)
@@ -905,15 +905,25 @@ internal static class NativeUi
     }
 
     /// <summary>
-    /// The node of the game's cast bar that the fill runs along.
+    /// The node of the game's cast bar that the fill runs along: the bar's background picture.
+    /// MEASURED 2026-09-25 off a real cast — a 160 × 20 image under node 9, with the fill
+    /// (a nine-grid, node 11) on top of it at the same place.
+    /// </summary>
+    private const uint CastTrackNodeId = 12u;
+
+    /// <summary>
+    /// How far the visible bar — its gold rim — sits inside that picture, in the node's own
+    /// units: the picture carries a see-through margin round the art. Left, top, right, bottom.
     /// <para>
-    /// ⚠️ NOT MEASURED YET. Zero means "look for it": the widest visible picture in the cast
-    /// bar window, which should be the track. Once the node list has been read off a real cast
-    /// (the log line written on the first cast after loading), the id goes here and the search
-    /// goes away.
+    /// MEASURED 2026-09-25 from a screenshot at a window scale of 1.1: the rim ran 161 × 12
+    /// pixels inside a 176 × 22 node. Without it the window stood out past the end of the bar
+    /// and above and below it (Florian's screenshot, same day).
     /// </para>
     /// </summary>
-    private const uint CastTrackNodeId = 0u;
+    private const float CastTrackInsetLeft = 7f;
+    private const float CastTrackInsetTop = 4f;
+    private const float CastTrackInsetRight = 7f;
+    private const float CastTrackInsetBottom = 5f;
 
     /// <summary>
     /// Where the game's cast bar track sits on the screen, in screen pixels. False while the
@@ -930,45 +940,20 @@ internal static class NativeUi
             return false;
         }
 
-        AtkResNode* track = CastTrackNodeId != 0u ? addon->GetNodeById(CastTrackNodeId) : WidestPicture(addon);
+        AtkResNode* track = addon->GetNodeById(CastTrackNodeId);
         if (track is null || !ShownOnScreen(track))
         {
             return false;
         }
 
         ScreenScale(track, out float scaleX, out float scaleY);
-        min = new Vector2(track->ScreenX, track->ScreenY);
-        max = new Vector2(min.X + (track->Width * scaleX), min.Y + (track->Height * scaleY));
+        min = new Vector2(
+            MathF.Round(track->ScreenX + (CastTrackInsetLeft * scaleX)),
+            MathF.Round(track->ScreenY + (CastTrackInsetTop * scaleY)));
+        max = new Vector2(
+            MathF.Round(track->ScreenX + ((track->Width - CastTrackInsetRight) * scaleX)),
+            MathF.Round(track->ScreenY + ((track->Height - CastTrackInsetBottom) * scaleY)));
         return max.X - min.X > 1f && max.Y - min.Y > 1f;
-    }
-
-    /// <summary>The widest visible image or nine-grid in a window. No allocation: a walk over a short list.</summary>
-    private static unsafe AtkResNode* WidestPicture(AtkUnitBase* addon)
-    {
-        AtkResNode* best = null;
-        float bestWidth = 0f;
-        int count = addon->UldManager.NodeListCount;
-
-        for (int i = 0; i < count; i++)
-        {
-            AtkResNode* node = addon->UldManager.NodeList[i];
-
-            if (node is null || (node->Type != NodeType.Image && node->Type != NodeType.NineGrid) || !ShownOnScreen(node))
-            {
-                continue;
-            }
-
-            ScreenScale(node, out float scaleX, out _);
-            float width = node->Width * scaleX;
-
-            if (width > bestWidth)
-            {
-                best = node;
-                bestWidth = width;
-            }
-        }
-
-        return best;
     }
 
     /// <summary>Visible only if it and every node above it are.</summary>
@@ -1004,9 +989,9 @@ internal static class NativeUi
     /// <summary>
     /// Writes every node of the cast bar window to the log, with the cast beside it.
     /// <para>
-    /// ⚠️ A diagnostic, not a draw-path call: it builds strings. It exists to measure which
-    /// node is the track (<see cref="CastTrackNodeId"/>) and whether "taken" arrives where the
-    /// structure definitions say. 🔴 Comes out, or goes to Debug, once both are measured.
+    /// ⚠️ A diagnostic, not a draw-path call: it builds strings. Only reached from
+    /// <c>/wisp status</c>. Kept because a patch that rebuilds the cast bar moves
+    /// <see cref="CastTrackNodeId"/>, and this is how it was measured the first time.
     /// </para>
     /// </summary>
     public static unsafe void DumpCastBar()

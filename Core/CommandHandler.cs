@@ -40,8 +40,7 @@ internal sealed class CommandHandler : IDisposable
         {
             Data.StatusData.DumpPlayerStatuses();
 
-            // ⚠️ Measuring the slide window (2026-09-25). Comes out with the one in
-            // SlidecastElement once the track node is known.
+            // The cast bar's nodes, for when a patch moves the one the slide window sits on.
             NativeUi.DumpCastBar();
             return;
         }
