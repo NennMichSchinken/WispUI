@@ -288,12 +288,6 @@ public sealed class Configuration : IPluginConfiguration
         public bool ShowName { get; set; } = true;
 
         /// <summary>
-        /// What each mouse button does on a frame, per job. See <see cref="BindingSet"/> for
-        /// why it is per job and what a job answers to before anybody has set it up.
-        /// </summary>
-        public BindingSet Bindings { get; set; } = new();
-
-        /// <summary>
         /// Which spells go to whoever the mouse is over, per job. See
         /// <see cref="MouseoverSet"/> for why this is a list and not a switch.
         /// </summary>
@@ -496,20 +490,6 @@ public sealed class Configuration : IPluginConfiguration
         // --- the mouse ----------------------------------------------------------
 
         /// <summary>
-        /// The old switch for selecting on left-click. Nothing reads it any more — it is a
-        /// binding now, and the default binding set does exactly what it did. Kept so the
-        /// migration to version 6 can see whether somebody had turned it off; droppable once
-        /// no stored configuration is older than that.
-        /// </summary>
-        public bool ClickToTarget { get; set; } = true;
-
-        /// <summary>
-        /// The old switch for the right-click menu, in the same position as
-        /// <see cref="ClickToTarget"/> and kept for the same reason.
-        /// </summary>
-        public bool ContextMenu { get; set; } = true;
-
-        /// <summary>
         /// While the mouse is over a frame, tell the game that member is what it is pointing
         /// at. That is all it takes for the player's own mouseover macros and, with the game's
         /// own mouseover setting on, their hotbar to act on that member.
@@ -517,9 +497,8 @@ public sealed class Configuration : IPluginConfiguration
         public bool MouseoverTarget { get; set; } = true;
 
         /// <summary>
-        /// The old blanket switch for mouseover casting, in the same position as
-        /// <see cref="ClickToTarget"/> and kept for the same reason: the migration to version
-        /// 10 reads it to tell whether anybody was relying on it. Nothing writes it any more
+        /// The old blanket switch for mouseover casting. Kept only because the migration to
+        /// version 10 reads it to tell whether anybody was relying on it. Nothing writes it any more
         /// — the spells are picked one at a time in <see cref="Mouseover"/>.
         /// </summary>
         public bool MouseoverCasting { get; set; }
@@ -1131,7 +1110,6 @@ public sealed class Configuration : IPluginConfiguration
             // would be a name nothing can even be compared against.
             this.BarStyleName ??= Data.BarStyles.DefaultName;
             this.ShieldStyleName ??= Data.BarStyles.ShieldDefaultName;
-            this.Bindings ??= new BindingSet();
             this.Mouseover ??= new MouseoverSet();
         }
 
@@ -1575,35 +1553,14 @@ public sealed class Configuration : IPluginConfiguration
 
         if (config.Version < 6)
         {
-            // Selecting and the right-click menu were two switches and are now bindings. A
-            // job with no entry answers to the defaults, which do exactly what the two
-            // switches did when both were on — so only somebody who had turned one off needs
-            // anything written down, and for them it is written down for every job at once.
+            // Selecting and the right-click menu were two switches, then mouse bindings. Since
+            // 2026-09-25 they are neither: a click selects and a right click opens the menu,
+            // fixed, the way the game's own party list does — so there is nothing left to carry
+            // over, and this step does nothing.
             //
-            // 🔴 This block used to leave the whole method with a `return` when there was
-            // nothing to write. That was invisible while it was the last step and a trap the
-            // moment anything followed it: every later migration would have been skipped for
-            // exactly the people who had changed nothing. A step declines by doing nothing,
-            // never by ending the chain.
-            if (!config.PartyFrames.ClickToTarget || !config.PartyFrames.ContextMenu)
-            {
-                System.Collections.Generic.List<MouseBinding> kept = new();
-
-                if (config.PartyFrames.ClickToTarget)
-                {
-                    kept.Add(new MouseBinding { Button = 0, Kind = BindingKind.Target });
-                }
-
-                if (config.PartyFrames.ContextMenu)
-                {
-                    kept.Add(new MouseBinding { Button = 1, Kind = BindingKind.ContextMenu });
-                }
-
-                foreach ((uint id, _) in Data.JobList.Order)
-                {
-                    config.PartyFrames.Bindings.ByJob[id] = Clone(kept);
-                }
-            }
+            // 🔴 Kept as an empty step rather than deleted, and it never ends the chain with a
+            // `return`: that once would have skipped every later migration for exactly the
+            // people who had changed nothing. A step declines by doing nothing.
         }
 
         if (config.Version < 7)
@@ -1959,19 +1916,5 @@ public sealed class Configuration : IPluginConfiguration
         cfg.AuraDispelThickness *= by;
         cfg.CleanseThickness *= by;
         cfg.RaiseThickness *= by;
-    }
-
-    /// <summary>A fresh copy per job, so editing one job's bindings never moves another's.</summary>
-    private static System.Collections.Generic.List<MouseBinding> Clone(
-        System.Collections.Generic.List<MouseBinding> source)
-    {
-        System.Collections.Generic.List<MouseBinding> copy = new(source.Count);
-
-        for (int i = 0; i < source.Count; i++)
-        {
-            copy.Add(source[i].Clone());
-        }
-
-        return copy;
     }
 }

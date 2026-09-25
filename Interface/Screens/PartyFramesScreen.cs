@@ -69,15 +69,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private const string IdIconGroup = "##wisp-pf-icon";
     private const string IdIconStyle = "##wisp-pf-iconstyle";
     private const string IdIconSize = "##wisp-pf-iconsize";
-    private const string IdBindingsGroup = "##wisp-pf-bindings";
-    private const string IdBindingKey = "##wisp-pf-bindkey";
     private const string IdBindingJob = "##wisp-pf-bindjob";
-    private const string IdBindingAction = "##wisp-pf-bindaction";
     private const string IdSpellAction = "##wisp-pf-spellaction";
-    private const string IdBindingAdd = "##wisp-pf-bindadd";
-    private const string IdBindingRemoveRow = "##wisp-pf-bindremoverow";
-    private const string IdBindingName = "##wisp-pf-bindname";
-    private const string IdBindingOn = "##wisp-pf-bindon";
     private const string IdIconPosition = "##wisp-pf-iconposition";
     private const string IdIconX = "##wisp-pf-iconx";
     private const string IdIconY = "##wisp-pf-icony";
@@ -346,7 +339,6 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     private readonly ArrowSelector<Anchor> m_namePosition;
     private readonly ArrowSelector<HealthTextMode> m_healthMode;
     private readonly ArrowSelector<JobEntry> m_jobSelector;
-    private readonly ArrowSelector<ActionEntry> m_actionPicker;
     private readonly ArrowSelector<ActionEntry> m_spellPicker;
 
     /// <summary>The spell the row being drawn holds, so the picker can keep offering it.</summary>
@@ -358,9 +350,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
     /// <summary>The mouseover rows being drawn, which is what "already taken" is measured against.</summary>
     private System.Collections.Generic.List<MouseoverSpell>? m_spellRows;
 
-    /// <summary>Which job the bindings tab is showing, and which row is waiting for a press.</summary>
+    /// <summary>Which job the bindings tab is showing.</summary>
     private int m_bindingJob = -1;
-    private int m_listening = -1;
 
     /// <summary>The actions the picker offers, refilled when the job changes.</summary>
     private readonly System.Collections.Generic.List<ActionEntry> m_actionChoices = new();
@@ -507,14 +498,8 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 ShowCounter = false,
             });
 
-        // Two pickers over one list of choices. Same control, same behaviour, different words
-        // on an empty row — a binding row is waiting for an action and a mouseover row for a
-        // spell, and each list should say what it is asking for.
-        m_actionPicker = ActionPicker(IdBindingAction, m_actionChoices, Strings.BindingPick, null);
-
-        // The spell list hides what it already holds. Only that list: a second row casting
-        // the same spell is nothing but a mistake, while the bindings list has two rows that
-        // are not actions at all and no such rule to apply.
+        // The spell list hides what it already holds: a second row casting the same spell is
+        // nothing but a mistake.
         m_spellPicker = ActionPicker(IdSpellAction, m_actionChoices, Strings.MouseoverPick, this.SpellOnOffer);
 
         m_iconPosition = new ArrowSelector<Anchor>(
@@ -1530,19 +1515,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
 
         // 🔴 The full width, and rows that carry more than one control. The grammar everywhere
         // else — one setting, one control, half the width — is what keeps a settings screen
-        // readable, and neither of these is a setting: a binding is a pair, and half of a
-        // pair says nothing (Florian, 2026-09-12, pointing at LumenUI's own bindings screen).
+        // readable, and a mouseover row is not a setting: it is a spell, its switch and a way
+        // to remove it (Florian, 2026-09-12, pointing at LumenUI's own bindings screen).
         //
-        // Not in Legacy: a click on the game's own list belongs to the game, so a binding
-        // there would have nothing to fire on. Mouseover casting below is what Legacy has —
-        // a hotbar key, redirected to the row under the pointer (Florian, 2026-09-25).
-        if (!m_config.PartyFrames.Legacy)
-        {
-            Chrome.BeginGroupRow();
-            Chrome.GroupScope group = this.DrawBindingList(origin.X, y, width, entry, out float height);
-            y += Chrome.GroupFrame(group, height) + Tokens.Metric.ColumnGutter;
-        }
-
+        // There were mouse bindings above it until 2026-09-25 — a mouse button that used an
+        // action on a frame. Gone (Florian): a click selects and a right click opens the menu,
+        // fixed, and nothing else needs the mouse.
         Chrome.BeginGroupRow();
         Chrome.GroupScope over = this.DrawMouseoverList(origin.X, y, width, entry, out float overHeight);
         y += Chrome.GroupFrame(over, overHeight) + Tokens.Metric.ColumnGutter;
@@ -1577,227 +1555,12 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
                 Chrome.ControlWidth()))
         {
             m_bindingJob = job;
-
-            // Whatever key was waiting to be pressed belonged to the old job's list.
-            m_listening = -1;
         }
 
         float used = Chrome.RowHeight();
         Chrome.EndGroupContent(group, used);
         contentHeight = used;
         return group;
-    }
-
-    private Chrome.GroupScope DrawBindingList(float x, float y, float width, JobEntry entry, out float contentHeight)
-    {
-        Chrome.GroupScope group = Chrome.BeginGroup(
-            IdBindingsGroup,
-            new Chrome.GroupHead
-            {
-                Title = Strings.GroupBindings,
-                Description = Strings.GroupBindingsHint,
-            },
-            x,
-            y,
-            width);
-
-        float pitch = Chrome.RowPitch();
-        float rowY = group.ContentY;
-
-        // The hover ring sits above the list, because it is the answer to "which frame is
-        // this button about to act on" — the same question the list below it settles. It is
-        // not per job: a ring means the same thing whatever you are playing.
-        if (Chrome.OptionRow(
-                IdHighlight,
-                Strings.HighlightHovered,
-                group.ContentX,
-                rowY,
-                group.ContentWidth,
-                m_config.PartyFrames.HighlightHovered,
-                Chrome.OptionControl.Tick,
-                Strings.HighlightHoveredTooltip,
-                true,
-                false))
-        {
-            m_config.PartyFrames.HighlightHovered = !m_config.PartyFrames.HighlightHovered;
-            m_config.MarkDirty();
-        }
-
-        rowY += pitch;
-
-        System.Collections.Generic.List<MouseBinding> bindings = m_config.PartyFrames.Bindings.Edit(entry.Id);
-
-        rowY = this.DrawBindingRows(group, bindings, entry, rowY, pitch);
-
-        float used = rowY - group.ContentY + Chrome.RowHeight();
-        Chrome.EndGroupContent(group, used);
-        contentHeight = used;
-        return group;
-    }
-
-    /// <summary>
-    /// One row per binding, plus the button that adds another.
-    /// <para>
-    /// A row reads as one thing with a key beside it: what it does on the left — an icon and a
-    /// name, clickable when there is a list behind it — then the button that triggers it, a
-    /// switch, and, for the ones that were added, a way to take them away.
-    /// </para>
-    /// <para>
-    /// 🔴 The one group in the suite that takes the full width, and the one row that carries
-    /// more than one control. Everywhere else that grammar is what keeps a settings screen
-    /// readable; a binding is not a setting but a pair, and half of a pair says nothing.
-    /// </para>
-    /// </summary>
-    private float DrawBindingRows(
-        Chrome.GroupScope group,
-        System.Collections.Generic.List<MouseBinding> bindings,
-        JobEntry job,
-        float rowY,
-        float pitch)
-    {
-        ActionEntry[] actions = ActionList.For(job.Id);
-
-        float toggleWidth = Tokens.Px(30f);
-        float trash = Tokens.Metric.TitleButton;
-        float gap = Tokens.Space.Md;
-
-        float trashX = group.ContentX + group.ContentWidth - trash;
-        float toggleX = trashX - gap - toggleWidth;
-        float keyX = toggleX - gap - Chrome.KeybindWidth();
-        float nameWidth = keyX - gap - group.ContentX;
-
-        int remove = -1;
-
-        for (int i = 0; i < bindings.Count; i++)
-        {
-            MouseBinding binding = bindings[i];
-            bool listening = m_listening == i;
-            int button = binding.Button;
-            int mods = (int)binding.Modifiers;
-
-            ImGui.PushID(i);
-
-            // Every row, including the first: the hover ring now sits above the list, so
-            // there is always something for the first row to be divided from.
-            Chrome.RowDivider(group.ContentX, group.ContentX + group.ContentWidth, rowY);
-
-            if (binding.Kind == BindingKind.Action)
-            {
-                int pick = this.ActionIndex(binding.ActionId);
-
-                if (m_actionPicker.Draw(ref pick, group.ContentX, rowY, nameWidth)
-                    && pick >= 0 && pick < m_actionChoices.Count)
-                {
-                    binding.ActionId = m_actionChoices[pick].Id;
-                    m_config.MarkDirty();
-                }
-            }
-            else
-            {
-                // Nothing to choose: this row does one built-in thing and says so. Drawn the
-                // same shape as the picker beside it so the column still lines up.
-                Chrome.BindingName(
-                    IdBindingName,
-                    group.ContentX,
-                    rowY,
-                    nameWidth,
-                    default,
-                    binding.Kind == BindingKind.Target ? Strings.BindingTarget : Strings.BindingContextMenu,
-                    false,
-                    true);
-            }
-
-            if (Chrome.KeybindField(IdBindingKey, keyX, rowY, ref listening, ref button, ref mods))
-            {
-                binding.Button = button;
-                binding.Modifiers = (BindingModifiers)mods;
-                m_config.MarkDirty();
-            }
-
-            if (Chrome.BindingToggle(IdBindingOn, toggleX, rowY, binding.Enabled))
-            {
-                binding.Enabled = !binding.Enabled;
-                m_config.MarkDirty();
-            }
-
-            // 🔴 Only a row that was added can be taken away. Selecting and the game's menu
-            // stay: a frame with no way to select anybody is not a state somebody arrives at
-            // on purpose, and the switch beside it already covers turning one off (Florian,
-            // 2026-09-12).
-            if (binding.Removable)
-            {
-                float trashY = MathF.Round(rowY + ((Chrome.RowHeight() - trash) * 0.5f));
-
-                if (Chrome.CloseButton(IdBindingRemoveRow, trashX, trashY))
-                {
-                    remove = i;
-                }
-            }
-
-            ImGui.PopID();
-
-            m_listening = listening ? i : (m_listening == i ? -1 : m_listening);
-            rowY += pitch;
-        }
-
-        // After the loop, never inside it: taking a row out while walking the list is how a
-        // row gets skipped and an index ends up pointing at the wrong binding.
-        if (remove >= 0)
-        {
-            bindings.RemoveAt(remove);
-            m_listening = -1;
-            m_config.MarkDirty();
-        }
-
-        return this.DrawAddBinding(group, bindings, actions, rowY);
-    }
-
-    /// <summary>
-    /// The button that adds a binding. A pill under the list rather than a bar across it: it
-    /// is one more thing you can do with the list, not a row of the list.
-    /// </summary>
-    private float DrawAddBinding(
-        Chrome.GroupScope group,
-        System.Collections.Generic.List<MouseBinding> bindings,
-        ActionEntry[] actions,
-        float rowY)
-    {
-        if (actions.Length == 0)
-        {
-            // A tank has nothing to aim at a party member. Saying so is better than a button
-            // that adds a row with an empty list in it.
-            Ink.Draw(
-                ImGui.GetWindowDrawList(),
-                Ink.Role.Small,
-                new Vector2(group.ContentX, rowY + Tokens.Space.Sm),
-                Tokens.Col.InkFaint,
-                Strings.BindingNoActions);
-
-            return rowY + Chrome.RowPitch();
-        }
-
-        Chrome.RowDivider(group.ContentX, group.ContentX + group.ContentWidth, rowY);
-
-        if (Chrome.PillButton(IdBindingAdd, Strings.BindingAdd, group.ContentX, rowY))
-        {
-            bindings.Add(new MouseBinding
-            {
-                Kind = BindingKind.Action,
-
-                // Nothing picked. The row asks for an action instead of arriving with one,
-                // for the same reason a mouseover row does (Florian, 2026-09-19).
-                ActionId = 0u,
-
-                // Middle by default, because left and right are already spoken for and a new
-                // row that silently shadowed one of them would be the worst first impression
-                // this tab could make. It is meant to be changed straight away.
-                Button = 2,
-            });
-
-            m_config.MarkDirty();
-        }
-
-        return rowY + Chrome.RowPitch();
     }
 
     /// <summary>
@@ -1858,6 +1621,27 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         // A removed row takes its advance with it, or the list starts after a gap.
         if (!legacy)
         {
+            rowY += pitch;
+
+            // The ring round the frame under the pointer: the answer to "which one is this key
+            // about to go to". Here since the mouse bindings it used to head are gone. Not in
+            // Legacy — the game's own list lights its own row.
+            if (Chrome.OptionRow(
+                    IdHighlight,
+                    Strings.HighlightHovered,
+                    group.ContentX,
+                    rowY,
+                    group.ContentWidth,
+                    m_config.PartyFrames.HighlightHovered,
+                    Chrome.OptionControl.Tick,
+                    Strings.HighlightHoveredTooltip,
+                    true,
+                    true))
+            {
+                m_config.PartyFrames.HighlightHovered = !m_config.PartyFrames.HighlightHovered;
+                m_config.MarkDirty();
+            }
+
             rowY += pitch;
         }
 

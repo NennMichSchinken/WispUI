@@ -880,21 +880,10 @@ internal sealed class PartyFramesElement : HudElement, IDisposable
     private void TakeTheMouse(ImDrawListPtr dl, Configuration.PartyFramesConfig cfg, FrameGeometry geo, int count)
     {
         // Nothing to take while the layout is being set against stand-ins: there is nobody to
-        // select, and edit mode wants the same button for dragging.
-        //
-        // 🔴 The mouseover spells are in this list too, and they were the easy one to leave
-        // out: nothing on a frame reacts to them, so nothing on screen would have said the
-        // mouse was never taken — the spells would simply have gone to the selected target,
-        // which is what they do anyway when you are not pointing at anybody. Pointing at
-        // somebody is only known while the mouse is ours.
-        uint job = LocalJobId();
-
-        if (count == 0
-            || EditMode.IsActive
-            || (cfg.Bindings.For(job).Count == 0
-                && cfg.Mouseover.For(job).Count == 0
-                && !cfg.MouseoverTarget
-                && !cfg.HighlightHovered))
+        // select, and edit mode wants the same button for dragging. Otherwise always: a click
+        // selects and a right click opens the menu, and a frame that cannot be clicked is not
+        // a party frame.
+        if (count == 0 || EditMode.IsActive)
         {
             this.ReleaseMouseOver();
             return;
@@ -965,19 +954,13 @@ internal sealed class PartyFramesElement : HudElement, IDisposable
                 // on the wrong person and slide off without selecting them — and it is why
                 // this is the return value rather than IsItemClicked (Florian, 2026-09-12).
                 //
-                // The right button is asked for only when it has somewhere to go. It is taken
-                // from the player either way — ImGui captures every button over the block, all
-                // or none (spec §15) — but a button that is claimed and then handed nothing is
-                // worse than one that was never claimed, and this way the flags say which it is.
-                // Every button the bindings could want, which is all of them: ImGui takes them
-                // over this window whatever is asked for here (spec §15), so claiming fewer
-                // would only mean a button that is taken from the player and handed nothing.
+                // The two buttons a click on the game's own party list answers to. The others
+                // are taken over this window anyway (spec §15) and simply do nothing here.
                 bool clicked = ImGui.InvisibleButton(
                     IdSlot,
                     geo.FrameMax[i] - geo.FrameMin[i],
                     ImGuiButtonFlags.MouseButtonLeft
-                    | ImGuiButtonFlags.MouseButtonRight
-                    | ImGuiButtonFlags.MouseButtonMiddle);
+                    | ImGuiButtonFlags.MouseButtonRight);
                 bool hovered = ImGui.IsItemHovered();
 
                 // Held down and dragged off the block is still our press. Without this the
@@ -1030,12 +1013,9 @@ internal sealed class PartyFramesElement : HudElement, IDisposable
                     continue;
                 }
 
-                // The bindings, asked of the frame a release happened on. A button set to
-                // answer on release reports in the very frame of that release, so whichever
-                // button is fresh right now is the one that did it. The two side buttons never
-                // reach the invisible button at all — ImGui has no flag for them — so they are
-                // asked about directly, gated on the frame being hovered.
-                this.Fire(cfg, clicked, hovered, ref members[i], target);
+                // Asked of the frame a release happened on: the button answers in the very frame
+                // of its release, so whichever one is fresh right now is the one that did it.
+                Fire(clicked, ref members[i], target);
 
                 if (!hovered)
                 {
@@ -1070,135 +1050,39 @@ internal sealed class PartyFramesElement : HudElement, IDisposable
     }
 
     /// <summary>
-
-    /// <summary>
-    /// Runs whatever the player has bound to the button they just released on this frame.
+    /// What a click on a frame does: the left button selects the member, the right one opens
+    /// the game's own menu on them — what a click on the game's own party list does.
     /// <para>
-    /// The set is the one for the job they are on, so the same button is a heal on a White
-    /// Mage and nothing on a Warrior — which is the point of keeping them per job.
+    /// 🔴 Fixed, with nothing to set, since 2026-09-25. These two used to be mouse bindings
+    /// among others, and the others — a mouse button that uses an action — are gone
+    /// (Florian: nobody needs them, and a click that casts is one more thing an official
+    /// submission would have to clear). What is left is what the game does itself.
     /// </para>
     /// </summary>
-    private void Fire(
-        Configuration.PartyFramesConfig cfg,
-        bool clicked,
-        bool hovered,
-        ref PartyMemberSnapshot member,
-        IGameObject target)
+    private static void Fire(bool clicked, ref PartyMemberSnapshot member, IGameObject target)
     {
-        int button = ReleasedButton(clicked, hovered);
-
-        if (button < 0)
+        if (!clicked)
         {
             return;
         }
 
-        BindingModifiers held = HeldModifiers();
-        System.Collections.Generic.List<MouseBinding> bindings = cfg.Bindings.For(LocalJobId());
-
-        for (int i = 0; i < bindings.Count; i++)
+        if (ImGui.IsMouseReleased(ImGuiMouseButton.Right))
         {
-            MouseBinding binding = bindings[i];
-
-            if (!binding.Matches(button, held))
-            {
-                continue;
-            }
-
-            switch (binding.Kind)
-            {
-                case BindingKind.Target:
-                    Services.Targets.Target = target;
-                    break;
-
-                case BindingKind.ContextMenu:
-                    // 🔴 SETTLED IN THE GAME (Florian, 2026-09-13). Three numbers could have
-                    // been meant and the call documents none of them; right-clicking the party
-                    // leader opened the local player's own profile, which is only possible if
-                    // the index goes into the HUD agent's array — that one always begins with
-                    // the local player, so the leader's place in the party list, zero, landed
-                    // on us.
-                    //
-                    // Neither of the other two, then: not the row the frame is drawn on, and
-                    // not the place in the party list Dalamud hands us, which is what was
-                    // being passed on the strength of another plugin doing so for years.
-                    // Evidence beat inference.
-                    NativeUi.OpenPartyContextMenu(member.HudIndex);
-                    break;
-
-                case BindingKind.Action:
-                    ActionUse.On(binding.ActionId, target.GameObjectId, target.Address);
-                    break;
-            }
-
-            // One binding per press. Two that match the same button and modifiers is a
-            // configuration nobody meant, and running both would be the worse reading of it.
+            // 🔴 SETTLED IN THE GAME (Florian, 2026-09-13). Three numbers could have been
+            // meant and the call documents none of them; right-clicking the party leader
+            // opened the local player's own profile, which is only possible if the index goes
+            // into the HUD agent's array — that one always begins with the local player, so
+            // the leader's place in the party list, zero, landed on us.
+            //
+            // Neither of the other two, then: not the row the frame is drawn on, and not the
+            // place in the party list Dalamud hands us, which is what was being passed on the
+            // strength of another plugin doing so for years. Evidence beat inference.
+            NativeUi.OpenPartyContextMenu(member.HudIndex);
             return;
         }
+
+        Services.Targets.Target = target;
     }
-
-    /// <summary>
-    /// Which button was just released on this frame, or -1 for none.
-    /// <para>
-    /// The first three come from the invisible button, which answers on release and only
-    /// inside its own area — that is what lets a press slide off a frame without counting,
-    /// the way the game's own party list behaves. The two side buttons have no ImGui flag, so
-    /// they are asked about directly and only while the frame is hovered.
-    /// </para>
-    /// </summary>
-    private static int ReleasedButton(bool clicked, bool hovered)
-    {
-        if (clicked)
-        {
-            if (ImGui.IsMouseReleased(ImGuiMouseButton.Right))
-            {
-                return 1;
-            }
-
-            if (ImGui.IsMouseReleased(ImGuiMouseButton.Middle))
-            {
-                return 2;
-            }
-
-            return 0;
-        }
-
-        if (!hovered)
-        {
-            return -1;
-        }
-
-        if (ImGui.IsMouseReleased((ImGuiMouseButton)3))
-        {
-            return 3;
-        }
-
-        return ImGui.IsMouseReleased((ImGuiMouseButton)4) ? 4 : -1;
-    }
-
-    /// <summary>What is being held right now, as the bindings describe it.</summary>
-    private static BindingModifiers HeldModifiers()
-    {
-        ImGuiIOPtr io = ImGui.GetIO();
-        BindingModifiers held = BindingModifiers.None;
-
-        if (io.KeyCtrl)
-        {
-            held |= BindingModifiers.Ctrl;
-        }
-
-        if (io.KeyShift)
-        {
-            held |= BindingModifiers.Shift;
-        }
-
-        if (io.KeyAlt)
-        {
-            held |= BindingModifiers.Alt;
-        }
-
-        return held;
-    }
-
     /// <summary>The job the player is on, or zero when there is nobody to ask.</summary>
     private static uint LocalJobId() => Services.Objects.LocalPlayer?.ClassJob.RowId ?? 0u;
 

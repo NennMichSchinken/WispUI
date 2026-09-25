@@ -178,27 +178,10 @@ internal static class Strings
     // --- bindings -----------------------------------------------------------
     public const string TabBindings = "Bindings";
     public const string GroupJob = "Job";
-    public const string GroupJobHint = "Both lists below belong to the job picked here.";
-    public const string GroupBindings = "Mouse bindings";
-    public const string GroupBindingsHint = "What each button does on a frame.";
+    public const string GroupJobHint = "The list below belongs to the job picked here.";
     public const string BindingJob = "Set up for";
-    public const string BindingJobTooltip = "Kept per job, because what a button should do depends on what you play.";
-    public const string BindingAdd = "Add binding";
-    public const string BindingPick = "Pick an action…";
-    public const string BindingAction = "Action";
-    public const string BindingTarget = "Select target";
-    public const string BindingContextMenu = "Game menu";
+    public const string BindingJobTooltip = "Kept per job, because which spells go to the pointer depends on what you play.";
     public const string BindingNoActions = "This job has nothing that can be aimed at a party member.";
-
-    public const string KeybindListening = "Press a button…";
-    public const string ModCtrl = "Ctrl";
-    public const string ModShift = "Shift";
-    public const string ModAlt = "Alt";
-    public const string MouseLeft = "Left";
-    public const string MouseRight = "Right";
-    public const string MouseMiddle = "Middle";
-    public const string MouseFour = "Mouse 4";
-    public const string MouseFive = "Mouse 5";
 
     // --- colours -----------------------------------------------------------
     public const string GroupRoles = "Roles";
