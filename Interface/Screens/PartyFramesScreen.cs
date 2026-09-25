@@ -1532,9 +1532,16 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         // else — one setting, one control, half the width — is what keeps a settings screen
         // readable, and neither of these is a setting: a binding is a pair, and half of a
         // pair says nothing (Florian, 2026-09-12, pointing at LumenUI's own bindings screen).
-        Chrome.BeginGroupRow();
-        Chrome.GroupScope group = this.DrawBindingList(origin.X, y, width, entry, out float height);
-        y += Chrome.GroupFrame(group, height) + Tokens.Metric.ColumnGutter;
+        //
+        // Not in Legacy: a click on the game's own list belongs to the game, so a binding
+        // there would have nothing to fire on. Mouseover casting below is what Legacy has —
+        // a hotbar key, redirected to the row under the pointer (Florian, 2026-09-25).
+        if (!m_config.PartyFrames.Legacy)
+        {
+            Chrome.BeginGroupRow();
+            Chrome.GroupScope group = this.DrawBindingList(origin.X, y, width, entry, out float height);
+            y += Chrome.GroupFrame(group, height) + Tokens.Metric.ColumnGutter;
+        }
 
         Chrome.BeginGroupRow();
         Chrome.GroupScope over = this.DrawMouseoverList(origin.X, y, width, entry, out float overHeight);
@@ -1828,7 +1835,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
         // tells the game where you are pointing, which is all a <mo> macro needs and is the
         // one setting here that changes nothing about a key press. Not per job — what you
         // point at means the same on every job.
-        if (Chrome.OptionRow(
+        //
+        // Not in Legacy: the game's own list already tells the game where you point.
+        bool legacy = m_config.PartyFrames.Legacy;
+
+        if (!legacy && Chrome.OptionRow(
                 IdMouseover,
                 Strings.MouseoverTarget,
                 group.ContentX,
@@ -1844,7 +1855,11 @@ internal sealed class PartyFramesScreen : IAppearanceOwner
             m_config.MarkDirty();
         }
 
-        rowY += pitch;
+        // A removed row takes its advance with it, or the list starts after a gap.
+        if (!legacy)
+        {
+            rowY += pitch;
+        }
 
         // Read, not edited. An entry is made when a spell is added and not a moment earlier:
         // for this list an empty entry and no entry mean the same thing, so opening the tab

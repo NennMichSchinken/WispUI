@@ -861,6 +861,36 @@ internal static class NativeUi
     // Whatever paints it is not that input path, and finding out means going after the
     // targeting system — too much to reach for over a highlight Florian called liveable.
 
+    // --- who the game's own interface is pointing at -------------------------
+
+    /// <summary>
+    /// Whoever the pointer is on in the game's own interface — a row of its party list, the
+    /// target bar — as a game object id, or zero for nobody.
+    /// <para>
+    /// The game keeps this itself, for the &lt;mouseover&gt; macro placeholder:
+    /// <c>PronounModule.UiMouseOverTarget</c> (verified in ClientStructs, offset 0x290). It is
+    /// what lets mouseover casting work on the game's party list in Legacy mode, where there
+    /// is no frame of ours to say who is under the pointer (Florian, 2026-09-25).
+    /// </para>
+    /// <para>
+    /// Read at the moment it is used, inside the game's own call to use an action — never
+    /// kept, because the object behind it can be gone a frame later.
+    /// </para>
+    /// </summary>
+    public static unsafe ulong UiMouseOverId()
+    {
+        var pronouns = FFXIVClientStructs.FFXIV.Client.UI.Misc.PronounModule.Instance();
+
+        if (pronouns is null)
+        {
+            return 0ul;
+        }
+
+        GameObject* over = pronouns->UiMouseOverTarget;
+
+        return over is null ? 0ul : (ulong)over->GetGameObjectId();
+    }
+
     // --- the player's own cast ------------------------------------------------
 
     /// <summary>

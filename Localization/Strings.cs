@@ -234,7 +234,7 @@ internal static class Strings
     // The group is named after what it does, not after a switch, because it no longer is one:
     // the list of spells is the setting (Florian, 2026-09-19).
     public const string GroupMouseover = "Mouseover casting";
-    public const string GroupMouseoverHint = "Spells that go to the frame under the pointer instead of your target.";
+    public const string GroupMouseoverHint = "Spells that go to whoever is under the pointer instead of your target.";
     public const string MouseoverAdd = "Add spell";
     public const string MouseoverPick = "Pick a spell…";
 

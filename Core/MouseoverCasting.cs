@@ -218,6 +218,15 @@ internal sealed unsafe class MouseoverCasting : IDisposable
     {
         ulong over = s_target;
 
+        // Nobody under the pointer on a frame of ours: then whoever the game's own interface
+        // is pointing at — a row of its party list in Legacy mode, where we draw no frames
+        // (Florian, 2026-09-25). Ours comes first, because while our frames are up they are
+        // what the player is pointing at.
+        if (over == 0)
+        {
+            over = NativeUi.UiMouseOverId();
+        }
+
         // Only real actions. Items, mounts, general actions and the rest are either not aimed
         // at anybody or are aimed by something other than a target id.
         if (over == 0 || over == targetId || actionType != ActionType.Action || manager is null)
