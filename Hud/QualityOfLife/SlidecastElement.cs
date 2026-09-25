@@ -1,6 +1,8 @@
 using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Game.Addon.Lifecycle;
+using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using WispUI.Core;
 using WispUI.Localization;
 using WispUI.Style;
@@ -21,43 +23,88 @@ namespace WispUI.Hud.QualityOfLife;
 /// connection and later on a bad one — which a fixed half-second mark cannot say.
 /// </para>
 /// <para>
-/// 🔴 The window is the game's own gauge art, tinted, not a rectangle of ours. Three drawn
-/// rectangles each missed the bar's rounded rim somewhere; the art fits it because it is what
-/// the bar itself is made of (Florian, 2026-09-25).
+/// 🔴 The window is a node inside the game's own cast bar, wearing the bar's own gauge art
+/// (Florian, 2026-09-25). Three drawn rectangles each missed the rounded rim; the art drawn
+/// by ImGui fitted but could only be tinted darker than its colour. A node is drawn by the
+/// game's renderer, which can also add colour, and it sits in the game's layers like the bar.
+/// All of that lives in <see cref="NativeUi.UpdateSlideWindow"/>; this class only decides
+/// what the node should say, right before the cast bar draws.
 /// </para>
 /// </summary>
-internal sealed class SlidecastElement : HudElement
+internal sealed class SlidecastElement : HudElement, IDisposable
 {
-    private readonly Configuration m_config;
+    private const string CastBarAddon = "_CastBar";
 
-    // What Collect found for this frame.
-    private bool m_show;
-    private NativeUi.CastBarArt m_art;
-    private float m_total;
-    private bool m_taken;
+    private readonly Configuration m_config;
 
     public SlidecastElement(Configuration config)
     {
         m_config = config;
+
+        // The game's thread, right before the cast bar draws — the only time the node may be
+        // touched — and right before the cast bar is torn down, when it must come out.
+        Services.AddonLifecycle.RegisterListener(AddonEvent.PreDraw, CastBarAddon, this.OnCastBarDraw);
+        Services.AddonLifecycle.RegisterListener(AddonEvent.PreFinalize, CastBarAddon, this.OnCastBarGone);
     }
 
     public override string Name => Strings.GroupSlidecast;
 
     public override bool Enabled => m_config.QualityOfLifeEnabled && m_config.QualityOfLife.SlidecastEnabled;
 
+    /// <summary>Nothing for the HUD pass: the game draws the window as part of its own bar.</summary>
+    public override bool HasAnythingToDraw => false;
+
     public override void Collect()
     {
-        bool casting = NativeUi.ReadOwnCast(out _, out m_total, out m_taken);
-        m_show = casting && NativeUi.ReadCastBarArt(true, out m_art);
     }
 
     public override void Draw(ImDrawListPtr dl)
     {
-        if (m_show)
+    }
+
+    /// <summary>
+    /// Unhooks and takes the node out. Dalamud disposes a plugin on the game's thread, which
+    /// is the thread the node may be touched on; anywhere else it is left to the game.
+    /// </summary>
+    public void Dispose()
+    {
+        Services.AddonLifecycle.UnregisterListener(AddonEvent.PreDraw, CastBarAddon, this.OnCastBarDraw);
+        Services.AddonLifecycle.UnregisterListener(AddonEvent.PreFinalize, CastBarAddon, this.OnCastBarGone);
+
+        if (Services.Framework.IsInFrameworkUpdateThread)
         {
-            this.DrawWindow(dl, in m_art, m_art.Origin, m_art.Scale, m_total, m_taken);
+            NativeUi.RemoveSlideWindow();
         }
     }
+
+    private void OnCastBarDraw(AddonEvent type, AddonArgs args)
+    {
+        // Switched off: the node comes out rather than hiding, so a player who never wants
+        // it has nothing of ours in the game's tree.
+        if (!this.Enabled)
+        {
+            NativeUi.RemoveSlideWindow();
+            return;
+        }
+
+        bool casting = NativeUi.ReadOwnCast(out _, out float total, out bool taken);
+        Configuration.QualityOfLifeConfig cfg = m_config.QualityOfLife;
+
+        NativeUi.UpdateSlideWindow(
+            args.Addon.Address,
+            casting,
+            SlideStart(total),
+            taken ? cfg.SlidecastReadyColour : cfg.SlidecastWaitColour);
+    }
+
+    private void OnCastBarGone(AddonEvent type, AddonArgs args) => NativeUi.ForgetSlideWindow(args.Addon.Address);
+
+    /// <summary>
+    /// Where the window starts, as a share of the bar. A cast shorter than the window is all
+    /// window, and that is true: it can be moved out of from the start.
+    /// </summary>
+    private static float SlideStart(float total) =>
+        total > 0f ? MathF.Max(0f, 1f - (Tokens.Metric.SlideSeconds / total)) : 1f;
 
     // --- preview -------------------------------------------------------------
 
@@ -67,13 +114,14 @@ internal sealed class SlidecastElement : HudElement
         Tokens.Metric.SlidePreviewUnits * Tokens.Metric.SlidePreviewScale;
 
     /// <summary>
-    /// A stand-in bar playing a cast on a loop, with the real window drawn over it.
+    /// A stand-in bar playing a cast on a loop, with the window drawn over it.
     /// <para>
-    /// The bar underneath is ours, because the game's cannot be drawn into a window. The
-    /// window on top is <see cref="DrawWindow"/> with the game's own art, the same call the
-    /// real one goes through, so a colour changed here is the colour seen in a fight. Without
-    /// the art — the game has not built its cast bar yet — the band shows the bar alone
-    /// rather than a window that would look different from the real one.
+    /// ⚠️ The one preview in the suite NOT drawn by the real drawing code, and it cannot be:
+    /// the real window is a node the game draws inside its own cast bar, and a game node
+    /// cannot be drawn into a settings window. This is the same art, cut the same way, with
+    /// the colour laid under it because ImGui can only tint a picture darker. Shape, place and
+    /// colours match; the brightness is close rather than exact. Without the art — the game
+    /// has not built its cast bar yet — the band shows the bar alone.
     /// </para>
     /// </summary>
     public override void DrawPreview(ImDrawListPtr dl, Vector2 origin, int count)
@@ -111,16 +159,12 @@ internal sealed class SlidecastElement : HudElement
     }
 
     /// <summary>
-    /// The window itself: the gauge art from where the slide window starts to the end of the
-    /// bar, tinted. <paramref name="origin"/> and <paramref name="scale"/> place the gauge on
-    /// the screen, so the same call draws over the game's bar and over the preview's.
-    /// Allocates nothing.
+    /// The preview's window: the gauge art from where the slide window starts to the end of
+    /// the bar, over a capsule of its colour. Allocates nothing.
     /// </summary>
     private void DrawWindow(ImDrawListPtr dl, in NativeUi.CastBarArt art, Vector2 origin, Vector2 scale, float total, bool taken)
     {
-        // Where the window starts, as a share of the bar. A cast shorter than the window is
-        // all window, and that is true: it can be moved out of from the start.
-        float start = MathF.Max(0f, 1f - (Tokens.Metric.SlideSeconds / total));
+        float start = SlideStart(total);
 
         // The art carries a see-through lead-in on its left, so it is placed that far before
         // the point it should visibly start at. The narrowest it may get is its two ends.

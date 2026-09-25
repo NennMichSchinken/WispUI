@@ -23,6 +23,9 @@ public sealed class Plugin : IDalamudPlugin
     private readonly HudManager m_hud = new();
     private readonly Hud.CombatTracker.CombatTrackerElement m_meter;
 
+    /// <summary>The slide window. Owned here because it puts a node into the game's cast bar, which must come out on the way.</summary>
+    private readonly Hud.QualityOfLife.SlidecastElement m_slidecast;
+
     /// <summary>The one feature that hooks the game. Owned here so it is always disposed.</summary>
     private readonly MouseoverCasting m_mouseover;
 
@@ -58,10 +61,10 @@ public sealed class Plugin : IDalamudPlugin
 
         // Last, so the slide window is drawn over anything of ours that might share its
         // corner of the screen. It sits on the game's own cast bar and must stay readable.
-        var slidecast = new Hud.QualityOfLife.SlidecastElement(m_config);
-        m_hud.Add(slidecast);
+        m_slidecast = new Hud.QualityOfLife.SlidecastElement(m_config);
+        m_hud.Add(m_slidecast);
 
-        m_configWindow = new ConfigWindow(m_config, frames, m_meter, slidecast);
+        m_configWindow = new ConfigWindow(m_config, frames, m_meter, m_slidecast);
         m_meter.SettingsRequested += this.OnMeterSettings;
         m_configWindow.Closed += this.OnConfigClosed;
         m_windows.AddWindow(m_configWindow);
@@ -115,6 +118,10 @@ public sealed class Plugin : IDalamudPlugin
         Services.PluginInterface.UiBuilder.Draw -= this.OnDraw;
 
         m_mouseover.Dispose();
+
+        // Our node out of the game's cast bar. Nothing of ours may stay in the game's
+        // interface once the code that owns it is gone.
+        m_slidecast.Dispose();
 
         // A piece of the player's interface must never stay hidden by something that has
         // stopped running. Nothing happens here if we never hid it.

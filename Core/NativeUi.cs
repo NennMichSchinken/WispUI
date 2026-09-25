@@ -1043,6 +1043,235 @@ internal static class NativeUi
         return art.Width > 0f && art.Height > 0f;
     }
 
+    // --- the slide window as a node in the game's cast bar ---------------------
+    //
+    // 🔴 The one place WispUI adds something to the game's own interface (Florian,
+    // 2026-09-25). Drawn over the bar by ImGui, the window could only be tinted darker than
+    // its colour — ImGui multiplies, the game's renderer can also add — and it sat on top of
+    // every game window. A node of the game's own draws exactly like the bar it sits in.
+    //
+    // The price is ownership: the node is our memory inside the game's tree. Every function
+    // below runs on the game's thread (the addon lifecycle, or the plugin's own disposal,
+    // which Dalamud runs there), checks the window it belongs to is still the live one before
+    // touching anything, and the node is always taken out before that window is torn down.
+
+    /// <summary>Our node's id: "WISP" in ASCII, far outside the ids the cast bar's own layout uses.</summary>
+    private const uint SlideNodeId = 0x57495350u;
+
+    /// <summary>Our node, and the cast bar window it was put into. Null while there is none.</summary>
+    private static unsafe AtkNineGridNode* s_slideNode;
+
+    private static nint s_slideAddon;
+
+    /// <summary>
+    /// Puts the slide window into the cast bar, or keeps the one there up to date: where it
+    /// starts, what colour it wears, whether it shows. Called right before the cast bar draws.
+    /// </summary>
+    /// <param name="addonAddress">The cast bar window the lifecycle handed us.</param>
+    /// <param name="show">False hides the node without removing it — between casts, say.</param>
+    /// <param name="start">Where the window starts, as a share of the bar.</param>
+    /// <param name="colour">The colour, as ImGui packs one: alpha, blue, green, red.</param>
+    public static unsafe void UpdateSlideWindow(nint addonAddress, bool show, float start, uint colour)
+    {
+        var addon = (AtkUnitBase*)addonAddress;
+        if (addon is null)
+        {
+            return;
+        }
+
+        // A node that belongs to a window which no longer exists went down with it, or will.
+        // Forgotten, never touched: the memory is not ours to reach into any more.
+        if (s_slideNode != null && s_slideAddon != addonAddress)
+        {
+            s_slideNode = null;
+            s_slideAddon = 0;
+        }
+
+        if (s_slideNode == null)
+        {
+            if (!show)
+            {
+                return;
+            }
+
+            CreateSlideNode(addon);
+
+            if (s_slideNode == null)
+            {
+                return;
+            }
+        }
+
+        AtkResNode* node = &s_slideNode->AtkResNode;
+        AtkResNode* gauge = node->ParentNode;
+
+        if (!show || gauge == null)
+        {
+            node->NodeFlags &= ~NodeFlags.Visible;
+            return;
+        }
+
+        // The art carries a see-through lead-in on its left, so the node starts that far
+        // before the slide point and ends with the bar.
+        float width = gauge->Width;
+        float left = MathF.Min((width * start) - Tokens.Metric.SlideArtLeadIn, width - s_slideNode->LeftOffset - s_slideNode->RightOffset);
+        node->SetPositionFloat(left, 0f);
+        node->SetWidth((ushort)MathF.Max(0f, MathF.Round(width - left)));
+        node->SetHeight(gauge->Height);
+
+        // Multiply and add both set to the colour: the add is what makes the art the colour
+        // instead of the colour times the art, which is all ImGui could do.
+        byte r = (byte)(colour & 0xFFu);
+        byte g = (byte)((colour >> 8) & 0xFFu);
+        byte b = (byte)((colour >> 16) & 0xFFu);
+        node->MultiplyRed = r;
+        node->MultiplyGreen = g;
+        node->MultiplyBlue = b;
+        node->AddRed = r;
+        node->AddGreen = g;
+        node->AddBlue = b;
+        node->NodeFlags |= NodeFlags.Visible;
+
+        // Tells the renderer the node has changed and must be drawn anew.
+        node->DrawFlags |= 1u;
+    }
+
+    /// <summary>
+    /// A new nine-grid wearing the gauge fill's own art, hung in the gauge as its last child
+    /// so it draws over the fill. Nothing if the cast bar is not the shape we measured.
+    /// </summary>
+    private static unsafe void CreateSlideNode(AtkUnitBase* addon)
+    {
+        AtkResNode* gauge = addon->GetNodeById(CastGaugeNodeId);
+        var fill = (AtkNineGridNode*)addon->GetNodeById(CastFillNodeId);
+
+        if (gauge is null || fill is null || fill->AtkResNode.Type != NodeType.NineGrid || fill->PartsList is null)
+        {
+            return;
+        }
+
+        var node = FFXIVClientStructs.FFXIV.Client.System.Memory.IMemorySpace.GetUISpace()->Create<AtkNineGridNode>();
+        if (node is null)
+        {
+            return;
+        }
+
+        AtkResNode* res = &node->AtkResNode;
+        res->Type = NodeType.NineGrid;
+        res->NodeId = SlideNodeId;
+        res->NodeFlags = NodeFlags.AnchorTop | NodeFlags.AnchorLeft | NodeFlags.Enabled;
+        res->DrawFlags = fill->AtkResNode.DrawFlags | 1u;
+        res->Priority = fill->AtkResNode.Priority;
+        res->ScaleX = 1f;
+        res->ScaleY = 1f;
+        res->Color.R = 255;
+        res->Color.G = 255;
+        res->Color.B = 255;
+        res->Color.A = 255;
+
+        // The fill's own art: its parts list is borrowed, never owned — it belongs to the
+        // cast bar and goes when the cast bar goes, which is also when our node goes.
+        node->PartsList = fill->PartsList;
+        node->PartId = (uint)CastArtPart;
+        node->TopOffset = fill->TopOffset;
+        node->BottomOffset = fill->BottomOffset;
+        node->LeftOffset = fill->LeftOffset;
+        node->RightOffset = fill->RightOffset;
+        node->BlendMode = fill->BlendMode;
+        node->PartsTypeRenderType = fill->PartsTypeRenderType;
+
+        // Last in the gauge's child chain, which is drawn last: over the fill. The chain runs
+        // from the parent's ChildNode along PrevSiblingNode.
+        res->ParentNode = gauge;
+
+        if (gauge->ChildNode == null)
+        {
+            gauge->ChildNode = res;
+        }
+        else
+        {
+            AtkResNode* last = gauge->ChildNode;
+            while (last->PrevSiblingNode != null)
+            {
+                last = last->PrevSiblingNode;
+            }
+
+            last->PrevSiblingNode = res;
+            res->NextSiblingNode = last;
+        }
+
+        addon->UldManager.UpdateDrawNodeList();
+
+        s_slideNode = node;
+        s_slideAddon = (nint)addon;
+    }
+
+    /// <summary>
+    /// Takes the slide window out of the cast bar and frees it. Safe to call at any time on
+    /// the game's thread: with no node it does nothing, and a node whose window is no longer
+    /// the live cast bar is forgotten rather than touched.
+    /// </summary>
+    public static unsafe void RemoveSlideWindow()
+    {
+        if (s_slideNode == null)
+        {
+            return;
+        }
+
+        var addon = (AtkUnitBase*)Services.GameGui.GetAddonByName("_CastBar", 1).Address;
+        AtkNineGridNode* node = s_slideNode;
+        s_slideNode = null;
+
+        if (addon is null || (nint)addon != s_slideAddon)
+        {
+            s_slideAddon = 0;
+            return;
+        }
+
+        s_slideAddon = 0;
+        AtkResNode* res = &node->AtkResNode;
+        AtkResNode* parent = res->ParentNode;
+        AtkResNode* earlier = res->NextSiblingNode;
+        AtkResNode* later = res->PrevSiblingNode;
+
+        if (parent != null && parent->ChildNode == res)
+        {
+            parent->ChildNode = later;
+        }
+
+        if (earlier != null)
+        {
+            earlier->PrevSiblingNode = later;
+        }
+
+        if (later != null)
+        {
+            later->NextSiblingNode = earlier;
+        }
+
+        res->ParentNode = null;
+        res->PrevSiblingNode = null;
+        res->NextSiblingNode = null;
+        addon->UldManager.UpdateDrawNodeList();
+
+        // Destroy without freeing, then give the memory back to the space it came from —
+        // the parts list it points at is the cast bar's and must not go with it.
+        res->Destroy(false);
+        FFXIVClientStructs.FFXIV.Client.System.Memory.IMemorySpace.Free(node, (ulong)sizeof(AtkNineGridNode));
+    }
+
+    /// <summary>
+    /// The cast bar is about to be torn down: our node comes out first, so the game never
+    /// frees memory that is ours, and we never keep a pointer into a window that is gone.
+    /// </summary>
+    public static unsafe void ForgetSlideWindow(nint addonAddress)
+    {
+        if (s_slideNode != null && s_slideAddon == addonAddress)
+        {
+            RemoveSlideWindow();
+        }
+    }
+
     /// <summary>Whether a texture was loaded from its double-size file. Reads the name in place; allocates nothing.</summary>
     private static unsafe bool IsHighResolution(AtkTextureResource* resource)
     {
