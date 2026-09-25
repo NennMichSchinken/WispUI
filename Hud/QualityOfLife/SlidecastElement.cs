@@ -15,11 +15,15 @@ namespace WispUI.Hud.QualityOfLife;
 /// it does not say is when moving stops costing the cast, and that is all this adds.
 /// </para>
 /// <para>
-/// Two states (Florian, 2026-09-25, variant C of three): an outline over the last half second
-/// while the cast is still the player's to lose, and a fill the moment the server has taken
-/// it. The fill is the game's own statement (see <see cref="NativeUi.ReadOwnCast"/>), so it
-/// arrives earlier on a good connection and later on a bad one — which is exactly what a
-/// fixed half-second line cannot say.
+/// Two states (Florian, 2026-09-25, variant C of three): one colour while the cast is still
+/// the player's to lose, another the moment the server has taken it. The switch is the game's
+/// own statement (see <see cref="NativeUi.ReadOwnCast"/>), so it comes earlier on a good
+/// connection and later on a bad one — which a fixed half-second mark cannot say.
+/// </para>
+/// <para>
+/// 🔴 The window is the game's own gauge art, tinted, not a rectangle of ours. Three drawn
+/// rectangles each missed the bar's rounded rim somewhere; the art fits it because it is what
+/// the bar itself is made of (Florian, 2026-09-25).
 /// </para>
 /// </summary>
 internal sealed class SlidecastElement : HudElement
@@ -28,8 +32,7 @@ internal sealed class SlidecastElement : HudElement
 
     // What Collect found for this frame.
     private bool m_show;
-    private Vector2 m_min;
-    private Vector2 m_max;
+    private NativeUi.CastBarArt m_art;
     private float m_total;
     private bool m_taken;
 
@@ -45,14 +48,14 @@ internal sealed class SlidecastElement : HudElement
     public override void Collect()
     {
         bool casting = NativeUi.ReadOwnCast(out _, out m_total, out m_taken);
-        m_show = casting && NativeUi.ReadCastBar(out m_min, out m_max);
+        m_show = casting && NativeUi.ReadCastBarArt(true, out m_art);
     }
 
     public override void Draw(ImDrawListPtr dl)
     {
         if (m_show)
         {
-            this.DrawWindow(dl, m_min, m_max, m_total, m_taken);
+            this.DrawWindow(dl, in m_art, m_art.Origin, m_art.Scale, m_total, m_taken);
         }
     }
 
@@ -61,14 +64,16 @@ internal sealed class SlidecastElement : HudElement
     public override bool HasPreview => true;
 
     public override Vector2 PreviewSize(int count) =>
-        new(Tokens.Metric.SlidePreviewWidth, Tokens.Metric.SlidePreviewHeight);
+        Tokens.Metric.SlidePreviewUnits * Tokens.Metric.SlidePreviewScale;
 
     /// <summary>
     /// A stand-in bar playing a cast on a loop, with the real window drawn over it.
     /// <para>
     /// The bar underneath is ours, because the game's cannot be drawn into a window. The
-    /// window on top is <see cref="DrawWindow"/>, the same call the real one goes through, so
-    /// a colour changed here is the colour seen in a fight.
+    /// window on top is <see cref="DrawWindow"/> with the game's own art, the same call the
+    /// real one goes through, so a colour changed here is the colour seen in a fight. Without
+    /// the art — the game has not built its cast bar yet — the band shows the bar alone
+    /// rather than a window that would look different from the real one.
     /// </para>
     /// </summary>
     public override void DrawPreview(ImDrawListPtr dl, Vector2 origin, int count)
@@ -80,9 +85,12 @@ internal sealed class SlidecastElement : HudElement
         // element advances, and it has nothing of its own to advance either.
         float t = (float)(ImGui.GetTime() % loop);
 
-        Vector2 min = origin;
-        Vector2 max = origin + this.PreviewSize(count);
-        dl.AddRectFilled(min, max, Tokens.Col.SlideTrack);
+        float scale = Tokens.Metric.SlidePreviewScale;
+        Vector2 units = Tokens.Metric.SlidePreviewUnits;
+        Vector2 inset = Tokens.Metric.SlidePreviewTrackInset * scale;
+        Vector2 trackMin = origin + inset;
+        Vector2 trackMax = origin + (units * scale) - inset;
+        dl.AddRectFilled(trackMin, trackMax, Tokens.Col.SlideTrack, trackMax.Y - trackMin.Y);
 
         // Between casts the bar stands empty, the way the game's goes away.
         if (t >= cast)
@@ -90,55 +98,93 @@ internal sealed class SlidecastElement : HudElement
             return;
         }
 
-        float fill = MathF.Round((max.X - min.X) * (t / cast));
-        dl.AddRectFilled(min, new Vector2(min.X + fill, max.Y), Tokens.Col.SlideFill);
+        float fill = MathF.Round((trackMax.X - trackMin.X) * (t / cast));
+        dl.AddRectFilled(trackMin, new Vector2(trackMin.X + fill, trackMax.Y), Tokens.Col.SlideFill, trackMax.Y - trackMin.Y);
+
+        if (!NativeUi.ReadCastBarArt(false, out NativeUi.CastBarArt art))
+        {
+            return;
+        }
 
         bool taken = t >= cast - Tokens.Metric.SlideSeconds + Tokens.Metric.SlidePreviewLatency;
-        this.DrawWindow(dl, min, max, cast, taken);
+        this.DrawWindow(dl, in art, origin, new Vector2(scale, scale), cast, taken);
     }
 
     /// <summary>
-    /// The window itself, over a track that runs from <paramref name="min"/> to
-    /// <paramref name="max"/>. Allocates nothing.
+    /// The window itself: the gauge art from where the slide window starts to the end of the
+    /// bar, tinted. <paramref name="origin"/> and <paramref name="scale"/> place the gauge on
+    /// the screen, so the same call draws over the game's bar and over the preview's.
+    /// Allocates nothing.
     /// </summary>
-    private void DrawWindow(ImDrawListPtr dl, Vector2 min, Vector2 max, float total, bool taken)
+    private void DrawWindow(ImDrawListPtr dl, in NativeUi.CastBarArt art, Vector2 origin, Vector2 scale, float total, bool taken)
     {
-        float width = max.X - min.X;
+        // Where the window starts, as a share of the bar. A cast shorter than the window is
+        // all window, and that is true: it can be moved out of from the start.
+        float start = MathF.Max(0f, 1f - (Tokens.Metric.SlideSeconds / total));
 
-        // The last half second of the cast, as a share of the bar. A cast shorter than that
-        // is all window, and that is true: it can be moved out of from the start.
-        float share = MathF.Min(1f, Tokens.Metric.SlideSeconds / total);
-        float left = MathF.Round(max.X - (width * share));
-        Vector2 from = new(left, min.Y);
+        // The art carries a see-through lead-in on its left, so it is placed that far before
+        // the point it should visibly start at. The narrowest it may get is its two ends.
+        float left = (art.Width * start) - Tokens.Metric.SlideArtLeadIn;
+        left = MathF.Min(left, art.Width - art.SliceLeft - art.SliceRight);
+
+        Vector2 min = new(MathF.Round(origin.X + (left * scale.X)), MathF.Round(origin.Y));
+        Vector2 max = new(MathF.Round(origin.X + (art.Width * scale.X)), MathF.Round(origin.Y + (art.Height * scale.Y)));
 
         Configuration.QualityOfLifeConfig cfg = m_config.QualityOfLife;
-        uint edge = taken ? cfg.SlidecastReadyColour : cfg.SlidecastWaitColour;
+        DrawNineSlice(dl, in art, min, max, scale, taken ? cfg.SlidecastReadyColour : cfg.SlidecastWaitColour);
+    }
 
-        // Rounded on the right only: that end is the end of the game's bar, which is rounded,
-        // and square corners stood out past its curve (Florian, 2026-09-25). The left side is
-        // in the middle of the bar, where a curve would say nothing.
-        float rounding = MathF.Round((max.Y - min.Y) * Tokens.Metric.SlideEndRounding);
+    /// <summary>
+    /// Draws the art stretched to a rectangle the way the game stretches a nine-grid: the
+    /// corners at their own size, the edges stretched one way, the middle both.
+    /// </summary>
+    private static void DrawNineSlice(ImDrawListPtr dl, in NativeUi.CastBarArt art, Vector2 min, Vector2 max, Vector2 scale, uint tint)
+    {
+        Span<float> x = stackalloc float[4];
+        Span<float> y = stackalloc float[4];
+        Span<float> u = stackalloc float[4];
+        Span<float> v = stackalloc float[4];
 
-        if (taken)
+        x[0] = min.X;
+        x[1] = min.X + (art.SliceLeft * scale.X);
+        x[2] = max.X - (art.SliceRight * scale.X);
+        x[3] = max.X;
+        y[0] = min.Y;
+        y[1] = min.Y + (art.SliceTop * scale.Y);
+        y[2] = max.Y - (art.SliceBottom * scale.Y);
+        y[3] = max.Y;
+
+        u[0] = art.Uv0.X;
+        u[1] = art.Uv0.X + (art.SliceLeft * art.UvPerUnit.X);
+        u[2] = art.Uv1.X - (art.SliceRight * art.UvPerUnit.X);
+        u[3] = art.Uv1.X;
+        v[0] = art.Uv0.Y;
+        v[1] = art.Uv0.Y + (art.SliceTop * art.UvPerUnit.Y);
+        v[2] = art.Uv1.Y - (art.SliceBottom * art.UvPerUnit.Y);
+        v[3] = art.Uv1.Y;
+
+        for (int row = 0; row < 3; row++)
         {
-            dl.AddRectFilled(
-                from,
-                max,
-                Tokens.Col.Faded(cfg.SlidecastReadyColour, Tokens.Metric.SlideFillAlpha),
-                rounding,
-                ImDrawFlags.RoundCornersRight);
-        }
+            if (y[row + 1] <= y[row])
+            {
+                continue;
+            }
 
-        // Pulled in by half the stroke, so the line lies ON the rim rather than straddling it:
-        // a stroke is centred on its path, and centred on the rim it stood a pixel outside.
-        float half = Tokens.Metric.SlideEdge * 0.5f;
-        Vector2 inset = new(half, half);
-        dl.AddRect(
-            from + inset,
-            max - inset,
-            edge,
-            MathF.Max(0f, rounding - half),
-            ImDrawFlags.RoundCornersRight,
-            Tokens.Metric.SlideEdge);
+            for (int col = 0; col < 3; col++)
+            {
+                if (x[col + 1] <= x[col])
+                {
+                    continue;
+                }
+
+                dl.AddImage(
+                    art.Texture,
+                    new Vector2(x[col], y[row]),
+                    new Vector2(x[col + 1], y[row + 1]),
+                    new Vector2(u[col], v[row]),
+                    new Vector2(u[col + 1], v[row + 1]),
+                    tint);
+            }
+        }
     }
 }

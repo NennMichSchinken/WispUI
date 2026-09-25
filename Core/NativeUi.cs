@@ -905,56 +905,154 @@ internal static class NativeUi
     }
 
     /// <summary>
-    /// The node of the game's cast bar that the fill runs along: the bar's background picture.
-    /// MEASURED 2026-09-25 off a real cast — a 160 × 20 image under node 9, with the fill
-    /// (a nine-grid, node 11) on top of it at the same place.
-    /// </summary>
-    private const uint CastTrackNodeId = 12u;
-
-    /// <summary>
-    /// How far the visible bar — its gold rim — sits inside that picture, in the node's own
-    /// units: the picture carries a see-through margin round the art. Left, top, right, bottom.
+    /// The game's cast bar as something to draw on: where its gauge sits, and the piece of
+    /// the game's own artwork its fill is made from.
     /// <para>
-    /// MEASURED 2026-09-25 from two screenshots at a window scale of 1.1: the rim runs 161 ×
-    /// 12 pixels inside a 176 × 22 node, its outer edge one unit further out at top and
-    /// bottom than the first measurement took it. Without the insets the window stood out
-    /// past the end of the bar and above and below it (Florian's screenshots, same day).
+    /// 🔴 The artwork, not a shape of ours. Three rectangles drawn to match the bar's rim
+    /// (square, inset, rounded on one end) each missed it somewhere, because the rim is a
+    /// picture with rounded ends and soft edges, not a rectangle (Florian, 2026-09-25, three
+    /// screenshots). Drawing the game's own gauge art fits the bar for the reason the bar fits
+    /// itself.
     /// </para>
     /// </summary>
-    private const float CastTrackInsetLeft = 7f;
-    private const float CastTrackInsetTop = 3f;
-    private const float CastTrackInsetRight = 7f;
-    private const float CastTrackInsetBottom = 4f;
+    internal struct CastBarArt
+    {
+        /// <summary>Top left of the gauge (node 9) on the screen, and its size in its own units.</summary>
+        public Vector2 Origin;
+
+        public float Width;
+
+        public float Height;
+
+        /// <summary>Screen pixels per unit of the gauge — the window's scale and the HUD layout's.</summary>
+        public Vector2 Scale;
+
+        public ImTextureID Texture;
+
+        /// <summary>The piece of the texture, in texture coordinates.</summary>
+        public Vector2 Uv0;
+
+        public Vector2 Uv1;
+
+        /// <summary>Texture coordinates per unit of the art, for cutting it into nine.</summary>
+        public Vector2 UvPerUnit;
+
+        /// <summary>The nine-grid borders of the art, in its own units: the parts that are never stretched.</summary>
+        public float SliceLeft;
+
+        public float SliceTop;
+
+        public float SliceRight;
+
+        public float SliceBottom;
+    }
+
+    /// <summary>The cast bar's gauge: the container the background, the fill and its text hang under.</summary>
+    private const uint CastGaugeNodeId = 9u;
+
+    /// <summary>The gauge's fill, a nine-grid. Its parts list is where the art is read from.</summary>
+    private const uint CastFillNodeId = 11u;
+
+    /// <summary>Which part of the fill's list is the gauge art — the first, as in the game's own list.</summary>
+    private const int CastArtPart = 0;
+
+    /// <summary>The texture the art was last read from, and whether it was the double-size one.</summary>
+    private static nint s_castArtTexture;
+
+    private static float s_castArtScale = 1f;
 
     /// <summary>
-    /// Where the game's cast bar track sits on the screen, in screen pixels. False while the
-    /// bar is not up — no cast, or the player has hidden it in their HUD layout.
+    /// Reads the cast bar's gauge and its art. False while the bar is not up — no cast, or the
+    /// player has hidden it in their HUD layout — or while its texture is not loaded yet.
+    /// <para>
+    /// Only reads. Nothing is added to the game's interface: the art is drawn by ImGui from
+    /// the game's own texture, so there is no node of ours in the game's tree to clean up, and
+    /// nothing left behind if the plugin goes away mid-cast.
+    /// </para>
     /// </summary>
-    public static unsafe bool ReadCastBar(out Vector2 min, out Vector2 max)
+    /// <param name="mustBeShown">False for the preview, which wants the art while no cast is up.</param>
+    public static unsafe bool ReadCastBarArt(bool mustBeShown, out CastBarArt art)
     {
-        min = default;
-        max = default;
+        art = default;
 
         var addon = (AtkUnitBase*)Services.GameGui.GetAddonByName("_CastBar", 1).Address;
-        if (addon is null || !addon->IsVisible)
+        if (addon is null || (mustBeShown && !addon->IsVisible))
         {
             return false;
         }
 
-        AtkResNode* track = addon->GetNodeById(CastTrackNodeId);
-        if (track is null || !ShownOnScreen(track))
+        AtkResNode* gauge = addon->GetNodeById(CastGaugeNodeId);
+        var fill = (AtkNineGridNode*)addon->GetNodeById(CastFillNodeId);
+
+        if (gauge is null || fill is null || fill->AtkResNode.Type != NodeType.NineGrid || (mustBeShown && !ShownOnScreen(gauge)))
         {
             return false;
         }
 
-        ScreenScale(track, out float scaleX, out float scaleY);
-        min = new Vector2(
-            MathF.Round(track->ScreenX + (CastTrackInsetLeft * scaleX)),
-            MathF.Round(track->ScreenY + (CastTrackInsetTop * scaleY)));
-        max = new Vector2(
-            MathF.Round(track->ScreenX + ((track->Width - CastTrackInsetRight) * scaleX)),
-            MathF.Round(track->ScreenY + ((track->Height - CastTrackInsetBottom) * scaleY)));
-        return max.X - min.X > 1f && max.Y - min.Y > 1f;
+        AtkUldPartsList* parts = fill->PartsList;
+        if (parts is null || parts->Parts is null || parts->PartCount <= CastArtPart)
+        {
+            return false;
+        }
+
+        AtkUldPart* part = &parts->Parts[CastArtPart];
+        if (part->UldAsset is null)
+        {
+            return false;
+        }
+
+        AtkTexture* texture = &part->UldAsset->AtkTexture;
+        if (texture->TextureType != TextureType.Resource || texture->Resource is null)
+        {
+            return false;
+        }
+
+        var kernel = texture->Resource->KernelTextureObject;
+        if (kernel is null || kernel->D3D11ShaderResourceView is null || kernel->ActualWidth == 0u || kernel->ActualHeight == 0u)
+        {
+            return false;
+        }
+
+        // A part is written in the units of the normal-size texture. With high-resolution UI
+        // textures on, the game loads a copy at twice the size, and the same numbers point at
+        // a quarter of the art unless they are doubled. Asked once per texture, not per frame.
+        if ((nint)kernel != s_castArtTexture)
+        {
+            s_castArtTexture = (nint)kernel;
+            s_castArtScale = IsHighResolution(texture->Resource) ? 2f : 1f;
+        }
+
+        float texelsX = s_castArtScale / kernel->ActualWidth;
+        float texelsY = s_castArtScale / kernel->ActualHeight;
+
+        ScreenScale(gauge, out float scaleX, out float scaleY);
+
+        art.Origin = new Vector2(gauge->ScreenX, gauge->ScreenY);
+        art.Width = gauge->Width;
+        art.Height = gauge->Height;
+        art.Scale = new Vector2(scaleX, scaleY);
+        art.Texture = new ImTextureID(kernel->D3D11ShaderResourceView);
+        art.Uv0 = new Vector2(part->U * texelsX, part->V * texelsY);
+        art.Uv1 = new Vector2((part->U + part->Width) * texelsX, (part->V + part->Height) * texelsY);
+        art.UvPerUnit = new Vector2(texelsX, texelsY);
+        art.SliceLeft = fill->LeftOffset;
+        art.SliceTop = fill->TopOffset;
+        art.SliceRight = fill->RightOffset;
+        art.SliceBottom = fill->BottomOffset;
+
+        return art.Width > 0f && art.Height > 0f;
+    }
+
+    /// <summary>Whether a texture was loaded from its double-size file. Reads the name in place; allocates nothing.</summary>
+    private static unsafe bool IsHighResolution(AtkTextureResource* resource)
+    {
+        if (resource->TexFileResourceHandle is null)
+        {
+            return false;
+        }
+
+        ReadOnlySpan<byte> name = resource->TexFileResourceHandle->ResourceHandle.FileName.AsSpan();
+        return name.IndexOf("_hr1"u8) >= 0;
     }
 
     /// <summary>Visible only if it and every node above it are.</summary>
@@ -992,7 +1090,8 @@ internal static class NativeUi
     /// <para>
     /// ⚠️ A diagnostic, not a draw-path call: it builds strings. Only reached from
     /// <c>/wisp status</c>. Kept because a patch that rebuilds the cast bar moves
-    /// <see cref="CastTrackNodeId"/>, and this is how it was measured the first time.
+    /// <see cref="CastGaugeNodeId"/> and <see cref="CastFillNodeId"/>, and this is how they
+    /// were measured the first time.
     /// </para>
     /// </summary>
     public static unsafe void DumpCastBar()
@@ -1041,9 +1140,23 @@ internal static class NativeUi
                 node->ParentNode == null ? 0u : node->ParentNode->NodeId);
         }
 
-        if (ReadCastBar(out Vector2 min, out Vector2 max))
+        if (ReadCastBarArt(false, out CastBarArt art))
         {
-            Services.Log.Information("[cast] track picked: ({0:0.0},{1:0.0}) to ({2:0.0},{3:0.0})", min.X, min.Y, max.X, max.Y);
+            Services.Log.Information(
+                "[cast] art uv=({0:0.0000},{1:0.0000})-({2:0.0000},{3:0.0000}) slices l{4} t{5} r{6} b{7} hires={8}",
+                art.Uv0.X,
+                art.Uv0.Y,
+                art.Uv1.X,
+                art.Uv1.Y,
+                art.SliceLeft,
+                art.SliceTop,
+                art.SliceRight,
+                art.SliceBottom,
+                s_castArtScale > 1f);
+        }
+        else
+        {
+            Services.Log.Information("[cast] no art to read.");
         }
     }
 

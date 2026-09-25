@@ -895,29 +895,16 @@ internal static class Tokens
         // --- the slide window on the game's cast bar ----------------------------
 
         /// <summary>
-        /// The outline round the slide window. Two pixels, like the target ring: it sits on
-        /// the game's bar for the whole cast, so it only has to be findable, not loud.
+        /// The see-through lead-in on the left of the game's gauge art, in the gauge's own
+        /// units. The art is placed this far before the slide point so that its visible left
+        /// edge lands on it. The same margin the gauge carries (measured 2026-09-25: the
+        /// visible rim starts 7 to 8 units inside the 160-unit gauge).
         /// </summary>
-        public static float SlideEdge => WorldLine(2f);
-
-        /// <summary>
-        /// The rounding at the bar's end, as a share of the bar's height. MEASURED 2026-09-25:
-        /// the game's rim curves over about three of its twelve pixels. A share rather than
-        /// pixels, so it follows the cast bar when the player resizes it in the HUD layout.
-        /// </summary>
-        public const float SlideEndRounding = 0.25f;
-
-        /// <summary>
-        /// How strongly the window fills once the server has taken the cast. Strong enough to
-        /// read out of the corner of an eye — that moment is the whole point — and still
-        /// short of hiding the fill running underneath it.
-        /// </summary>
-        public const float SlideFillAlpha = 0.55f;
+        public const float SlideArtLeadIn = 8f;
 
         /// <summary>
         /// The slide window the game allows, in seconds: the last half second of a cast.
-        /// Used only where there is nothing better — the outline before the server has
-        /// answered, and the preview. The live fill waits for the game's own word.
+        /// Where the window starts on the bar. Which colour it wears is the game's own word.
         /// </summary>
         public const float SlideSeconds = 0.5f;
 
@@ -928,15 +915,20 @@ internal static class Tokens
 
         /// <summary>
         /// How late the preview's stand-in server answers, past the start of the window. A
-        /// typical round trip, so the preview shows the fill arriving a moment after the
-        /// outline — which is what the real one does.
+        /// typical round trip, so the preview shows the colour change arriving a moment after
+        /// the window — which is what the real one does.
         /// </summary>
         public const float SlidePreviewLatency = 0.08f;
 
-        /// <summary>The preview's stand-in bar: about the size of the game's own at 100 %.</summary>
-        public static float SlidePreviewWidth => WorldPx(220f);
+        /// <summary>
+        /// The preview's stand-in gauge, in the game's gauge units (measured 2026-09-25: 160 ×
+        /// 20), how much bigger it is drawn, and how far the visible bar sits inside it.
+        /// </summary>
+        public static readonly System.Numerics.Vector2 SlidePreviewUnits = new(160f, 20f);
 
-        public static float SlidePreviewHeight => WorldPx(12f);
+        public const float SlidePreviewScale = 1.5f;
+
+        public static readonly System.Numerics.Vector2 SlidePreviewTrackInset = new(8f, 5f);
 
         // --- the combat meter ---------------------------------------------------
         // It wears the window's look but lives on the world, so every size here is in screen
