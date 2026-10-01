@@ -891,6 +891,30 @@ internal static class NativeUi
         return over is null ? 0ul : (ulong)over->GetGameObjectId();
     }
 
+    // --- the player's own job --------------------------------------------------
+
+    /// <summary>
+    /// The job and level being played, from the game's own record of the player.
+    /// <para>
+    /// Here rather than through <c>Services.Objects.LocalPlayer</c>, which wraps the player
+    /// in a new object on every access — fine once on a click, not once a frame (§7.1).
+    /// Zero while the record is not loaded, which is also what a login screen says.
+    /// </para>
+    /// </summary>
+    public static unsafe uint LocalJob(out int level)
+    {
+        var state = FFXIVClientStructs.FFXIV.Client.Game.UI.PlayerState.Instance();
+
+        if (state is null || !state->IsLoaded)
+        {
+            level = 0;
+            return 0u;
+        }
+
+        level = state->CurrentLevel;
+        return state->CurrentClassJobId;
+    }
+
     // --- the player's own cast ------------------------------------------------
 
     /// <summary>

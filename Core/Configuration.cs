@@ -125,6 +125,15 @@ public sealed class Configuration : IPluginConfiguration
     public const float MaxDispelThickness = 4f;
 
     /// <summary>
+    /// How small and how large a Quick Dispel square may be. Below 16 the party number and
+    /// the seconds no longer fit inside the job-colour edge; above 64 a square is a frame.
+    /// </summary>
+    public const float MinDispelSquare = 16f;
+
+    /// <inheritdoc cref="MinDispelSquare"/>
+    public const float MaxDispelSquare = 64f;
+
+    /// <summary>
     /// How small and how large the numbers on an effect icon may be set, as a share of the
     /// icon's height.
     /// <para>
@@ -212,6 +221,18 @@ public sealed class Configuration : IPluginConfiguration
     public bool CombatTrackerEnabled { get; set; }
 
     public CombatTrackerConfig CombatTracker { get; set; } = new();
+
+    /// <summary>
+    /// Whether the Quick Dispel squares are drawn at all. Off by default, like every module:
+    /// nothing appears on somebody's screen until they ask for it.
+    /// </summary>
+    public bool QuickDispelEnabled { get; set; }
+
+    /// <summary>
+    /// The Quick Dispel module. New fields with their defaults, so no migration step: a
+    /// configuration written before it existed simply reads these as they ship.
+    /// </summary>
+    public QuickDispelConfig QuickDispel { get; set; } = new();
 
     /// <summary>
     /// The small helpers on the game's own interface (version 21). No switch for the module
@@ -1226,6 +1247,56 @@ public sealed class Configuration : IPluginConfiguration
     }
 
     /// <summary>
+    /// The Quick Dispel module: one square per party member that lights up when your cleanse
+    /// would help them, and casts it when clicked (Florian, 2026-09-22).
+    /// <para>
+    /// 🔴 Five settings and no more — the list agreed with the mockup. A sixth has to earn
+    /// its place (CLAUDE.md §0.7).
+    /// </para>
+    /// <para>
+    /// Not in a profile, like the meter: "Only on jobs that can cleanse" already answers the
+    /// one question a profile would have been asked here.
+    /// </para>
+    /// </summary>
+    [Serializable]
+    public sealed class QuickDispelConfig
+    {
+        /// <summary>Top left of the first square, in screen pixels.</summary>
+        public float PositionX { get; set; } = 600f;
+
+        public float PositionY { get; set; } = 500f;
+
+        /// <summary>One side of a square, in screen pixels.</summary>
+        public float SquareSize { get; set; } = 28f;
+
+        /// <summary>0 = one row of up to eight, 1 = four across, as many rows as it takes.</summary>
+        public int Layout { get; set; }
+
+        /// <summary>The member's place in the party, written in the square while nothing is on them.</summary>
+        public bool ShowPartyNumber { get; set; } = true;
+
+        /// <summary>
+        /// Shown only while the player is on a job that can cleanse. On: a Warrior has
+        /// nothing to click, and a row of squares they cannot use is furniture.
+        /// </summary>
+        public bool OnlyWhenAble { get; set; } = true;
+
+        /// <summary>
+        /// Shown only while somebody has something to take off. Off by default: a row that
+        /// is always there is one the eye knows where to find the moment it lights.
+        /// </summary>
+        public bool HideWhenClear { get; set; }
+
+        internal void Sanitise()
+        {
+            this.PositionX = Bounded(this.PositionX, -MaxPosition, MaxPosition, 600f);
+            this.PositionY = Bounded(this.PositionY, -MaxPosition, MaxPosition, 500f);
+            this.SquareSize = Bounded(this.SquareSize, MinDispelSquare, MaxDispelSquare, 28f);
+            this.Layout = Known<Hud.QuickDispel.DispelLayout>(this.Layout);
+        }
+    }
+
+    /// <summary>
     /// The Quality of Life module (version 21): small helpers that sit on the game's own
     /// interface rather than replacing it.
     /// <para>
@@ -1340,6 +1411,8 @@ public sealed class Configuration : IPluginConfiguration
         this.PartyFrames.Sanitise();
         this.CombatTracker ??= new CombatTrackerConfig();
         this.CombatTracker.Sanitise();
+        this.QuickDispel ??= new QuickDispelConfig();
+        this.QuickDispel.Sanitise();
         this.QualityOfLife ??= new QualityOfLifeConfig();
         this.QualityOfLife.Sanitise();
         this.Profiles ??= new ProfileSet();

@@ -163,6 +163,34 @@ internal static class StatusData
     };
 
     /// <summary>
+    /// The action that takes an effect off somebody, for the job being played — what a
+    /// Quick Dispel square casts. Zero for a job that has none.
+    /// <para>
+    /// Checked against the Action sheet on 2026-09-25 (xivapi, exdschema): Esuna 7568 is
+    /// CNJ WHM SCH AST SGE, the Warden's Paean 3561 is Bard from 35, Exuviation 18318 is the
+    /// Blue Mage one. The level is not asked here: the game's own check refuses an action
+    /// the player has not learned, which is the same answer without a second table.
+    /// </para>
+    /// <para>
+    /// 🔴 Exuviation cannot be aimed at anybody (CanTargetParty false). It lands on the
+    /// caster and takes effects off everyone within six yalms, so <paramref name="onSelf"/>
+    /// says it goes on the player whichever square was clicked.
+    /// </para>
+    /// </summary>
+    public static uint CleanseAction(uint jobId, out bool onSelf)
+    {
+        onSelf = jobId == 36u;
+
+        return jobId switch
+        {
+            6u or 24u or 28u or 33u or 40u => 7568u, // Esuna
+            23u => 3561u,                          // the Warden's Paean
+            36u => 18318u,                         // Exuviation
+            _ => 0u,
+        };
+    }
+
+    /// <summary>
     /// The actions that put somebody back on their feet, so a raise already on its way can be
     /// shown before its effect exists.
     /// <para>
