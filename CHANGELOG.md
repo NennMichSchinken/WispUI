@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.0 — 2026-10-01
+
+### New
+
+- Keep the game's own party list and add the cleanse and raise marks to it.
+- Mouseover casting also works on the game's own party list.
+- Quick Dispel: a square per party member that lights up when they need a cleanse.
+- Click a square to cleanse that member without changing your target.
+- The cast bar shows when you can start moving without losing the cast.
+
+### Changed
+
+- A click on a frame selects, a right click opens the game's menu, other buttons do nothing.
+- Mouseover casting and Quick Dispel clicks are off in PvP.
+
 ## 0.1.1 — 2026-09-25
 
 ### Fixed

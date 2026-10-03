@@ -117,8 +117,53 @@ internal static class News
     private const int PartyMarks = 5;
     private const int PartyBindings = 6;
 
+    private const int QuickDispelBase = 0;
+    private const int QualityOfLifeBase = 0;
+
     public static readonly NewsRelease[] Releases =
     {
+        new(
+            "0.2.0",
+            "2026-10-01",
+            "Quick Dispel, the game's party list, and a slidecast.",
+            new NewsEntry[]
+            {
+                // The party frames rows land on Base and light nothing up: it is the one tab
+                // both modes share, and the mode strip sits right above it.
+                new(
+                    NewsKind.New,
+                    "Keep the game's own party list and add the cleanse and raise marks to it.",
+                    Screen.PartyFrames,
+                    PartyBase),
+                // No jump: the Bindings tab has a different number in each mode.
+                new(
+                    NewsKind.New,
+                    "Mouseover casting also works on the game's own party list."),
+                new(
+                    NewsKind.New,
+                    "Quick Dispel: a square per party member that lights up when they need a cleanse.",
+                    Screen.QuickDispel,
+                    QuickDispelBase,
+                    "##wisp-qd-squares"),
+                new(
+                    NewsKind.New,
+                    "Click a square to cleanse that member without changing your target.",
+                    Screen.QuickDispel,
+                    QuickDispelBase,
+                    "##wisp-qd-squares"),
+                new(
+                    NewsKind.New,
+                    "The cast bar shows when you can start moving without losing the cast.",
+                    Screen.QualityOfLife,
+                    QualityOfLifeBase,
+                    "##wisp-qol-slidecast"),
+                new(
+                    NewsKind.Changed,
+                    "A click on a frame selects, a right click opens the game's menu, other buttons do nothing."),
+                new(
+                    NewsKind.Changed,
+                    "Mouseover casting and Quick Dispel clicks are off in PvP."),
+            }),
         new(
             "0.1.1",
             "2026-09-25",
