@@ -48,6 +48,13 @@ internal sealed class Services
     [PluginService] internal static IGameGui GameGui { get; private set; } = null!;
 
     /// <summary>
+    /// Tells us when one of the game's windows is about to draw or about to go away. The slide
+    /// window on the cast bar is a node inside the game's own window, so it is kept up to date
+    /// right before that window draws, and taken out before the window is torn down.
+    /// </summary>
+    [PluginService] internal static IAddonLifecycle AddonLifecycle { get; private set; } = null!;
+
+    /// <summary>
     /// Game icons. Dalamud keeps the textures itself, so nothing here loads or creates one —
     /// an icon is asked for by id, once, and the handle is kept.
     /// </summary>

@@ -1,6 +1,8 @@
 using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Game.Addon.Lifecycle;
+using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Game.ClientState.Objects.Types;
 using WispUI.Appearance;
 using WispUI.Core;
@@ -20,7 +22,7 @@ namespace WispUI.Hud.PartyFrames;
 /// on top of all of it.
 /// </para>
 /// </summary>
-internal sealed class PartyFramesElement : HudElement
+internal sealed class PartyFramesElement : HudElement, IDisposable
 {
     /// <summary>
     /// How quickly a smoothed bar closes the gap to the real value, per second. Set so a
@@ -59,7 +61,8 @@ internal sealed class PartyFramesElement : HudElement
     private const float NumberPlateEdge = 0.09f;
 
     private readonly Configuration m_config;
-    private readonly PartySnapshot m_snapshot = new();
+    /// <summary>The live party, shared with Quick Dispel so the party is read once a frame.</summary>
+    private readonly PartySnapshot m_snapshot;
 
     /// <summary>The stand-ins the settings window preview is drawn from. Never the live one.</summary>
     private readonly PartySnapshot m_preview = new();
@@ -185,16 +188,101 @@ internal sealed class PartyFramesElement : HudElement
     /// <summary>The leader's mark. One picture for the whole party, so it is resolved once.</summary>
     private ImTextureID m_leaderIcon;
 
-    public PartyFramesElement(Configuration config)
+    private const string PartyListAddon = "_PartyList";
+
+    /// <summary>
+    /// Legacy only: the mark each row of the game's list should wear this frame, top to
+    /// bottom — the colour with its strength as alpha, zero for none. Worked out in
+    /// <see cref="Collect"/> from the same party pass the frames use, and handed to the game's
+    /// list right before it draws.
+    /// </summary>
+    private readonly uint[] m_legacyMarks = new uint[PartySnapshot.Capacity];
+
+    public PartyFramesElement(Configuration config, PartySnapshot party)
     {
         m_config = config;
+        m_snapshot = party;
+
+        // Legacy's marks are nodes in the game's own list: kept up to date right before the
+        // list draws, and taken out before the list is torn down.
+        Services.AddonLifecycle.RegisterListener(AddonEvent.PreDraw, PartyListAddon, this.OnPartyListDraw);
+        Services.AddonLifecycle.RegisterListener(AddonEvent.PreFinalize, PartyListAddon, this.OnPartyListGone);
     }
 
     public override string Name => Strings.NavPartyFrames;
 
+    /// <summary>
+    /// On in both modes: in Legacy nothing of ours is drawn (Florian, 2026-09-25), but the
+    /// party still has to be read to know which row gets a mark.
+    /// </summary>
     public override bool Enabled => m_config.PartyFramesEnabled;
 
-    public override bool Movable => true;
+    private bool Legacy => m_config.PartyFrames.Legacy;
+
+    /// <summary>Nothing to drag in Legacy: the list is where the game's HUD layout puts it.</summary>
+    public override bool Movable => !this.Legacy;
+
+    /// <summary>
+    /// Unhooks and takes the marks out. Dalamud disposes a plugin on the game's thread, which
+    /// is the thread the list may be touched on; anywhere else it is left to the game.
+    /// </summary>
+    public void Dispose()
+    {
+        Services.AddonLifecycle.UnregisterListener(AddonEvent.PreDraw, PartyListAddon, this.OnPartyListDraw);
+        Services.AddonLifecycle.UnregisterListener(AddonEvent.PreFinalize, PartyListAddon, this.OnPartyListGone);
+
+        if (Services.Framework.IsInFrameworkUpdateThread)
+        {
+            NativeUi.RemovePartyMarks();
+        }
+    }
+
+    private void OnPartyListDraw(AddonEvent type, AddonArgs args)
+    {
+        // Custom, or switched off: nothing of ours in the game's list at all.
+        if (!m_config.PartyFramesEnabled || !this.Legacy)
+        {
+            NativeUi.RemovePartyMarks();
+            return;
+        }
+
+        NativeUi.UpdatePartyMarks(args.Addon.Address, m_legacyMarks);
+    }
+
+    private void OnPartyListGone(AddonEvent type, AddonArgs args) => NativeUi.ForgetPartyMarks(args.Addon.Address);
+
+    /// <summary>
+    /// Which mark each row wears: raise over cleanse, because "somebody is already on it" is
+    /// the reason to stop looking at a row; the same switches, colours, strengths and the same
+    /// "only on jobs that can cleanse" rule as the Custom frames.
+    /// </summary>
+    private void CollectLegacyMarks()
+    {
+        Configuration.PartyFramesConfig cfg = m_config.PartyFrames;
+        bool cleanse = cfg.ShowCleanseMark && (!cfg.CleanseOnlyWhenAble || CanCleanseNow());
+        PartyMemberSnapshot[] members = m_snapshot.Members;
+
+        for (int i = 0; i < m_legacyMarks.Length; i++)
+        {
+            m_legacyMarks[i] = 0u;
+
+            if (i >= m_snapshot.Count)
+            {
+                continue;
+            }
+
+            ref PartyMemberSnapshot member = ref members[i];
+
+            if (cfg.ShowRaiseMark && member.RaiseRemaining > 0f)
+            {
+                m_legacyMarks[i] = Tokens.Col.Faded(cfg.RaiseColour, cfg.RaiseOpacity);
+            }
+            else if (cleanse && member.HasDispellable)
+            {
+                m_legacyMarks[i] = Tokens.Col.Faded(cfg.CleanseColour, cfg.CleanseOpacity);
+            }
+        }
+    }
 
     /// <summary>
     /// The block all the frames together occupy, worked out from what was actually drawn.
@@ -257,14 +345,18 @@ internal sealed class PartyFramesElement : HudElement
         // things it covers — which is exactly wrong for a tab whose every control needs to be
         // watched while it is moved (Florian, 2026-09-13: the icons were never visible,
         // because turning on the thing that showed eight frames took the window away).
-        if (EditMode.IsActive)
+        //
+        // Stand-ins in edit mode, the party otherwise — decided inside, once for every reader
+        // of the shared snapshot. Legacy takes only the marks out of it; in edit mode the
+        // stand-ins carry none, so the game's list goes unmarked while things are arranged.
+        m_snapshot.Refresh(m_config.PartyFrames.OwnBuffsOnly);
+
+        if (this.Legacy)
         {
-            m_snapshot.FillPlaceholders();
-            this.CollectIcons();
+            this.CollectLegacyMarks();
             return;
         }
 
-        m_snapshot.Collect(m_config.PartyFrames.OwnBuffsOnly);
         this.CollectIcons();
     }
 
@@ -307,6 +399,13 @@ internal sealed class PartyFramesElement : HudElement
     /// </summary>
     public override void Draw(ImDrawListPtr dl)
     {
+        // Legacy draws nothing of its own — no frames, no window over them that would take
+        // the mouse from the game's list. Its marks are nodes in that list.
+        if (this.Legacy)
+        {
+            return;
+        }
+
         if (!NativeUi.ContextMenuBounds(out Vector2 menuMin, out Vector2 menuMax))
         {
             this.DrawLive(dl);
@@ -351,8 +450,9 @@ internal sealed class PartyFramesElement : HudElement
 
     public override bool HasPreview => true;
 
-    public override Vector2 PreviewSize(int count) =>
-        FrameLayout.BlockSize(
+    public override Vector2 PreviewSize(int count) => m_config.PartyFrames.Legacy
+        ? LegacyPreview.Size(count)
+        : FrameLayout.BlockSize(
             count,
             (FrameDirection)m_config.PartyFrames.Direction,
             m_config.PartyFrames.Lines,
@@ -376,6 +476,15 @@ internal sealed class PartyFramesElement : HudElement
         // the real frames is gone: it existed because the icons could not be seen without a
         // fight, and this band is that answer done properly (Florian, 2026-09-19).
         m_preview.FillPlaceholders(count, true);
+
+        // Legacy has no frames of ours to show: the band shows the game's list as a stand-in,
+        // with the marks WispUI lays on it.
+        if (m_config.PartyFrames.Legacy)
+        {
+            LegacyPreview.Draw(dl, origin, m_preview, m_config.PartyFrames);
+            return;
+        }
+
         this.DrawContent(dl, origin, m_preview, m_previewGeo, false);
     }
 
@@ -767,21 +876,10 @@ internal sealed class PartyFramesElement : HudElement
     private void TakeTheMouse(ImDrawListPtr dl, Configuration.PartyFramesConfig cfg, FrameGeometry geo, int count)
     {
         // Nothing to take while the layout is being set against stand-ins: there is nobody to
-        // select, and edit mode wants the same button for dragging.
-        //
-        // 🔴 The mouseover spells are in this list too, and they were the easy one to leave
-        // out: nothing on a frame reacts to them, so nothing on screen would have said the
-        // mouse was never taken — the spells would simply have gone to the selected target,
-        // which is what they do anyway when you are not pointing at anybody. Pointing at
-        // somebody is only known while the mouse is ours.
-        uint job = LocalJobId();
-
-        if (count == 0
-            || EditMode.IsActive
-            || (cfg.Bindings.For(job).Count == 0
-                && cfg.Mouseover.For(job).Count == 0
-                && !cfg.MouseoverTarget
-                && !cfg.HighlightHovered))
+        // select, and edit mode wants the same button for dragging. Otherwise always: a click
+        // selects and a right click opens the menu, and a frame that cannot be clicked is not
+        // a party frame.
+        if (count == 0 || EditMode.IsActive)
         {
             this.ReleaseMouseOver();
             return;
@@ -852,19 +950,13 @@ internal sealed class PartyFramesElement : HudElement
                 // on the wrong person and slide off without selecting them — and it is why
                 // this is the return value rather than IsItemClicked (Florian, 2026-09-12).
                 //
-                // The right button is asked for only when it has somewhere to go. It is taken
-                // from the player either way — ImGui captures every button over the block, all
-                // or none (spec §15) — but a button that is claimed and then handed nothing is
-                // worse than one that was never claimed, and this way the flags say which it is.
-                // Every button the bindings could want, which is all of them: ImGui takes them
-                // over this window whatever is asked for here (spec §15), so claiming fewer
-                // would only mean a button that is taken from the player and handed nothing.
+                // The two buttons a click on the game's own party list answers to. The others
+                // are taken over this window anyway (spec §15) and simply do nothing here.
                 bool clicked = ImGui.InvisibleButton(
                     IdSlot,
                     geo.FrameMax[i] - geo.FrameMin[i],
                     ImGuiButtonFlags.MouseButtonLeft
-                    | ImGuiButtonFlags.MouseButtonRight
-                    | ImGuiButtonFlags.MouseButtonMiddle);
+                    | ImGuiButtonFlags.MouseButtonRight);
                 bool hovered = ImGui.IsItemHovered();
 
                 // Held down and dragged off the block is still our press. Without this the
@@ -917,12 +1009,9 @@ internal sealed class PartyFramesElement : HudElement
                     continue;
                 }
 
-                // The bindings, asked of the frame a release happened on. A button set to
-                // answer on release reports in the very frame of that release, so whichever
-                // button is fresh right now is the one that did it. The two side buttons never
-                // reach the invisible button at all — ImGui has no flag for them — so they are
-                // asked about directly, gated on the frame being hovered.
-                this.Fire(cfg, clicked, hovered, ref members[i], target);
+                // Asked of the frame a release happened on: the button answers in the very frame
+                // of its release, so whichever one is fresh right now is the one that did it.
+                Fire(clicked, ref members[i], target);
 
                 if (!hovered)
                 {
@@ -934,7 +1023,9 @@ internal sealed class PartyFramesElement : HudElement
                 MouseoverCasting.PointAt(target.GameObjectId);
                 m_pointedAt = true;
 
-                if (cfg.MouseoverTarget)
+                // Not in PvP: the game's mouseover target is what a <mo> macro casts on, which
+                // makes this mouseover casting by another road (Florian, 2026-09-25).
+                if (cfg.MouseoverTarget && !Services.ClientState.IsPvP)
                 {
                     Services.Targets.MouseOverTarget = target;
                     m_heldMouseOver = true;
@@ -957,135 +1048,39 @@ internal sealed class PartyFramesElement : HudElement
     }
 
     /// <summary>
-
-    /// <summary>
-    /// Runs whatever the player has bound to the button they just released on this frame.
+    /// What a click on a frame does: the left button selects the member, the right one opens
+    /// the game's own menu on them — what a click on the game's own party list does.
     /// <para>
-    /// The set is the one for the job they are on, so the same button is a heal on a White
-    /// Mage and nothing on a Warrior — which is the point of keeping them per job.
+    /// 🔴 Fixed, with nothing to set, since 2026-09-25. These two used to be mouse bindings
+    /// among others, and the others — a mouse button that uses an action — are gone
+    /// (Florian: nobody needs them, and a click that casts is one more thing an official
+    /// submission would have to clear). What is left is what the game does itself.
     /// </para>
     /// </summary>
-    private void Fire(
-        Configuration.PartyFramesConfig cfg,
-        bool clicked,
-        bool hovered,
-        ref PartyMemberSnapshot member,
-        IGameObject target)
+    private static void Fire(bool clicked, ref PartyMemberSnapshot member, IGameObject target)
     {
-        int button = ReleasedButton(clicked, hovered);
-
-        if (button < 0)
+        if (!clicked)
         {
             return;
         }
 
-        BindingModifiers held = HeldModifiers();
-        System.Collections.Generic.List<MouseBinding> bindings = cfg.Bindings.For(LocalJobId());
-
-        for (int i = 0; i < bindings.Count; i++)
+        if (ImGui.IsMouseReleased(ImGuiMouseButton.Right))
         {
-            MouseBinding binding = bindings[i];
-
-            if (!binding.Matches(button, held))
-            {
-                continue;
-            }
-
-            switch (binding.Kind)
-            {
-                case BindingKind.Target:
-                    Services.Targets.Target = target;
-                    break;
-
-                case BindingKind.ContextMenu:
-                    // 🔴 SETTLED IN THE GAME (Florian, 2026-09-13). Three numbers could have
-                    // been meant and the call documents none of them; right-clicking the party
-                    // leader opened the local player's own profile, which is only possible if
-                    // the index goes into the HUD agent's array — that one always begins with
-                    // the local player, so the leader's place in the party list, zero, landed
-                    // on us.
-                    //
-                    // Neither of the other two, then: not the row the frame is drawn on, and
-                    // not the place in the party list Dalamud hands us, which is what was
-                    // being passed on the strength of another plugin doing so for years.
-                    // Evidence beat inference.
-                    NativeUi.OpenPartyContextMenu(member.HudIndex);
-                    break;
-
-                case BindingKind.Action:
-                    ActionUse.On(binding.ActionId, target.GameObjectId, target.Address);
-                    break;
-            }
-
-            // One binding per press. Two that match the same button and modifiers is a
-            // configuration nobody meant, and running both would be the worse reading of it.
+            // 🔴 SETTLED IN THE GAME (Florian, 2026-09-13). Three numbers could have been
+            // meant and the call documents none of them; right-clicking the party leader
+            // opened the local player's own profile, which is only possible if the index goes
+            // into the HUD agent's array — that one always begins with the local player, so
+            // the leader's place in the party list, zero, landed on us.
+            //
+            // Neither of the other two, then: not the row the frame is drawn on, and not the
+            // place in the party list Dalamud hands us, which is what was being passed on the
+            // strength of another plugin doing so for years. Evidence beat inference.
+            NativeUi.OpenPartyContextMenu(member.HudIndex);
             return;
         }
+
+        Services.Targets.Target = target;
     }
-
-    /// <summary>
-    /// Which button was just released on this frame, or -1 for none.
-    /// <para>
-    /// The first three come from the invisible button, which answers on release and only
-    /// inside its own area — that is what lets a press slide off a frame without counting,
-    /// the way the game's own party list behaves. The two side buttons have no ImGui flag, so
-    /// they are asked about directly and only while the frame is hovered.
-    /// </para>
-    /// </summary>
-    private static int ReleasedButton(bool clicked, bool hovered)
-    {
-        if (clicked)
-        {
-            if (ImGui.IsMouseReleased(ImGuiMouseButton.Right))
-            {
-                return 1;
-            }
-
-            if (ImGui.IsMouseReleased(ImGuiMouseButton.Middle))
-            {
-                return 2;
-            }
-
-            return 0;
-        }
-
-        if (!hovered)
-        {
-            return -1;
-        }
-
-        if (ImGui.IsMouseReleased((ImGuiMouseButton)3))
-        {
-            return 3;
-        }
-
-        return ImGui.IsMouseReleased((ImGuiMouseButton)4) ? 4 : -1;
-    }
-
-    /// <summary>What is being held right now, as the bindings describe it.</summary>
-    private static BindingModifiers HeldModifiers()
-    {
-        ImGuiIOPtr io = ImGui.GetIO();
-        BindingModifiers held = BindingModifiers.None;
-
-        if (io.KeyCtrl)
-        {
-            held |= BindingModifiers.Ctrl;
-        }
-
-        if (io.KeyShift)
-        {
-            held |= BindingModifiers.Shift;
-        }
-
-        if (io.KeyAlt)
-        {
-            held |= BindingModifiers.Alt;
-        }
-
-        return held;
-    }
-
     /// <summary>The job the player is on, or zero when there is nobody to ask.</summary>
     private static uint LocalJobId() => Services.Objects.LocalPlayer?.ClassJob.RowId ?? 0u;
 
@@ -1233,7 +1228,7 @@ internal sealed class PartyFramesElement : HudElement
     /// on its path, so half of it falls outside the rectangle and is antialiased — the same
     /// reason the window's rings and the party number's edge are filled shapes.
     /// </summary>
-    private static void Ring(ImDrawListPtr dl, Vector2 min, Vector2 max, float thickness, uint colour)
+    internal static void Ring(ImDrawListPtr dl, Vector2 min, Vector2 max, float thickness, uint colour)
     {
         float t = MathF.Min(thickness, MathF.Min(max.X - min.X, max.Y - min.Y) * 0.5f);
         if (t <= 0f)
@@ -1284,12 +1279,6 @@ internal sealed class PartyFramesElement : HudElement
 
         return player is not null && StatusData.CanCleanse(player.ClassJob.RowId, player.Level);
     }
-
-    /// <summary>
-    /// Looks for raises in flight. On the tick because it costs a walk of the object table
-    /// and must keep running whether or not anything is being drawn.
-    /// </summary>
-    public override void Tick() => m_snapshot.Tick(Environment.TickCount64 / 1000d);
 
     private void DrawJobIcon(
         ImDrawListPtr dl,
@@ -1619,7 +1608,7 @@ internal sealed class PartyFramesElement : HudElement
     /// not run out — there is no number to write for something that is simply there.
     /// </para>
     /// </summary>
-    private static string? DurationText(float remaining)
+    internal static string? DurationText(float remaining)
     {
         if (remaining <= 0f)
         {

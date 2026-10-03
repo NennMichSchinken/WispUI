@@ -178,27 +178,10 @@ internal static class Strings
     // --- bindings -----------------------------------------------------------
     public const string TabBindings = "Bindings";
     public const string GroupJob = "Job";
-    public const string GroupJobHint = "Both lists below belong to the job picked here.";
-    public const string GroupBindings = "Mouse bindings";
-    public const string GroupBindingsHint = "What each button does on a frame.";
+    public const string GroupJobHint = "The list below belongs to the job picked here.";
     public const string BindingJob = "Set up for";
-    public const string BindingJobTooltip = "Kept per job, because what a button should do depends on what you play.";
-    public const string BindingAdd = "Add binding";
-    public const string BindingPick = "Pick an action…";
-    public const string BindingAction = "Action";
-    public const string BindingTarget = "Select target";
-    public const string BindingContextMenu = "Game menu";
+    public const string BindingJobTooltip = "Kept per job, because which spells go to the pointer depends on what you play.";
     public const string BindingNoActions = "This job has nothing that can be aimed at a party member.";
-
-    public const string KeybindListening = "Press a button…";
-    public const string ModCtrl = "Ctrl";
-    public const string ModShift = "Shift";
-    public const string ModAlt = "Alt";
-    public const string MouseLeft = "Left";
-    public const string MouseRight = "Right";
-    public const string MouseMiddle = "Middle";
-    public const string MouseFour = "Mouse 4";
-    public const string MouseFive = "Mouse 5";
 
     // --- colours -----------------------------------------------------------
     public const string GroupRoles = "Roles";
@@ -234,7 +217,7 @@ internal static class Strings
     // The group is named after what it does, not after a switch, because it no longer is one:
     // the list of spells is the setting (Florian, 2026-09-19).
     public const string GroupMouseover = "Mouseover casting";
-    public const string GroupMouseoverHint = "Spells that go to the frame under the pointer instead of your target.";
+    public const string GroupMouseoverHint = "Spells that go to whoever is under the pointer instead of your target. Off in PvP.";
     public const string MouseoverAdd = "Add spell";
     public const string MouseoverPick = "Pick a spell…";
 
@@ -471,6 +454,38 @@ internal static class Strings
     public const string MetricDeaths = "Deaths";
 
     public const string NavCombatTracker = "Combat Tracker";
+
+    // --- Party frames: Custom or Legacy ----------------------------------------
+    public const string PartyModeCustom = "Custom";
+    public const string PartyModeLegacy = "Legacy";
+
+    // --- Quick Dispel ---------------------------------------------------------
+    public const string NavQuickDispel = "Quick Dispel";
+    public const string GroupDispelSquares = "Squares";
+    public const string GroupDispelSquaresHint = "One per party member. Hold Alt over them to move them.";
+    public const string DispelSquareSize = "Square size";
+    public const string DispelLayout = "Layout";
+    public const string DispelLayoutRow = "Row";
+    public const string DispelLayoutGrid = "4 across";
+    public const string DispelPartyNumber = "Party number";
+    public const string DispelPartyNumberTooltip = "Writes each member's place in the party in their square while nothing is on them.";
+    public const string GroupDispelShown = "When it shows";
+    public const string GroupDispelShownHint = "A click always casts on that member; a lit square needs it. No clicks in PvP.";
+    public const string DispelOnlyWhenAble = "Only on jobs that can cleanse";
+    public const string DispelOnlyWhenAbleTooltip = "Hides the squares on any job without Esuna, the Warden's Paean or Exuviation.";
+    public const string DispelHideWhenClear = "Hide when nobody needs one";
+    public const string DispelHideWhenClearTooltip = "Hides the squares until somebody has an effect you can take off. Off, they stay where your eye expects them.";
+
+    // --- Quality of Life ------------------------------------------------------
+    public const string NavQualityOfLife = "Quality of Life";
+    public const string GroupSlidecast = "Cast bar";
+    public const string GroupSlidecastHint = "Marks the end of a cast you can already move out of.";
+    public const string SlidecastWaitColour = "Not yet";
+    public const string SlidecastWaitTooltip = "The outline over the last half second of a cast, before the server has taken it. Moving now still cancels the cast.";
+    public const string SlidecastReadyColour = "Safe to move";
+    public const string SlidecastReadyTooltip = "The colour the moment the server has taken the cast. From here on you can move and the cast still goes through.";
+    public const string SlidecastFill = "Fill when safe";
+    public const string SlidecastFillTooltip = "Fills the window with the safe colour, over the cast bar's own fill. Off, only the frame changes colour.";
 
     // On the meter itself.
     public const string MeterViewCurrent = "Current";

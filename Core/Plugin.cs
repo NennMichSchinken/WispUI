@@ -23,6 +23,18 @@ public sealed class Plugin : IDalamudPlugin
     private readonly HudManager m_hud = new();
     private readonly Hud.CombatTracker.CombatTrackerElement m_meter;
 
+    /// <summary>
+    /// The live party, read once a frame for everyone who draws from it — the frames and
+    /// Quick Dispel. Ticked here rather than by either, so it keeps ticking with one of them off.
+    /// </summary>
+    private readonly PartySnapshot m_party = new();
+
+    /// <summary>The slide window. Owned here because it puts a node into the game's cast bar, which must come out on the way.</summary>
+    private readonly Hud.QualityOfLife.SlidecastElement m_slidecast;
+
+    /// <summary>The party frames. Owned here because in Legacy they lay marks into the game's party list, which must come out on the way.</summary>
+    private readonly PartyFramesElement m_frames;
+
     /// <summary>The one feature that hooks the game. Owned here so it is always disposed.</summary>
     private readonly MouseoverCasting m_mouseover;
 
@@ -49,14 +61,23 @@ public sealed class Plugin : IDalamudPlugin
 
         // Kept in a local, because the settings window draws this same element as its
         // preview. One object, one set of drawing code, two places it appears.
-        var frames = new PartyFramesElement(m_config);
-        m_hud.Add(frames);
+        m_frames = new PartyFramesElement(m_config, m_party);
+        m_hud.Add(m_frames);
+
+        // After the frames, so its squares and its hover ring sit over them where the two meet.
+        var dispel = new Hud.QuickDispel.QuickDispelElement(m_config, m_party);
+        m_hud.Add(dispel);
 
         // After the frames, so it draws over them where the two meet.
         m_meter = new Hud.CombatTracker.CombatTrackerElement(m_config);
         m_hud.Add(m_meter);
 
-        m_configWindow = new ConfigWindow(m_config, frames, m_meter);
+        // Last, so the slide window is drawn over anything of ours that might share its
+        // corner of the screen. It sits on the game's own cast bar and must stay readable.
+        m_slidecast = new Hud.QualityOfLife.SlidecastElement(m_config);
+        m_hud.Add(m_slidecast);
+
+        m_configWindow = new ConfigWindow(m_config, m_frames, dispel, m_meter);
         m_meter.SettingsRequested += this.OnMeterSettings;
         m_configWindow.Closed += this.OnConfigClosed;
         m_windows.AddWindow(m_configWindow);
@@ -110,6 +131,11 @@ public sealed class Plugin : IDalamudPlugin
         Services.PluginInterface.UiBuilder.Draw -= this.OnDraw;
 
         m_mouseover.Dispose();
+
+        // Our node out of the game's cast bar. Nothing of ours may stay in the game's
+        // interface once the code that owns it is gone.
+        m_slidecast.Dispose();
+        m_frames.Dispose();
 
         // A piece of the player's interface must never stay hidden by something that has
         // stopped running. Nothing happens here if we never hid it.
@@ -176,10 +202,18 @@ public sealed class Plugin : IDalamudPlugin
         //
         // The list goes only while there is something of ours in its place: switching the
         // module off gives it back without the player having to remember a second tick.
+        // Never in Legacy: there the game's list IS the frames.
         NativeUi.SettleNativePartyList(
-            m_config.PartyFramesEnabled && m_config.PartyFrames.HideNativePartyList);
+            m_config.PartyFramesEnabled && !m_config.PartyFrames.Legacy && m_config.PartyFrames.HideNativePartyList);
 
         this.SyncHudFonts();
+
+        // Raises in flight and who is in range. Only while something reads the party: the
+        // watch walks the object table, and nobody should pay for it with both modules off.
+        if (m_config.PartyFramesEnabled || m_config.QuickDispelEnabled)
+        {
+            m_party.Tick(Environment.TickCount64 / 1000d);
+        }
 
         // Work that has to keep running while nothing is drawn, or that costs too much to do
         // per frame. Each element throttles its own.
@@ -193,9 +227,19 @@ public sealed class Plugin : IDalamudPlugin
     /// Asked of the job rather than kept: changing job changes the list, and there is no
     /// event for it that is cheaper than the lookup.
     /// </para>
+    /// <para>
+    /// 🔴 Nothing in PvP: an empty list takes the hook out altogether, so no action is ever
+    /// redirected there. A redirect is an advantage a PvP opponent does not have, and the
+    /// plugin rules ask for none (Florian, 2026-09-25).
+    /// </para>
     /// </summary>
     private void SyncMouseover() =>
-        m_mouseover.Sync(m_config.PartyFrames.Mouseover.For(Services.Objects.LocalPlayer?.ClassJob.RowId ?? 0u));
+        m_mouseover.Sync(Services.ClientState.IsPvP
+            ? NoSpells
+            : m_config.PartyFrames.Mouseover.For(Services.Objects.LocalPlayer?.ClassJob.RowId ?? 0u));
+
+    /// <summary>What the hook is handed in PvP. Never written to.</summary>
+    private static readonly System.Collections.Generic.List<MouseoverSpell> NoSpells = new();
 
     /// <summary>
     /// Keeps the HUD's font handles in step with the face and the text sizes in use.

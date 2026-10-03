@@ -359,6 +359,26 @@ internal static class Tokens
         public static readonly uint Raise = Rgb(0x5BD98A);
 
         /// <summary>
+        /// ⚠️ NOT MEASURED. The slide window on the cast bar, before the server has taken the
+        /// cast: "not yet". A warm red, after the screenshot Florian brought (2026-09-25).
+        /// </summary>
+        public static readonly uint SlideWait = Rgb(0xFF6A5A);
+
+        /// <summary>
+        /// ⚠️ NOT MEASURED. The slide window once the cast is taken: "move now". The same
+        /// green as the raise mark on purpose — both say "this is handled".
+        /// </summary>
+        public static readonly uint SlideReady = Rgb(0x5BD98A);
+
+        /// <summary>
+        /// ⚠️ NOT MEASURED. The Legacy preview's stand-in of the game's party list: its bar's
+        /// empty track and its health fill, the pale green the game uses, by eye.
+        /// </summary>
+        public static readonly uint LegacyTrack = Rgb(0x2C2B2B);
+
+        public static readonly uint LegacyHealth = Rgb(0xCFE8C9);
+
+        /// <summary>
         /// ⚠️ NOT MEASURED. Somebody who cannot be killed right now — the amber the game uses
         /// on its own invulnerability effects, by eye.
         /// </summary>
@@ -874,6 +894,95 @@ internal static class Tokens
         /// mouse is on the target the hover ring still has to read as the one arriving.
         /// </summary>
         public static float FrameTargetRing => WorldLine(2f);
+
+        // --- the Legacy preview: a stand-in of the game's party list -------------
+        // In screen pixels like everything drawn as the HUD looks. ⚠️ By eye from the game's
+        // list at 100 %, not measured; the real marks sit on the real list.
+
+        public static float LegacyRowWidth => WorldPx(220f);
+
+        public static float LegacyRowHeight => WorldPx(42f);
+
+        public static float LegacyRowGap => WorldPx(4f);
+
+        public static float LegacyRowPad => WorldPx(6f);
+
+        public static float LegacyIcon => WorldPx(30f);
+
+        public static float LegacyBarHeight => WorldPx(6f);
+
+        public static float LegacyNameGap => WorldPx(2f);
+
+        /// <summary>The mark round a row (variant D): its outline, its corners, and how strong its wash is at full fill strength.</summary>
+        public static float LegacyMarkEdge => WorldLine(2f);
+
+        public static float LegacyMarkRadius => WorldPx(6f);
+
+        public const float LegacyWash = 0.18f;
+
+        // --- Quick Dispel ---------------------------------------------------------
+        // On the world, so screen pixels (WorldPx), never the suite scale.
+
+        /// <summary>Between two squares. Enough that two job colours side by side read as two edges.</summary>
+        public static float DispelGap => WorldPx(4f);
+
+        /// <summary>The job-colour edge of a square. Two, so the colour reads at a glance on a 16 px square.</summary>
+        public static float DispelEdge => WorldLine(2f);
+
+        /// <summary>
+        /// The Alt handle above the first square: a smaller square with no edge, as a share of
+        /// a real one, and the air under it. A square rather than a dot, because a dot did not
+        /// read as something to take hold of (Florian, 2026-09-25).
+        /// </summary>
+        public const float DispelHandleShare = 0.5f;
+
+        public static float DispelHandleGap => WorldPx(8f);
+
+        /// <summary>How far the handle brightens towards white under the pointer.</summary>
+        public const float DispelHandleLift = 0.25f;
+
+        /// <summary>
+        /// The ring round the square under the pointer. Thinner and half as strong as the
+        /// frames' own (Florian, 2026-09-25: too loud on a square this small) — on a square the
+        /// hand already says "clickable", the ring only says which one.
+        /// </summary>
+        public static float DispelHoverRing => WorldLine(2f);
+
+        public const float DispelHoverAlpha = 0.5f;
+
+        /// <summary>
+        /// A square whose member is out of reach or not here. Fainter than a frame out of
+        /// range: a frame still has health to say, a square
+        /// only says "you can click this", and here that is not true.
+        /// </summary>
+        public const float DispelAwayAlpha = 0.4f;
+
+        /// <summary>The party number and the seconds, as a share of the square's side.</summary>
+        public const float DispelNumberShare = 0.5f;
+
+        // --- the slide window on the game's cast bar ----------------------------
+
+        /// <summary>
+        /// The see-through lead-in on the left of the game's gauge art, in the gauge's own
+        /// units. The art is placed this far before the slide point so that its visible left
+        /// edge lands on it. The same margin the gauge carries (measured 2026-09-25: the
+        /// visible rim starts 7 to 8 units inside the 160-unit gauge).
+        /// </summary>
+        public const float SlideArtLeadIn = 8f;
+
+        /// <summary>
+        /// How strongly the green fill covers the game's pink fill once the server has taken
+        /// the cast. Strong, because it is the one moment the window exists for (Florian,
+        /// 2026-09-25: a green frame round a bar that stayed pink was hard to read); short of
+        /// solid, so the bar's own progress still shows through underneath.
+        /// </summary>
+        public const float SlideReadyAlpha = 0.85f;
+
+        /// <summary>
+        /// The slide window the game allows, in seconds: the last half second of a cast.
+        /// Where the window starts on the bar. Which colour it wears is the game's own word.
+        /// </summary>
+        public const float SlideSeconds = 0.5f;
 
         // --- the combat meter ---------------------------------------------------
         // It wears the window's look but lives on the world, so every size here is in screen

@@ -27,7 +27,9 @@ internal enum Screen
     Global,
     Profile,
     PartyFrames,
+    QuickDispel,
     CombatTracker,
+    QualityOfLife,
 
     /// <summary>The release notes. Reached from the card in the navigation footer, not from a nav row.</summary>
     News,
@@ -159,12 +161,29 @@ internal sealed class ConfigWindow : Window
     /// <summary>The bar and what it says · where the meter goes and how it is framed.</summary>
     private static readonly string[] TabsCombatTracker = { Strings.TabBase, Strings.TabLayout };
 
+    /// <summary>One tab: each helper is a card on it, not a tab of its own.</summary>
+    private static readonly string[] TabsQualityOfLife = { Strings.TabBase };
+
+    /// <summary>One tab: five settings in two cards.</summary>
+    private static readonly string[] TabsQuickDispel = { Strings.TabBase };
+
     /// <summary>
     /// Which chip is the bindings tab, asked of the list rather than written down. Two places
     /// far apart act on it, and a literal in both is the pair that drifts when a tab is
     /// inserted ahead of them.
     /// </summary>
     private static readonly int TabIndexBindings = Array.IndexOf(TabsPartyFrames, Strings.TabBindings);
+
+    /// <summary>
+    /// Legacy's tabs: the marks WispUI lays on the game's list, and what the mouse does on it.
+    /// Everything else on the Custom tabs is about frames of ours, which Legacy does not draw.
+    /// </summary>
+    private static readonly string[] TabsPartyFramesLegacy = { Strings.TabBase, Strings.TabBindings };
+
+    /// <summary>The Custom / Legacy choice in the party frames' header, in that order.</summary>
+    private static readonly string[] PartyModes = { Strings.PartyModeLegacy, Strings.PartyModeCustom };
+
+    private const string IdPartyMode = "##wisp-pf-mode";
 
     /// <summary>
     /// The navigation tree. Suite-wide entries first, then a separator, then the HUD
@@ -176,7 +195,9 @@ internal sealed class ConfigWindow : Window
         new("##wisp-nav-profile", Strings.NavProfile, Screen.Profile),
         NavRow.Separator(),
         new("##wisp-nav-party", Strings.NavPartyFrames, Screen.PartyFrames),
+        new("##wisp-nav-dispel", Strings.NavQuickDispel, Screen.QuickDispel),
         new("##wisp-nav-tracker", Strings.NavCombatTracker, Screen.CombatTracker),
+        new("##wisp-nav-qol", Strings.NavQualityOfLife, Screen.QualityOfLife),
     };
 
     private readonly Configuration m_config;
@@ -196,6 +217,11 @@ internal sealed class ConfigWindow : Window
     private readonly PartyFramesScreen m_partyFrames;
     private readonly CombatTrackerScreen m_combatTracker;
     private readonly Hud.CombatTracker.CombatTrackerElement m_meter;
+    private readonly QualityOfLifeScreen m_qualityOfLife;
+
+    /// <summary>The Quick Dispel squares, for their preview band, and their settings page.</summary>
+    private readonly Hud.HudElement m_dispel;
+    private readonly QuickDispelScreen m_quickDispel;
 
     /// <summary>
     /// One buffer for the whole suite, and one strip that offers it. Both are built here and
@@ -221,7 +247,11 @@ internal sealed class ConfigWindow : Window
     /// <summary>Whether the pointer is currently ours to speak for.</summary>
     private bool m_ownsCursor;
 
-    public ConfigWindow(Configuration config, Hud.HudElement? previewOf, Hud.CombatTracker.CombatTrackerElement meter)
+    public ConfigWindow(
+        Configuration config,
+        Hud.HudElement? previewOf,
+        Hud.HudElement dispel,
+        Hud.CombatTracker.CombatTrackerElement meter)
         : base(
             Strings.WindowId,
             ImGuiWindowFlags.NoTitleBar
@@ -239,6 +269,9 @@ internal sealed class ConfigWindow : Window
         m_partyFrames = new PartyFramesScreen(config);
         m_combatTracker = new CombatTrackerScreen(config, meter);
         m_meter = meter;
+        m_qualityOfLife = new QualityOfLifeScreen(config);
+        m_dispel = dispel;
+        m_quickDispel = new QuickDispelScreen(config);
         m_appearance = new AppearanceBar(m_clipboard);
 
         string version = ReadVersion();
@@ -561,6 +594,8 @@ internal sealed class ConfigWindow : Window
         Screen.Profile => Strings.NavProfile,
         Screen.News => Strings.NewsTitle,
         Screen.CombatTracker => Strings.NavCombatTracker,
+        Screen.QualityOfLife => Strings.NavQualityOfLife,
+        Screen.QuickDispel => Strings.NavQuickDispel,
         _ => Strings.NavPartyFrames,
     };
 
@@ -574,10 +609,73 @@ internal sealed class ConfigWindow : Window
         // "Base" over a list of sentences would say this is something to configure.
         Screen.News => TabsNone,
         Screen.CombatTracker => TabsCombatTracker,
+        Screen.QualityOfLife => TabsQualityOfLife,
+        Screen.QuickDispel => TabsQuickDispel,
         _ => TabsPartyFrames,
     };
 
     private static readonly string[] TabsNone = System.Array.Empty<string>();
+
+    /// <summary>
+    /// The tabs a screen shows right now. The same as <see cref="TabsFor"/> except for the
+    /// party frames, whose tabs depend on the mode: a release note still points at the Custom
+    /// tabs, which is what it was written against.
+    /// </summary>
+    private string[] TabsOn(Screen screen) =>
+        screen == Screen.PartyFrames && m_config.PartyFrames.Legacy ? TabsPartyFramesLegacy : TabsFor(screen);
+
+    /// <summary>Whether the party frames' Bindings tab is the one showing, in either mode.</summary>
+    private bool OnBindingsTab()
+    {
+        string[] tabs = this.TabsOn(Screen.PartyFrames);
+        int tab = m_tabIndex[(int)Screen.PartyFrames];
+        return tab >= 0 && tab < tabs.Length && tabs[tab] == Strings.TabBindings;
+    }
+
+    /// <summary>
+    /// Legacy or Custom, as a strip at the start of the tab row, a hairline away from the
+    /// tabs: first what the module is, then the tabs that belong to it — and switching shows
+    /// the row beside it grow or shrink (Florian, 2026-09-25, variant A). Exactly one is on.
+    /// <para>
+    /// Switching keeps you on the same tab where both modes have it (Bindings), and puts you
+    /// on Base where the tab you were on does not exist in the other mode.
+    /// </para>
+    /// </summary>
+    /// <returns>Where the tabs start, right of the strip and its hairline.</returns>
+    private float DrawPartyMode(ImDrawListPtr dl, float x, float y)
+    {
+        float widest = MathF.Max(
+            Ink.Measure(Ink.Role.Body, Strings.PartyModeCustom).X,
+            Ink.Measure(Ink.Role.Body, Strings.PartyModeLegacy).X);
+        float width = MathF.Round((widest + (Tokens.Space.Lg * 2f)) * PartyModes.Length);
+        float height = Tokens.Metric.TabHeight;
+
+        // Legacy first, so it sits on the left (Florian, 2026-09-25).
+        int mode = m_config.PartyFrames.Legacy ? 0 : 1;
+        string[] before = this.TabsOn(Screen.PartyFrames);
+        int tab = m_tabIndex[(int)Screen.PartyFrames];
+        string current = tab >= 0 && tab < before.Length ? before[tab] : Strings.TabBase;
+
+        if (Chrome.Segment(IdPartyMode, x, y, width, height, PartyModes, ref mode))
+        {
+            m_config.PartyFrames.Legacy = mode == 0;
+            m_config.MarkDirty();
+
+            int kept = Array.IndexOf(this.TabsOn(Screen.PartyFrames), current);
+            m_tabIndex[(int)Screen.PartyFrames] = kept < 0 ? 0 : kept;
+        }
+
+        // The hairline between what the module is and what it has, at the tabs' own height
+        // less a little top and bottom, so it separates without boxing anything in.
+        float lineX = MathF.Round(x + width + Tokens.Space.Lg);
+        float inset = MathF.Round(height * 0.2f);
+        dl.AddRectFilled(
+            new Vector2(lineX, y + inset),
+            new Vector2(lineX + Tokens.Line(1f), y + height - inset),
+            Tokens.Col.Hairline);
+
+        return lineX + Tokens.Line(1f) + Tokens.Space.Lg;
+    }
 
     /// <summary>
     /// The title bar. Its fill runs from the very top of the window rather than from inside
@@ -894,16 +992,21 @@ internal sealed class ConfigWindow : Window
     {
         // Only where there is something to show. The suite-wide screens configure nothing
         // that can be drawn, and an empty band on them would be furniture.
-        if (m_screen != Screen.PartyFrames || m_previewOf is null || !m_previewOf.HasPreview)
+        Hud.HudElement? shown = this.PreviewFor(m_screen);
+        if (shown is null || !shown.HasPreview)
         {
             return top;
         }
+
+        // The party sizes and the eyes are the frames' own questions. Another module's band
+        // is the caret, the word and the drawing.
+        bool party = m_screen == Screen.PartyFrames;
 
         // Bindings is the one party tab the band says nothing about: it sets what a key and a
         // pointer do on a frame, and none of that changes how the frame looks. A preview that
         // cannot answer the question on screen is just height taken from the settings
         // (Florian, 2026-09-19).
-        if (m_tabIndex[(int)m_screen] == TabIndexBindings)
+        if (party && this.OnBindingsTab())
         {
             return top;
         }
@@ -965,22 +1068,29 @@ internal sealed class ConfigWindow : Window
 
         // How many stand-ins. The three party sizes somebody actually plays, as chips rather
         // than a selector: they are one tap each and all three are worth seeing at a glance.
-        float chipX = x + headWidth + Tokens.Space.Lg;
-
-        for (int i = 0; i < PreviewCounts.Length; i++)
+        if (party)
         {
-            float width = Chrome.MeasureTab(PreviewCountLabels[i]);
+            float chipX = x + headWidth + Tokens.Space.Lg;
 
-            if (Chrome.Tab(PreviewCountIds[i], PreviewCountLabels[i], chipX, y, width, m_config.PreviewCount == PreviewCounts[i]))
+            for (int i = 0; i < PreviewCounts.Length; i++)
             {
-                m_config.PreviewCount = PreviewCounts[i];
-                m_config.MarkDirty();
+                float width = Chrome.MeasureTab(PreviewCountLabels[i]);
+
+                if (Chrome.Tab(PreviewCountIds[i], PreviewCountLabels[i], chipX, y, width, m_config.PreviewCount == PreviewCounts[i]))
+                {
+                    m_config.PreviewCount = PreviewCounts[i];
+                    m_config.MarkDirty();
+                }
+
+                chipX += width + Tokens.Metric.TabGap;
             }
 
-            chipX += width + Tokens.Metric.TabGap;
+            // The eyes take parts of a frame of ours out of view; in Legacy there is none.
+            if (!m_config.PartyFrames.Legacy)
+            {
+                this.DrawPreviewEyeMenu(dl, x + wide, y, barHeight);
+            }
         }
-
-        this.DrawPreviewEyeMenu(dl, x + wide, y, barHeight);
 
         y += barHeight + Tokens.Space.Sm;
 
@@ -990,10 +1100,18 @@ internal sealed class ConfigWindow : Window
         }
 
         float height = Tokens.Metric.PreviewHeight;
-        this.DrawPreviewViewport(dl, x, y, wide, height);
+        this.DrawPreviewViewport(dl, shown, x, y, wide, height);
 
         return y + height + Tokens.Space.Md;
     }
+
+    /// <summary>Which element a screen's band shows, or null for a screen without one.</summary>
+    private Hud.HudElement? PreviewFor(Screen screen) => screen switch
+    {
+        Screen.PartyFrames => m_previewOf,
+        Screen.QuickDispel => m_dispel,
+        _ => null,
+    };
 
     /// <summary>
     /// The eye at the right of the band, and the list of everything the preview can be asked
@@ -1105,7 +1223,7 @@ internal sealed class ConfigWindow : Window
     /// The dark area the frames are drawn into: clipped to its own rectangle, scrolled when
     /// the block is larger than it, and centred when it is smaller.
     /// </summary>
-    private void DrawPreviewViewport(ImDrawListPtr dl, float x, float y, float width, float height)
+    private void DrawPreviewViewport(ImDrawListPtr dl, Hud.HudElement shown, float x, float y, float width, float height)
     {
         // Behind the frames rather than the window's own surface. What a frame really sits on
         // is the game, which is anything at all, so the honest backdrop here is a neutral
@@ -1132,7 +1250,7 @@ internal sealed class ConfigWindow : Window
         if (ImGui.BeginChild(IdPreview, new Vector2(width, height), false, ImGuiWindowFlags.HorizontalScrollbar))
         {
             float pad = Tokens.Metric.PreviewPadding;
-            Vector2 block = m_previewOf!.PreviewSize(m_config.PreviewCount);
+            Vector2 block = shown.PreviewSize(m_config.PreviewCount);
             Vector2 content = block + new Vector2(pad * 2f, pad * 2f);
 
             // Centred while it fits, hard against the padding once it does not — a block that
@@ -1150,7 +1268,7 @@ internal sealed class ConfigWindow : Window
             // frames go straight into the draw list, which ImGui cannot size a window from.
             ImGui.Dummy(block);
 
-            m_previewOf.DrawPreview(ImGui.GetWindowDrawList(), origin, m_config.PreviewCount);
+            shown.DrawPreview(ImGui.GetWindowDrawList(), origin, m_config.PreviewCount);
         }
 
         ImGui.EndChild();
@@ -1271,12 +1389,11 @@ internal sealed class ConfigWindow : Window
     /// </summary>
     private float DrawTabs(ImDrawListPtr dl, float left, float right, float top)
     {
-        _ = dl;
         _ = right;
 
         // No tabs while the tracker is walking somebody through installing IINACT: there is
         // nothing behind them yet, and the wizard stands where their content would.
-        string[] tabs = m_screen == Screen.CombatTracker && m_combatTracker.ShowsWizard ? TabsNone : TabsFor(m_screen);
+        string[] tabs = m_screen == Screen.CombatTracker && m_combatTracker.ShowsWizard ? TabsNone : this.TabsOn(m_screen);
         int screenIndex = (int)m_screen;
         if (m_tabIndex[screenIndex] >= tabs.Length)
         {
@@ -1293,6 +1410,12 @@ internal sealed class ConfigWindow : Window
 
         float tabTop = top + Tokens.Space.Md;
         float x = left + Tokens.Metric.SectionPaddingX;
+
+        if (m_screen == Screen.PartyFrames)
+        {
+            x = this.DrawPartyMode(dl, x, tabTop);
+        }
+
         for (int i = 0; i < tabs.Length && i < TabIds.Length; i++)
         {
             float width = Chrome.MeasureTab(tabs[i]);
@@ -1315,28 +1438,41 @@ internal sealed class ConfigWindow : Window
     /// </summary>
     private float DrawScreenHeader(ImDrawListPtr dl, float left, float right, float top)
     {
-        bool isModule = m_screen is Screen.PartyFrames or Screen.CombatTracker;
+        // Quality of Life is a module with no switch of its own: each of its cards carries one
+        // (Florian, 2026-09-25), so its header is a title like Global's.
+        bool isModule = m_screen is Screen.PartyFrames or Screen.QuickDispel or Screen.CombatTracker;
         bool isFrames = m_screen == Screen.PartyFrames;
-        bool enabled = isFrames ? m_config.PartyFramesEnabled : m_config.CombatTrackerEnabled;
+        bool enabled = m_screen switch
+        {
+            Screen.PartyFrames => m_config.PartyFramesEnabled,
+            Screen.QuickDispel => m_config.QuickDispelEnabled,
+            _ => m_config.CombatTrackerEnabled,
+        };
         float height = Tokens.Metric.ModuleHeaderHeight;
         float x = left + Tokens.Metric.SectionPaddingX;
 
         // Told every frame, not only on the frames where the strip is drawn — that is what
         // makes the step back disappear when you leave the module.
-        m_appearance.NoteOwner(isFrames ? m_partyFrames : null);
+        // Legacy has no appearance of ours to copy: the look is the game's.
+        bool copyable = isFrames && !m_config.PartyFrames.Legacy;
+        m_appearance.NoteOwner(copyable ? m_partyFrames : null);
 
         if (isModule)
         {
             float switchY = MathF.Round(top + ((height - Tokens.Metric.SwitchHeight) * 0.5f));
             if (Chrome.Switch(IdModuleSwitch, x, switchY, enabled, true))
             {
-                if (isFrames)
+                switch (m_screen)
                 {
-                    m_config.PartyFramesEnabled = !m_config.PartyFramesEnabled;
-                }
-                else
-                {
-                    m_config.CombatTrackerEnabled = !m_config.CombatTrackerEnabled;
+                    case Screen.PartyFrames:
+                        m_config.PartyFramesEnabled = !m_config.PartyFramesEnabled;
+                        break;
+                    case Screen.QuickDispel:
+                        m_config.QuickDispelEnabled = !m_config.QuickDispelEnabled;
+                        break;
+                    default:
+                        m_config.CombatTrackerEnabled = !m_config.CombatTrackerEnabled;
+                        break;
                 }
 
                 m_config.MarkDirty();
@@ -1374,7 +1510,10 @@ internal sealed class ConfigWindow : Window
 
         if (isFrames)
         {
-            m_appearance.Draw(m_partyFrames, cursor - Tokens.Space.Md, buttonY);
+            if (copyable)
+            {
+                m_appearance.Draw(m_partyFrames, cursor - Tokens.Space.Md, buttonY);
+            }
         }
 
         return top + height;
@@ -1440,6 +1579,25 @@ internal sealed class ConfigWindow : Window
             else if (m_screen == Screen.CombatTracker)
             {
                 m_combatTracker.DrawLayout(inner);
+            }
+            else if (m_screen == Screen.QualityOfLife)
+            {
+                m_qualityOfLife.Draw(inner);
+            }
+            else if (m_screen == Screen.QuickDispel)
+            {
+                m_quickDispel.Draw(inner);
+            }
+            else if (m_screen == Screen.PartyFrames && m_config.PartyFrames.Legacy)
+            {
+                if (this.OnBindingsTab())
+                {
+                    m_partyFrames.DrawBindings(inner);
+                }
+                else
+                {
+                    m_partyFrames.DrawLegacy(inner);
+                }
             }
             else if (m_screen == Screen.PartyFrames && tab == 0)
             {

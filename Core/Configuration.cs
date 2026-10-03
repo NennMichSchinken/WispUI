@@ -12,7 +12,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 20;
+    public const int CurrentVersion = 22;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -125,6 +125,15 @@ public sealed class Configuration : IPluginConfiguration
     public const float MaxDispelThickness = 4f;
 
     /// <summary>
+    /// How small and how large a Quick Dispel square may be. Below 16 the party number and
+    /// the seconds no longer fit inside the job-colour edge; above 64 a square is a frame.
+    /// </summary>
+    public const float MinDispelSquare = 16f;
+
+    /// <inheritdoc cref="MinDispelSquare"/>
+    public const float MaxDispelSquare = 64f;
+
+    /// <summary>
     /// How small and how large the numbers on an effect icon may be set, as a share of the
     /// icon's height.
     /// <para>
@@ -214,6 +223,26 @@ public sealed class Configuration : IPluginConfiguration
     public CombatTrackerConfig CombatTracker { get; set; } = new();
 
     /// <summary>
+    /// Whether the Quick Dispel squares are drawn at all. Off by default, like every module:
+    /// nothing appears on somebody's screen until they ask for it.
+    /// </summary>
+    public bool QuickDispelEnabled { get; set; }
+
+    /// <summary>
+    /// The Quick Dispel module. New fields with their defaults, so no migration step: a
+    /// configuration written before it existed simply reads these as they ship.
+    /// </summary>
+    public QuickDispelConfig QuickDispel { get; set; } = new();
+
+    /// <summary>
+    /// The small helpers on the game's own interface (version 21). No switch for the module
+    /// as a whole: it is a shelf of unrelated helpers, and each card switches its own
+    /// (Florian, 2026-09-25) — a second switch above them would only be a second place to
+    /// turn the same thing off.
+    /// </summary>
+    public QualityOfLifeConfig QualityOfLife { get; set; } = new();
+
+    /// <summary>
     /// The saved profiles and which one is on.
     /// <para>
     /// 🔴 The blocks above are still what everything reads. A profile is written into them
@@ -231,6 +260,21 @@ public sealed class Configuration : IPluginConfiguration
     [Serializable]
     public sealed class PartyFramesConfig
     {
+        /// <summary>
+        /// Legacy instead of Custom (version 22): the game's own party list stays, and WispUI
+        /// only adds its marks and its mouse to it.
+        /// <para>
+        /// Legacy by default (Florian, 2026-09-25): the lightest touch on somebody's screen is
+        /// the right first one. Anybody from before the choice keeps Custom — the migration to
+        /// version 22 writes it in.
+        /// </para>
+        /// <para>
+        /// On the module rather than on the suite, so a profile carries it: somebody may want
+        /// grid frames on their healer and the game's list on their tank (Florian, 2026-09-25).
+        /// </para>
+        /// </summary>
+        public bool Legacy { get; set; } = true;
+
         /// <summary>
         /// The bar style, by name.
         /// <para>
@@ -263,12 +307,6 @@ public sealed class Configuration : IPluginConfiguration
 
         /// <summary>Draw the player name on the frame at all — the switch in the group head.</summary>
         public bool ShowName { get; set; } = true;
-
-        /// <summary>
-        /// What each mouse button does on a frame, per job. See <see cref="BindingSet"/> for
-        /// why it is per job and what a job answers to before anybody has set it up.
-        /// </summary>
-        public BindingSet Bindings { get; set; } = new();
 
         /// <summary>
         /// Which spells go to whoever the mouse is over, per job. See
@@ -473,20 +511,6 @@ public sealed class Configuration : IPluginConfiguration
         // --- the mouse ----------------------------------------------------------
 
         /// <summary>
-        /// The old switch for selecting on left-click. Nothing reads it any more — it is a
-        /// binding now, and the default binding set does exactly what it did. Kept so the
-        /// migration to version 6 can see whether somebody had turned it off; droppable once
-        /// no stored configuration is older than that.
-        /// </summary>
-        public bool ClickToTarget { get; set; } = true;
-
-        /// <summary>
-        /// The old switch for the right-click menu, in the same position as
-        /// <see cref="ClickToTarget"/> and kept for the same reason.
-        /// </summary>
-        public bool ContextMenu { get; set; } = true;
-
-        /// <summary>
         /// While the mouse is over a frame, tell the game that member is what it is pointing
         /// at. That is all it takes for the player's own mouseover macros and, with the game's
         /// own mouseover setting on, their hotbar to act on that member.
@@ -494,9 +518,8 @@ public sealed class Configuration : IPluginConfiguration
         public bool MouseoverTarget { get; set; } = true;
 
         /// <summary>
-        /// The old blanket switch for mouseover casting, in the same position as
-        /// <see cref="ClickToTarget"/> and kept for the same reason: the migration to version
-        /// 10 reads it to tell whether anybody was relying on it. Nothing writes it any more
+        /// The old blanket switch for mouseover casting. Kept only because the migration to
+        /// version 10 reads it to tell whether anybody was relying on it. Nothing writes it any more
         /// — the spells are picked one at a time in <see cref="Mouseover"/>.
         /// </summary>
         public bool MouseoverCasting { get; set; }
@@ -831,7 +854,7 @@ public sealed class Configuration : IPluginConfiguration
         /// shape that was chosen rather than the first one in the list.
         /// </para>
         /// </summary>
-        public bool ShowCleanseMark { get; set; } = true;
+        public bool ShowCleanseMark { get; set; }
 
         /// <summary>
         /// Show the cleanse mark only while on a job that can actually cleanse.
@@ -879,7 +902,7 @@ public sealed class Configuration : IPluginConfiguration
 
         /// <summary>Whether the raise mark appears, with the cleanse mark and for the same
         /// reason.</summary>
-        public bool ShowRaiseMark { get; set; } = true;
+        public bool ShowRaiseMark { get; set; }
 
         /// <summary>
         /// A spring green, and deliberately NOT the healer role colour <c>#6EF54D</c>: the mark
@@ -1108,7 +1131,6 @@ public sealed class Configuration : IPluginConfiguration
             // would be a name nothing can even be compared against.
             this.BarStyleName ??= Data.BarStyles.DefaultName;
             this.ShieldStyleName ??= Data.BarStyles.ShieldDefaultName;
-            this.Bindings ??= new BindingSet();
             this.Mouseover ??= new MouseoverSet();
         }
 
@@ -1225,6 +1247,96 @@ public sealed class Configuration : IPluginConfiguration
     }
 
     /// <summary>
+    /// The Quick Dispel module: one square per party member that lights up when your cleanse
+    /// would help them, and casts it when clicked (Florian, 2026-09-22).
+    /// <para>
+    /// 🔴 Five settings and no more — the list agreed with the mockup. A sixth has to earn
+    /// its place (CLAUDE.md §0.7).
+    /// </para>
+    /// <para>
+    /// Not in a profile, like the meter: "Only on jobs that can cleanse" already answers the
+    /// one question a profile would have been asked here.
+    /// </para>
+    /// </summary>
+    [Serializable]
+    public sealed class QuickDispelConfig
+    {
+        /// <summary>Top left of the first square, in screen pixels.</summary>
+        public float PositionX { get; set; } = 600f;
+
+        public float PositionY { get; set; } = 500f;
+
+        /// <summary>One side of a square, in screen pixels.</summary>
+        public float SquareSize { get; set; } = 28f;
+
+        /// <summary>0 = one row of up to eight, 1 = four across, as many rows as it takes.</summary>
+        public int Layout { get; set; }
+
+        /// <summary>The member's place in the party, written in the square while nothing is on them.</summary>
+        public bool ShowPartyNumber { get; set; } = true;
+
+        /// <summary>
+        /// Shown only while the player is on a job that can cleanse. On: a Warrior has
+        /// nothing to click, and a row of squares they cannot use is furniture.
+        /// </summary>
+        public bool OnlyWhenAble { get; set; } = true;
+
+        /// <summary>
+        /// Shown only while somebody has something to take off. Off by default: a row that
+        /// is always there is one the eye knows where to find the moment it lights.
+        /// </summary>
+        public bool HideWhenClear { get; set; }
+
+        internal void Sanitise()
+        {
+            this.PositionX = Bounded(this.PositionX, -MaxPosition, MaxPosition, 600f);
+            this.PositionY = Bounded(this.PositionY, -MaxPosition, MaxPosition, 500f);
+            this.SquareSize = Bounded(this.SquareSize, MinDispelSquare, MaxDispelSquare, 28f);
+            this.Layout = Known<Hud.QuickDispel.DispelLayout>(this.Layout);
+        }
+    }
+
+    /// <summary>
+    /// The Quality of Life module (version 21): small helpers that sit on the game's own
+    /// interface rather than replacing it.
+    /// <para>
+    /// 🔴 Not in a profile, like the lettering: the cast bar is a property of the screen, not
+    /// of the job being played. Nobody wants the slide window on their healer and not on
+    /// their caster.
+    /// </para>
+    /// </summary>
+    [Serializable]
+    public sealed class QualityOfLifeConfig
+    {
+        /// <summary>
+        /// The slide window on the game's cast bar. Off by default: with no module switch
+        /// above it, this IS the switch, and nothing on somebody's screen changes until they ask.
+        /// </summary>
+        public bool SlidecastEnabled { get; set; }
+
+        /// <summary>The outline before the server has taken the cast.</summary>
+        public uint SlidecastWaitColour { get; set; } = Style.Tokens.Col.SlideWait;
+
+        /// <summary>The frame once it has — the moment moving is safe.</summary>
+        public uint SlidecastReadyColour { get; set; } = Style.Tokens.Col.SlideReady;
+
+        /// <summary>
+        /// Whether the window also fills with the ready colour at that moment, or only its
+        /// frame turns (Florian, 2026-09-25: both ways read well, so both are offered). On,
+        /// because the fill is what carries the moment at a glance.
+        /// </summary>
+        public bool SlidecastFill { get; set; } = true;
+
+        internal void Sanitise()
+        {
+            // A see-through outline would be one nobody can find; every swatch in the suite
+            // hands out opaque colours, so an alpha here only arrives by hand-editing.
+            this.SlidecastWaitColour |= 0xFF000000u;
+            this.SlidecastReadyColour |= 0xFF000000u;
+        }
+    }
+
+    /// <summary>
     /// A number inside its range, or the default when it is not a number at all. The
     /// second case is the one that matters: NaN fails every comparison, so it slips
     /// through a clamp untouched and then quietly poisons every size computed from it.
@@ -1299,6 +1411,10 @@ public sealed class Configuration : IPluginConfiguration
         this.PartyFrames.Sanitise();
         this.CombatTracker ??= new CombatTrackerConfig();
         this.CombatTracker.Sanitise();
+        this.QuickDispel ??= new QuickDispelConfig();
+        this.QuickDispel.Sanitise();
+        this.QualityOfLife ??= new QualityOfLifeConfig();
+        this.QualityOfLife.Sanitise();
         this.Profiles ??= new ProfileSet();
         this.Profiles.Sanitise();
     }
@@ -1510,35 +1626,14 @@ public sealed class Configuration : IPluginConfiguration
 
         if (config.Version < 6)
         {
-            // Selecting and the right-click menu were two switches and are now bindings. A
-            // job with no entry answers to the defaults, which do exactly what the two
-            // switches did when both were on — so only somebody who had turned one off needs
-            // anything written down, and for them it is written down for every job at once.
+            // Selecting and the right-click menu were two switches, then mouse bindings. Since
+            // 2026-09-25 they are neither: a click selects and a right click opens the menu,
+            // fixed, the way the game's own party list does — so there is nothing left to carry
+            // over, and this step does nothing.
             //
-            // 🔴 This block used to leave the whole method with a `return` when there was
-            // nothing to write. That was invisible while it was the last step and a trap the
-            // moment anything followed it: every later migration would have been skipped for
-            // exactly the people who had changed nothing. A step declines by doing nothing,
-            // never by ending the chain.
-            if (!config.PartyFrames.ClickToTarget || !config.PartyFrames.ContextMenu)
-            {
-                System.Collections.Generic.List<MouseBinding> kept = new();
-
-                if (config.PartyFrames.ClickToTarget)
-                {
-                    kept.Add(new MouseBinding { Button = 0, Kind = BindingKind.Target });
-                }
-
-                if (config.PartyFrames.ContextMenu)
-                {
-                    kept.Add(new MouseBinding { Button = 1, Kind = BindingKind.ContextMenu });
-                }
-
-                foreach ((uint id, _) in Data.JobList.Order)
-                {
-                    config.PartyFrames.Bindings.ByJob[id] = Clone(kept);
-                }
-            }
+            // 🔴 Kept as an empty step rather than deleted, and it never ends the chain with a
+            // `return`: that once would have skipped every later migration for exactly the
+            // people who had changed nothing. A step declines by doing nothing.
         }
 
         if (config.Version < 7)
@@ -1783,6 +1878,21 @@ public sealed class Configuration : IPluginConfiguration
 
         // Version 20 added the combat meter's block. Nothing to move either: it arrives with
         // its defaults and switched off.
+
+        // Version 21 added the Quality of Life block. The same: defaults, switched off.
+
+        // Version 22 added Legacy to the party frames, and Legacy is the default for a new
+        // install. Everybody before it had Custom — their frames must not vanish on the day
+        // they update — so Custom is written in, in the live block and in every profile.
+        if (config.Version < 22)
+        {
+            config.PartyFrames.Legacy = false;
+
+            for (int i = 0; i < config.Profiles.Items.Count; i++)
+            {
+                config.Profiles.Items[i].PartyFrames.Legacy = false;
+            }
+        }
     }
 
     /// <inheritdoc cref="PartyFramesConfig.SpacingX"/>
@@ -1879,19 +1989,5 @@ public sealed class Configuration : IPluginConfiguration
         cfg.AuraDispelThickness *= by;
         cfg.CleanseThickness *= by;
         cfg.RaiseThickness *= by;
-    }
-
-    /// <summary>A fresh copy per job, so editing one job's bindings never moves another's.</summary>
-    private static System.Collections.Generic.List<MouseBinding> Clone(
-        System.Collections.Generic.List<MouseBinding> source)
-    {
-        System.Collections.Generic.List<MouseBinding> copy = new(source.Count);
-
-        for (int i = 0; i < source.Count; i++)
-        {
-            copy.Add(source[i].Clone());
-        }
-
-        return copy;
     }
 }
