@@ -109,6 +109,79 @@ internal static class NativeUi
     }
 
     /// <summary>
+    /// Whether the game is showing its pointer at all. It hides it while the camera is turned
+    /// with a held mouse button, and after a while of no movement if the player asked for that;
+    /// anything drawn round the pointer should go with it.
+    /// <para>
+    /// ⚠️ That turning the camera clears <c>IsVisible</c> is read from the struct's field names,
+    /// not yet seen in-game. True when the stage cannot be read, so a ring is shown rather than
+    /// lost.
+    /// </para>
+    /// </summary>
+    public static unsafe bool GameCursorShown()
+    {
+        AtkStage* stage = AtkStage.Instance();
+        if (stage is null)
+        {
+            return true;
+        }
+
+        return stage->AtkCursor.IsVisible && !stage->AtkCursor.IsAutoHidden;
+    }
+
+    /// <summary>
+    /// Where the pointer is right now, in ImGui's coordinates — asked of Windows at the moment
+    /// of drawing rather than taken from ImGui.
+    /// <para>
+    /// 🔴 ImGui's mouse position comes from the window messages the game pumps at the START of
+    /// its frame, and ImGui draws at the END of it, right before the frame is presented. The
+    /// pointer itself is drawn by Windows and never waits for a frame. Anything drawn round it
+    /// from ImGui's position therefore trails it by the game's frame time plus the GPU queue
+    /// (Florian, 2026-10-16: the ring "swings after" the pointer). Asking Windows here takes
+    /// away the first part. The second part is the display path and no plugin can take it away.
+    /// </para>
+    /// <para>
+    /// The same conversion Dalamud's own input handler makes: client coordinates for a single
+    /// viewport, screen coordinates when multi-monitor windows are on.
+    /// </para>
+    /// </summary>
+    /// <returns>False when Windows could not say, and the caller should keep ImGui's.</returns>
+    public static bool CursorNow(out Vector2 position)
+    {
+        position = default;
+        if (!GetCursorPos(out Point point))
+        {
+            return false;
+        }
+
+        if ((ImGui.GetIO().ConfigFlags & ImGuiConfigFlags.ViewportsEnable) == 0)
+        {
+            nint window = Services.PluginInterface.UiBuilder.WindowHandlePtr;
+            if (window == 0 || !ScreenToClient(window, ref point))
+            {
+                return false;
+            }
+        }
+
+        position = new Vector2(point.X, point.Y);
+        return true;
+    }
+
+    private struct Point
+    {
+        public int X;
+        public int Y;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool GetCursorPos(out Point point);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool ScreenToClient(nint window, ref Point point);
+
+    /// <summary>
     /// One member of the game's own party list, as far as the frames need to care.
     /// <para>
     /// Two numbers, and they are not the same number. <see cref="Row"/> is where the game

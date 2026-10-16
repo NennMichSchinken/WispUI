@@ -134,6 +134,21 @@ public sealed class Configuration : IPluginConfiguration
     public const float MaxDispelSquare = 64f;
 
     /// <summary>
+    /// How small and how large the ring round the mouse may be, across its outer edge. Below
+    /// 16 it hides under the pointer it is meant to find; above 160 it stops pointing at a spot.
+    /// </summary>
+    public const float MinCursorRing = 16f;
+
+    /// <inheritdoc cref="MinCursorRing"/>
+    public const float MaxCursorRing = 160f;
+
+    /// <summary>How thin and how thick the ring's line may be.</summary>
+    public const float MinCursorRingLine = 1f;
+
+    /// <inheritdoc cref="MinCursorRingLine"/>
+    public const float MaxCursorRingLine = 12f;
+
+    /// <summary>
     /// How small and how large the numbers on an effect icon may be set, as a share of the
     /// icon's height.
     /// <para>
@@ -1327,12 +1342,33 @@ public sealed class Configuration : IPluginConfiguration
         /// </summary>
         public bool SlidecastFill { get; set; } = true;
 
+        /// <summary>
+        /// A ring round the mouse, so the pointer can be found again when a fight fills the
+        /// screen (Florian, 2026-10-16). Off by default, like every helper on this page.
+        /// </summary>
+        public bool CursorRingEnabled { get; set; }
+
+        /// <summary>The ring across its outer edge, in pixels.</summary>
+        public float CursorRingSize { get; set; } = 48f;
+
+        /// <summary>The ring's line, in pixels.</summary>
+        public float CursorRingThickness { get; set; } = 3f;
+
+        /// <summary>
+        /// The ring's colour. Unlike the cast bar, a see-through one is allowed: a ring that is
+        /// on all the time may well want to be quieter than a mark that comes and goes.
+        /// </summary>
+        public uint CursorRingColour { get; set; } = Style.Tokens.Col.CursorRing;
+
         internal void Sanitise()
         {
             // A see-through outline would be one nobody can find; every swatch in the suite
             // hands out opaque colours, so an alpha here only arrives by hand-editing.
             this.SlidecastWaitColour |= 0xFF000000u;
             this.SlidecastReadyColour |= 0xFF000000u;
+
+            this.CursorRingSize = Bounded(this.CursorRingSize, MinCursorRing, MaxCursorRing, 48f);
+            this.CursorRingThickness = Bounded(this.CursorRingThickness, MinCursorRingLine, MaxCursorRingLine, 3f);
         }
     }
 
