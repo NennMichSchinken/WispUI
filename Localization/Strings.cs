@@ -486,6 +486,11 @@ internal static class Strings
     public const string SlidecastReadyTooltip = "The colour the moment the server has taken the cast. From here on you can move and the cast still goes through.";
     public const string SlidecastFill = "Fill when safe";
     public const string SlidecastFillTooltip = "Fills the window with the safe colour, over the cast bar's own fill. Off, only the frame changes colour.";
+    public const string GroupCursorRing = "Mouse ring";
+    public const string GroupCursorRingHint = "A ring round the pointer, so you find it again in a busy fight.";
+    public const string CursorRingSize = "Size";
+    public const string CursorRingThickness = "Thickness";
+    public const string CursorRingColour = "Colour";
 
     // On the meter itself.
     public const string MeterViewCurrent = "Current";

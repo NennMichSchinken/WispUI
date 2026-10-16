@@ -371,6 +371,13 @@ internal static class Tokens
         public static readonly uint SlideReady = Rgb(0x5BD98A);
 
         /// <summary>
+        /// ⚠️ NOT MEASURED. The ring round the mouse. A bright, warm yellow: it has to be found
+        /// against a fight full of effects, which is what a ring is for, and no other mark in
+        /// the suite wears it.
+        /// </summary>
+        public static readonly uint CursorRing = Rgb(0xFFD24A);
+
+        /// <summary>
         /// ⚠️ NOT MEASURED. The Legacy preview's stand-in of the game's party list: its bar's
         /// empty track and its health fill, the pale green the game uses, by eye.
         /// </summary>

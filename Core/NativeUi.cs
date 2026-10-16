@@ -109,6 +109,27 @@ internal static class NativeUi
     }
 
     /// <summary>
+    /// Whether the game is showing its pointer at all. It hides it while the camera is turned
+    /// with a held mouse button, and after a while of no movement if the player asked for that;
+    /// anything drawn round the pointer should go with it.
+    /// <para>
+    /// ⚠️ That turning the camera clears <c>IsVisible</c> is read from the struct's field names,
+    /// not yet seen in-game. True when the stage cannot be read, so a ring is shown rather than
+    /// lost.
+    /// </para>
+    /// </summary>
+    public static unsafe bool GameCursorShown()
+    {
+        AtkStage* stage = AtkStage.Instance();
+        if (stage is null)
+        {
+            return true;
+        }
+
+        return stage->AtkCursor.IsVisible && !stage->AtkCursor.IsAutoHidden;
+    }
+
+    /// <summary>
     /// One member of the game's own party list, as far as the frames need to care.
     /// <para>
     /// Two numbers, and they are not the same number. <see cref="Row"/> is where the game
