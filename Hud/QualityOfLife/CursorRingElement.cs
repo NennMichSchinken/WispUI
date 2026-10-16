@@ -41,7 +41,13 @@ internal sealed class CursorRingElement : HudElement
         // ImGui's own word for "the pointer is not over the game", which it gives as a
         // position no screen has.
         m_shown = ImGui.IsMousePosValid() && NativeUi.GameCursorShown();
-        m_centre = ImGui.GetIO().MousePos;
+
+        // Asked of Windows now rather than read from ImGui, which took it at the start of the
+        // game's frame: a ring drawn from that trails the pointer (see NativeUi.CursorNow).
+        if (!NativeUi.CursorNow(out m_centre))
+        {
+            m_centre = ImGui.GetIO().MousePos;
+        }
     }
 
     public override void Draw(ImDrawListPtr dl)
