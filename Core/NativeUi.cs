@@ -109,13 +109,12 @@ internal static class NativeUi
     }
 
     /// <summary>
-    /// Whether the game is showing its pointer at all. It hides it while the camera is turned
-    /// with a held mouse button, and after a while of no movement if the player asked for that;
-    /// anything drawn round the pointer should go with it.
+    /// Whether the game is showing its pointer at all — off after a while of no movement if the
+    /// player asked for that; anything drawn round the pointer should go with it.
     /// <para>
-    /// ⚠️ That turning the camera clears <c>IsVisible</c> is read from the struct's field names,
-    /// not yet seen in-game. True when the stage cannot be read, so a ring is shown rather than
-    /// lost.
+    /// 🔴 Turning the camera with a held mouse button does NOT clear <c>IsVisible</c> (seen
+    /// in-game 2026-10-16: the ring stayed). Florian is fine with that, so nothing else is
+    /// asked. True when the stage cannot be read, so a ring is shown rather than lost.
     /// </para>
     /// </summary>
     public static unsafe bool GameCursorShown()

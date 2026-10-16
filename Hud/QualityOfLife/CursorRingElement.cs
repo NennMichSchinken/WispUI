@@ -12,7 +12,8 @@ namespace WispUI.Hud.QualityOfLife;
 /// (Florian, 2026-10-16, after the WoW addons that do the same).
 /// <para>
 /// Three settings and nothing else: size, line and colour. It follows the pointer every frame
-/// and goes away with it — while the camera is turned, and when the pointer leaves the game.
+/// and goes away when the pointer leaves the game. It stays while the camera is turned, which
+/// Florian wants kept (2026-10-16).
 /// </para>
 /// <para>
 /// 🔴 Drawn into the foreground list, not the background one every other element shares. The
