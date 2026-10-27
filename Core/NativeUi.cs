@@ -1670,11 +1670,12 @@ internal static class NativeUi
         }
     }
 
-    // The game windows the Clear Blue style takes its art from: the character configuration
-    // (tabs, buttons, check boxes), the character window and the system menu. Names are a
-    // guess until the first dump; DumpWindowArt lists every open window, so a wrong one
-    // shows up as "not open" next to the right one.
-    private static readonly string[] ArtWindows = ["ConfigCharacter", "Character", "SystemMenu"];
+    // The game windows the Clear Blue style takes its art from. The character configuration
+    // is two windows (measured 2026-10-27): the frame with tabs and buttons, and the page
+    // inside it, which holds the check boxes, sliders, drop-downs and scroll bar.
+    // DumpWindowArt also lists every open window, so a wrong name shows up as "not open"
+    // next to the right one.
+    private static readonly string[] ArtWindows = ["ConfigCharacter", "ConfigCharaOpeGeneral", "Character", "SystemMenu"];
 
     /// <summary>
     /// Writes which game texture every image and nine-grid of a few open game windows wears,
