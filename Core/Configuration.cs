@@ -33,6 +33,17 @@ public sealed class Configuration : IPluginConfiguration
     public bool ShowInfoBarEntry { get; set; } = true;
 
     /// <summary>
+    /// How the windows look: follow the game's colour theme, or always grey, or always
+    /// Clear Blue. Stored as a number like the other choices; see <see cref="Style.WindowStyle"/>.
+    /// <para>
+    /// Following the game is the default (Florian, 2026-10-27): someone who set Clear Blue in
+    /// the game expects the suite to match without looking for a switch. A new field with its
+    /// default, so no version step.
+    /// </para>
+    /// </summary>
+    public int WindowStyle { get; set; } = (int)Style.WindowStyle.Game;
+
+    /// <summary>
     /// Whether the preview band under the module header is open.
     /// <para>
     /// Saved, unlike the eye switches that hide parts of what it shows. Those are a way of
@@ -1437,6 +1448,7 @@ public sealed class Configuration : IPluginConfiguration
         this.FontName ??= Style.FontLibrary.DefaultName;
         this.TextWeight = Math.Clamp(this.TextWeight, 0, 2);
         this.TextEdge = Known<Style.TextEdge>(this.TextEdge);
+        this.WindowStyle = Known<Style.WindowStyle>(this.WindowStyle);
 
         this.JobColours = CleanPalette(this.JobColours, static key => Data.Jobs.IsColoured(key));
         this.RoleColours = CleanPalette(

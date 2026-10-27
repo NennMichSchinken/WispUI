@@ -20,6 +20,7 @@ internal sealed class GlobalScreen
     private const string IdAccessGroup = "##wisp-global-access";
     private const string IdScale = "##wisp-global-scale";
     private const string IdInfoBar = "##wisp-global-infobar";
+    private const string IdWindowStyle = "##wisp-global-windowstyle";
     private const string IdLetteringGroup = "##wisp-global-lettering";
     private const string IdFont = "##wisp-global-font";
     private const string IdTextWeight = "##wisp-global-textweight";
@@ -149,10 +150,38 @@ internal sealed class GlobalScreen
             Scaling.Request(m_config.Scale);
         }
 
-        Chrome.EndGroupContent(group, result.Height);
-        contentHeight = result.Height;
+        // Which look the windows wear. It belongs beside the scale: both say how this window
+        // looks, neither reaches the world. Applied on the next tick, not here mid-frame.
+        float styleY = group.ContentY + result.Height + Tokens.Metric.RowGap;
+        int style = m_config.WindowStyle;
+        if (Chrome.SegmentRow(
+                IdWindowStyle,
+                Strings.WindowStyle,
+                group.ContentX,
+                styleY,
+                group.ContentWidth,
+                StyleNames,
+                ref style,
+                true,
+                Strings.WindowStyleTooltip))
+        {
+            m_config.WindowStyle = style;
+            m_config.MarkDirty();
+        }
+
+        float used = styleY - group.ContentY + Chrome.RowHeight();
+        Chrome.EndGroupContent(group, used);
+        contentHeight = used;
         return group;
     }
+
+    /// <summary>The three styles, in the order of <see cref="WindowStyle"/>. Built once, not per frame.</summary>
+    private static readonly string[] StyleNames =
+    {
+        Strings.WindowStyleGame,
+        Strings.WindowStyleGrey,
+        Strings.WindowStyleClearBlue,
+    };
 
     private Chrome.GroupScope DrawAccess(float x, float y, float width, out float contentHeight)
     {

@@ -192,6 +192,10 @@ public sealed class Plugin : IDalamudPlugin
         // text already drawn pointing into a freed one. See Scaling.Request.
         Scaling.Settle();
 
+        // The window look, for the same reason: it rewrites every window colour, and a swap
+        // in the middle of a frame would draw the window half in one style and half in the other.
+        WindowSkin.Settle(m_config.WindowStyle);
+
         // Before anything reads a setting this frame: a job change means the settings the
         // rest of the tick is about may be the wrong ones.
         m_profiles.Tick();

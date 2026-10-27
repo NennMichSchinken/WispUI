@@ -78,9 +78,9 @@ internal static class Tokens
         // --- chrome: one flat surface, MEASURED #232223 ---
         // Kept as separate tokens on purpose. They happen to be equal today; giving a region
         // its own shade later is then a one-line change here rather than a change in the code.
-        public static readonly uint Panel = Rgb(0x232223);
-        public static readonly uint Rail = Rgb(0x232223);
-        public static readonly uint TitleBar = Rgb(0x232223);
+        public static uint Panel { get; private set; } = Rgb(0x232223);
+        public static uint Rail { get; private set; } = Rgb(0x232223);
+        public static uint TitleBar { get; private set; } = Rgb(0x232223);
 
         /// <summary>
         /// A settings group sits one small step above the window (derived, +5 on the measured
@@ -89,11 +89,11 @@ internal static class Tokens
         /// than as an outline drawn onto it. LumenUI takes a larger step (+9) — deliberately
         /// not copied, because there the panel is near-black and has the room for it.
         /// </summary>
-        public static readonly uint GroupBg = Rgb(0x282728);
+        public static uint GroupBg { get; private set; } = Rgb(0x282728);
 
         // Structure comes from these, since the surfaces no longer carry it.
-        public static readonly uint EdgeDim = Rgb(0x4A474A);
-        public static readonly uint Hairline = Rgb(0x3A383A);
+        public static uint EdgeDim { get; private set; } = Rgb(0x4A474A);
+        public static uint Hairline { get; private set; } = Rgb(0x3A383A);
 
         /// <summary>
         /// Between two compact options inside a group. Fainter than <see cref="Hairline"/> on
@@ -106,15 +106,15 @@ internal static class Tokens
         /// most of the first one — the step is over the GROUP colour now, not the panel's.
         /// </para>
         /// </summary>
-        public static readonly uint RowDivider = Rgb(0x383638);
+        public static uint RowDivider { get; private set; } = Rgb(0x383638);
 
         // --- controls (derived: the old values neutralised onto the measured hue) ---
-        public static readonly uint Control = Rgb(0x3A383A);
-        public static readonly uint Control2 = Rgb(0x2E2C2E);
-        public static readonly uint ControlEdge = Rgb(0x6B676B);
+        public static uint Control { get; private set; } = Rgb(0x3A383A);
+        public static uint Control2 { get; private set; } = Rgb(0x2E2C2E);
+        public static uint ControlEdge { get; private set; } = Rgb(0x6B676B);
 
         /// <summary>The same edge, lit, for a control the mouse is on.</summary>
-        public static readonly uint ControlEdgeHover = Rgb(0x9A949A);
+        public static uint ControlEdgeHover { get; private set; } = Rgb(0x9A949A);
 
         /// <summary>
         /// The two greys of the chequerboard behind a colour swatch. Without it a colour the
@@ -124,9 +124,9 @@ internal static class Tokens
         public static readonly uint ChequerLight = Rgb(0x4A474A);
 
         public static readonly uint ChequerDark = Rgb(0x2E2C2E);
-        public static readonly uint ButtonTop = Rgb(0x464346);
-        public static readonly uint ButtonBottom = Rgb(0x353335);
-        public static readonly uint Input = Rgb(0x1B1A1B);
+        public static uint ButtonTop { get; private set; } = Rgb(0x464346);
+        public static uint ButtonBottom { get; private set; } = Rgb(0x353335);
+        public static uint Input { get; private set; } = Rgb(0x1B1A1B);
 
         // --- floating layers (derived) ---
 
@@ -135,13 +135,13 @@ internal static class Tokens
         /// floating layer that sits at the same brightness as the window disappears into it,
         /// and the window has no shadow to fall back on.
         /// </summary>
-        public static readonly uint PopupBg = Rgb(0x171617);
+        public static uint PopupBg { get; private set; } = Rgb(0x171617);
 
         /// <summary>
         /// The edge of a floating layer. Brighter than the hairlines inside the window on
         /// purpose — it is the one line that says where the layer ends.
         /// </summary>
-        public static readonly uint PopupEdge = Rgb(0x6B676B);
+        public static uint PopupEdge { get; private set; } = Rgb(0x6B676B);
 
         /// <summary>
         /// A box you type into, when what is behind it is already dark — the search field in
@@ -156,50 +156,50 @@ internal static class Tokens
         /// exactly the case Lumen ran into when a menu and the box in it shared a value.
         /// </para>
         /// </summary>
-        public static readonly uint FieldOnDark = Rgb(0x222122);
+        public static uint FieldOnDark { get; private set; } = Rgb(0x222122);
 
         // --- nav (derived) ---
-        public static readonly uint NavHover = Rgb(0x2A282A);
+        public static uint NavHover { get; private set; } = Rgb(0x2A282A);
 
         /// <summary>
         /// A row in a list that is read rather than set — the release notes. The group
         /// surface, because a note is one thing on the page the same way a settings card is.
         /// </summary>
-        public static readonly uint RowRest = Rgb(0x282728);
+        public static uint RowRest { get; private set; } = Rgb(0x282728);
 
         /// <summary>
         /// The same row under the pointer. 🔴 Measured against RowRest and not against the
         /// page: the old hover colour was one step off the page behind it, which is
         /// invisible once the row has a surface of its own.
         /// </summary>
-        public static readonly uint RowHover = Rgb(0x322F32);
+        public static uint RowHover { get; private set; } = Rgb(0x322F32);
 
         /// <summary>The pill on a release note: one step above the row it sits on.</summary>
-        public static readonly uint PillRest = Rgb(0x332F33);
+        public static uint PillRest { get; private set; } = Rgb(0x332F33);
 
         /// <summary>The same pill while its row is hovered, so the whole row lifts together.</summary>
-        public static readonly uint PillHover = Rgb(0x3D383D);
+        public static uint PillHover { get; private set; } = Rgb(0x3D383D);
 
         /// <summary>Body text one step quieter than Ink, for a sentence nobody is hovering.</summary>
-        public static readonly uint InkSoft = Rgb(0xA9A9A9);
-        public static readonly uint NavSelected = Rgb(0x2E2C2E);
-        public static readonly uint NavCard = Rgb(0x2A282A);
-        public static readonly uint NavCardEdge = Rgb(0x3F3C3F);
+        public static uint InkSoft { get; private set; } = Rgb(0xA9A9A9);
+        public static uint NavSelected { get; private set; } = Rgb(0x2E2C2E);
+        public static uint NavCard { get; private set; } = Rgb(0x2A282A);
+        public static uint NavCardEdge { get; private set; } = Rgb(0x3F3C3F);
 
         // --- text ---
         /// <summary>Body copy and option labels. MEASURED.</summary>
-        public static readonly uint Ink = Rgb(0xC3C3C3);
+        public static uint Ink { get; private set; } = Rgb(0xC3C3C3);
 
         /// <summary>
         /// Section and category headings. MEASURED — this warm beige is what the game puts on
         /// its category lines, and it reads as a heading precisely because it is warmer than
         /// the body copy rather than brighter.
         /// </summary>
-        public static readonly uint Heading = Rgb(0xB5AA92);
+        public static uint Heading { get; private set; } = Rgb(0xB5AA92);
 
         // Derived from the measured body colour.
-        public static readonly uint InkDim = Rgb(0x8E8E8E);
-        public static readonly uint InkFaint = Rgb(0x6E6E6E);
+        public static uint InkDim { get; private set; } = Rgb(0x8E8E8E);
+        public static uint InkFaint { get; private set; } = Rgb(0x6E6E6E);
         public static readonly uint InkOnGold = Rgb(0x1B1A1B);
 
         // --- accent: FFXIV's own gold, not a brand of ours ---
@@ -423,7 +423,7 @@ internal static class Tokens
         };
 
         /// <summary>The lit top of the title bar, MEASURED. It fades down into <see cref="TitleBar"/>.</summary>
-        public static readonly uint TitleBarTop = Rgb(0x454445);
+        public static uint TitleBarTop { get; private set; } = Rgb(0x454445);
 
         /// <summary>
         /// The three-pixel rule under the title bar, MEASURED top to bottom: a dark line, the
@@ -440,10 +440,10 @@ internal static class Tokens
         // against the game's own slider in-game and accepted (Florian, 2026-09-11): SETTLED,
         // not provisional. Treat these like a measured value — do not re-tune them by feel.
         /// <summary>The unfilled part of a slider — darker than a text field, so the fill reads clearly.</summary>
-        public static readonly uint SliderTrackBg = Rgb(0x131213);
+        public static uint SliderTrackBg { get; private set; } = Rgb(0x131213);
 
-        public static readonly uint SliderFill = Rgb(0x7FA84A);
-        public static readonly uint SliderFillHi = Rgb(0x9DC85F);
+        public static uint SliderFill { get; private set; } = Rgb(0x7FA84A);
+        public static uint SliderFillHi { get; private set; } = Rgb(0x9DC85F);
         /// <summary>
         /// The knob, as a spun metal disc rather than a flat white dot: ground in circles, so
         /// the sheen wanders around the face and converges in the middle. The two tones are
@@ -457,9 +457,121 @@ internal static class Tokens
         public static readonly uint SliderGrabEdge = Rgb(0x2B2927);
 
         // --- scrollbar ---
-        public static readonly uint ScrollTrack = Rgb(0x1B1A1B);
-        public static readonly uint ScrollGrab = Rgb(0x4E4B4E);
-        public static readonly uint ScrollGrabHover = Rgb(0x605D60);
+        public static uint ScrollTrack { get; private set; } = Rgb(0x1B1A1B);
+        public static uint ScrollGrab { get; private set; } = Rgb(0x4E4B4E);
+        public static uint ScrollGrabHover { get; private set; } = Rgb(0x605D60);
+
+        /// <summary>
+        /// Where the window surface ends at the bottom. The grey surface is flat, so it is the
+        /// panel colour itself; Clear Blue rises towards a brighter blue at the foot.
+        /// </summary>
+        public static uint PanelBottom { get; private set; } = Rgb(0x232223);
+
+        /// <summary>
+        /// The Clear Blue window edge, MEASURED outside in: a dark line, one bright blue line,
+        /// then a glow that runs a few pixels into the surface (design bible §2.2).
+        /// </summary>
+        public static readonly uint BlueEdgeOuter = Rgb(0x000B2F);
+
+        public static readonly uint BlueEdgeLight = Rgb(0x3B6CFF);
+        public static readonly uint BlueEdgeGlow = Rgb(0x1441AB);
+
+        /// <summary>
+        /// A health bar set to a fixed colour, which has no colour of its own yet. Its own token
+        /// rather than <see cref="Ink"/>, which now follows the window style — and the world
+        /// does not.
+        /// </summary>
+        public static readonly uint FixedBar = Rgb(0xC3C3C3);
+
+        // --- the window style --------------------------------------------------------
+        // Every token above with a private setter is a window colour, and this table is the
+        // only place that writes them: one line per token, its Clear Blue value beside it, so
+        // a token cannot be added to one style and forgotten in the other. The grey values are
+        // the initialisers above, read back the first time a style is applied.
+        //
+        // Clear Blue is MEASURED off the game's own windows (four screenshots, 2026-10-27),
+        // over a dark background, because the game's windows are see-through and ours are not
+        // (design bible §2.2). The game's text is near-white with a cold cast; gold stays the
+        // accent, as it does in the game.
+
+        private static readonly (Func<uint> Get, Action<uint> Set, uint ClearBlue)[] Skinned =
+        {
+            (() => Panel, v => Panel = v, Rgb(0x162B64)),
+            (() => PanelBottom, v => PanelBottom = v, Rgb(0x183B86)),
+            (() => Rail, v => Rail = v, Rgb(0x162B64)),
+            (() => TitleBar, v => TitleBar = v, Rgb(0x142B55)),
+            (() => TitleBarTop, v => TitleBarTop = v, Rgb(0x17419E)),
+            (() => GroupBg, v => GroupBg = v, Rgb(0x0E1E4E)),
+            (() => EdgeDim, v => EdgeDim = v, Rgb(0x2A4288)),
+            (() => Hairline, v => Hairline = v, Rgb(0x24408F)),
+            (() => RowDivider, v => RowDivider = v, Rgb(0x1C316E)),
+            (() => Control, v => Control = v, Rgb(0x2F4997)),
+            (() => Control2, v => Control2 = v, Rgb(0x1B3372)),
+            (() => ControlEdge, v => ControlEdge = v, Rgb(0x465AA3)),
+            (() => ControlEdgeHover, v => ControlEdgeHover = v, Rgb(0x6F9EE7)),
+            (() => ButtonTop, v => ButtonTop = v, Rgb(0x192F78)),
+            (() => ButtonBottom, v => ButtonBottom = v, Rgb(0x2651D2)),
+            (() => Input, v => Input = v, Rgb(0x0F122A)),
+            (() => PopupBg, v => PopupBg = v, Rgb(0x0A1A44)),
+            (() => PopupEdge, v => PopupEdge = v, Rgb(0x3B6CFF)),
+            (() => FieldOnDark, v => FieldOnDark = v, Rgb(0x16285D)),
+            (() => NavHover, v => NavHover = v, Rgb(0x1C3474)),
+            (() => NavSelected, v => NavSelected = v, Rgb(0x0A1F61)),
+            (() => NavCard, v => NavCard = v, Rgb(0x0E1E4E)),
+            (() => NavCardEdge, v => NavCardEdge = v, Rgb(0x24408F)),
+            (() => RowRest, v => RowRest = v, Rgb(0x0E1E4E)),
+            (() => RowHover, v => RowHover = v, Rgb(0x1A3070)),
+            (() => PillRest, v => PillRest = v, Rgb(0x1C316E)),
+            (() => PillHover, v => PillHover = v, Rgb(0x24408F)),
+            (() => Ink, v => Ink = v, Rgb(0xEBF7FF)),
+            (() => InkSoft, v => InkSoft = v, Rgb(0xB8C6E2)),
+            (() => Heading, v => Heading = v, Rgb(0xFFFFFF)),
+            (() => InkDim, v => InkDim = v, Rgb(0x93A0C0)),
+            (() => InkFaint, v => InkFaint = v, Rgb(0x6776A5)),
+            (() => SliderTrackBg, v => SliderTrackBg = v, Rgb(0x0F122A)),
+            (() => SliderFill, v => SliderFill = v, Rgb(0x8ACCF5)),
+            (() => SliderFillHi, v => SliderFillHi = v, Rgb(0xB5E2FA)),
+            (() => ScrollTrack, v => ScrollTrack = v, Rgb(0x0A1A44)),
+            (() => ScrollGrab, v => ScrollGrab = v, Rgb(0x6F9EE7)),
+            (() => ScrollGrabHover, v => ScrollGrabHover = v, Rgb(0x9DC0F0)),
+        };
+
+        /// <summary>The rule under the title bar in Clear Blue: dark, surface, the measured light line.</summary>
+        private static readonly uint[] ClearBlueTitleRule = { Rgb(0x0E1E50), Rgb(0x142B55), Rgb(0x355BCA) };
+
+        private static uint[]? s_grey;
+        private static uint[]? s_greyRule;
+
+        /// <summary>
+        /// Puts every window colour into one style or the other. Called by
+        /// <see cref="WindowSkin"/> on the tick, and only when the style changes.
+        /// </summary>
+        internal static void ApplySkin(bool clearBlue)
+        {
+            if (s_grey is null)
+            {
+                s_grey = new uint[Skinned.Length];
+                for (int i = 0; i < Skinned.Length; i++)
+                {
+                    s_grey[i] = Skinned[i].Get();
+                }
+
+                s_greyRule = (uint[])TitleRule.Clone();
+            }
+
+            for (int i = 0; i < Skinned.Length; i++)
+            {
+                Skinned[i].Set(clearBlue ? Skinned[i].ClearBlue : s_grey[i]);
+            }
+
+            // The array is shared by reference with every caller, so its entries are written
+            // rather than the array replaced.
+            uint[] rule = clearBlue ? ClearBlueTitleRule : s_greyRule!;
+            for (int i = 0; i < TitleRule.Length && i < rule.Length; i++)
+            {
+                TitleRule[i] = rule[i];
+            }
+        }
 
         /// <summary>Everything disabled is drawn at this strength, nothing invents its own.</summary>
         public const float DisabledAlpha = 0.45f;
@@ -555,14 +667,19 @@ internal static class Tokens
         /// corners read darker for exactly that reason (Florian, 2026-09-11), which is why
         /// this is the game's look rather than a defect of ours.
         /// </para>
+        /// <para>
+        /// 🔴 Every radius in this class is zero in Clear Blue: the game's Clear Blue windows,
+        /// buttons, fields and boxes are square (measured, design bible §2.2). The grey style
+        /// keeps its rounding.
+        /// </para>
         /// </summary>
-        public static float Window => Px(8f);
+        public static float Window => WindowSkin.ClearBlue ? 0f : Px(8f);
 
         /// <summary>What is left of the window radius once the frame has taken its four pixels.</summary>
         public static float WindowInner => MathF.Max(0f, Window - Metric.WindowBorder);
 
         /// <summary>The frame around a settings group — between the window and a control.</summary>
-        public static float Group => Px(6f);
+        public static float Group => WindowSkin.ClearBlue ? 0f : Px(6f);
 
         /// <summary>
         /// Control faces: buttons, tabs, the selector, a popup.
@@ -573,10 +690,16 @@ internal static class Tokens
         /// at 0.375 of the window radius; five puts it at 0.63.
         /// </para>
         /// </summary>
-        public static float Control => Px(5f);
+        public static float Control => WindowSkin.ClearBlue ? 0f : Px(5f);
 
         /// <summary>Tick boxes, badges, the bar preview. Same step below Control that Lumen uses.</summary>
-        public static float Small => Px(3f);
+        public static float Small => WindowSkin.ClearBlue ? 0f : Px(3f);
+
+        /// <summary>
+        /// The party number's plate on a frame. Its own token because it lives on the world,
+        /// which never follows the window style.
+        /// </summary>
+        public static float Plate => Px(3f);
     }
 
     /// <summary>
@@ -1010,9 +1133,9 @@ internal static class Tokens
         public static float MeterCardPad => WorldPx(4f);
 
         /// <summary>The meter's own corners (the window's 8), its card's, and each bar's.</summary>
-        public static float MeterRadius => WorldPx(8f);
+        public static float MeterRadius => WindowSkin.ClearBlue ? 0f : WorldPx(8f);
 
-        public static float MeterCardRadius => WorldPx(6f);
+        public static float MeterCardRadius => WindowSkin.ClearBlue ? 0f : WorldPx(6f);
 
         public static float MeterBarRadius => WorldPx(3f);
 

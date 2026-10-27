@@ -1670,6 +1670,16 @@ internal static class NativeUi
         }
     }
 
+    /// <summary>
+    /// The colour theme set in the game's own options, or -1 while the interface is not up.
+    /// Dark is 0 and Clear Blue is 3 (measured), the same order as the UIColor sheet's columns.
+    /// </summary>
+    public static unsafe int ColourTheme()
+    {
+        AtkStage* stage = AtkStage.Instance();
+        return stage is null || stage->AtkUIColorHolder is null ? -1 : stage->AtkUIColorHolder->ActiveColorThemeType;
+    }
+
     // The game windows the Clear Blue style takes its art from. The character configuration
     // is two windows (measured 2026-10-27): the frame with tabs and buttons, and the page
     // inside it, which holds the check boxes, sliders, drop-downs and scroll bar.
