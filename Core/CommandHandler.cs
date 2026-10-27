@@ -45,6 +45,9 @@ internal sealed class CommandHandler : IDisposable
 
             // The party list's highlights, which the Legacy marks are made from.
             NativeUi.DumpPartyGlow();
+
+            // The art of a few open game windows, which the Clear Blue style is drawn from.
+            NativeUi.DumpWindowArt();
             return;
         }
 
