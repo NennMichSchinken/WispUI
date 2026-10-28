@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 — 2026-10-28
+
+### New
+
+- A ring round the mouse pointer, so you always find it.
+- With Clear Blue set in the game, this window and the meter turn blue to match.
+
 ## 0.2.0 — 2026-10-01
 
 ### New

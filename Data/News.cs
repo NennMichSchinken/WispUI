@@ -105,6 +105,7 @@ internal readonly struct NewsRelease
 internal static class News
 {
     /// <summary>Tab numbers on the party frames screen, named so a note is readable.</summary>
+    private const int GlobalBase = 0;
     private const int GlobalColours = 1;
 
     private const int TrackerBase = 0;
@@ -122,6 +123,25 @@ internal static class News
 
     public static readonly NewsRelease[] Releases =
     {
+        new(
+            "0.2.1",
+            "2026-10-28",
+            "A ring round the mouse, and the Clear Blue look.",
+            new NewsEntry[]
+            {
+                new(
+                    NewsKind.New,
+                    "A ring round the mouse pointer, so you always find it.",
+                    Screen.QualityOfLife,
+                    QualityOfLifeBase,
+                    "##wisp-qol-ring"),
+                new(
+                    NewsKind.New,
+                    "With Clear Blue set in the game, this window and the meter turn blue to match.",
+                    Screen.Global,
+                    GlobalBase,
+                    "##wisp-global-interface"),
+            }),
         new(
             "0.2.0",
             "2026-10-01",
