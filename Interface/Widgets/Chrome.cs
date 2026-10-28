@@ -1867,6 +1867,9 @@ internal static class Chrome
     /// </summary>
     private static bool PaintGameSlider(ImDrawListPtr dl, float x, float width, float centreY, float grabX, float fraction)
     {
+        // One whole-pixel centre for all three parts, so none of them lands on a half pixel.
+        centreY = MathF.Floor(centreY);
+
         float trackHalf = MathF.Round(Tokens.Px(GameArt.SliderTrack.H) * 0.5f);
         if (!GameArt.Stretched(dl, GameArt.SliderTrack, new Vector2(x, centreY - trackHalf), new Vector2(x + width, centreY + trackHalf)))
         {
@@ -1881,7 +1884,12 @@ internal static class Chrome
 
         float knobW = Tokens.Px(GameArt.SliderKnob.W);
         float knobH = Tokens.Px(GameArt.SliderKnob.H);
-        Vector2 knobMin = new(MathF.Round(grabX - (knobW * 0.5f)), MathF.Round(centreY - (knobH * 0.5f)));
+        // 🔴 Floored, not rounded. The knob is an odd number of pixels tall, so half of it is
+        // a half pixel, and Round sends a half to the nearest EVEN number: the knob sat one
+        // pixel higher on some rows than on others (Florian, 2026-10-28: too high on Party
+        // Frames and Quick Dispel, centred on the meter and QoL). Floored, its middle lands on
+        // the track's bright line on every row, as the game's does.
+        Vector2 knobMin = new(MathF.Round(grabX - (knobW * 0.5f)), centreY - MathF.Floor(knobH * 0.5f));
         GameArt.Image(dl, GameArt.SliderKnob, knobMin, knobMin + new Vector2(knobW, knobH));
         return true;
     }
