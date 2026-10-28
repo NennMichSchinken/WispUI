@@ -33,6 +33,17 @@ public sealed class Configuration : IPluginConfiguration
     public bool ShowInfoBarEntry { get; set; } = true;
 
     /// <summary>
+    /// How the windows look: follow the game's colour theme, or always grey, or always
+    /// Clear Blue. Stored as a number like the other choices; see <see cref="Style.WindowStyle"/>.
+    /// <para>
+    /// Following the game is the default (Florian, 2026-10-27): someone who set Clear Blue in
+    /// the game expects the suite to match without looking for a switch. A new field with its
+    /// default, so no version step.
+    /// </para>
+    /// </summary>
+    public int WindowStyle { get; set; } = (int)Style.WindowStyle.Game;
+
+    /// <summary>
     /// Whether the preview band under the module header is open.
     /// <para>
     /// Saved, unlike the eye switches that hide parts of what it shows. Those are a way of
@@ -132,6 +143,21 @@ public sealed class Configuration : IPluginConfiguration
 
     /// <inheritdoc cref="MinDispelSquare"/>
     public const float MaxDispelSquare = 64f;
+
+    /// <summary>
+    /// How small and how large the ring round the mouse may be, across its outer edge. Below
+    /// 16 it hides under the pointer it is meant to find; above 160 it stops pointing at a spot.
+    /// </summary>
+    public const float MinCursorRing = 16f;
+
+    /// <inheritdoc cref="MinCursorRing"/>
+    public const float MaxCursorRing = 160f;
+
+    /// <summary>How thin and how thick the ring's line may be.</summary>
+    public const float MinCursorRingLine = 1f;
+
+    /// <inheritdoc cref="MinCursorRingLine"/>
+    public const float MaxCursorRingLine = 12f;
 
     /// <summary>
     /// How small and how large the numbers on an effect icon may be set, as a share of the
@@ -1327,12 +1353,33 @@ public sealed class Configuration : IPluginConfiguration
         /// </summary>
         public bool SlidecastFill { get; set; } = true;
 
+        /// <summary>
+        /// A ring round the mouse, so the pointer can be found again when a fight fills the
+        /// screen (Florian, 2026-10-16). Off by default, like every helper on this page.
+        /// </summary>
+        public bool CursorRingEnabled { get; set; }
+
+        /// <summary>The ring across its outer edge, in pixels.</summary>
+        public float CursorRingSize { get; set; } = 48f;
+
+        /// <summary>The ring's line, in pixels.</summary>
+        public float CursorRingThickness { get; set; } = 3f;
+
+        /// <summary>
+        /// The ring's colour. Unlike the cast bar, a see-through one is allowed: a ring that is
+        /// on all the time may well want to be quieter than a mark that comes and goes.
+        /// </summary>
+        public uint CursorRingColour { get; set; } = Style.Tokens.Col.CursorRing;
+
         internal void Sanitise()
         {
             // A see-through outline would be one nobody can find; every swatch in the suite
             // hands out opaque colours, so an alpha here only arrives by hand-editing.
             this.SlidecastWaitColour |= 0xFF000000u;
             this.SlidecastReadyColour |= 0xFF000000u;
+
+            this.CursorRingSize = Bounded(this.CursorRingSize, MinCursorRing, MaxCursorRing, 48f);
+            this.CursorRingThickness = Bounded(this.CursorRingThickness, MinCursorRingLine, MaxCursorRingLine, 3f);
         }
     }
 
@@ -1401,6 +1448,7 @@ public sealed class Configuration : IPluginConfiguration
         this.FontName ??= Style.FontLibrary.DefaultName;
         this.TextWeight = Math.Clamp(this.TextWeight, 0, 2);
         this.TextEdge = Known<Style.TextEdge>(this.TextEdge);
+        this.WindowStyle = Known<Style.WindowStyle>(this.WindowStyle);
 
         this.JobColours = CleanPalette(this.JobColours, static key => Data.Jobs.IsColoured(key));
         this.RoleColours = CleanPalette(

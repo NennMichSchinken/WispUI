@@ -233,6 +233,11 @@ internal static class Strings
     public const string InterfaceScaleNote = "100 % is the sharp one";
 
     public const string InterfaceScaleTooltip = "Sizes everything WispUI draws, this window included.";
+    public const string WindowStyle = "Window style";
+    public const string WindowStyleTooltip = "Game matches the colour theme set in the game's own options: Clear Blue turns these windows blue, every other theme keeps them grey.";
+    public const string WindowStyleGame = "Game";
+    public const string WindowStyleGrey = "Grey";
+    public const string WindowStyleClearBlue = "Clear Blue";
 
     public const string SectionAccess = "Access";
     public const string SectionAccessHint = "How to reach these settings.";
@@ -486,6 +491,11 @@ internal static class Strings
     public const string SlidecastReadyTooltip = "The colour the moment the server has taken the cast. From here on you can move and the cast still goes through.";
     public const string SlidecastFill = "Fill when safe";
     public const string SlidecastFillTooltip = "Fills the window with the safe colour, over the cast bar's own fill. Off, only the frame changes colour.";
+    public const string GroupCursorRing = "Mouse ring";
+    public const string GroupCursorRingHint = "A ring round the pointer, so you find it again in a busy fight.";
+    public const string CursorRingSize = "Size";
+    public const string CursorRingThickness = "Thickness";
+    public const string CursorRingColour = "Colour";
 
     // On the meter itself.
     public const string MeterViewCurrent = "Current";

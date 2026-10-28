@@ -115,6 +115,37 @@ internal static class Icons
     }
 
     /// <summary>
+    /// A texture out of the game's own files by path — the Clear Blue window art. The same
+    /// lookup cache and the same hold as everything else here, so it is asked for once and
+    /// never freed and re-made between frames.
+    /// </summary>
+    /// <param name="path">A game path, e.g. <c>ui/uld/img03/ButtonA_hr1.tex</c>.</param>
+    public static bool Game(string path, out ImTextureID handle, out System.Numerics.Vector2 size)
+    {
+        handle = default;
+        size = System.Numerics.Vector2.One;
+
+        if (!GameFiles.TryGetValue(path, out ISharedImmediateTexture? texture))
+        {
+            texture = Services.Textures.GetFromGame(path);
+            GameFiles[path] = texture;
+            Hold(texture);
+        }
+
+        if (texture is null || !texture.TryGetWrap(out IDalamudTextureWrap? wrap, out _))
+        {
+            return false;
+        }
+
+        handle = wrap.Handle;
+        size = new System.Numerics.Vector2(
+            wrap.Width > 0 ? wrap.Width : 1f,
+            wrap.Height > 0 ? wrap.Height : 1f);
+
+        return true;
+    }
+
+    /// <summary>
     /// A status effect's picture, cropped to the art. False when there is nothing to draw yet.
     /// </summary>
     public static bool StatusIcon(
@@ -167,6 +198,9 @@ internal static class Icons
     /// <summary>The same, for our own files. Keyed by the path given to <see cref="Bundled"/>.</summary>
     private static readonly Dictionary<string, ISharedImmediateTexture?> Ours = new();
 
+    /// <summary>The same, for the game's own files. Keyed by the path given to <see cref="Game"/>.</summary>
+    private static readonly Dictionary<string, ISharedImmediateTexture?> GameFiles = new();
+
     /// <summary>
     /// A hold on every texture WispUI has drawn, for as long as the plugin runs.
     /// <para>
@@ -215,6 +249,7 @@ internal static class Icons
         Held.Clear();
         Sheets.Clear();
         Ours.Clear();
+        GameFiles.Clear();
     }
 
     /// <summary>

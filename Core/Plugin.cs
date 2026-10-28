@@ -77,6 +77,10 @@ public sealed class Plugin : IDalamudPlugin
         m_slidecast = new Hud.QualityOfLife.SlidecastElement(m_config);
         m_hud.Add(m_slidecast);
 
+        // The ring round the mouse draws into the foreground list on its own, so its place in
+        // this order does not matter; it is added last because it is the newest.
+        m_hud.Add(new Hud.QualityOfLife.CursorRingElement(m_config));
+
         m_configWindow = new ConfigWindow(m_config, m_frames, dispel, m_meter);
         m_meter.SettingsRequested += this.OnMeterSettings;
         m_configWindow.Closed += this.OnConfigClosed;
@@ -187,6 +191,10 @@ public sealed class Plugin : IDalamudPlugin
         // scale rebuilds the font atlas, and doing that mid-frame leaves every piece of
         // text already drawn pointing into a freed one. See Scaling.Request.
         Scaling.Settle();
+
+        // The window look, for the same reason: it rewrites every window colour, and a swap
+        // in the middle of a frame would draw the window half in one style and half in the other.
+        WindowSkin.Settle(m_config.WindowStyle);
 
         // Before anything reads a setting this frame: a job change means the settings the
         // rest of the tick is about may be the wrong ones.
