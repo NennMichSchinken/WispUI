@@ -396,6 +396,17 @@ internal static class Chrome
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
         float radius = Tokens.Radius.Control;
 
+        // Clear Blue wears the game's own tab, both states of it: the shape is the game's
+        // (three drawn versions missed it). Text is the near-white the game letters it in.
+        if (WindowSkin.ClearBlue
+            && GameArt.Stretched(dl, selected ? GameArt.TabOn : GameArt.TabOff, min, max))
+        {
+            uint blueInk = selected || hovered ? Tokens.Col.Heading : Tokens.Col.Ink;
+            float blueX = MathF.Round(x + ((width - Ink.Measure(Ink.Role.Body, label).X) * 0.5f));
+            Ink.Draw(dl, Ink.Role.Body, new Vector2(blueX, CenterY(y, height, Ink.Role.Body)), blueInk, label);
+            return clicked;
+        }
+
         // Lighter at the top than at the bottom, the way the game shades its own tabs. That
         // one gradient is what makes them read as raised rather than as flat rectangles.
         if (selected)
@@ -449,16 +460,21 @@ internal static class Chrome
 
         float alpha = enabled ? 1f : Tokens.Col.DisabledAlpha;
         ImDrawListPtr dl = ImGui.GetWindowDrawList();
-        VerticalFill(
-            dl,
-            min,
-            max,
-            Tokens.Col.Faded(Tokens.Col.ButtonTop, alpha),
-            Tokens.Col.Faded(Tokens.Col.ButtonBottom, alpha),
-            Tokens.Radius.Control);
 
-        uint edge = enabled && (hovered || primary) ? Tokens.Col.GoldDim : Tokens.Col.ControlEdge;
-        dl.AddRect(min, max, Tokens.Col.Faded(edge, alpha), Tokens.Radius.Control, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
+        // Clear Blue wears the game's own button; a disabled one is the same art, faded.
+        if (!(WindowSkin.ClearBlue && GameArt.Stretched(dl, GameArt.Button, min, max, Tokens.Col.Faded(0xFFFFFFFFu, alpha))))
+        {
+            VerticalFill(
+                dl,
+                min,
+                max,
+                Tokens.Col.Faded(Tokens.Col.ButtonTop, alpha),
+                Tokens.Col.Faded(Tokens.Col.ButtonBottom, alpha),
+                Tokens.Radius.Control);
+
+            uint edge = enabled && (hovered || primary) ? Tokens.Col.GoldDim : Tokens.Col.ControlEdge;
+            dl.AddRect(min, max, Tokens.Col.Faded(edge, alpha), Tokens.Radius.Control, ImDrawFlags.RoundCornersAll, Tokens.Line(1f));
+        }
 
         uint ink = enabled && (hovered || primary) ? Tokens.Col.GoldHi : Tokens.Col.Ink;
         Ink.Draw(
@@ -529,6 +545,19 @@ internal static class Chrome
     {
         float box = Tokens.Metric.CheckBox;
         Vector2 max = new(min.X + box, min.Y + box);
+
+        // Clear Blue wears the game's own box and tick: the gold tick is the game's, drawn
+        // over the empty box exactly as the game layers them.
+        uint art = Tokens.Col.Faded(0xFFFFFFFFu, alpha);
+        if (WindowSkin.ClearBlue && GameArt.Image(dl, GameArt.CheckBox, min, max, art))
+        {
+            if (value)
+            {
+                GameArt.Image(dl, GameArt.CheckMark, min, max, art);
+            }
+
+            return;
+        }
 
         dl.AddRectFilled(min, max, Tokens.Col.Faded(value ? Tokens.Col.Gold : Tokens.Col.Input, alpha), Tokens.Radius.Small);
         dl.AddRect(
@@ -1654,22 +1683,27 @@ internal static class Chrome
         Vector2 trackMax = new(x + width, trackTop + trackHeight);
         float trackRadius = trackHeight * 0.5f;
 
-        dl.AddRectFilled(trackMin, trackMax, Tokens.Col.SliderTrackBg, trackRadius);
-        if (fraction > 0f)
+        // Clear Blue wears the game's own slider: its track, its fill and its knob, at the
+        // sizes the game draws them, centred on the same line as the grey one.
+        if (!(WindowSkin.ClearBlue && PaintGameSlider(dl, x, width, trackTop + (trackHeight * 0.5f), grabCenterX, fraction)))
         {
-            dl.PushClipRect(trackMin, new Vector2(grabCenterX, trackMax.Y), true);
-            dl.AddRectFilled(
-                trackMin,
-                trackMax,
-                active || hovered ? Tokens.Col.SliderFillHi : Tokens.Col.SliderFill,
-                trackRadius);
-            dl.PopClipRect();
-        }
+            dl.AddRectFilled(trackMin, trackMax, Tokens.Col.SliderTrackBg, trackRadius);
+            if (fraction > 0f)
+            {
+                dl.PushClipRect(trackMin, new Vector2(grabCenterX, trackMax.Y), true);
+                dl.AddRectFilled(
+                    trackMin,
+                    trackMax,
+                    active || hovered ? Tokens.Col.SliderFillHi : Tokens.Col.SliderFill,
+                    trackRadius);
+                dl.PopClipRect();
+            }
 
-        // No outline on the track. The rounded ends are the shape; a border around them only
-        // made the bar look boxed in.
-        Vector2 grabCenter = new(grabCenterX, MathF.Round(trackTop + (trackHeight * 0.5f)));
-        MilledKnob(dl, grabCenter, radius, active || hovered ? 0.16f : 0f);
+            // No outline on the track. The rounded ends are the shape; a border around them only
+            // made the bar look boxed in.
+            Vector2 grabCenter = new(grabCenterX, MathF.Round(trackTop + (trackHeight * 0.5f)));
+            MilledKnob(dl, grabCenter, radius, active || hovered ? 0.16f : 0f);
+        }
 
         // Always drawn, even mid-drag: a field that simply vanished when the track was grabbed
         // would leave the row believing it is still being typed into. A drag in progress still
@@ -1826,6 +1860,40 @@ internal static class Chrome
     /// </para>
     /// </summary>
     /// <param name="step">The smallest move the value may make, or zero for a smooth one.</param>
+    /// <summary>
+    /// The game's own slider, for Clear Blue: track across the whole width, fill up to the
+    /// knob, knob on top — each at the game's own height scaled by the suite scale.
+    /// False while the art is not loaded yet, so the caller draws the grey one for that frame.
+    /// </summary>
+    private static bool PaintGameSlider(ImDrawListPtr dl, float x, float width, float centreY, float grabX, float fraction)
+    {
+        // One whole-pixel centre for all three parts, so none of them lands on a half pixel.
+        centreY = MathF.Floor(centreY);
+
+        float trackHalf = MathF.Round(Tokens.Px(GameArt.SliderTrack.H) * 0.5f);
+        if (!GameArt.Stretched(dl, GameArt.SliderTrack, new Vector2(x, centreY - trackHalf), new Vector2(x + width, centreY + trackHalf)))
+        {
+            return false;
+        }
+
+        if (fraction > 0f)
+        {
+            float fillHalf = MathF.Round(Tokens.Px(GameArt.SliderFill.H) * 0.5f);
+            GameArt.Stretched(dl, GameArt.SliderFill, new Vector2(x, centreY - fillHalf), new Vector2(grabX, centreY + fillHalf));
+        }
+
+        float knobW = Tokens.Px(GameArt.SliderKnob.W);
+        float knobH = Tokens.Px(GameArt.SliderKnob.H);
+        // 🔴 Floored, not rounded. The knob is an odd number of pixels tall, so half of it is
+        // a half pixel, and Round sends a half to the nearest EVEN number: the knob sat one
+        // pixel higher on some rows than on others (Florian, 2026-10-28: too high on Party
+        // Frames and Quick Dispel, centred on the meter and QoL). Floored, its middle lands on
+        // the track's bright line on every row, as the game's does.
+        Vector2 knobMin = new(MathF.Round(grabX - (knobW * 0.5f)), centreY - MathF.Floor(knobH * 0.5f));
+        GameArt.Image(dl, GameArt.SliderKnob, knobMin, knobMin + new Vector2(knobW, knobH));
+        return true;
+    }
+
     private static float Drag(float x, float radius, float travel, float min, float max, float step)
     {
         float t = Math.Clamp((ImGui.GetIO().MousePos.X - x - radius) / travel, 0f, 1f);

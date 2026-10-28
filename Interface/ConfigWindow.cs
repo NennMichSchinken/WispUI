@@ -449,12 +449,15 @@ internal sealed class ConfigWindow : Window
         // the pixels the frame normally covers would show through whenever the window loses
         // focus and the frame is not drawn. Rounded to the same radius as the frame: every
         // surface inside has to stop at the curve, or the corner fills itself back in.
-        dl.AddRectFilled(
+        // Clear Blue's surface is not flat: it rises to a brighter blue at the foot, as the
+        // game's does. In grey the two ends are the same colour, so this is the flat fill.
+        Chrome.VerticalFill(
+            dl,
             origin,
             new Vector2(origin.X + size.X, origin.Y + size.Y),
             Tokens.Col.Panel,
-            Tokens.Radius.Window,
-            ImDrawFlags.RoundCornersAll);
+            Tokens.Col.PanelBottom,
+            Tokens.Radius.Window);
 
         this.DrawTitleBar(dl, origin.X, origin.X + size.X, origin.Y, top, titleHeight);
         this.DrawNav(dl, left, bodyTop, bottom);
@@ -500,6 +503,12 @@ internal sealed class ConfigWindow : Window
     /// </summary>
     internal static void DrawWindowEdge(ImDrawListPtr dl, Vector2 origin, Vector2 size, float ring, float radius)
     {
+        if (WindowSkin.ClearBlue)
+        {
+            DrawBlueEdge(dl, origin, size, ring);
+            return;
+        }
+
         int rings = Tokens.Col.EdgeTop.Length;
 
         for (int i = 0; i < rings; i++)
@@ -551,6 +560,43 @@ internal sealed class ConfigWindow : Window
             BlendedArc(dl, new Vector2(left + r, bottom - r), r, MathF.PI * 0.5f, MathF.PI, bottomColour, sideColour, ring);
         }
     }
+
+    /// <summary>
+    /// The Clear Blue edge, square like the game's: one dark ring, one bright blue ring, then
+    /// a glow that fades a few rings into the surface. Filled rectangles on whole pixels, for
+    /// the same reason as the grey frame.
+    /// </summary>
+    private static void DrawBlueEdge(ImDrawListPtr dl, Vector2 origin, Vector2 size, float ring)
+    {
+        for (int i = 0; i < BlueEdgeRings; i++)
+        {
+            float inset = i * ring;
+            float left = MathF.Round(origin.X + inset);
+            float right = MathF.Round(origin.X + size.X - inset);
+            float top = MathF.Round(origin.Y + inset);
+            float bottom = MathF.Round(origin.Y + size.Y - inset);
+
+            uint colour = i switch
+            {
+                0 => Tokens.Col.BlueEdgeOuter,
+                1 => Tokens.Col.BlueEdgeLight,
+
+                // The glow: strongest beside the bright line, gone by the last ring.
+                _ => Tokens.Col.Faded(Tokens.Col.BlueEdgeGlow, 1f - ((i - 1f) / (BlueEdgeRings - 1f))),
+            };
+
+            dl.AddRectFilled(new Vector2(left, top), new Vector2(right, top + ring), colour);
+            dl.AddRectFilled(new Vector2(left, bottom - ring), new Vector2(right, bottom), colour);
+            dl.AddRectFilled(new Vector2(left, top + ring), new Vector2(left + ring, bottom - ring), colour);
+            dl.AddRectFilled(new Vector2(right - ring, top + ring), new Vector2(right, bottom - ring), colour);
+        }
+    }
+
+    /// <summary>
+    /// How many one-pixel rings the Clear Blue edge takes, glow included. MEASURED: the glow
+    /// runs about six pixels in from the bright line.
+    /// </summary>
+    private const int BlueEdgeRings = 8;
 
     /// <summary>
     /// One quarter-circle whose colour walks from <paramref name="from"/> to
@@ -700,7 +746,9 @@ internal sealed class ConfigWindow : Window
             Tokens.Col.TitleBar,
             Tokens.Radius.Window,
             ImDrawFlags.RoundCornersTop,
-            Tokens.Metric.TitleBarFade);
+
+            // Clear Blue's title bar is a gradient top to bottom, not a lit edge that runs out.
+            WindowSkin.ClearBlue ? 0f : Tokens.Metric.TitleBarFade);
 
         // The three-pixel rule that closes the title bar: dark, surface, light. It fades out
         // towards the corners rather than running into the frame.

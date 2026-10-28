@@ -1670,6 +1670,188 @@ internal static class NativeUi
         }
     }
 
+    /// <summary>
+    /// The colour theme set in the game's own options, or -1 while the interface is not up.
+    /// Dark is 0 and Clear Blue is 3 (measured), the same order as the UIColor sheet's columns.
+    /// </summary>
+    public static unsafe int ColourTheme()
+    {
+        AtkStage* stage = AtkStage.Instance();
+        return stage is null || stage->AtkUIColorHolder is null ? -1 : stage->AtkUIColorHolder->ActiveColorThemeType;
+    }
+
+    // The game windows the Clear Blue style takes its art from. The character configuration
+    // is two windows (measured 2026-10-27): the frame with tabs and buttons, and the page
+    // inside it, which holds the check boxes, sliders, drop-downs and scroll bar.
+    // DumpWindowArt also lists every open window, so a wrong name shows up as "not open"
+    // next to the right one.
+    private static readonly string[] ArtWindows = ["ConfigCharacter", "ConfigCharaOpeGeneral", "Character", "SystemMenu"];
+
+    /// <summary>
+    /// Writes which game texture every image and nine-grid of a few open game windows wears,
+    /// and which cut of it. The Clear Blue style draws the game's own tabs, buttons and check
+    /// boxes rather than approximating them (three drawn tabs missed the shape), and the paths
+    /// come off the running window, so they are already resolved to the active colour theme.
+    /// <para>⚠️ A diagnostic for <c>/wisp status</c>, builds strings.</para>
+    /// </summary>
+    public static unsafe void DumpWindowArt()
+    {
+        AtkStage* stage = AtkStage.Instance();
+        Services.Log.Information(
+            "[art] colour theme = {0}",
+            stage is null || stage->AtkUIColorHolder is null ? -1 : stage->AtkUIColorHolder->ActiveColorThemeType);
+
+        var manager = FFXIVClientStructs.FFXIV.Client.UI.RaptureAtkUnitManager.Instance();
+        if (manager is not null)
+        {
+            var open = new System.Text.StringBuilder();
+            Span<Pointer<AtkUnitBase>> entries = manager->AllLoadedUnitsList.Entries;
+            int count = Math.Min((int)manager->AllLoadedUnitsList.Count, entries.Length);
+
+            for (int i = 0; i < count; i++)
+            {
+                AtkUnitBase* unit = entries[i].Value;
+                if (unit is not null && unit->IsVisible)
+                {
+                    open.Append(unit->NameString).Append(' ');
+                }
+            }
+
+            Services.Log.Information("[art] open windows: {0}", open.ToString());
+        }
+
+        // A parts list is shared by every node that uses it; each one is written out whole
+        // once, because the tab and button states the node is not wearing right now are cuts
+        // of the same list.
+        var seen = new System.Collections.Generic.HashSet<nint>();
+
+        foreach (string name in ArtWindows)
+        {
+            var unit = (AtkUnitBase*)Services.GameGui.GetAddonByName(name, 1).Address;
+            if (unit is null || !unit->IsVisible)
+            {
+                Services.Log.Information("[art] {0}: not open", name);
+                continue;
+            }
+
+            DumpArt(name, &unit->UldManager, 0, seen);
+        }
+    }
+
+    private static unsafe void DumpArt(string path, AtkUldManager* uld, int depth, System.Collections.Generic.HashSet<nint> seen)
+    {
+        // Components nest (a tab bar holds tabs); four levels is far deeper than any window goes.
+        if (depth > 4 || uld->NodeList is null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < uld->NodeListCount; i++)
+        {
+            AtkResNode* node = uld->NodeList[i];
+            if (node is null)
+            {
+                continue;
+            }
+
+            if ((int)node->Type >= 1000)
+            {
+                AtkComponentBase* component = ((AtkComponentNode*)node)->Component;
+                if (component is null)
+                {
+                    continue;
+                }
+
+                AtkUldManager* inner = &component->UldManager;
+                string kind = inner->BaseType == AtkUldManagerBaseType.Component && inner->Objects is not null
+                    ? ((AtkUldComponentInfo*)inner->Objects)->ComponentType.ToString()
+                    : "?";
+                DumpArt($"{path}/{node->NodeId}:{kind}", inner, depth + 1, seen);
+                continue;
+            }
+
+            AtkUldPartsList* parts;
+            uint partId;
+            string slices = string.Empty;
+
+            if (node->Type == NodeType.Image)
+            {
+                var image = (AtkImageNode*)node;
+                parts = image->PartsList;
+                partId = image->PartId;
+            }
+            else if (node->Type == NodeType.NineGrid)
+            {
+                var grid = (AtkNineGridNode*)node;
+                parts = grid->PartsList;
+                partId = grid->PartId;
+                slices = $" slices l{grid->LeftOffset} t{grid->TopOffset} r{grid->RightOffset} b{grid->BottomOffset}";
+            }
+            else
+            {
+                continue;
+            }
+
+            if (parts is null || parts->Parts is null || partId >= parts->PartCount)
+            {
+                continue;
+            }
+
+            AtkUldPart* part = &parts->Parts[partId];
+            Services.Log.Information(
+                "[art] {0}/{1} {2} size {3}x{4} shown={5} part {6} of list {7}: uv ({8},{9}) {10}x{11}{12} tex {13}",
+                path,
+                node->NodeId,
+                node->Type,
+                node->Width,
+                node->Height,
+                ShownOnScreen(node),
+                partId,
+                parts->Id,
+                part->U,
+                part->V,
+                part->Width,
+                part->Height,
+                slices,
+                TexturePath(part->UldAsset));
+
+            if (seen.Add((nint)parts))
+            {
+                for (uint p = 0; p < parts->PartCount; p++)
+                {
+                    AtkUldPart* each = &parts->Parts[p];
+                    Services.Log.Information(
+                        "[art]   list {0} part {1}: uv ({2},{3}) {4}x{5} tex {6}",
+                        parts->Id,
+                        p,
+                        each->U,
+                        each->V,
+                        each->Width,
+                        each->Height,
+                        TexturePath(each->UldAsset));
+                }
+            }
+        }
+    }
+
+    private static unsafe string TexturePath(AtkUldAsset* asset)
+    {
+        if (asset is null)
+        {
+            return "-";
+        }
+
+        AtkTexture* texture = &asset->AtkTexture;
+        if (texture->TextureType != TextureType.Resource
+            || texture->Resource is null
+            || texture->Resource->TexFileResourceHandle is null)
+        {
+            return $"(type {texture->TextureType})";
+        }
+
+        return texture->Resource->TexFileResourceHandle->FileName.ToString();
+    }
+
     private static AtkCursor.CursorType Shape(ImGuiMouseCursor cursor) => cursor switch
     {
         // The game's own word for the pointing hand it shows over anything you can click.

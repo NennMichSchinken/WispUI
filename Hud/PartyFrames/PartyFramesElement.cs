@@ -1944,7 +1944,7 @@ internal sealed class PartyFramesElement : HudElement, IDisposable
             // filled rectangles too (design bible §2.1, learned the same way in session 5).
             Vector2 plateEnd = new(plateAt.X + plate, plateAt.Y + plate);
             float edge = MathF.Max(Tokens.WorldLine(1f), MathF.Round(plate * NumberPlateEdge));
-            float radius = MathF.Max(Tokens.Radius.Small, MathF.Round(plate * NumberPlateRadius));
+            float radius = MathF.Max(Tokens.Radius.Plate, MathF.Round(plate * NumberPlateRadius));
 
             dl.AddRectFilled(plateAt, plateEnd, Tokens.Col.NumberEdge, radius, ImDrawFlags.RoundCornersAll);
             dl.AddRectFilled(
@@ -2016,7 +2016,7 @@ internal sealed class PartyFramesElement : HudElement, IDisposable
     private static uint BarColour(BarColourMode mode, ref PartyMemberSnapshot member) => mode switch
     {
         BarColourMode.Job => Jobs.Colour(member.JobId),
-        BarColourMode.Fixed => Tokens.Col.Ink,
+        BarColourMode.Fixed => Tokens.Col.FixedBar,
         _ => Jobs.RoleColour(member.Role),
     };
 
