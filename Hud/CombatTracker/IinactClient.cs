@@ -260,13 +260,14 @@ internal sealed class IinactClient : IDisposable
     // because the command handler has no line to the meter, and a diagnostic is not worth
     // wiring one.
 
-    private const int DumpSeconds = 20;
+    private const int DumpSeconds = 40;
 
     // Line types worth seeing, and how many of each: 01 zone change, 03 add combatant (job,
     // owner of a pet), 04 remove combatant, 21/22 ability (single / multi target), 24 DoT/HoT
     // tick, 33 director (fight start / victory / wipe), 37 effect result (HP after a hit).
+    // First run (2026-10-29, Dancer on a dummy) settled 21 and 37; 03 and 24 never came.
     private static readonly string[] DumpTypes = { "01", "03", "04", "21", "22", "24", "33", "37" };
-    private static readonly int[] DumpBudget = { 3, 8, 3, 8, 4, 8, 6, 3 };
+    private static readonly int[] DumpBudget = { 3, 12, 4, 14, 6, 14, 6, 0 };
 
     private static volatile bool s_dumpCombat;
     private static long s_dumpLinesUntil;
