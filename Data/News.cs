@@ -111,12 +111,10 @@ internal static class News
     private const int TrackerBase = 0;
 
     private const int PartyBase = 0;
-    private const int PartyText = 1; // No note leads here yet; the tab numbers are kept whole so one can.
-    private const int PartyIcons = 2;
-    private const int PartyLayout = 3;
-    private const int PartyAuras = 4;
-    private const int PartyMarks = 5;
-    private const int PartyBindings = 6;
+    // Base and Bindings only since the party frames went (2026-10-29). Lines from before that
+    // which led to a frame setting lead nowhere now: the setting is gone, the line stays as
+    // what that release brought.
+    private const int PartyBindings = 1;
 
     private const int QuickDispelBase = 0;
     private const int QualityOfLifeBase = 0;
@@ -148,17 +146,17 @@ internal static class News
             "Quick Dispel, the game's party list, and a slidecast.",
             new NewsEntry[]
             {
-                // The party frames rows land on Base and light nothing up: it is the one tab
-                // both modes share, and the mode strip sits right above it.
                 new(
                     NewsKind.New,
                     "Keep the game's own party list and add the cleanse and raise marks to it.",
                     Screen.PartyFrames,
                     PartyBase),
-                // No jump: the Bindings tab has a different number in each mode.
                 new(
                     NewsKind.New,
-                    "Mouseover casting also works on the game's own party list."),
+                    "Mouseover casting also works on the game's own party list.",
+                    Screen.PartyFrames,
+                    PartyBindings,
+                    "##wisp-pf-mogroup"),
                 new(
                     NewsKind.New,
                     "Quick Dispel: a square per party member that lights up when they need a cleanse.",
@@ -205,10 +203,7 @@ internal static class News
             {
                 new(
                     NewsKind.New,
-                    "Party frames you can size yourself, instead of the game's thin bars.",
-                    Screen.PartyFrames,
-                    PartyLayout,
-                    "##wisp-pf-size"),
+                    "Party frames you can size yourself, instead of the game's thin bars."),
                 new(
                     NewsKind.New,
                     "Different settings for every job, switched over when you change job.",
@@ -223,10 +218,7 @@ internal static class News
                     "##wisp-profile-share"),
                 new(
                     NewsKind.New,
-                    "See your frames while you change them, without needing a party.",
-                    Screen.PartyFrames,
-                    PartyBase,
-                    "##wisp-pf-health"),
+                    "See your frames while you change them, without needing a party."),
                 new(
                     NewsKind.New,
                     "A damage meter in the same look, fed by IINACT.",
@@ -241,10 +233,7 @@ internal static class News
                     "##wisp-global-roles"),
                 new(
                     NewsKind.New,
-                    "Nine looks for the health bar and five for shields.",
-                    Screen.PartyFrames,
-                    PartyBase,
-                    "##wisp-pf-health"),
+                    "Nine looks for the health bar and five for shields."),
                 new(
                     NewsKind.New,
                     "Choose which spells go to whoever you point at, one spell at a time.",
@@ -255,20 +244,14 @@ internal static class News
                     NewsKind.New,
                     "A mark on anyone who needs cleansing, and on anyone being raised.",
                     Screen.PartyFrames,
-                    PartyMarks,
+                    PartyBase,
                     "##wisp-pf-cleansegroup"),
                 new(
                     NewsKind.New,
-                    "Effect icons in three rows: debuffs, yours, and everyone else's.",
-                    Screen.PartyFrames,
-                    PartyAuras,
-                    "##wisp-pf-auras"),
+                    "Effect icons in three rows: debuffs, yours, and everyone else's."),
                 new(
                     NewsKind.New,
-                    "Debuffs keep their place until they run out, and new ones line up behind.",
-                    Screen.PartyFrames,
-                    PartyAuras,
-                    "##wisp-pf-auras"),
+                    "Debuffs keep their place until they run out, and new ones line up behind."),
                 // No setting behind it, so no jump: the ring is always there, like the
                 // game's own party list marks its target.
                 new(
@@ -276,10 +259,7 @@ internal static class News
                     "A thin ring around the frame of whoever you have targeted."),
                 new(
                     NewsKind.New,
-                    "The frames use the party order you already set in the game.",
-                    Screen.PartyFrames,
-                    PartyLayout,
-                    "##wisp-pf-arrange"),
+                    "The frames use the party order you already set in the game."),
                 // 🔴 This line pointed at a group on the party frames until the lettering
                 // moved to Global, and then it pointed at nothing — the jump just did
                 // nothing, silently, because a target that is never drawn is

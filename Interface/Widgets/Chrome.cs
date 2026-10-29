@@ -26,7 +26,6 @@ internal static class Chrome
     private const string IdGroupToggle = "##wisp-group-toggle";
     private const string IdGroupAction = "##wisp-group-action";
     private const string IdGroupCollapse = "##wisp-group-collapse";
-    private const string IdGroupEye = "##wisp-group-eye";
 
 
     /// <summary>Only ever mixed towards, never painted: the step a control takes under the hand.</summary>
@@ -893,47 +892,6 @@ internal static class Chrome
         return used + Ink.LineHeight(Ink.Role.Small) + Tokens.Metric.SectionHeadGap;
     }
 
-    /// <summary>
-    /// The eye that takes one part out of the preview for a moment, or puts it back.
-    /// <para>
-    /// Drawn rather than written: it sits in a group's head beside a switch and a badge, and
-    /// a word there would read as another setting. An eye says "look", which is the whole
-    /// difference between this and everything else on the card.
-    /// </para>
-    /// <para>
-    /// Shut — the crossed-out glyph — is the state worth noticing, so that is the one drawn
-    /// in gold. An open eye is the resting state and stays quiet.
-    /// </para>
-    /// <para>
-    /// 🔴 A glyph from Dalamud's icon face, not two arcs drawn by hand. The hand-drawn one
-    /// was tried first and looked exactly as good as an eighteen pixel curve made of one
-    /// pixel strokes ever does, which is to say mushy (Florian, 2026-09-19: "das Auge sieht
-    /// nicht gut aus"). A face is hinted and rasterised for the size it is asked for; a path
-    /// is not. Anything glyph-shaped belongs in a font.
-    /// </para>
-    /// </summary>
-    public static bool EyeButton(string id, float x, float y, float size, bool shown)
-    {
-        ImGui.SetCursorScreenPos(new Vector2(x, y));
-        ImGui.InvisibleButton(id, new Vector2(size, size));
-        bool hovered = ImGui.IsItemHovered();
-        ShowHand(hovered);
-        bool clicked = ImGui.IsItemClicked();
-
-        uint ink = shown
-            ? (hovered ? Tokens.Col.Ink : Tokens.Col.InkDim)
-            : (hovered ? Tokens.Col.GoldHi : Tokens.Col.Gold);
-
-        LineIcons.Draw(
-            ImGui.GetWindowDrawList(),
-            shown ? LineIcons.Eye : LineIcons.EyeOff,
-            new Vector2(MathF.Round(x), MathF.Round(y)),
-            size,
-            ink);
-
-        return clicked;
-    }
-
     /// <summary>What goes in the head of a group, beyond its name.</summary>
     internal readonly struct GroupHead
     {
@@ -957,12 +915,6 @@ internal static class Chrome
 
         public bool Collapsed { get; init; }
 
-        /// <summary>
-        /// The part of the preview this card governs, or null for a card that governs
-        /// nothing drawable. Set, it puts an eye in the head that takes that part out of the
-        /// preview while you look at the rest.
-        /// </summary>
-        public Hud.PreviewPart? Eye { get; init; }
     }
 
     /// <summary>What a group reports back, and where its rows go.</summary>
@@ -1063,20 +1015,6 @@ internal static class Chrome
         {
             cursor -= Tokens.Metric.SwitchWidth;
             toggleClicked = Switch(IdGroupToggle, cursor, top, head.Toggle.Value, true);
-            cursor -= Tokens.Space.Md;
-        }
-
-        if (head.Eye is not null)
-        {
-            float size = Tokens.Metric.EyeGlyph;
-            cursor -= size;
-
-            if (EyeButton(IdGroupEye, cursor, MathF.Round(top + ((Ink.LineHeight(Ink.Role.Title) - size) * 0.5f)), size, Hud.PreviewMask.Shows(head.Eye.Value)))
-            {
-                Hud.PreviewMask.Toggle(head.Eye.Value);
-            }
-
-            TooltipOnHover(Strings.PreviewEyeTooltip);
             cursor -= Tokens.Space.Md;
         }
 

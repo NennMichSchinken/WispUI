@@ -27,10 +27,6 @@ internal static class Strings
     public const string PreviewSolo = "1";
     public const string PreviewLight = "4";
     public const string PreviewFull = "8";
-    public const string PreviewHide = "Hide in preview";
-    public const string PreviewEyeTooltip = "Leaves this out of the preview. It changes nothing in the game, and comes back when this window closes.";
-    public const string PreviewShowAll = "Show everything again";
-    public const string PreviewHideTooltip = "Leave parts out of the preview while you work. Nothing here changes the game, and it all comes back when this window closes.";
     public const string EditMode = "Edit Mode";
     public const string EditModeKeys = "Drag or use the arrows  ·  Shift for 10  ·  Ctrl ignores the guides";
     public const string EditModeDone = "Done";
@@ -39,25 +35,14 @@ internal static class Strings
     // --- Navigation ---------------------------------------------------------
     public const string NavGlobal = "Global";
     public const string NavProfile = "Profile";
-    public const string NavPartyFrames = "Party Frames";
+    public const string NavPartyFrames = "Party List";
 
     // --- Tabs ---------------------------------------------------------------
     public const string TabBase = "Base";
-    public const string TabIcons = "Icons";
     public const string TabLayout = "Layout";
-    public const string TabAuras = "Auras";
-    public const string TabText = "Text";
     public const string TabColours = "Colours";
-    public const string TabMarks = "Marks";
-
     // --- Subheadings inside a card. Rare on purpose — see Chrome.Subhead.
-    public const string SubheadTheRow = "The row";
-    public const string SubheadOnEachIcon = "On each icon";
-
     // --- Module header ------------------------------------------------------
-    public const string CopyAppearance = "Copy appearance";
-    public const string PasteAppearance = "Paste\u2026";
-    public const string UndoPaste = "Undo paste";
     public const string StateOn = "on";
     public const string StateOff = "off";
 
@@ -66,115 +51,15 @@ internal static class Strings
     public const string SelectorEmpty = "Nothing to choose from";
     public const string SearchNoMatch = "Nothing matches.";
 
-    // --- Appearance clipboard ------------------------------------------------
-    public const string PasteFrom = "from: ";
-    public const string PasteApply = "Apply";
-    public const string PasteCancel = "Cancel";
-
-    /// <summary>Beside a field the target element does not have. A few words, not a sentence.</summary>
-    public const string FieldUnsupported = "not on this one";
-
-    public const string FieldColours = "Colours";
-    public const string FieldTexture = "Texture";
-    public const string FieldShape = "Shape";
-    public const string FieldText = "Text";
-    public const string FieldBackground = "Background";
-    public const string FieldOpacity = "Opacity";
-    public const string FieldIcon = "Icon";
-
-    // --- Party Frames --------------------------------------------------------
-    public const string GroupHealthBar = "Health bar";
-    public const string GroupHealthBarHint = "Fill, colour and opacity.";
-    public const string GroupNameText = "Name text";
-    public const string GroupNameTextHint = "The player name on the frame.";
+    // --- Bars and job icons, as the meter draws them --------------------------
     public const string BarStyle = "Bar style";
     public const string BarColour = "Bar colour";
-    public const string NamePosition = "Position";
-    public const string NameInJobColour = "Name in job colour";
-    public const string ShortenNames = "Name length";
-
-    // Written as what they do to a name rather than named in the abstract: "Fri Day" is one
-    // look, and "abbreviate surname" is a sentence you have to translate in your head.
-    public const string ShorteningFull = "Fri Day";
-    public const string ShorteningSurname = "Fri D.";
-    public const string ShorteningForename = "F. Day";
-
-    // The nine points a text can hang on, in reading order. One list for every text on every
-    // element, so nobody has to learn the same word twice.
-    public const string PositionTopLeft = "Top left";
-    public const string PositionTop = "Top";
-    public const string PositionTopRight = "Top right";
-    public const string PositionLeft = "Left";
-    public const string PositionCentre = "Centre";
-    public const string PositionRight = "Right";
-    public const string PositionBottomLeft = "Bottom left";
-    public const string PositionBottom = "Bottom";
-    public const string PositionBottomRight = "Bottom right";
-
-    public const string BarOpacity = "Health bar opacity";
     public const string SmoothBars = "Smooth bars";
-    public const string SmoothBarsTooltip = "Health slides to its new value instead of jumping.";
-
-    public const string GroupShield = "Shield";
-    public const string GroupShieldHint = "Damage that will not land.";
-    public const string ShieldStyle = "Shield texture";
-    public const string ShieldColour = "Shield colour";
-    public const string ShieldOpacity = "Shield opacity";
-    public const string ShieldOpacityTooltip =
-        "The shield's own strength, separate from the health bar's. Lower reads as an overlay laid on the bar; too low and the part over empty bar picks up the world behind it.";
-
     public const string ColourByRole = "By role";
     public const string ColourByJob = "By job";
-    public const string ColourFixed = "Fixed colour";
-
-    // --- Party frames: health text -------------------------------------------
-    public const string GroupHealthText = "Health text";
-    public const string GroupHealthTextHint = "The figure on the bar.";
-    public const string HealthTextMode = "Shows";
-    public const string HealthTextCurrent = "Health";
-    public const string HealthTextPercent = "Percent";
-    public const string HealthTextDeficit = "Missing";
-
-    public const string TextSize = "Size";
-    public const string TextPosition = "Position";
-    public const string OffsetX = "Offset X";
-    public const string OffsetY = "Offset Y";
-
-    // --- Party frames: mana ---------------------------------------------------
-    public const string GroupMana = "Mana";
-    public const string GroupManaHint = "A second reading, for who needs one.";
-    public const string ManaStyle = "Style";
-    public const string ManaStyleStrip = "Strip";
-    public const string ManaStyleBar = "Bar";
-    public const string ManaHeight = "Height";
-    public const string ManaHeightHint = "pixels, whatever the frame height";
-    public const string ManaForTanks = "On tanks";
-    public const string ManaForHealers = "On healers";
-    public const string ManaForDps = "On damage";
-
-    // --- Party frames: job icon -----------------------------------------------
-    public const string GroupJobIcon = "Job icon";
-    public const string GroupJobIconHint = "Who is what, before you read a name.";
     public const string IconStyle = "Style";
     public const string IconStyleFramed = "Framed";
     public const string IconStylePlain = "Plain";
-    public const string IconSize = "Size";
-    public const string IconHideDps = "Hide on damage";
-    public const string IconHideDpsTooltip = "Leaves the two tanks and two healers easy to find.";
-
-    // --- Party frames: party number -------------------------------------------
-    public const string GroupPartyNumber = "Party number";
-    public const string GroupPartyNumberHint = "The 1 to 8 people are called out by.";
-    // --- Party frames: the mouse ----------------------------------------------
-    public const string HighlightHovered = "Ring the frame under the cursor";
-    public const string HighlightHoveredTooltip = "The game's own party list marks it too.";
-    // --- party frames: presence ----------------------------------------------
-    // What a frame says instead of a health figure when the game has no numbers for that
-    // member. Short, because it sits where a number sits.
-    public const string PresenceAway = "Elsewhere";
-    public const string PresenceOffline = "Offline";
-    public const string PresenceDead = "Dead";
-
     // --- bindings -----------------------------------------------------------
     public const string TabBindings = "Bindings";
     public const string GroupJob = "Job";
@@ -194,11 +79,11 @@ internal static class Strings
 
     // --- lettering ----------------------------------------------------------
     public const string GroupLettering = "Lettering";
-    public const string GroupLetteringHint = "The face every text on a frame is set in, and what carries it over the world.";
+    public const string GroupLetteringHint = "The face of the numbers on the meter and on Quick Dispel, and what carries them over the world.";
     public const string TextFont = "Font";
     public const string TextFontTooltip = "The game's own faces, two that ship with WispUI, and any .ttf you put in the plugin's Fonts folder.";
     public const string TextWeight = "Weight";
-    public const string TextWeightTooltip = "Lays the face down more heavily. Not a second font 2014 the letterforms do not change.";
+    public const string TextWeightTooltip = "Lays the face down more heavily. Not a second font — the letterforms do not change.";
     public const string TextWeightNormal = "Normal";
     public const string TextWeightMedium = "Medium";
     public const string TextWeightBold = "Bold";
@@ -208,21 +93,14 @@ internal static class Strings
     public const string TextEdgeShadow = "Shadow";
     public const string TextEdgeOutline = "Outline";
 
-    public const string MouseoverTarget = "Mouseover target";
-
     // Says exactly what it does and no more. A hotbar key still goes to the selected target —
     // the game has no setting that changes that, whatever we assumed (Florian, 2026-09-12).
-    public const string MouseoverTargetTooltip = "Makes <mo> macros act on whoever you point at.";
-
     // The group is named after what it does, not after a switch, because it no longer is one:
     // the list of spells is the setting (Florian, 2026-09-19).
     public const string GroupMouseover = "Mouseover casting";
     public const string GroupMouseoverHint = "Spells that go to whoever is under the pointer instead of your target. Off in PvP.";
     public const string MouseoverAdd = "Add spell";
     public const string MouseoverPick = "Pick a spell…";
-
-    public const string GroupLeader = "Leader";
-    public const string GroupLeaderHint = "Who is in charge of the party.";
 
     // --- Global screen ------------------------------------------------------
     public const string SectionInterface = "Interface";
@@ -258,129 +136,27 @@ internal static class Strings
     // --- Disabled-state explanations -----------------------------------------
     // One short line each. A disabled control owes a reason, not a paragraph.
     public const string DefaultsDisabled = "Nothing to reset yet.";
-    public const string PasteDisabled = "Nothing copied yet.";
-    public const string ApplyDisabled = "Nothing ticked that this one has.";
     public const string SelectorAtStart = "Start of the list.";
     public const string SelectorAtEnd = "End of the list.";
 
-    // --- Party frames: layout ------------------------------------------------
-    public const string GroupArrangement = "Arrangement";
-    public const string GroupArrangementHint = "How the frames are laid out.";
-    public const string GroupSize = "Size";
-    public const string GroupSizeHint = "How big each frame is, and how far apart.";
-
-    // --- Auras: everything lying on a person ---------------------------------
-    // "Debuffs", not "Afflictions". The second was ours and read as a translation of
-    // something; the first is the word the people using this already say (Florian,
-    // 2026-09-19). The code keeps saying auras, which is its own business.
-    public const string GroupAuras = "Debuffs";
-    public const string GroupAurasHint = "What is on them, worst first.";
+    // --- The party list: the marks on the game's own list ----------------------
     public const string GroupCleanse = "Cleansable";
-    public const string GroupCleanseHint = "How a frame says Esuna would help.";
-    public const string GroupRescue = "Rescue";
-    public const string GroupRescueHint = "A raise on its way, and who cannot die.";
-
-    public const string AuraCount = "How many";
-    public const string AuraCountTooltip =
-        "Above this the lowest ranked are dropped. The game decides the ranking, not WispUI.";
-    public const string AuraStacks = "Stacks";
-    public const string AuraStacksTooltip = "The number on effects that stack. Nothing is drawn on those that do not.";
-    public const string AuraSwipe = "Sweep";
-    public const string AuraSwipeTooltip = "A dark wedge that sweeps off the icon as the effect runs out.";
-
-    public const string AuraDuration = "Time left";
-    public const string AuraDurationTooltip = "The seconds left, across the icon. The sweep already says it without a number; this is for when you need to know four from two.";
-    public const string AuraDurationSize = "Time left size";
-    public const string AuraStackSize = "Stack size";
-    public const string AuraNumberSizeTooltip =
-        "How tall the numbers on an icon are. Set it to suit your font — the game's own faces are sharpest at 16, 19 and 24.";
-    public const string AuraDispelBorder = "Mark removable";
-    public const string AuraDispelThickness = "Edge thickness";
-    public const string AuraDispelBorderTooltip = "An edge in the cleanse colour on the afflictions you can take off, so the row says which one once the frame has said there is one.";
-    public const string AuraTooltips = "Describe on hover";
-    public const string AuraTooltipsTooltip =
-        "Point at any effect icon for the game's own name and description. Off by default: the cursor is over these frames while you are healing through them.";
-
-    public const string CleanseHow = "Mark";
-    public const string CleanseHowTooltip =
-        "Cleansable effects always get a bright edge on their own icon. This is the mark on the frame itself.";
-    // Shared by every frame mark, because the shapes are shared. A second mark is a group of
-    // settings, never a second set of these.
-    public const string MarkNone = "None";
-    public const string MarkBorder = "Edge and foot";
-    public const string MarkFull = "Edge and wash";
-    public const string MarkBar = "Health bar";
+    public const string GroupCleanseHint = "A mark on the row of anyone your cleanse would help.";
     public const string MarkOpacity = "Fill strength";
     public const string MarkOpacityTooltip =
-        "How solid the coloured fill is where it is strongest. The edge is not affected.";
-
-    public const string GroupBuffs = "Your effects";
-    public const string GroupBuffsHint = "What you have already put on them.";
-
-    public const string OwnBuffsOnly = "Only yours";
-    public const string OwnBuffsOnlyTooltip =
-        "On, only what you cast yourself. Off, every benefit on them — food, raid buffs and all, which buries the one you are looking for.";
-
-    public const string GroupOthers = "Their effects";
-    public const string GroupOthersHint = "What is on them from somebody else.";
-
+        "How solid the mark is.";
 
     public const string CleanseColour = "Colour";
-    public const string CleanseThickness = "Edge thickness";
-    public const string CleanseThicknessTooltip = "The mark is drawn around the frame, so a thicker edge costs the frame nothing.";
-
     public const string GroupRaiseMark = "Being raised";
-    public const string GroupRaiseMarkHint = "How a frame says somebody is already on this one.";
-    public const string RaiseHow = "Mark";
-    public const string RaiseHowTooltip =
-        "Shown from the moment the cast begins, not when the effect lands — those eight seconds are when a second healer needs to know.";
+    public const string GroupRaiseMarkHint = "A mark on the row of anyone a raise is already on its way to.";
     public const string RaiseColour = "Colour";
-    public const string RaiseThickness = "Edge thickness";
-
     public const string CleanseWhenAble = "Only on cleanse jobs";
     public const string CleanseWhenAbleTooltip =
-        "The mark is an instruction. Off, it also appears on jobs that cannot act on it. The icons show the effect either way.";
-
-    public const string ShowRaise = "Show raise";
-    public const string ShowRaiseTooltip =
-        "A raise already on its way to them, from the moment the cast starts. Its own place on the frame, so a busy frame cannot push it out.";
-
-    public const string ShowInvuln = "Show invulnerability";
-    public const string ShowInvulnTooltip =
-        "A cooldown that is keeping them alive. Shares the place with the raise mark and wins it, because it is the one that changes what you do next.";
-
-    public const string GroupGameList = "Game's party list";
-    public const string GroupGameListHint = "The list these frames stand in for.";
-
-    public const string HideNativeList = "Hide it";
-    public const string HideNativeListTooltip =
-        "Hides the list the game draws, leaving only these frames. The frames keep its order and its right-click menu either way.";
-
-    // Under the switch, because it is what the switch does not change. There is no sorting
-    // setting in WispUI on purpose: the frames read the finished order out of the game.
-    public const string NativeListSorting = "Order and numbers follow the game's own settings.";
-
-    public const string Direction = "Direction";
-    public const string DirectionVertical = "Vertical";
-    public const string DirectionHorizontal = "Horizontal";
-    public const string Lines = "Lines";
-
-    public const string FrameWidth = "Frame width";
-    public const string FrameHeight = "Frame height";
-    public const string SpacingX = "Spacing X";
-    public const string SpacingXHint = "left and right";
-    public const string SpacingY = "Spacing Y";
-    public const string SpacingYHint = "above and below";
-
-    // The arrangement written out, so nobody has to picture it. Filled with the numbers.
-    public const string ArrangementColumns = "{0} columns of {1}";
-    public const string ArrangementRows = "{0} rows of {1}";
-    public const string ArrangementOneColumn = "one column of 8";
-    public const string ArrangementOneRow = "one row of 8";
+        "The mark is an instruction. Off, it also appears on jobs that cannot act on it.";
 
     // --- Edit mode -----------------------------------------------------------
     public const string EditModeOn = "Edit Mode is on";
-    public const string EditModeHint = "Shows eight placeholder frames so the layout can be set without a party.";
+    public const string EditModeHint = "Shows placeholders so everything can be placed without a party.";
     public const string PreviewName = "Placeholder";
 
     // Role names, said the way a player says them. Used where a profile names a role.
@@ -397,7 +173,6 @@ internal static class Strings
     public const string ProfileNewName = "New profile";
     public const string ProfileRename = "Rename";
     public const string ProfileRemove = "Remove";
-    public const string ProfileDuplicate = "Duplicate";
     public const string ProfileFallbackScope = "everything not spoken for";
     public const string ProfileFallbackKeep = "The top profile catches every job no other one claims, so it stays.";
     public const string ProfileFull = "Twenty profiles is the most there is room for.";
@@ -412,7 +187,6 @@ internal static class Strings
     public const string ProfileScopeRole = "A role";
     public const string ProfileScopeJobs = "Named jobs";
     public const string ProfileRole = "Role";
-    public const string ProfileJobs = "Jobs";
     public const string ProfileJobsNone = "No job picked yet.";
     public const string ProfileJobAdd = "Add a job";
     public const string ProfileScopeBeaten = "A profile naming this job on its own wins over one naming its role.";
@@ -427,14 +201,12 @@ internal static class Strings
     public const string ProfilePasteHint = "Pasting asks what to take.";
 
     public const string ProfilePasteTitle = "A profile from a code";
-    public const string ProfilePasteTake = "What to take";
     public const string ProfilePasteInto = "Put it";
     public const string ProfilePasteAsNew = "In a new profile";
     public const string ProfilePasteOverCurrent = "Over the one on screen";
     public const string ProfilePasteApply = "Take it";
-    public const string ProfilePasteCancel = "Leave it";
     public const string ProfilePasteNothing = "Nothing ticked.";
-    public const string ProfilePartPartyFrames = "Party frames";
+    public const string ProfilePartPartyFrames = "Party list";
     public const string ProfilePartScope = "Which jobs it is for";
 
     public const string ProfileCodeEmpty = "There is nothing on the clipboard.";
@@ -459,10 +231,6 @@ internal static class Strings
     public const string MetricDeaths = "Deaths";
 
     public const string NavCombatTracker = "Combat Tracker";
-
-    // --- Party frames: Custom or Legacy ----------------------------------------
-    public const string PartyModeCustom = "Custom";
-    public const string PartyModeLegacy = "Legacy";
 
     // --- Quick Dispel ---------------------------------------------------------
     public const string NavQuickDispel = "Quick Dispel";
@@ -515,13 +283,11 @@ internal static class Strings
     public const string MeterResetCancel = "Cancel";
 
     // The meter's details: the panel under an opened bar, and the window.
-    public const string MeterBarTooltip = "Click for this player's skills.";
     public const string DetailOpen = "Details";
     public const string DetailCritShort = "Crit";
     public const string DetailDirectShort = "DH";
     public const string DetailCritDirectShort = "CDH";
     public const string DetailOverhealShort = "Overheal";
-    public const string DetailMore = "more";
     public const string DetailTotalDamage = "Damage";
     public const string DetailRateDamage = "DPS";
     public const string DetailTotalHeal = "Healing";

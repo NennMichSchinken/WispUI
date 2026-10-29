@@ -12,7 +12,7 @@ namespace WispUI.Core;
 public sealed class Configuration : IPluginConfiguration
 {
     /// <summary>Bump this whenever the stored shape changes, and add a step to <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 22;
+    public const int CurrentVersion = 23;
 
     /// <summary>How long the configuration may sit unsaved before it is written to disk.</summary>
     private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1.5);
@@ -1951,6 +1951,21 @@ public sealed class Configuration : IPluginConfiguration
             for (int i = 0; i < config.Profiles.Items.Count; i++)
             {
                 config.Profiles.Items[i].PartyFrames.Legacy = false;
+            }
+        }
+
+        // Version 23: WispUI's own frames are gone (Florian, 2026-10-29), and the game's list
+        // is all there is. Legacy is written in everywhere, so nothing that still reads the
+        // flag can disagree. Whoever had Custom keeps their switch, their marks' colours and
+        // their mouseover spells; the game's list they had hidden comes back by itself, since
+        // nothing hides it any more.
+        if (config.Version < 23)
+        {
+            config.PartyFrames.Legacy = true;
+
+            for (int i = 0; i < config.Profiles.Items.Count; i++)
+            {
+                config.Profiles.Items[i].PartyFrames.Legacy = true;
             }
         }
     }

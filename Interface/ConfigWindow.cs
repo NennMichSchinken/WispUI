@@ -4,7 +4,6 @@ using System.Reflection;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Game.ClientState.Keys;
 using Dalamud.Interface.Windowing;
-using WispUI.Appearance;
 using WispUI.Core;
 using WispUI.Hud;
 using WispUI.Interface.Screens;
@@ -52,9 +51,6 @@ internal sealed class ConfigWindow : Window
     private const string IdContent = "##wisp-content";
     private const string IdPreview = "##wisp-preview";
     private const string IdPreviewToggle = "##wisp-previewtoggle";
-    private const string IdPreviewEye = "##wisp-previeweye";
-    private const string IdPreviewEyeMenu = "##wisp-previeweyemenu";
-    private const string IdPreviewShowAll = "##wisp-previewshowall";
     private const string IdNews = "##wisp-news";
     private const string IdEditMode = "##wisp-editmode";
     private const string IdModuleSwitch = "##wisp-module-switch";
@@ -100,63 +96,14 @@ internal sealed class ConfigWindow : Window
 
     private static readonly string[] PreviewCountIds = { "##wisp-pv1", "##wisp-pv4", "##wisp-pv8" };
 
-    /// <summary>
-    /// What each part of the preview is called in the menu, in the same order as
-    /// <see cref="PreviewMask.All"/>. Two lists rather than one of pairs, because the enum
-    /// lives beside the drawing and the words live in the strings file.
-    /// </summary>
-    private static readonly string[] PreviewPartLabels =
-    {
-        Strings.GroupNameText,
-        Strings.GroupHealthText,
-        Strings.GroupMana,
-        Strings.GroupShield,
-        Strings.GroupJobIcon,
-        Strings.GroupLeader,
-        Strings.GroupPartyNumber,
-        Strings.GroupAuras,
-        Strings.GroupBuffs,
-        Strings.GroupOthers,
-        Strings.GroupCleanse,
-        Strings.GroupRaiseMark,
-        Strings.GroupRescue,
-    };
-
-    private static readonly string[] PreviewPartIds =
-    {
-        "##wisp-eye0", "##wisp-eye1", "##wisp-eye2", "##wisp-eye3", "##wisp-eye4",
-        "##wisp-eye5", "##wisp-eye6", "##wisp-eye7", "##wisp-eye8", "##wisp-eye9",
-        "##wisp-eye10", "##wisp-eye11", "##wisp-eye12",
-    };
-
     private static readonly string[] TabsGlobal = { Strings.TabBase, Strings.TabColours };
     private static readonly string[] TabsProfile = { Strings.TabBase };
     /// <summary>
-    /// Split by what KIND of thing a setting is, not by subject (§3.1): the bar · what is
-    /// written on it · the badges on it · where the frames go · what is lying on the person ·
-    /// what needs doing about it · what the mouse does.
-    /// <para>
-    /// 🔴 That rule was written on 2026-09-12 because Base was carrying seven groups — and
-    /// Base went on carrying seven groups for another six days. Rewritten on 2026-09-18 with
-    /// every tab at three, which is a two by two grid with room left and nothing scrolling.
-    /// </para>
-    /// <para>
-    /// The price is seven chips instead of five, and the price is real: §3.1 says the tab
-    /// count is itself a cost, and that answering a crowded tab with more tabs is a road worth
-    /// refusing to go far down. Seven is where Florian drew the line, with tabs of three
-    /// rather than tabs of seven.
-    /// </para>
+    /// The marks WispUI lays on the game's list, and the spells that go to whoever the pointer
+    /// is on. The tabs that sized and placed frames of our own went with those frames
+    /// (Florian, 2026-10-29).
     /// </summary>
-    private static readonly string[] TabsPartyFrames =
-    {
-        Strings.TabBase,
-        Strings.TabText,
-        Strings.TabIcons,
-        Strings.TabLayout,
-        Strings.TabAuras,
-        Strings.TabMarks,
-        Strings.TabBindings,
-    };
+    private static readonly string[] TabsPartyFrames = { Strings.TabBase, Strings.TabBindings };
 
     /// <summary>The bar and what it says · where the meter goes and how it is framed.</summary>
     private static readonly string[] TabsCombatTracker = { Strings.TabBase, Strings.TabLayout };
@@ -173,17 +120,6 @@ internal sealed class ConfigWindow : Window
     /// inserted ahead of them.
     /// </summary>
     private static readonly int TabIndexBindings = Array.IndexOf(TabsPartyFrames, Strings.TabBindings);
-
-    /// <summary>
-    /// Legacy's tabs: the marks WispUI lays on the game's list, and what the mouse does on it.
-    /// Everything else on the Custom tabs is about frames of ours, which Legacy does not draw.
-    /// </summary>
-    private static readonly string[] TabsPartyFramesLegacy = { Strings.TabBase, Strings.TabBindings };
-
-    /// <summary>The Custom / Legacy choice in the party frames' header, in that order.</summary>
-    private static readonly string[] PartyModes = { Strings.PartyModeLegacy, Strings.PartyModeCustom };
-
-    private const string IdPartyMode = "##wisp-pf-mode";
 
     /// <summary>
     /// The navigation tree. Suite-wide entries first, then a separator, then the HUD
@@ -222,15 +158,6 @@ internal sealed class ConfigWindow : Window
     /// <summary>The Quick Dispel squares, for their preview band, and their settings page.</summary>
     private readonly Hud.HudElement m_dispel;
     private readonly QuickDispelScreen m_quickDispel;
-
-    /// <summary>
-    /// One buffer for the whole suite, and one strip that offers it. Both are built here and
-    /// handed to whichever module is on screen — the clipboard belongs to the suite, the
-    /// appearance it holds belongs to an element.
-    /// </summary>
-    private readonly AppearanceClipboard m_clipboard = new();
-
-    private readonly AppearanceBar m_appearance;
 
     /// <summary>Built once — the version never changes while the plugin is loaded.</summary>
     private readonly string m_versionChip;
@@ -272,7 +199,6 @@ internal sealed class ConfigWindow : Window
         m_qualityOfLife = new QualityOfLifeScreen(config);
         m_dispel = dispel;
         m_quickDispel = new QuickDispelScreen(config);
-        m_appearance = new AppearanceBar(m_clipboard);
 
         string version = ReadVersion();
         m_versionChip = Strings.PluginName + " " + version;
@@ -293,19 +219,10 @@ internal sealed class ConfigWindow : Window
         this.BringToFront();
     }
 
-    /// <summary>
-    /// Closing the window puts the appearance clipboard's step back out of reach. Undo is
-    /// meant for the moment right after a paste, not for whenever you happen to look again.
-    /// </summary>
+    /// <summary>Closing the window drops a half-typed value and switches the meter's test mode off.</summary>
     public override void OnClose()
     {
-        m_clipboard.ForgetUndo();
         Chrome.CancelValueEdit();
-
-        // The eye switches are a way of looking at the preview, not settings. Everything is
-        // back on the next time the window opens, which is the whole reason they are allowed
-        // to be as many as they are.
-        PreviewMask.ShowAll();
         this.Closed?.Invoke();
 
         this.ReleaseCursor();
@@ -662,65 +579,12 @@ internal sealed class ConfigWindow : Window
 
     private static readonly string[] TabsNone = System.Array.Empty<string>();
 
-    /// <summary>
-    /// The tabs a screen shows right now. The same as <see cref="TabsFor"/> except for the
-    /// party frames, whose tabs depend on the mode: a release note still points at the Custom
-    /// tabs, which is what it was written against.
-    /// </summary>
-    private string[] TabsOn(Screen screen) =>
-        screen == Screen.PartyFrames && m_config.PartyFrames.Legacy ? TabsPartyFramesLegacy : TabsFor(screen);
-
     /// <summary>Whether the party frames' Bindings tab is the one showing, in either mode.</summary>
     private bool OnBindingsTab()
     {
-        string[] tabs = this.TabsOn(Screen.PartyFrames);
+        string[] tabs = TabsFor(Screen.PartyFrames);
         int tab = m_tabIndex[(int)Screen.PartyFrames];
         return tab >= 0 && tab < tabs.Length && tabs[tab] == Strings.TabBindings;
-    }
-
-    /// <summary>
-    /// Legacy or Custom, as a strip at the start of the tab row, a hairline away from the
-    /// tabs: first what the module is, then the tabs that belong to it — and switching shows
-    /// the row beside it grow or shrink (Florian, 2026-09-25, variant A). Exactly one is on.
-    /// <para>
-    /// Switching keeps you on the same tab where both modes have it (Bindings), and puts you
-    /// on Base where the tab you were on does not exist in the other mode.
-    /// </para>
-    /// </summary>
-    /// <returns>Where the tabs start, right of the strip and its hairline.</returns>
-    private float DrawPartyMode(ImDrawListPtr dl, float x, float y)
-    {
-        float widest = MathF.Max(
-            Ink.Measure(Ink.Role.Body, Strings.PartyModeCustom).X,
-            Ink.Measure(Ink.Role.Body, Strings.PartyModeLegacy).X);
-        float width = MathF.Round((widest + (Tokens.Space.Lg * 2f)) * PartyModes.Length);
-        float height = Tokens.Metric.TabHeight;
-
-        // Legacy first, so it sits on the left (Florian, 2026-09-25).
-        int mode = m_config.PartyFrames.Legacy ? 0 : 1;
-        string[] before = this.TabsOn(Screen.PartyFrames);
-        int tab = m_tabIndex[(int)Screen.PartyFrames];
-        string current = tab >= 0 && tab < before.Length ? before[tab] : Strings.TabBase;
-
-        if (Chrome.Segment(IdPartyMode, x, y, width, height, PartyModes, ref mode))
-        {
-            m_config.PartyFrames.Legacy = mode == 0;
-            m_config.MarkDirty();
-
-            int kept = Array.IndexOf(this.TabsOn(Screen.PartyFrames), current);
-            m_tabIndex[(int)Screen.PartyFrames] = kept < 0 ? 0 : kept;
-        }
-
-        // The hairline between what the module is and what it has, at the tabs' own height
-        // less a little top and bottom, so it separates without boxing anything in.
-        float lineX = MathF.Round(x + width + Tokens.Space.Lg);
-        float inset = MathF.Round(height * 0.2f);
-        dl.AddRectFilled(
-            new Vector2(lineX, y + inset),
-            new Vector2(lineX + Tokens.Line(1f), y + height - inset),
-            Tokens.Col.Hairline);
-
-        return lineX + Tokens.Line(1f) + Tokens.Space.Lg;
     }
 
     /// <summary>
@@ -1132,12 +996,6 @@ internal sealed class ConfigWindow : Window
 
                 chipX += width + Tokens.Metric.TabGap;
             }
-
-            // The eyes take parts of a frame of ours out of view; in Legacy there is none.
-            if (!m_config.PartyFrames.Legacy)
-            {
-                this.DrawPreviewEyeMenu(dl, x + wide, y, barHeight);
-            }
         }
 
         y += barHeight + Tokens.Space.Sm;
@@ -1160,112 +1018,6 @@ internal sealed class ConfigWindow : Window
         Screen.QuickDispel => m_dispel,
         _ => null,
     };
-
-    /// <summary>
-    /// The eye at the right of the band, and the list of everything the preview can be asked
-    /// to leave out.
-    /// <para>
-    /// The same switches as the eyes on the cards, in one place. The eye on a card is the
-    /// quick way while you are already there; this is the way to take four things out at once
-    /// without hunting across seven tabs for them.
-    /// </para>
-    /// </summary>
-    private void DrawPreviewEyeMenu(ImDrawListPtr dl, float rightEdge, float y, float barHeight)
-    {
-        float size = Tokens.Metric.EyeGlyph;
-        float eyeX = MathF.Round(rightEdge - size);
-        float eyeY = MathF.Round(y + ((barHeight - size) * 0.5f));
-
-        // The button says whether anything is hidden at all, which is the one thing somebody
-        // needs to know without opening it — a preview missing a name for no visible reason
-        // is a bug report waiting to happen.
-        if (Chrome.EyeButton(IdPreviewEye, eyeX, eyeY, size, !PreviewMask.AnyHidden))
-        {
-            ImGui.OpenPopup(IdPreviewEyeMenu);
-        }
-
-        Chrome.TooltipOnHover(Strings.PreviewHideTooltip);
-
-        string label = Strings.PreviewHide;
-        float labelWidth = MathF.Round(Ink.Measure(Ink.Role.Small, label).X);
-        Ink.Draw(
-            dl,
-            Ink.Role.Small,
-            new Vector2(eyeX - Tokens.Space.Sm - labelWidth, Chrome.CenterY(y, barHeight, Ink.Role.Small)),
-            Tokens.Col.InkFaint,
-            label);
-
-        float pad = Tokens.Metric.PopupPadding;
-
-        // 🔴 Menu rows, not settings rows, and two columns. Thirteen settings rows in one
-        // column ran off the bottom of the window and still read as a form rather than as a
-        // list (Florian, 2026-09-19, twice). A checklist is read down in one go.
-        float pitch = Tokens.Metric.MenuRowHeight;
-        float column = Tokens.Px(160f);
-        float gutter = Tokens.Space.Xl;
-        float width = (column * 2f) + gutter;
-        int perColumn = (PreviewMask.All.Length + 1) / 2;
-
-        // Right edge under the right edge of the eye, so the menu hangs off the button that
-        // opened it. The window is the content plus its padding on both sides.
-        ImGui.SetNextWindowPos(new Vector2(
-            MathF.Round(eyeX + size - width - (pad * 2f)),
-            y + barHeight + Tokens.Metric.PopupGap));
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(pad, pad));
-        ImGui.PushStyleVar(ImGuiStyleVar.PopupRounding, Tokens.Radius.Control);
-        ImGui.PushStyleVar(ImGuiStyleVar.PopupBorderSize, Tokens.Line(1f));
-        ImGui.PushStyleColor(ImGuiCol.PopupBg, Tokens.Col.PopupBg);
-        ImGui.PushStyleColor(ImGuiCol.Border, Tokens.Col.PopupEdge);
-
-        if (ImGui.BeginPopup(IdPreviewEyeMenu))
-        {
-            if (Chrome.ClosePopupRequested)
-            {
-                ImGui.CloseCurrentPopup();
-            }
-
-            Vector2 origin = ImGui.GetCursorScreenPos();
-
-            for (int i = 0; i < PreviewMask.All.Length; i++)
-            {
-                PreviewPart part = PreviewMask.All[i];
-                int col = i / perColumn;
-                int row = i - (col * perColumn);
-                float rowX = origin.X + (col * (column + gutter));
-                float rowY = origin.Y + (row * pitch);
-
-                if (Chrome.MenuTickRow(PreviewPartIds[i], PreviewPartLabels[i], rowX, rowY, column, PreviewMask.Shows(part)))
-                {
-                    PreviewMask.Toggle(part);
-                }
-            }
-
-            float below = origin.Y + (perColumn * pitch) + Tokens.Space.Sm;
-
-            // Ticked means shown, so this is the way back rather than a reset of settings —
-            // nothing here was ever written down. It keeps its place whether or not it can be
-            // pressed, so the menu does not change height as things are switched off.
-            if (PreviewMask.AnyHidden
-                && Chrome.PillButton(IdPreviewShowAll, Strings.PreviewShowAll, origin.X, below))
-            {
-                PreviewMask.ShowAll();
-        this.Closed?.Invoke();
-            }
-
-            // 🔴 Back to the corner first. Every row above placed itself with
-            // SetCursorScreenPos, and each of those invisible buttons pushed ImGui's own
-            // cursor further down — so a Dummy from wherever it ended up measured the list
-            // twice over and left the popup half empty (Florian, 2026-09-19: "immer noch zu
-            // lang"). The rows are drawn at absolute positions; the size has to be stated the
-            // same way.
-            ImGui.SetCursorScreenPos(origin);
-            ImGui.Dummy(new Vector2(width, below - origin.Y + Tokens.Metric.ButtonHeight));
-            ImGui.EndPopup();
-        }
-
-        ImGui.PopStyleColor(2);
-        ImGui.PopStyleVar(3);
-    }
 
     /// <summary>
     /// The dark area the frames are drawn into: clipped to its own rectangle, scrolled when
@@ -1441,7 +1193,7 @@ internal sealed class ConfigWindow : Window
 
         // No tabs while the tracker is walking somebody through installing IINACT: there is
         // nothing behind them yet, and the wizard stands where their content would.
-        string[] tabs = m_screen == Screen.CombatTracker && m_combatTracker.ShowsWizard ? TabsNone : this.TabsOn(m_screen);
+        string[] tabs = m_screen == Screen.CombatTracker && m_combatTracker.ShowsWizard ? TabsNone : TabsFor(m_screen);
         int screenIndex = (int)m_screen;
         if (m_tabIndex[screenIndex] >= tabs.Length)
         {
@@ -1459,11 +1211,6 @@ internal sealed class ConfigWindow : Window
         float tabTop = top + Tokens.Space.Md;
         float x = left + Tokens.Metric.SectionPaddingX;
 
-        if (m_screen == Screen.PartyFrames)
-        {
-            x = this.DrawPartyMode(dl, x, tabTop);
-        }
-
         for (int i = 0; i < tabs.Length && i < TabIds.Length; i++)
         {
             float width = Chrome.MeasureTab(tabs[i]);
@@ -1480,8 +1227,7 @@ internal sealed class ConfigWindow : Window
 
     /// <summary>
     /// One central strip per screen: what you are looking at on the left, the actions that
-    /// apply to the whole screen on the right. HUD modules add their on/off switch and the
-    /// appearance clipboard here — the same strip will carry Player Bars, Target and
+    /// apply to the whole screen on the right. HUD modules add their on/off switch here — the same strip will carry Player Bars, Target and
     /// Target-of-Target without any extra work.
     /// </summary>
     private float DrawScreenHeader(ImDrawListPtr dl, float left, float right, float top)
@@ -1489,7 +1235,6 @@ internal sealed class ConfigWindow : Window
         // Quality of Life is a module with no switch of its own: each of its cards carries one
         // (Florian, 2026-09-25), so its header is a title like Global's.
         bool isModule = m_screen is Screen.PartyFrames or Screen.QuickDispel or Screen.CombatTracker;
-        bool isFrames = m_screen == Screen.PartyFrames;
         bool enabled = m_screen switch
         {
             Screen.PartyFrames => m_config.PartyFramesEnabled,
@@ -1498,12 +1243,6 @@ internal sealed class ConfigWindow : Window
         };
         float height = Tokens.Metric.ModuleHeaderHeight;
         float x = left + Tokens.Metric.SectionPaddingX;
-
-        // Told every frame, not only on the frames where the strip is drawn — that is what
-        // makes the step back disappear when you leave the module.
-        // Legacy has no appearance of ours to copy: the look is the game's.
-        bool copyable = isFrames && !m_config.PartyFrames.Legacy;
-        m_appearance.NoteOwner(copyable ? m_partyFrames : null);
 
         if (isModule)
         {
@@ -1554,14 +1293,6 @@ internal sealed class ConfigWindow : Window
         if (m_screen != Screen.News)
         {
             Chrome.Button(IdDefaults, Strings.Defaults, cursor, buttonY, false, Strings.DefaultsDisabled);
-        }
-
-        if (isFrames)
-        {
-            if (copyable)
-            {
-                m_appearance.Draw(m_partyFrames, cursor - Tokens.Space.Md, buttonY);
-            }
         }
 
         return top + height;
@@ -1636,44 +1367,13 @@ internal sealed class ConfigWindow : Window
             {
                 m_quickDispel.Draw(inner);
             }
-            else if (m_screen == Screen.PartyFrames && m_config.PartyFrames.Legacy)
-            {
-                if (this.OnBindingsTab())
-                {
-                    m_partyFrames.DrawBindings(inner);
-                }
-                else
-                {
-                    m_partyFrames.DrawLegacy(inner);
-                }
-            }
-            else if (m_screen == Screen.PartyFrames && tab == 0)
-            {
-                m_partyFrames.Draw(inner);
-            }
-            else if (m_screen == Screen.PartyFrames && tab == 1)
-            {
-                m_partyFrames.DrawText(inner);
-            }
-            else if (m_screen == Screen.PartyFrames && tab == 2)
-            {
-                m_partyFrames.DrawIcons(inner);
-            }
-            else if (m_screen == Screen.PartyFrames && tab == 3)
-            {
-                m_partyFrames.DrawLayout(inner);
-            }
-            else if (m_screen == Screen.PartyFrames && tab == 4)
-            {
-                m_partyFrames.DrawAuras(inner);
-            }
-            else if (m_screen == Screen.PartyFrames && tab == 5)
-            {
-                m_partyFrames.DrawMarks(inner);
-            }
             else if (m_screen == Screen.PartyFrames && tab == TabIndexBindings)
             {
                 m_partyFrames.DrawBindings(inner);
+            }
+            else if (m_screen == Screen.PartyFrames)
+            {
+                m_partyFrames.Draw(inner);
             }
             else
             {

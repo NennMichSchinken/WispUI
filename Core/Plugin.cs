@@ -141,10 +141,6 @@ public sealed class Plugin : IDalamudPlugin
         m_slidecast.Dispose();
         m_frames.Dispose();
 
-        // A piece of the player's interface must never stay hidden by something that has
-        // stopped running. Nothing happens here if we never hid it.
-        NativeUi.RestoreNativePartyList();
-
         m_configWindow.ReleaseCursor();
         m_infoBar.Dispose();
         m_commands.Dispose();
@@ -204,16 +200,6 @@ public sealed class Plugin : IDalamudPlugin
         // inert, so a player who has never named a spell never carries it.
         this.SyncMouseover();
 
-        // On the tick rather than in the draw, because the game puts its own list back up on
-        // its own — a zone change, a duty, any rebuild of the interface — and the tick runs
-        // through all of that while drawing does not. Only a difference is ever written.
-        //
-        // The list goes only while there is something of ours in its place: switching the
-        // module off gives it back without the player having to remember a second tick.
-        // Never in Legacy: there the game's list IS the frames.
-        NativeUi.SettleNativePartyList(
-            m_config.PartyFramesEnabled && !m_config.PartyFrames.Legacy && m_config.PartyFrames.HideNativePartyList);
-
         this.SyncHudFonts();
 
         // Raises in flight and who is in range. Only while something reads the party: the
@@ -266,21 +252,15 @@ public sealed class Plugin : IDalamudPlugin
     /// </summary>
     private void SyncHudFonts()
     {
-        Configuration.PartyFramesConfig cfg = m_config.PartyFrames;
-
-        // 🔴 WorldPx, matching what the draw path asks for. These two have to agree: the
-        // handles are built for exactly the sizes in use, and a size built at one scale and
-        // asked for at another falls back to a stretched glyph nobody chose.
-        // On the stack, so the tick allocates nothing. These are the three texts a frame can
-        // carry; two of them are usually the same size, and SyncHud drops the duplicate.
-        Span<float> sizes = stackalloc float[4];
-        sizes[0] = Tokens.WorldPx(cfg.NameSize);
-        sizes[1] = Tokens.WorldPx(cfg.HpTextSize);
-        sizes[2] = Tokens.WorldPx(cfg.PartyNumberSize);
-
-        // The meter writes one size on every bar. Left out while it is off, so it never costs
-        // a handle nobody draws with.
-        sizes[3] = m_config.CombatTrackerEnabled ? Tokens.WorldPx(m_config.CombatTracker.TextSize) : 0f;
+        // 🔴 WorldPx, matching what the draw path asks for. These have to agree: the handles are
+        // built for exactly the sizes in use, and a size built at one scale and asked for at
+        // another falls back to a stretched glyph nobody chose. On the stack, so the tick
+        // allocates nothing. Since the party frames went (2026-10-29) the HUD face writes two
+        // things: the meter's bars and the time left on a Quick Dispel square. Each is left out
+        // while its module is off, so it never costs a handle nobody draws with.
+        Span<float> sizes = stackalloc float[2];
+        sizes[0] = m_config.CombatTrackerEnabled ? Tokens.WorldPx(m_config.CombatTracker.TextSize) : 0f;
+        sizes[1] = m_config.QuickDispelEnabled ? Tokens.WorldPx(m_config.QuickDispel.SquareSize * Tokens.Metric.DispelNumberShare) : 0f;
 
         Fonts.SyncHud(!m_config.HasPendingChanges, m_config.FontName, HudText.WeightAt(m_config.TextWeight), sizes);
     }

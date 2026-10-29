@@ -302,35 +302,6 @@ internal static class NativeUi
         return found == 0 ? 0u : ((FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject*)found)->OwnerId;
     }
 
-    /// <summary>
-    /// The entity id of whoever is targeted, or zero when nobody is — or when the target is
-    /// something without an entity id of its own (a door, a chest), which carries the
-    /// client's "no object" value and would otherwise match an empty party slot.
-    /// <para>
-    /// Read here rather than through <c>ITargetManager.Target</c>, because that property wraps
-    /// the target in a fresh object on every read, and this is asked once per frame (§7.1).
-    /// The same hard target the property reads: <c>TargetSystem.GetHardTarget</c>.
-    /// </para>
-    /// </summary>
-    public static unsafe uint TargetEntityId()
-    {
-        var system = FFXIVClientStructs.FFXIV.Client.Game.Control.TargetSystem.Instance();
-
-        if (system is null)
-        {
-            return 0;
-        }
-
-        var target = system->GetHardTarget();
-
-        if (target is null || target->EntityId == NoObject)
-        {
-            return 0;
-        }
-
-        return target->EntityId;
-    }
-
     /// <summary>One status effect on somebody, straight out of the game's own array.</summary>
     internal struct StatusEntry
     {
@@ -650,51 +621,6 @@ internal static class NativeUi
         return icon < 62000u ? 0u : icon % 100u;
     }
 
-    /// <summary>Whether the game's party list is hidden because we hid it.</summary>
-    private static bool s_partyListHidden;
-
-    /// <summary>
-    /// Hides or restores the game's own party list, once per frame.
-    /// <para>
-    /// 🔴 Asked every frame rather than on a change of ours, because the game puts its list
-    /// back up by itself — on a zone change, on joining a duty, whenever the interface is
-    /// rebuilt. Only a difference is written, so the common case costs one read.
-    /// </para>
-    /// <para>
-    /// While the player has never asked for this, the list is not touched at all. A plugin
-    /// that sets a piece of the game's interface visible "just to be sure" is a plugin that
-    /// undoes whatever the player did with it somewhere else.
-    /// </para>
-    /// </summary>
-    public static unsafe void SettleNativePartyList(bool hide)
-    {
-        if (!hide && !s_partyListHidden)
-        {
-            return;
-        }
-
-        var addon = (AtkUnitBase*)Services.GameGui.GetAddonByName("_PartyList", 1).Address;
-        if (addon is null)
-        {
-            // Not built yet, or gone with the interface. Nothing to hide and nothing to put
-            // back; the flag stays as it is so the next frame tries again.
-            return;
-        }
-
-        if (addon->IsVisible != !hide)
-        {
-            addon->IsVisible = !hide;
-        }
-
-        s_partyListHidden = hide;
-    }
-
-    /// <summary>
-    /// Puts the game's list back for good. Called when the plugin goes away: a piece of the
-    /// player's interface must never be left hidden by something that is no longer running.
-    /// </summary>
-    public static void RestoreNativePartyList() => SettleNativePartyList(false);
-
     /// <summary>
     /// One of the game's own windows, as it stands on the screen right now.
     /// </summary>
@@ -821,65 +747,6 @@ internal static class NativeUi
     }
 
     /// <summary>
-    /// Opens the game's own right-click menu on a party member — the one with Examine, Trade,
-    /// Send Tell and the rest.
-    /// <para>
-    /// Not a menu of ours that looks like the game's: it is the game's, opened by the same call
-    /// its own party list makes, so it carries exactly the entries that member deserves right
-    /// now and whatever other plugins have added to it. Nothing to keep current.
-    /// </para>
-    /// <para>
-    /// It has to exist because the frames take every mouse button (spec §15), and without this
-    /// the right button over a frame would do nothing at all — while over the game's own party
-    /// list it opens this. The frames are meant to replace that list, so they owe it the menu.
-    /// </para>
-    /// </summary>
-    /// <param name="hudIndex">
-    /// The member's place in the HUD agent's own party array, counting from zero — the
-    /// <see cref="HudPartyMemberInfo.HudIndex"/> carried through the snapshot, not the row the
-    /// member is drawn on and not their place in the party list Dalamud hands us. Those three
-    /// agree only while nothing is sorted, which is exactly the case that hid this apart until
-    /// now.
-    /// </param>
-    public static unsafe void OpenPartyContextMenu(int hudIndex)
-    {
-        if (hudIndex < 0)
-        {
-            return;
-        }
-
-        AgentHUD* hud = AgentHUD.Instance();
-        if (hud is null)
-        {
-            return;
-        }
-
-        // 🔴 Opened in the name of the game's own party list, not from the target.
-        //
-        // Both calls put up the same menu, and the obvious one — from the target — puts it
-        // under the cursor. The cursor is on one of our frames, and ImGui draws after the
-        // entire game interface, so the menu opens underneath the frame it belongs to. That
-        // order cannot be reversed: nothing of ours can go behind a game window.
-        //
-        // It is the party list's menu either way, which is what makes it carry the entries for
-        // a party member rather than for a stranger.
-        //
-        // Where it comes up is not decided here and no longer needs to be. Three attempts went
-        // into moving it somewhere the frames are not — asking for a position (ignored on this
-        // route), placing it beside the block (works, and is not where the pointer is), hiding
-        // the frames (works, and removes what is being read). The frames now leave a hole
-        // where it lands instead, so it can open at the pointer like the game's own does.
-        ushort addonId = Services.GameGui.GetAddonByName("_PartyList", 1).Id;
-
-        if (addonId == 0)
-        {
-            return;
-        }
-
-        hud->OpenContextMenuFromPartyAddon(addonId, hudIndex);
-    }
-
-    /// <summary>
     /// How far inside the menu's own window the hole is cut, per side.
     /// <para>
     /// 🔴 Inside, never flush. A game window is larger than the panel you can see — there is
@@ -894,44 +761,6 @@ internal static class NativeUi
     /// </para>
     /// </summary>
     private const float MenuInset = 6f;
-
-    /// <summary>
-    /// The rectangle the game's own right-click menu actually covers, or false when none is
-    /// open. Used to leave that area unpainted rather than to move anything.
-    /// </summary>
-    public static bool ContextMenuBounds(out Vector2 min, out Vector2 max)
-    {
-        min = default;
-        max = default;
-
-        AtkUnitBasePtr addon = Services.GameGui.GetAddonByName("ContextMenu", 1);
-
-        if (!addon.IsVisible)
-        {
-            return false;
-        }
-
-        Vector2 size = addon.ScaledSize;
-        float inset = Tokens.Px(MenuInset);
-
-        min = addon.Position + new Vector2(inset, inset);
-        max = addon.Position + size - new Vector2(inset, inset);
-
-        // A menu that has been put up but not laid out yet has no size worth cutting around.
-        return max.X > min.X && max.Y > min.Y;
-    }
-
-    /// <summary>
-    /// Whether the game's own right-click menu is on screen.
-    /// <para>
-    /// 🔴 Asked so the frames can let go of the mouse while it is up. The frames hold every
-    /// mouse button over themselves (spec §15), and a menu opened on a frame appears partly
-    /// over that same area — so without this the menu is there and cannot be clicked, and the
-    /// click lands on a frame instead (Florian, 2026-09-12).
-    /// </para>
-    /// </summary>
-    public static bool ContextMenuOpen() =>
-        Services.GameGui.GetAddonByName("ContextMenu", 1).IsVisible;
 
     // Objects in the world still light up behind the window — a postbox under the pointer is
     // highlighted even though the pointer is really on a settings row.
