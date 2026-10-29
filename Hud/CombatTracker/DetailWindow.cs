@@ -614,6 +614,11 @@ internal sealed class DetailWindow
                     cl.AddRectFilled(min, max, hovered ? Tokens.Col.RowHover : Tokens.Col.GroupBg, Tokens.Radius.Small);
                 }
 
+                if (hovered)
+                {
+                    SkillTooltip(line);
+                }
+
                 float mid = min.Y + ((max.Y - min.Y) * 0.5f);
                 float textY = MathF.Round(mid - (body * 0.5f));
                 float x = min.X + pad;
@@ -648,6 +653,28 @@ internal sealed class DetailWindow
         ImGui.PopStyleColor(5);
         ImGui.PopStyleVar(2);
         return top + listHeight;
+    }
+
+    /// <summary>
+    /// What a skill does, in the game's own words: its name and the description the game shows
+    /// on its hotbar tooltip (Florian, 2026-10-29). The text comes from the sheet on the first
+    /// hover and is kept (<see cref="ActionList.Describe"/>). A tick row is no one skill — the
+    /// game does not say which effect ticked — so it says that instead.
+    /// <para>
+    /// Our tooltip in the suite's look, not the game's own window: the game draws its UI
+    /// under every ImGui window, so its tooltip would open behind this one.
+    /// </para>
+    /// </summary>
+    internal static void SkillTooltip(in SkillLine line)
+    {
+        string text = line.Kind switch
+        {
+            SkillKind.DamageOverTime => Strings.DetailDotTooltip,
+            SkillKind.HealOverTime => Strings.DetailHotTooltip,
+            _ => line.ActionId != 0 ? ActionList.Describe(line.ActionId) : string.Empty,
+        };
+
+        Chrome.Tooltip(line.Name, text);
     }
 
     private void DrawChart(ImDrawListPtr dl, Vector2 origin, float width)

@@ -553,6 +553,8 @@ internal static class Strings
     public const string DetailHealing = "Healing";
     public const string DetailDamageOverTime = "Damage over time";
     public const string DetailHealOverTime = "Healing over time";
+    public const string DetailDotTooltip = "Every tick of your damage over time effects together. The game does not say which effect ticked.";
+    public const string DetailHotTooltip = "Every tick of your healing over time effects together. The game does not say which effect ticked.";
     public const string DetailOverTheFight = "OVER THE FIGHT";
     public const string DetailShowParty = "Show party";
     public const string DetailBossHp = "Boss HP";

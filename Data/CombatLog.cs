@@ -87,8 +87,8 @@ internal sealed class CombatLog
     private const uint EffectBlocked = 0x05;
     private const uint EffectParried = 0x06;
 
-    // Damage: crit and direct hit in the second byte (checked live). Heal: crit in the third
-    // byte — ⚠️ the documented value, not yet seen in a dump.
+    // Damage: crit and direct hit in the second byte. Heal: crit in the third byte (a crit
+    // Cure III came as 200004). All three checked in live dumps, 2026-10-29.
     private const uint DamageCrit = 0x2000;
     private const uint DamageDirect = 0x4000;
     private const uint HealCrit = 0x200000;
@@ -412,7 +412,8 @@ internal sealed class CombatLog
 
     /// <summary>
     /// The amount in an effect's value word AABBCCDD: AABB, or DDAABB when CC carries the big
-    /// flag. Checked against the target's health for the small form (2026-10-29).
+    /// flag. The small form checked against the target's health, the big one against a crit
+    /// Glare III: 4F3C4001 = 0x014F3C = 85,820 (both 2026-10-29).
     /// </summary>
     private static long Amount(uint value)
     {

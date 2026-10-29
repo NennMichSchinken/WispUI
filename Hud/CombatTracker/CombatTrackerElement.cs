@@ -826,6 +826,11 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
             float left = min.X + pad;
             float right = max.X - pad;
 
+            if (ImGui.IsWindowHovered() && ImGui.IsMouseHoveringRect(new Vector2(left, y), new Vector2(right, y + line)))
+            {
+                DetailWindow.SkillTooltip(skill);
+            }
+
             ImTextureID tex = Icons.Handle(skill.IconId);
             if (tex != default)
             {

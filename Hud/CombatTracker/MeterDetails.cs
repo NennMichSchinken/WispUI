@@ -10,6 +10,9 @@ namespace WispUI.Hud.CombatTracker;
 /// <summary>One line of a skill list, with everything it says already written out.</summary>
 internal struct SkillLine
 {
+    /// <summary>The action, for its description on hover; zero for a tick row.</summary>
+    public uint ActionId;
+    public SkillKind Kind;
     public string Name;
     public uint IconId;
     public long Amount;
@@ -277,6 +280,8 @@ internal sealed class DetailData
 
             var line = new SkillLine
             {
+                ActionId = s.ActionId,
+                Kind = s.Kind,
                 Name = name,
                 IconId = tick ? 0u : IconOf(s.ActionId),
                 Amount = s.Amount,
