@@ -559,7 +559,8 @@ internal static class Strings
     public const string DetailShowParty = "Show party";
     public const string DetailBossHp = "Boss HP";
     public const string DetailTimeZero = "0:00";
-    public const string DetailNoLog = "No skill data for this fight.";
+    public const string DetailNoLog = "No skill data for this fight. Skills are recorded while WispUI is loaded.";
+    public const string DetailNoLogShort = "No skill data for this fight.";
     public const string DetailNoDamage = "No damage in this fight.";
     public const string DetailNoHealing = "No healing in this fight.";
     public const string DetailChartOverall = "No chart for Overall. Pick a single fight.";

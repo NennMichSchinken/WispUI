@@ -48,9 +48,19 @@ internal sealed class ActorLog
 /// <summary>One fight as the log lines told it, matched to one of IINACT's encounters.</summary>
 internal sealed class FightLog
 {
-    public FightLog(long startMs) => this.StartMs = startMs;
+    public FightLog(long startMs)
+    {
+        this.StartMs = startMs;
+        this.LastMs = startMs;
+    }
 
     public long StartMs { get; }
+
+    /// <summary>When the last damage was counted.</summary>
+    public long LastMs;
+
+    /// <summary>How long IINACT last said this fight was, or -1 while IINACT has not reported it.</summary>
+    public double AttachedSeconds = -1d;
 
     public readonly Dictionary<uint, ActorLog> Actors = new();
 
@@ -106,8 +116,8 @@ internal sealed class CombatLog
     /// <summary>Two hours. A fight longer than that keeps its numbers, not its curve.</summary>
     private const int MaxSeconds = 7200;
 
-    /// <summary>How much older than IINACT says a fight is, before the open log is taken as left over.</summary>
-    private const long StaleSlackMs = 15_000;
+    /// <summary>How long a log IINACT never reported must have been quiet before the next hit starts a new one.</summary>
+    private const long LeftoverGapMs = 10_000;
 
     private FightLog? m_open;
 
@@ -153,23 +163,44 @@ internal sealed class CombatLog
 
     /// <summary>
     /// The log for a fight IINACT reports as running, <paramref name="seconds"/> long. Opens one
-    /// if no line has yet, and drops one that is clearly older than the fight — ticks running
-    /// on after the last fight closed, which IINACT did not take as a fight of their own.
+    /// if no line has yet, and starts afresh when IINACT's fight got shorter — which only a
+    /// new fight does.
+    /// <para>
+    /// 🔴 Not by the clock. IINACT's duration is first hit to last hit, and it keeps reporting
+    /// a fight as running long after the last hit; measuring the open log's age against it
+    /// took a finished fight for a stale one and threw its skills away (2026-10-29).
+    /// </para>
     /// </summary>
     public FightLog ForActive(double seconds)
     {
         lock (this.Sync)
         {
-            long now = Environment.TickCount64;
-            long start = now - (long)(seconds * 1000d);
-
-            if (m_open is null || m_open.StartMs < start - StaleSlackMs)
+            if (m_open is null || (m_open.AttachedSeconds >= 0d && seconds + 1d < m_open.AttachedSeconds))
             {
-                m_open = new FightLog(start);
+                m_open = new FightLog(Environment.TickCount64 - (long)(seconds * 1000d));
             }
 
+            m_open.AttachedSeconds = seconds;
             return m_open;
         }
+    }
+
+    /// <summary>
+    /// The open log for a line about to be counted, opened if there is none. One that IINACT
+    /// never reported as a fight and that went quiet a while ago is left over — ticks running
+    /// on after the last fight closed — and a new fight starts clean instead of inheriting it.
+    /// </summary>
+    private FightLog OpenForDamage()
+    {
+        long now = Environment.TickCount64;
+
+        if (m_open is null || (m_open.AttachedSeconds < 0d && now - m_open.LastMs > LeftoverGapMs))
+        {
+            m_open = new FightLog(now);
+        }
+
+        m_open.LastMs = now;
+        return m_open;
     }
 
     /// <summary>Closes the fight in progress, for IINACT has closed its encounter. The next damage opens a new one.</summary>
@@ -236,7 +267,7 @@ internal sealed class CombatLog
                 return;
             }
 
-            m_open ??= new FightLog(Environment.TickCount64);
+            this.OpenForDamage();
             SkillTotals hit = this.Skill(source, (string?)line[3], actionId, actionId, SkillKind.Ability, false, (string?)line[5]);
             Count(hit, amount, (flags & DamageCrit) != 0, (flags & DamageDirect) != 0);
             this.PerSecond(source, amount, false);
@@ -283,7 +314,7 @@ internal sealed class CombatLog
             return;
         }
 
-        m_open ??= new FightLog(Environment.TickCount64);
+        this.OpenForDamage();
         SkillTotals dot = this.Skill(source, (string?)line[18], KeyDamageOverTime, 0, SkillKind.DamageOverTime, false, null);
         Count(dot, amount, false, false);
         this.PerSecond(source, amount, false);

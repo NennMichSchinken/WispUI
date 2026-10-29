@@ -811,7 +811,7 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
 
         if (m_expanded.Skills.Count == 0)
         {
-            string note = m_expanded.NoLog ? Strings.DetailNoLog : heal ? Strings.DetailNoHealing : Strings.DetailNoDamage;
+            string note = m_expanded.NoLog ? Strings.DetailNoLogShort : heal ? Strings.DetailNoHealing : Strings.DetailNoDamage;
             Ink.DrawNote(dl, px, new Vector2(min.X + pad, MathF.Round(y + ((line - px) * 0.5f))), Tokens.Col.InkDim, note, TextEdge.None);
             return;
         }
