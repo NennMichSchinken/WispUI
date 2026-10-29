@@ -292,6 +292,23 @@ public class Combatant
 
 internal static class Num
 {
-    public static float Parse(string? s) =>
-        float.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out float v) ? v : 0f;
+    public static float Parse(string? s)
+    {
+        if (float.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out float v))
+        {
+            return v;
+        }
+
+        // 🔴 IINACT formats decimals in the culture of the player's Windows: a German system
+        // sends "3964,79" (seen in a live dump, 2026-10-29), which the invariant parse rejects
+        // outright. Whole numbers ("damage") are unaffected. Only reached on the rare value
+        // with a comma, and every combatant caches what it parsed, so the copy is once a push.
+        if (s is null || s.IndexOf(',') < 0)
+        {
+            return 0f;
+        }
+
+        string fixedUp = s.IndexOf('.') < 0 ? s.Replace(',', '.') : s.Replace(",", string.Empty);
+        return float.TryParse(fixedUp, NumberStyles.Float, CultureInfo.InvariantCulture, out v) ? v : 0f;
+    }
 }
