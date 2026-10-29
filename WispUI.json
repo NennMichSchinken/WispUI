@@ -2,7 +2,7 @@
     "Name": "WispUI",
     "Author": "NennMichSchinken",
     "Punchline": "A curated UI suite for FFXIV.",
-    "Description": "WispUI is a focused, curated UI suite for Final Fantasy XIV. It offers real rectangular party frames whose width, height, padding and spacing you control, or keeps the game's own party list and adds cleanse and raise marks to it. It also includes Quick Dispel, a damage meter fed by IINACT, and a slidecast window on the cast bar, and keeps the option list short on purpose.",
+    "Description": "WispUI is a focused, curated UI suite for Final Fantasy XIV. It keeps the game's own party list and adds cleanse and raise marks and mouseover casting to it, and brings Quick Dispel, a damage meter with skill details fed by IINACT, a slidecast window on the cast bar and a ring round the mouse pointer. The option list is short on purpose.",
     "RepoUrl": "https://github.com/NennMichSchinken/WispUI",
-    "Tags": ["UI", "HUD", "party", "unitframes"]
+    "Tags": ["UI", "HUD", "party", "healer", "meter"]
 }
