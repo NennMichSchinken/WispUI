@@ -113,6 +113,18 @@ internal static class LineIcons
         },
         new[] { new Vector3(12f, 12f, 3f) });
 
+    /// <summary>x.svg</summary>
+    public static LineIcon X => Get(
+        "x",
+        new[] { "M18 6 6 18", "m6 6 12 12" },
+        Array.Empty<Vector3>());
+
+    /// <summary>check.svg</summary>
+    public static LineIcon Check => Get(
+        "check",
+        new[] { "M20 6 9 17l-5-5" },
+        Array.Empty<Vector3>());
+
     /// <summary>lock.svg — its rect written out as the path it is.</summary>
     public static LineIcon Lock => Get(
         "lock",

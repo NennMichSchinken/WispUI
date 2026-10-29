@@ -23,6 +23,10 @@ public class CombatEvent
     [JsonIgnore]
     public bool Active => bool.TryParse(this.IsActive, out bool a) && a;
 
+    /// <summary>The skills and seconds of this fight, from the log lines. None for Overall or test data.</summary>
+    [JsonIgnore]
+    internal FightLog? Log { get; set; }
+
     // Two finished snapshots of the same fight look identical here; used to de-dup history.
     public bool SameAs(CombatEvent? other)
     {
@@ -80,6 +84,18 @@ public class CombatEvent
                 a.Healed += c.HealedTotal;
                 a.HealingTaken += c.HealingTaken;
                 a.Deaths += c.DeathCount;
+                a.Hits += c.Hits;
+                a.Swings += c.Swings;
+                a.Misses += c.Misses;
+                a.Crits += c.CritHits;
+                a.DirectHits += c.DirectHits;
+                a.CritDirectHits += c.CritDirectHits;
+                a.Heals += c.Heals;
+                a.CritHeals += c.CritHeals;
+                a.OverHeal += c.OverHeal;
+                a.Shields += c.Shields;
+                a.MaxHit = MathF.Max(a.MaxHit, c.MaxHit);
+                a.MaxHeal = MathF.Max(a.MaxHeal, c.MaxHeal);
             }
         }
 
@@ -102,6 +118,18 @@ public class CombatEvent
                 Deaths = ((int)a.Deaths).ToString(),
                 DpsRaw = Str((float)(a.Damage / totalSeconds)),
                 HpsRaw = Str((float)(a.Healed / totalSeconds)),
+                HitsRaw = Str(a.Hits),
+                SwingsRaw = Str(a.Swings),
+                MissesRaw = Str(a.Misses),
+                CritHitsRaw = Str(a.Crits),
+                DirectHitsRaw = Str(a.DirectHits),
+                CritDirectHitsRaw = Str(a.CritDirectHits),
+                HealsRaw = Str(a.Heals),
+                CritHealsRaw = Str(a.CritHeals),
+                OverHealRaw = Str(a.OverHeal),
+                ShieldsRaw = Str(a.Shields),
+                MaxHitRaw = Str(a.MaxHit),
+                MaxHealRaw = Str(a.MaxHeal),
             };
         }
 
@@ -131,6 +159,18 @@ public class CombatEvent
         public float Healed;
         public float HealingTaken;
         public float Deaths;
+        public float Hits;
+        public float Swings;
+        public float Misses;
+        public float Crits;
+        public float DirectHits;
+        public float CritDirectHits;
+        public float Heals;
+        public float CritHeals;
+        public float OverHeal;
+        public float Shields;
+        public float MaxHit;
+        public float MaxHeal;
     }
 
     // Precise fight length: the rounded mm:ss text loses sub-second precision
@@ -220,6 +260,20 @@ public class Encounter
 
     [JsonProperty("healed")]
     public string HealedRaw { get; set; } = string.Empty;
+
+    // 🔴 IINACT sends most fields twice, once in capitals ("duration" = "01:05" and
+    // "DURATION" = "65"). A name declared once is matched case-insensitively, so the capital
+    // twin, arriving later, overwrote the real one: the title said "65" and DPS lost its
+    // decimals (seen in a live dump, 2026-10-29). Each twin gets a property of its own, which
+    // an exact match takes before any case-insensitive one.
+    [JsonProperty("DURATION")]
+    public string DurationSecondsRaw { get; set; } = string.Empty;
+
+    [JsonProperty("ENCDPS")]
+    public string DpsRounded { get; set; } = string.Empty;
+
+    [JsonProperty("ENCHPS")]
+    public string HpsRounded { get; set; } = string.Empty;
 }
 
 public class Combatant
@@ -250,6 +304,68 @@ public class Combatant
 
     [JsonProperty("deaths")]
     public string Deaths { get; set; } = string.Empty;
+
+    // The capital twins, so they do not overwrite the real fields (see Encounter).
+    [JsonProperty("DURATION")]
+    public string DurationSecondsRaw { get; set; } = string.Empty;
+
+    [JsonProperty("ENCDPS")]
+    public string DpsRounded { get; set; } = string.Empty;
+
+    [JsonProperty("ENCHPS")]
+    public string HpsRounded { get; set; } = string.Empty;
+
+    // What the details read: counts rather than IINACT's own percent texts, so they add up
+    // into Overall and are formatted once, our way.
+    [JsonProperty("hits")]
+    public string HitsRaw { get; set; } = string.Empty;
+
+    [JsonProperty("swings")]
+    public string SwingsRaw { get; set; } = string.Empty;
+
+    [JsonProperty("misses")]
+    public string MissesRaw { get; set; } = string.Empty;
+
+    [JsonProperty("crithits")]
+    public string CritHitsRaw { get; set; } = string.Empty;
+
+    [JsonProperty("DirectHitCount")]
+    public string DirectHitsRaw { get; set; } = string.Empty;
+
+    [JsonProperty("CritDirectHitCount")]
+    public string CritDirectHitsRaw { get; set; } = string.Empty;
+
+    [JsonProperty("heals")]
+    public string HealsRaw { get; set; } = string.Empty;
+
+    [JsonProperty("critheals")]
+    public string CritHealsRaw { get; set; } = string.Empty;
+
+    [JsonProperty("overHeal")]
+    public string OverHealRaw { get; set; } = string.Empty;
+
+    [JsonProperty("damageShield")]
+    public string ShieldsRaw { get; set; } = string.Empty;
+
+    /// <summary>"22620" — the biggest hit alone; its lower-case twin carries the skill's name too.</summary>
+    [JsonProperty("MAXHIT")]
+    public string MaxHitRaw { get; set; } = string.Empty;
+
+    [JsonProperty("maxhit")]
+    public string MaxHitNamed { get; set; } = string.Empty;
+
+    [JsonProperty("MAXHEAL")]
+    public string MaxHealRaw { get; set; } = string.Empty;
+
+    [JsonProperty("maxheal")]
+    public string MaxHealNamed { get; set; } = string.Empty;
+
+    /// <summary>"0%" — only as a share, and only for a single fight (Overall has none).</summary>
+    [JsonProperty("ParryPct")]
+    public string ParryPct { get; set; } = string.Empty;
+
+    [JsonProperty("BlockPct")]
+    public string BlockPct { get; set; } = string.Empty;
 
     // Parsed values are cached on first access: IINACT sends them as strings, and the
     // render loop reads them many times per frame, so we parse each one only once.
@@ -288,6 +404,43 @@ public class Combatant
 
     [JsonIgnore]
     public int DeathCount => m_deathCount ??= (int.TryParse(this.Deaths, out int d) ? d : 0);
+
+    // Read by the details only, which build once per fight update: parsed on demand.
+    [JsonIgnore]
+    public float Hits => Num.Parse(this.HitsRaw);
+
+    [JsonIgnore]
+    public float Swings => Num.Parse(this.SwingsRaw);
+
+    [JsonIgnore]
+    public float Misses => Num.Parse(this.MissesRaw);
+
+    [JsonIgnore]
+    public float CritHits => Num.Parse(this.CritHitsRaw);
+
+    [JsonIgnore]
+    public float DirectHits => Num.Parse(this.DirectHitsRaw);
+
+    [JsonIgnore]
+    public float CritDirectHits => Num.Parse(this.CritDirectHitsRaw);
+
+    [JsonIgnore]
+    public float Heals => Num.Parse(this.HealsRaw);
+
+    [JsonIgnore]
+    public float CritHeals => Num.Parse(this.CritHealsRaw);
+
+    [JsonIgnore]
+    public float OverHeal => Num.Parse(this.OverHealRaw);
+
+    [JsonIgnore]
+    public float Shields => Num.Parse(this.ShieldsRaw);
+
+    [JsonIgnore]
+    public float MaxHit => Num.Parse(this.MaxHitRaw);
+
+    [JsonIgnore]
+    public float MaxHeal => Num.Parse(this.MaxHealRaw);
 }
 
 internal static class Num

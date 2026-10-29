@@ -365,6 +365,12 @@ internal static class Tokens
         public static readonly uint SlideWait = Rgb(0xFF6A5A);
 
         /// <summary>
+        /// ⚠️ NOT MEASURED. The boss's health in the meter's chart, dotted. The same warm red
+        /// as "not yet" above: it is the one line on the chart that is not a player's job colour.
+        /// </summary>
+        public static readonly uint DetailBoss = Rgb(0xFF6A5A);
+
+        /// <summary>
         /// ⚠️ NOT MEASURED. The slide window once the cast is taken: "move now". The same
         /// green as the raise mark on purpose — both say "this is handled".
         /// </summary>
@@ -1144,6 +1150,55 @@ internal static class Tokens
 
         /// <summary>The corner that resizes the meter, and the lock beside it.</summary>
         public static float MeterGrip => WorldPx(14f);
+
+        // --- the meter's details: the panel under an opened bar, and the window -----
+        // Screen pixels like the meter. Text sizes come from the meter's own settings, so
+        // the details grow with the bars they explain.
+
+        /// <summary>The panel under an opened bar: its inset from the bar's left, and its padding.</summary>
+        public static float DetailIndent => WorldPx(8f);
+
+        public static float DetailPad => WorldPx(8f);
+
+        /// <summary>Between the blocks of the details window, and between tiles and chips.</summary>
+        public static float DetailGap => WorldPx(10f);
+
+        public static float DetailSmallGap => WorldPx(6f);
+
+        /// <summary>Between two columns of the skill table.</summary>
+        public static float DetailColumnGap => WorldPx(16f);
+
+        /// <summary>The bar column of the skill table: long enough to compare, short of crowding the numbers.</summary>
+        public static float DetailBarWidth => WorldPx(110f);
+
+        public static float DetailBarHeight => WorldPx(6f);
+
+        /// <summary>Rows of the skill table shown before it scrolls; a rotation is longer than this.</summary>
+        public const int DetailVisibleRows = 12;
+
+        /// <summary>Skills listed under an opened bar.</summary>
+        public const int DetailTopSkills = 3;
+
+        public static float DetailChartHeight => WorldPx(160f);
+
+        /// <summary>The narrowest the window gets, whatever little it has to say.</summary>
+        public static float DetailMinWidth => WorldPx(560f);
+
+        /// <summary>Line widths of the chart: this player, everyone else, the boss.</summary>
+        public static float DetailLineMine => WorldPx(2.5f);
+
+        public static float DetailLineOther => WorldPx(1.5f);
+
+        /// <summary>Dash and gap of the party's lines, and the dots of the boss's.</summary>
+        public static float DetailDash => WorldPx(6f);
+
+        public static float DetailDashGap => WorldPx(4f);
+
+        public static float DetailDot => WorldPx(2f);
+
+        public static float DetailDotGap => WorldPx(4f);
+
+        public static float DetailScrollbar => WorldPx(8f);
 
         /// <summary>How far a HUD text's shadow is offset. One pixel, at whatever the scale is.</summary>
         public static float HudTextShadow => WorldLine(1f);

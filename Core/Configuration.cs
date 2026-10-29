@@ -1251,8 +1251,20 @@ public sealed class Configuration : IPluginConfiguration
         /// <summary>Tells IINACT to close the fight a few seconds after combat ends.</summary>
         public bool AutoEndCombat { get; set; }
 
+        /// <summary>
+        /// Where the details window was dragged to, in screen pixels. Until it has been, it
+        /// opens beside the meter and follows it there.
+        /// </summary>
+        public bool DetailsPlaced { get; set; }
+
+        public float DetailsX { get; set; }
+
+        public float DetailsY { get; set; }
+
         internal void Sanitise()
         {
+            this.DetailsX = Bounded(this.DetailsX, -MaxPosition, MaxPosition, 0f);
+            this.DetailsY = Bounded(this.DetailsY, -MaxPosition, MaxPosition, 0f);
             this.PositionX = Bounded(this.PositionX, -MaxPosition, MaxPosition, 100f);
             this.PositionY = Bounded(this.PositionY, -MaxPosition, MaxPosition, 700f);
             this.Width = Bounded(this.Width, MinMeterWidth, MaxMeterSize, 360f);

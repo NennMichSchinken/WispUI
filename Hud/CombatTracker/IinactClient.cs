@@ -9,7 +9,9 @@ namespace WispUI.Hud.CombatTracker;
 
 /// <summary>
 /// The line to IINACT: subscribes over Dalamud IPC, takes each "CombatData" push, and keeps
-/// the fight in progress plus the ones already finished.
+/// the fight in progress plus the ones already finished. Every network log line comes in on
+/// the same subscription ("LogLine") and goes to <see cref="CombatLog"/>, which the meter's
+/// details are built from.
 /// <para>
 /// Carried over from HamMeter, which is our own published plugin — so this is a move, not a
 /// reimplementation, and the rule against copying foreign plugins does not apply. The IPC
@@ -53,6 +55,9 @@ internal sealed class IinactClient : IDisposable
     private readonly List<CombatEvent> m_past = new();
 
     public bool Connected { get; private set; }
+
+    /// <summary>The log lines, read into fights. Each fight IINACT reports carries its own (<see cref="CombatEvent.Log"/>).</summary>
+    public CombatLog Log { get; } = new();
 
     public CombatEvent? Current
     {
@@ -140,6 +145,11 @@ internal sealed class IinactClient : IDisposable
                     SampleLogLine(data);
                 }
 
+                if (data["line"] is JArray line)
+                {
+                    this.Log.Feed(line);
+                }
+
                 return true;
             }
 
@@ -175,6 +185,23 @@ internal sealed class IinactClient : IDisposable
 
                         return true;
                     }
+                }
+
+                // The log lines of the same fight ride along: the open log while IINACT says the
+                // fight runs, closed with it when IINACT closes it. A finished fight IINACT
+                // repeats is the same one, and keeps the log it was closed with.
+                if (ev.Active)
+                {
+                    double seconds = Num.Parse(ev.Encounter.DurationSecondsRaw);
+                    ev.Log = this.Log.ForActive(seconds > 0 ? seconds : CombatEvent.ParseDuration(ev.Encounter.Duration));
+                }
+                else if (ev.SameAs(m_lastCommitted))
+                {
+                    ev.Log = m_lastCommitted!.Log;
+                }
+                else
+                {
+                    ev.Log = this.Log.Close();
                 }
 
                 // Commit a finished encounter to history once (de-duped against the last one).
@@ -246,6 +273,7 @@ internal sealed class IinactClient : IDisposable
 
             m_current = null;
             m_past.Clear();
+            this.Log.Clear();
             m_lastCommitted = null;
             m_combined = null;
             m_combinedCount = -1;

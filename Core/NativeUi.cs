@@ -293,6 +293,16 @@ internal static class NativeUi
     }
 
     /// <summary>
+    /// Who a pet or summon belongs to, or zero — not loaded, or nobody's. For the meter's
+    /// details, which fold a pet's skills into its owner's (the log line only names the pet).
+    /// </summary>
+    public static unsafe uint OwnerOf(uint entityId)
+    {
+        nint found = FindByEntityId(entityId);
+        return found == 0 ? 0u : ((FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject*)found)->OwnerId;
+    }
+
+    /// <summary>
     /// The entity id of whoever is targeted, or zero when nobody is — or when the target is
     /// something without an entity id of its own (a door, a chest), which carries the
     /// client's "no object" value and would otherwise match an empty party slot.
