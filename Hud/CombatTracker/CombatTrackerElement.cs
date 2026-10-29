@@ -122,9 +122,30 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
     /// <summary>One id per line of each menu, built once.</summary>
     private static readonly string[] MetricIds = BuildIds("##wisp-meter-m", CombatMetrics.All.Length);
     private static readonly string[] FightIds = BuildIds("##wisp-meter-f", IinactClient.MaxHistory + 2);
+    private static readonly string[] BarIds = BuildIds("##wisp-meter-b", MaxRows);
+    private const string IdOpenDetails = "##wisp-meter-details-open";
+
+    /// <summary>How often pets are matched to their owners while a fight runs.</summary>
+    private static readonly TimeSpan OwnersEvery = TimeSpan.FromSeconds(1);
 
     private readonly Configuration m_config;
     private readonly IinactClient m_client = new();
+    private readonly DetailWindow m_details;
+
+    // The bar opened in place: whose it is (IINACT's name), and what it says.
+    private readonly DetailData m_expanded = new();
+    private string? m_expandedKey;
+    private CombatEvent? m_expandedFrom;
+    private bool m_expandedHeal;
+    private bool m_expandedShort;
+    private string? m_expandedBuiltKey;
+    private DateTime m_nextOwners = DateTime.MinValue;
+
+    /// <summary>The local player's name, kept from the last rebuild: IINACT says "YOU", the log lines say the name.</summary>
+    private string? m_you;
+
+    /// <summary>The finished fights, for Overall. A field, so asking for them every frame builds no delegate.</summary>
+    private readonly Func<List<CombatEvent>> m_pastFights;
 
     // The rows on show, and the ones before them — kept so a bar that is still there after an
     // update can carry on sliding from where it was rather than jumping back to its start.
@@ -168,6 +189,8 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
     public CombatTrackerElement(Configuration config)
     {
         m_config = config;
+        m_details = new DetailWindow(config);
+        m_pastFights = m_client.SnapshotPast;
     }
 
     /// <summary>The meter's gear button: open the suite on this module's page.</summary>
@@ -263,7 +286,7 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
                 return false;
             }
 
-            if (EditMode.IsActive || this.TestMode || !m_config.CombatTracker.OnlyInCombat)
+            if (EditMode.IsActive || this.TestMode || !m_config.CombatTracker.OnlyInCombat || m_details.Visible)
             {
                 return true;
             }
@@ -328,6 +351,48 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
         }
 
         m_wasInCombat = inCombat;
+
+        if (now >= m_nextOwners)
+        {
+            m_nextOwners = now + OwnersEvery;
+            this.ResolveOwners();
+        }
+    }
+
+    /// <summary>
+    /// Ties the pets of the fight in progress to their owners, by asking the game whose they
+    /// are. The log line names only the pet, and the line that would name the owner did not
+    /// come in a live dump (2026-10-29). On the tick, because the game's objects are read on
+    /// the game's thread; once a second, because a pet is asked only until it is known.
+    /// </summary>
+    private void ResolveOwners()
+    {
+        CombatLog log = m_client.Log;
+
+        lock (log.Sync)
+        {
+            FightLog? open = log.Open;
+
+            if (open is null)
+            {
+                return;
+            }
+
+            foreach (ActorLog actor in open.Actors.Values)
+            {
+                if (!actor.IsNpc || log.Owners.ContainsKey(actor.Id))
+                {
+                    continue;
+                }
+
+                uint owner = NativeUi.OwnerOf(actor.Id);
+
+                if (CombatLog.IsPlayer(owner))
+                {
+                    log.Owners[actor.Id] = owner;
+                }
+            }
+        }
     }
 
     /// <summary>Starts over: every fight is dropped, and the meter goes back to the current one.</summary>
@@ -342,12 +407,15 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
         m_view = ViewCurrent;
         m_count = 0;
         m_builtFrom = null;
+        m_expandedKey = null;
+        m_details.Close();
     }
 
     public override void Collect()
     {
         Configuration.CombatTrackerConfig cfg = m_config.CombatTracker;
         CombatEvent? shown = this.Shown();
+        this.CollectDetails(shown);
 
         if (ReferenceEquals(shown, m_builtFrom)
             && cfg.Metric == m_builtMetric
@@ -365,6 +433,40 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
         m_builtShort = cfg.ShortNumbers;
         m_builtTest = this.TestMode;
     }
+
+    /// <summary>
+    /// The opened bar and the details window, rebuilt only when the fight data, the player or
+    /// the reading changed — about once a second in a pull, not per frame.
+    /// </summary>
+    private void CollectDetails(CombatEvent? shown)
+    {
+        if (shown is null)
+        {
+            return;
+        }
+
+        Configuration.CombatTrackerConfig cfg = m_config.CombatTracker;
+        bool heal = IsHealing((CombatMetric)cfg.Metric);
+        Func<List<CombatEvent>>? parts = m_view == ViewOverall && !this.TestMode ? m_pastFights : null;
+
+        if (m_expandedKey is not null
+            && (!ReferenceEquals(shown, m_expandedFrom)
+                || !string.Equals(m_expandedKey, m_expandedBuiltKey, StringComparison.Ordinal)
+                || heal != m_expandedHeal
+                || cfg.ShortNumbers != m_expandedShort))
+        {
+            m_expanded.Build(shown, parts?.Invoke(), m_expandedKey, m_you, heal, cfg.ShortNumbers, m_client.Log);
+            m_expandedFrom = shown;
+            m_expandedBuiltKey = m_expandedKey;
+            m_expandedHeal = heal;
+            m_expandedShort = cfg.ShortNumbers;
+        }
+
+        m_details.Collect(shown, parts, m_you, m_client.Log);
+    }
+
+    /// <summary>Healing readings open the healing side of the details, everything else the damage side.</summary>
+    private static bool IsHealing(CombatMetric metric) => metric is CombatMetric.HealingDone or CombatMetric.HealingTaken;
 
     public override void Draw(ImDrawListPtr background)
     {
@@ -393,6 +495,8 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
 
         ImGui.End();
         ImGui.PopStyleVar(3);
+
+        m_details.Draw(pos, size);
     }
 
     public void Dispose() => m_client.Dispose();
@@ -564,26 +668,188 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
             else
             {
                 float barHeight = Tokens.WorldPx(cfg.BarHeight);
-                float pitch = barHeight + Tokens.WorldPx(cfg.BarSpacing);
+                float spacing = Tokens.WorldPx(cfg.BarSpacing);
                 float delta = ImGui.GetIO().DeltaTime;
+                float top = origin.Y;
+                bool editing = EditMode.IsActive;
 
                 for (int i = 0; i < m_count; i++)
                 {
-                    float top = origin.Y + (i * pitch);
+                    ref MeterRow row = ref m_rows[i];
+                    Vector2 barMin = new(origin.X, top);
+                    Vector2 barMax = new(origin.X + area.X, top + barHeight);
 
                     // Only what is inside the card is drawn; the rest is still counted so the
                     // list scrolls to the right length.
                     if (top + barHeight >= min.Y && top <= max.Y)
                     {
-                        this.DrawBar(dl, ref m_rows[i], new Vector2(origin.X, top), new Vector2(origin.X + area.X, top + barHeight), delta);
+                        this.DrawBar(dl, ref row, barMin, barMax, delta);
+
+                        // A click opens this player's top skills under the bar — or, with the
+                        // details window open, shows them there. Never in edit mode, which
+                        // has the mouse for moving, and not for a line without a job.
+                        if (!editing && row.JobId != 0)
+                        {
+                            ImGui.SetCursorScreenPos(barMin);
+                            ImGui.InvisibleButton(BarIds[i], barMax - barMin);
+                            bool hovered = ImGui.IsItemHovered();
+                            Chrome.ShowHand(hovered);
+
+                            if (ImGui.IsItemClicked())
+                            {
+                                this.ClickBar(row.Key);
+                            }
+                        }
+                    }
+
+                    top += barHeight + spacing;
+
+                    // Only once its numbers are built: the frame of the click still holds the
+                    // last bar's, and showing those under this one would be a flash of the wrong player.
+                    if (m_expandedKey is not null
+                        && string.Equals(row.Key, m_expandedKey, StringComparison.Ordinal)
+                        && string.Equals(m_expandedKey, m_expandedBuiltKey, StringComparison.Ordinal))
+                    {
+                        float panel = this.ExpandedHeight();
+
+                        if (top + panel >= min.Y && top <= max.Y)
+                        {
+                            this.DrawExpanded(dl, new Vector2(origin.X, top), area.X, row.JobId);
+                        }
+
+                        top += panel + spacing;
                     }
                 }
 
-                ImGui.Dummy(new Vector2(area.X, (m_count * pitch) - Tokens.WorldPx(cfg.BarSpacing)));
+                ImGui.SetCursorScreenPos(origin);
+                ImGui.Dummy(new Vector2(area.X, MathF.Max(0f, top - origin.Y - spacing)));
             }
         }
 
         ImGui.EndChild();
+    }
+
+    /// <summary>A bar was clicked: show that player in the open details, or open and close the bar in place.</summary>
+    private void ClickBar(string key)
+    {
+        if (m_details.Visible)
+        {
+            m_details.ShowPlayer(key);
+            return;
+        }
+
+        m_expandedKey = string.Equals(m_expandedKey, key, StringComparison.Ordinal) ? null : key;
+    }
+
+    private float ExpandedLine => Tokens.WorldPx(m_config.CombatTracker.TextSize) + Tokens.WorldPx(8f);
+
+    /// <summary>The rates line, the top skills (or the note that there are none), and the padding.</summary>
+    private float ExpandedHeight()
+    {
+        int lines = Math.Clamp(m_expanded.Skills.Count, 1, Tokens.Metric.DetailTopSkills);
+        return (Tokens.Metric.DetailPad * 2f) + this.ExpandedLine + Tokens.Metric.DetailSmallGap + (lines * this.ExpandedLine);
+    }
+
+    /// <summary>
+    /// Under an opened bar: the rates that matter for the reading, the biggest skills, and the
+    /// way to the details window.
+    /// </summary>
+    private void DrawExpanded(ImDrawListPtr dl, Vector2 at, float width, uint jobId)
+    {
+        Configuration.CombatTrackerConfig cfg = m_config.CombatTracker;
+        float pad = Tokens.Metric.DetailPad;
+        float smallGap = Tokens.Metric.DetailSmallGap;
+        float px = Tokens.WorldPx(cfg.TextSize);
+        float line = this.ExpandedLine;
+        Vector2 min = new(at.X + Tokens.Metric.DetailIndent, at.Y);
+        Vector2 max = new(at.X + width, at.Y + this.ExpandedHeight());
+        bool heal = m_expandedHeal;
+
+        dl.AddRectFilled(min, max, Tokens.Col.Faded(Tokens.Col.Panel, cfg.BackgroundOpacity), Tokens.Metric.MeterBarRadius);
+        dl.AddRectFilled(min, new Vector2(min.X + Tokens.WorldPx(2f), max.Y), this.BarColour(jobId));
+
+        // The rates, label and value in turn.
+        float x = min.X + pad;
+        float y = min.Y + pad;
+        float textY = MathF.Round(y + ((line - px) * 0.5f));
+        int rates = heal ? 2 : 3;
+
+        for (int i = 0; i < rates; i++)
+        {
+            string label = heal
+                ? (i == 0 ? Strings.DetailCritShort : Strings.DetailOverhealShort)
+                : (i == 0 ? Strings.DetailCritShort : i == 1 ? Strings.DetailDirectShort : Strings.DetailCritDirectShort);
+            string value = m_expanded.Tiles[i].Value ?? string.Empty;
+
+            Ink.DrawNote(dl, px, new Vector2(x, textY), Tokens.Col.InkDim, label, TextEdge.None);
+            x += Ink.MeasureNote(px, label) + smallGap;
+            Ink.DrawNote(dl, px, new Vector2(x, textY), Tokens.Col.Ink, value, TextEdge.None);
+            x += Ink.MeasureNote(px, value) + Tokens.Metric.DetailColumnGap;
+        }
+
+        // "Details", top right: opens the window for this player and closes the bar.
+        float buttonW = Ink.MeasureNote(px, Strings.DetailOpen) + (pad * 2f);
+        Vector2 buttonMin = new(max.X - pad - buttonW, y);
+        Vector2 buttonMax = buttonMin + new Vector2(buttonW, line);
+        ImGui.SetCursorScreenPos(buttonMin);
+        ImGui.InvisibleButton(IdOpenDetails, buttonMax - buttonMin);
+        bool hovered = ImGui.IsItemHovered();
+        Chrome.ShowHand(hovered);
+
+        if (ImGui.IsItemClicked() && m_expandedKey is not null)
+        {
+            m_details.Show(m_expandedKey, heal);
+            m_expandedKey = null;
+        }
+
+        Chrome.VerticalFill(dl, buttonMin, buttonMax, Tokens.Col.ButtonTop, Tokens.Col.ButtonBottom, Tokens.Metric.MeterBarRadius);
+        dl.AddRect(buttonMin, buttonMax, hovered ? Tokens.Col.ControlEdgeHover : Tokens.Col.ControlEdge, Tokens.Metric.MeterBarRadius, ImDrawFlags.RoundCornersAll, Tokens.WorldLine(1f));
+        Ink.DrawNote(dl, px, new Vector2(buttonMin.X + pad, textY), hovered ? Tokens.Col.GoldHi : Tokens.Col.Ink, Strings.DetailOpen, TextEdge.None);
+
+        // The biggest skills: icon and name on the left, amount and share on the right.
+        y += line + smallGap;
+
+        if (m_expanded.Skills.Count == 0)
+        {
+            string note = m_expanded.NoLog ? Strings.DetailNoLogShort : heal ? Strings.DetailNoHealing : Strings.DetailNoDamage;
+            Ink.DrawNote(dl, px, new Vector2(min.X + pad, MathF.Round(y + ((line - px) * 0.5f))), Tokens.Col.InkDim, note, TextEdge.None);
+            return;
+        }
+
+        float shareColumn = Ink.MeasureNote(px, "100.0%");
+        float icon = line - Tokens.WorldPx(4f);
+
+        for (int i = 0; i < m_expanded.Skills.Count && i < Tokens.Metric.DetailTopSkills; i++)
+        {
+            SkillLine skill = m_expanded.Skills[i];
+            float rowY = MathF.Round(y + ((line - px) * 0.5f));
+            float left = min.X + pad;
+            float right = max.X - pad;
+
+            if (ImGui.IsWindowHovered() && ImGui.IsMouseHoveringRect(new Vector2(left, y), new Vector2(right, y + line)))
+            {
+                DetailWindow.SkillTooltip(skill);
+            }
+
+            ImTextureID tex = Icons.Handle(skill.IconId);
+            if (tex != default)
+            {
+                float iconTop = y + ((line - icon) * 0.5f);
+                dl.AddImage(tex, new Vector2(left, iconTop), new Vector2(left + icon, iconTop + icon));
+            }
+
+            Ink.DrawNote(dl, px, new Vector2(right - Ink.MeasureNote(px, skill.Share), rowY), Tokens.Col.InkDim, skill.Share, TextEdge.None);
+            float amountRight = right - shareColumn - Tokens.Metric.DetailColumnGap;
+            float amountX = amountRight - Ink.MeasureNote(px, skill.AmountText);
+            Ink.DrawNote(dl, px, new Vector2(amountX, rowY), Tokens.Col.Ink, skill.AmountText, TextEdge.None);
+
+            // The name gives way to the numbers, as on the bars.
+            dl.PushClipRect(new Vector2(left, y), new Vector2(MathF.Max(left, amountX - smallGap), y + line), true);
+            Ink.DrawNote(dl, px, new Vector2(left + icon + smallGap, rowY), Tokens.Col.Ink, skill.Name, TextEdge.None);
+            dl.PopClipRect();
+
+            y += line;
+        }
     }
 
     /// <summary>
@@ -1027,6 +1293,7 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
         }
 
         string? you = Services.Objects.LocalPlayer?.Name.TextValue;
+        m_you = you ?? m_you;
 
         foreach (Combatant c in shown.Combatants.Values)
         {
@@ -1063,6 +1330,7 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
 
             m_rows[at] = new MeterRow
             {
+                Key = c.Name,
                 Name = name,
                 JobId = jobId,
                 Letters = c.Job.ToUpperInvariant(),
@@ -1132,7 +1400,7 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
             : main;
     }
 
-    private static string Number(float value, bool shortNumbers)
+    internal static string Number(float value, bool shortNumbers)
     {
         if (!shortNumbers)
         {
@@ -1193,6 +1461,8 @@ internal sealed class CombatTrackerElement : HudElement, IDisposable
     /// <summary>One line of the meter, with everything it says already written out.</summary>
     private struct MeterRow
     {
+        /// <summary>The name IINACT gives, "YOU" for the local player: how the details find this line.</summary>
+        public string Key;
         public string Name;
         public string Rank;
         public string Letters;

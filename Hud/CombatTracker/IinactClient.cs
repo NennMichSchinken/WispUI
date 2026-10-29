@@ -9,7 +9,9 @@ namespace WispUI.Hud.CombatTracker;
 
 /// <summary>
 /// The line to IINACT: subscribes over Dalamud IPC, takes each "CombatData" push, and keeps
-/// the fight in progress plus the ones already finished.
+/// the fight in progress plus the ones already finished. Every network log line comes in on
+/// the same subscription ("LogLine") and goes to <see cref="CombatLog"/>, which the meter's
+/// details are built from.
 /// <para>
 /// Carried over from HamMeter, which is our own published plugin — so this is a move, not a
 /// reimplementation, and the rule against copying foreign plugins does not apply. The IPC
@@ -35,7 +37,7 @@ internal sealed class IinactClient : IDisposable
     private const string SubscribeEndpoint = "IINACT.CreateSubscriber";
     private const string UnsubscribeEndpoint = "IINACT.Unsubscribe";
     private const string ProviderEditEndpoint = "IINACT.IpcProvider." + SubscriptionEndpoint;
-    private const string SubscriptionMessage = "{\"call\":\"subscribe\",\"events\":[\"CombatData\"]}";
+    private const string SubscriptionMessage = "{\"call\":\"subscribe\",\"events\":[\"CombatData\",\"LogLine\"]}";
     internal const int MaxHistory = 50;
 
     private readonly ICallGateProvider<JObject, bool> m_receiver;
@@ -53,6 +55,9 @@ internal sealed class IinactClient : IDisposable
     private readonly List<CombatEvent> m_past = new();
 
     public bool Connected { get; private set; }
+
+    /// <summary>The log lines, read into fights. Each fight IINACT reports carries its own (<see cref="CombatEvent.Log"/>).</summary>
+    public CombatLog Log { get; } = new();
 
     public CombatEvent? Current
     {
@@ -131,6 +136,29 @@ internal sealed class IinactClient : IDisposable
     {
         try
         {
+            // Every network log line arrives here too, many per second in a pull, so it is
+            // told apart before anything is deserialised.
+            if (data.TryGetValue("type", out JToken? kind) && (string?)kind == "LogLine")
+            {
+                if (s_dumpLinesUntil != 0)
+                {
+                    SampleLogLine(data);
+                }
+
+                if (data["line"] is JArray line)
+                {
+                    this.Log.Feed(line);
+                }
+
+                return true;
+            }
+
+            if (s_dumpCombat)
+            {
+                s_dumpCombat = false;
+                DumpCombatKeys(data);
+            }
+
             CombatEvent? ev = data.ToObject<CombatEvent>();
             if (ev?.Encounter is null || ev.Combatants is null || ev.Combatants.Count == 0)
             {
@@ -157,6 +185,23 @@ internal sealed class IinactClient : IDisposable
 
                         return true;
                     }
+                }
+
+                // The log lines of the same fight ride along: the open log while IINACT says the
+                // fight runs, closed with it when IINACT closes it. A finished fight IINACT
+                // repeats is the same one, and keeps the log it was closed with.
+                if (ev.Active)
+                {
+                    double seconds = Num.Parse(ev.Encounter.DurationSecondsRaw);
+                    ev.Log = this.Log.ForActive(seconds > 0 ? seconds : CombatEvent.ParseDuration(ev.Encounter.Duration));
+                }
+                else if (ev.SameAs(m_lastCommitted))
+                {
+                    ev.Log = m_lastCommitted!.Log;
+                }
+                else
+                {
+                    ev.Log = this.Log.Close();
                 }
 
                 // Commit a finished encounter to history once (de-duped against the last one).
@@ -228,9 +273,124 @@ internal sealed class IinactClient : IDisposable
 
             m_current = null;
             m_past.Clear();
+            this.Log.Clear();
             m_lastCommitted = null;
             m_combined = null;
             m_combinedCount = -1;
+        }
+    }
+
+    // ---- Diagnostic: "/wisp status" ------------------------------------------------------
+    //
+    // Asks the running IINACT what it actually sends, before the meter details are built on
+    // it: the keys of one real CombatData push (are DirectHit / CritDirectHit / Parry / Block
+    // there?) and a sample of the log lines the per-skill numbers will come from. Static,
+    // because the command handler has no line to the meter, and a diagnostic is not worth
+    // wiring one.
+
+    private const int DumpSeconds = 40;
+
+    // Line types worth seeing, and how many of each: 01 zone change, 03 add combatant (job,
+    // owner of a pet), 04 remove combatant, 21/22 ability (single / multi target), 24 DoT/HoT
+    // tick, 33 director (fight start / victory / wipe), 37 effect result (HP after a hit).
+    // First run (2026-10-29, Dancer on a dummy) settled 21 and 37; 03 and 24 never came.
+    private static readonly string[] DumpTypes = { "01", "03", "04", "21", "22", "24", "33", "37" };
+    private static readonly int[] DumpBudget = { 3, 12, 4, 14, 6, 14, 6, 0 };
+
+    private static volatile bool s_dumpCombat;
+    private static long s_dumpLinesUntil;
+    private static readonly int[] s_dumpLeft = new int[8];
+    private static readonly Dictionary<string, int> s_dumpSeen = new();
+
+    /// <summary>Starts a dump: the next CombatData push and <see cref="DumpSeconds"/> of log lines.</summary>
+    public static void RequestDump()
+    {
+        lock (s_dumpSeen)
+        {
+            s_dumpSeen.Clear();
+            Array.Copy(DumpBudget, s_dumpLeft, DumpBudget.Length);
+        }
+
+        s_dumpCombat = true;
+        System.Threading.Interlocked.Exchange(ref s_dumpLinesUntil, Environment.TickCount64 + (DumpSeconds * 1000));
+        Services.Log.Information(
+            "Combat tracker dump: armed for {Seconds} s. Nothing below means IINACT sent nothing (not connected, or no fight).",
+            DumpSeconds);
+    }
+
+    private static void DumpCombatKeys(JObject data)
+    {
+        if (data["Encounter"] is JObject encounter)
+        {
+            Services.Log.Information("Combat tracker dump: Encounter has {Count} keys.", encounter.Count);
+            foreach (JProperty p in encounter.Properties())
+            {
+                Services.Log.Information("  Encounter.{Key} = {Value}", p.Name, p.Value.ToString());
+            }
+        }
+
+        if (data["Combatant"] is not JObject combatants)
+        {
+            Services.Log.Information("Combat tracker dump: no Combatant block.");
+            return;
+        }
+
+        int shown = 0;
+        foreach (JProperty c in combatants.Properties())
+        {
+            if (c.Value is not JObject fields)
+            {
+                continue;
+            }
+
+            Services.Log.Information("Combat tracker dump: Combatant \"{Name}\" has {Count} keys.", c.Name, fields.Count);
+            foreach (JProperty p in fields.Properties())
+            {
+                Services.Log.Information("  {Name}.{Key} = {Value}", c.Name, p.Name, p.Value.ToString());
+            }
+
+            if (++shown >= 2)
+            {
+                break;
+            }
+        }
+    }
+
+    private static void SampleLogLine(JObject data)
+    {
+        if (Environment.TickCount64 > System.Threading.Interlocked.Read(ref s_dumpLinesUntil))
+        {
+            System.Threading.Interlocked.Exchange(ref s_dumpLinesUntil, 0);
+            lock (s_dumpSeen)
+            {
+                foreach (KeyValuePair<string, int> seen in s_dumpSeen)
+                {
+                    Services.Log.Information("Combat tracker dump: line type {Type} seen {Count}x.", seen.Key, seen.Value);
+                }
+            }
+
+            Services.Log.Information("Combat tracker dump: done.");
+            return;
+        }
+
+        string type = data["line"] is JArray line && line.Count > 0 ? (string?)line[0] ?? "?" : "?";
+        bool show = false;
+
+        lock (s_dumpSeen)
+        {
+            s_dumpSeen[type] = s_dumpSeen.TryGetValue(type, out int n) ? n + 1 : 1;
+
+            int slot = Array.IndexOf(DumpTypes, type);
+            if (slot >= 0 && s_dumpLeft[slot] > 0)
+            {
+                s_dumpLeft[slot]--;
+                show = true;
+            }
+        }
+
+        if (show)
+        {
+            Services.Log.Information("Combat tracker dump: line {Type}: {Raw}", type, (string?)data["rawLine"] ?? data.ToString(Newtonsoft.Json.Formatting.None));
         }
     }
 

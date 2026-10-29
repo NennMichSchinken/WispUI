@@ -48,6 +48,9 @@ internal sealed class CommandHandler : IDisposable
 
             // The art of a few open game windows, which the Clear Blue style is drawn from.
             NativeUi.DumpWindowArt();
+
+            // What IINACT really sends: one CombatData push and a sample of log lines.
+            Hud.CombatTracker.IinactClient.RequestDump();
             return;
         }
 
