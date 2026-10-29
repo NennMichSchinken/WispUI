@@ -35,7 +35,7 @@ internal sealed class IinactClient : IDisposable
     private const string SubscribeEndpoint = "IINACT.CreateSubscriber";
     private const string UnsubscribeEndpoint = "IINACT.Unsubscribe";
     private const string ProviderEditEndpoint = "IINACT.IpcProvider." + SubscriptionEndpoint;
-    private const string SubscriptionMessage = "{\"call\":\"subscribe\",\"events\":[\"CombatData\"]}";
+    private const string SubscriptionMessage = "{\"call\":\"subscribe\",\"events\":[\"CombatData\",\"LogLine\"]}";
     internal const int MaxHistory = 50;
 
     private readonly ICallGateProvider<JObject, bool> m_receiver;
@@ -131,6 +131,24 @@ internal sealed class IinactClient : IDisposable
     {
         try
         {
+            // Every network log line arrives here too, many per second in a pull, so it is
+            // told apart before anything is deserialised.
+            if (data.TryGetValue("type", out JToken? kind) && (string?)kind == "LogLine")
+            {
+                if (s_dumpLinesUntil != 0)
+                {
+                    SampleLogLine(data);
+                }
+
+                return true;
+            }
+
+            if (s_dumpCombat)
+            {
+                s_dumpCombat = false;
+                DumpCombatKeys(data);
+            }
+
             CombatEvent? ev = data.ToObject<CombatEvent>();
             if (ev?.Encounter is null || ev.Combatants is null || ev.Combatants.Count == 0)
             {
@@ -231,6 +249,119 @@ internal sealed class IinactClient : IDisposable
             m_lastCommitted = null;
             m_combined = null;
             m_combinedCount = -1;
+        }
+    }
+
+    // ---- Diagnostic: "/wisp status" ------------------------------------------------------
+    //
+    // Asks the running IINACT what it actually sends, before the meter details are built on
+    // it: the keys of one real CombatData push (are DirectHit / CritDirectHit / Parry / Block
+    // there?) and a sample of the log lines the per-skill numbers will come from. Static,
+    // because the command handler has no line to the meter, and a diagnostic is not worth
+    // wiring one.
+
+    private const int DumpSeconds = 20;
+
+    // Line types worth seeing, and how many of each: 01 zone change, 03 add combatant (job,
+    // owner of a pet), 04 remove combatant, 21/22 ability (single / multi target), 24 DoT/HoT
+    // tick, 33 director (fight start / victory / wipe), 37 effect result (HP after a hit).
+    private static readonly string[] DumpTypes = { "01", "03", "04", "21", "22", "24", "33", "37" };
+    private static readonly int[] DumpBudget = { 3, 8, 3, 8, 4, 8, 6, 3 };
+
+    private static volatile bool s_dumpCombat;
+    private static long s_dumpLinesUntil;
+    private static readonly int[] s_dumpLeft = new int[8];
+    private static readonly Dictionary<string, int> s_dumpSeen = new();
+
+    /// <summary>Starts a dump: the next CombatData push and <see cref="DumpSeconds"/> of log lines.</summary>
+    public static void RequestDump()
+    {
+        lock (s_dumpSeen)
+        {
+            s_dumpSeen.Clear();
+            Array.Copy(DumpBudget, s_dumpLeft, DumpBudget.Length);
+        }
+
+        s_dumpCombat = true;
+        System.Threading.Interlocked.Exchange(ref s_dumpLinesUntil, Environment.TickCount64 + (DumpSeconds * 1000));
+        Services.Log.Information(
+            "Combat tracker dump: armed for {Seconds} s. Nothing below means IINACT sent nothing (not connected, or no fight).",
+            DumpSeconds);
+    }
+
+    private static void DumpCombatKeys(JObject data)
+    {
+        if (data["Encounter"] is JObject encounter)
+        {
+            Services.Log.Information("Combat tracker dump: Encounter has {Count} keys.", encounter.Count);
+            foreach (JProperty p in encounter.Properties())
+            {
+                Services.Log.Information("  Encounter.{Key} = {Value}", p.Name, p.Value.ToString());
+            }
+        }
+
+        if (data["Combatant"] is not JObject combatants)
+        {
+            Services.Log.Information("Combat tracker dump: no Combatant block.");
+            return;
+        }
+
+        int shown = 0;
+        foreach (JProperty c in combatants.Properties())
+        {
+            if (c.Value is not JObject fields)
+            {
+                continue;
+            }
+
+            Services.Log.Information("Combat tracker dump: Combatant \"{Name}\" has {Count} keys.", c.Name, fields.Count);
+            foreach (JProperty p in fields.Properties())
+            {
+                Services.Log.Information("  {Name}.{Key} = {Value}", c.Name, p.Name, p.Value.ToString());
+            }
+
+            if (++shown >= 2)
+            {
+                break;
+            }
+        }
+    }
+
+    private static void SampleLogLine(JObject data)
+    {
+        if (Environment.TickCount64 > System.Threading.Interlocked.Read(ref s_dumpLinesUntil))
+        {
+            System.Threading.Interlocked.Exchange(ref s_dumpLinesUntil, 0);
+            lock (s_dumpSeen)
+            {
+                foreach (KeyValuePair<string, int> seen in s_dumpSeen)
+                {
+                    Services.Log.Information("Combat tracker dump: line type {Type} seen {Count}x.", seen.Key, seen.Value);
+                }
+            }
+
+            Services.Log.Information("Combat tracker dump: done.");
+            return;
+        }
+
+        string type = data["line"] is JArray line && line.Count > 0 ? (string?)line[0] ?? "?" : "?";
+        bool show = false;
+
+        lock (s_dumpSeen)
+        {
+            s_dumpSeen[type] = s_dumpSeen.TryGetValue(type, out int n) ? n + 1 : 1;
+
+            int slot = Array.IndexOf(DumpTypes, type);
+            if (slot >= 0 && s_dumpLeft[slot] > 0)
+            {
+                s_dumpLeft[slot]--;
+                show = true;
+            }
+        }
+
+        if (show)
+        {
+            Services.Log.Information("Combat tracker dump: line {Type}: {Raw}", type, (string?)data["rawLine"] ?? data.ToString(Newtonsoft.Json.Formatting.None));
         }
     }
 
